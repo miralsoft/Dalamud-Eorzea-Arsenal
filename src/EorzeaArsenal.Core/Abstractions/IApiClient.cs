@@ -32,4 +32,14 @@ public interface IApiClient
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The server version info, or an error.</returns>
     Task<ApiResult<VersionResponse>> GetVersionAsync(string? apiKey, CancellationToken ct);
+
+    /// <summary>
+    /// Reads the BiS targets via <c>GET /gear/bis</c> (requires the <c>gear:read</c> scope). Used
+    /// for the in-game "gear vs BiS" diff (R13: still part of the documented slice).
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>gear:read</c>).</param>
+    /// <param name="cidHash">Optional character hash to narrow to one character; <see langword="null"/> for all.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The resolved BiS targets, or a classified error (401/403/404).</returns>
+    Task<ApiResult<BisResponse>> GetBisAsync(string apiKey, string? cidHash, CancellationToken ct);
 }

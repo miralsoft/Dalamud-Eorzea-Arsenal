@@ -41,6 +41,14 @@ _Last updated: 2026-06-12._
 - `GearSyncService` now exposes `LastReport` / `LastSuccessfulPushUtc` / `IsRateLimited` for the UI.
 - In-game verified so far: connect (device-flow/paste) + `/version` test + `/bisexport` push.
 
+### Gear vs BiS (Feature A) — implemented (API contract published 2026-06-13)
+- Keys now carry `gear:write gear:read`. New read path `GET /gear/bis` (optional `?cid_hash=`).
+- Core: `BisResponse`/`BisGearset` models, `IApiClient.GetBisAsync`, `ApiErrorKind.NotFound`,
+  pure `BisComparer` (match by gear_index+job; rings L/R interchangeable; materia multiset).
+- Plugin: `BisWindow` reads live gear → `GET /gear/bis` → renders per-slot diff; opened from the
+  status window. 403→reconnect, 404/empty→"no BiS pinned" messaging.
+- **Feature B (inventory) stays deferred** to `protocol_version: 2` (see agent memory).
+
 ### Next / open
 - **In-game verification (operator):** load the dev build, run `/bisexport`, confirm gearsets,
   materia ids, world name and `cid_hash` are correct. The `GameGearSource` mapping

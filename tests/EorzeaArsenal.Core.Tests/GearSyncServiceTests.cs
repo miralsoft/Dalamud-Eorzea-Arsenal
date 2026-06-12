@@ -212,6 +212,9 @@ public sealed class GearSyncServiceTests
         public Task<ApiResult<VersionResponse>> GetVersionAsync(string? apiKey, CancellationToken ct) =>
             throw new NotSupportedException();
 
+        public Task<ApiResult<BisResponse>> GetBisAsync(string apiKey, string? cidHash, CancellationToken ct) =>
+            throw new NotSupportedException();
+
         public Task<ApiResult<GearPushResult>> PushGearAsync(string apiKey, GearPayload payload, CancellationToken ct)
         {
             var now = Interlocked.Increment(ref _concurrent);

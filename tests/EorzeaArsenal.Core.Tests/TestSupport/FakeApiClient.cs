@@ -65,6 +65,13 @@ public sealed class FakeApiClient : IApiClient
     /// <inheritdoc />
     public Task<ApiResult<VersionResponse>> GetVersionAsync(string? apiKey, CancellationToken ct) =>
         Task.FromResult(VersionResult);
+
+    /// <summary>Result returned by <see cref="GetBisAsync"/>.</summary>
+    public ApiResult<BisResponse> BisResult { get; set; } = ApiResult<BisResponse>.Ok(new BisResponse());
+
+    /// <inheritdoc />
+    public Task<ApiResult<BisResponse>> GetBisAsync(string apiKey, string? cidHash, CancellationToken ct) =>
+        Task.FromResult(BisResult);
 }
 
 /// <summary>Builders for common test data.</summary>

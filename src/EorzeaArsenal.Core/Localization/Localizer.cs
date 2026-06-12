@@ -99,6 +99,18 @@ public sealed class Localizer : ILocalizer
         [LocKeys.CharactersHint] = "Choose which of your characters may be pushed.",
         [LocKeys.CharactersNone] = "No characters seen yet — log in to add one.",
         [LocKeys.CharacterDisabled] = "This character is disabled for pushing.",
+
+        [LocKeys.BisWindowTitle] = "Eorzea Arsenal — Gear vs BiS",
+        [LocKeys.BisRefresh] = "Compare with BiS",
+        [LocKeys.BisOpen] = "Gear vs BiS",
+        [LocKeys.BisLoading] = "Loading BiS targets…",
+        [LocKeys.BisReconnect] = "Your key has no read access. Please reconnect to enable BiS comparison.",
+        [LocKeys.BisNone] = "No BiS target found. Pin one for your gearsets in the web app.",
+        [LocKeys.BisComplete] = "complete",
+        [LocKeys.BisSummary] = "{0}/{1} slots match",
+        [LocKeys.BisHave] = "have {0} → BiS {1}",
+        [LocKeys.BisMissing] = "empty → BiS {0}",
+        [LocKeys.BisMateriaDiff] = "materia differs",
     };
 
     private static readonly IReadOnlyDictionary<string, string> De = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -185,6 +197,18 @@ public sealed class Localizer : ILocalizer
         [LocKeys.CharactersHint] = "Wähle, welche deiner Charaktere übertragen werden dürfen.",
         [LocKeys.CharactersNone] = "Noch keine Charaktere erfasst — logge dich ein.",
         [LocKeys.CharacterDisabled] = "Dieser Charakter ist für die Übertragung deaktiviert.",
+
+        [LocKeys.BisWindowTitle] = "Eorzea Arsenal — Gear vs BiS",
+        [LocKeys.BisRefresh] = "Mit BiS vergleichen",
+        [LocKeys.BisOpen] = "Gear vs BiS",
+        [LocKeys.BisLoading] = "Lade BiS-Ziele…",
+        [LocKeys.BisReconnect] = "Dein Schlüssel hat keinen Lesezugriff. Bitte neu verbinden, um den BiS-Vergleich zu nutzen.",
+        [LocKeys.BisNone] = "Kein BiS-Ziel gefunden. Lege im Webapp eines für deine Gearsets fest.",
+        [LocKeys.BisComplete] = "vollständig",
+        [LocKeys.BisSummary] = "{0}/{1} Slots passen",
+        [LocKeys.BisHave] = "habe {0} → BiS {1}",
+        [LocKeys.BisMissing] = "leer → BiS {0}",
+        [LocKeys.BisMateriaDiff] = "Materia abweichend",
     };
 
     private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Languages =

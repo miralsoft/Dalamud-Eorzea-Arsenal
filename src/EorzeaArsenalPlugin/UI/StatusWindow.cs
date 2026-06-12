@@ -32,6 +32,7 @@ public sealed class StatusWindow : Window
     private readonly ILog _log;
     private readonly Action _requestManualPush;
     private readonly Action _openConfig;
+    private readonly Action _openBis;
 
     private volatile string[] _previewLines = [];
     private volatile bool _previewRan;
@@ -45,6 +46,7 @@ public sealed class StatusWindow : Window
     /// <param name="log">Diagnostics sink.</param>
     /// <param name="requestManualPush">Callback to trigger a manual push.</param>
     /// <param name="openConfig">Callback to open the settings window.</param>
+    /// <param name="openBis">Callback to open the BiS comparison window.</param>
     public StatusWindow(
         PluginConfig config,
         ConfigStore store,
@@ -53,7 +55,8 @@ public sealed class StatusWindow : Window
         IGearSource gearSource,
         ILog log,
         Action requestManualPush,
-        Action openConfig)
+        Action openConfig,
+        Action openBis)
         : base("Eorzea Arsenal###EorzeaArsenalStatus")
     {
         _config = config;
@@ -64,6 +67,7 @@ public sealed class StatusWindow : Window
         _log = log;
         _requestManualPush = requestManualPush;
         _openConfig = openConfig;
+        _openBis = openBis;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -110,6 +114,12 @@ public sealed class StatusWindow : Window
             Util.OpenLink(WebUrl());
         }
 
+        if (ImGui.Button(T(LocKeys.BisOpen)))
+        {
+            _openBis();
+        }
+
+        ImGui.SameLine();
         if (ImGui.Button(T(LocKeys.OpenSettings)))
         {
             _openConfig();

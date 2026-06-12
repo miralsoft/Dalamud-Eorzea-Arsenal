@@ -18,6 +18,9 @@ public enum ApiErrorKind
     /// <summary>422 — validation error (unknown job, bad gear_index, …). Fix the payload.</summary>
     Validation,
 
+    /// <summary>404 — no such resource (e.g. no BiS target for this character yet).</summary>
+    NotFound,
+
     /// <summary>400 — payload too large (&gt; 64 KB) or malformed JSON.</summary>
     BadRequest,
 

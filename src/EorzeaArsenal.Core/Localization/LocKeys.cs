@@ -224,4 +224,38 @@ public static class LocKeys
 
     /// <summary>Message when the current character is opted out.</summary>
     public const string CharacterDisabled = "push.characterdisabled";
+
+    // BiS comparison (Feature A)
+    /// <summary>BiS window title.</summary>
+    public const string BisWindowTitle = "window.bis.title";
+
+    /// <summary>"Compare with BiS" / refresh button.</summary>
+    public const string BisRefresh = "bis.refresh";
+
+    /// <summary>"Open BiS comparison" button (status window).</summary>
+    public const string BisOpen = "status.openbis";
+
+    /// <summary>Loading status.</summary>
+    public const string BisLoading = "bis.loading";
+
+    /// <summary>Message when the key lacks gear:read (reconnect needed).</summary>
+    public const string BisReconnect = "bis.reconnect";
+
+    /// <summary>Message when no BiS target exists yet.</summary>
+    public const string BisNone = "bis.none";
+
+    /// <summary>Per-gearset "complete" marker.</summary>
+    public const string BisComplete = "bis.complete";
+
+    /// <summary>Per-gearset match summary (args: matched, total).</summary>
+    public const string BisSummary = "bis.summary";
+
+    /// <summary>Slot line: have X, BiS Y (args: current id, target id).</summary>
+    public const string BisHave = "bis.have";
+
+    /// <summary>Slot line: empty, BiS Y (arg: target id).</summary>
+    public const string BisMissing = "bis.missing";
+
+    /// <summary>Materia-differs note.</summary>
+    public const string BisMateriaDiff = "bis.materiadiff";
 }

@@ -44,6 +44,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly WindowSystem _windowSystem = new("EorzeaArsenal");
     private readonly ConfigWindow _configWindow;
     private readonly StatusWindow _statusWindow;
+    private readonly BisWindow _bisWindow;
 
     // Framework-tick throttles (Environment.TickCount64 milliseconds).
     private long _nextAutoPushCheckTicks;
@@ -102,8 +103,10 @@ public sealed class Plugin : IDalamudPlugin
         };
         _sync.PushCompleted += OnPushCompleted;
 
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearSource, _log, RequestManualPush, OpenConfig);
+        _bisWindow = new BisWindow(_config, _store, _localizer, api, _gearSource, _log);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearSource, _log, RequestManualPush, OpenConfig, OpenBis);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save, OpenStatus);
+        _windowSystem.AddWindow(_bisWindow);
         _windowSystem.AddWindow(_statusWindow);
         _windowSystem.AddWindow(_configWindow);
 
@@ -141,6 +144,8 @@ public sealed class Plugin : IDalamudPlugin
     private void OpenConfig() => _configWindow.IsOpen = true;
 
     private void OpenStatus() => _statusWindow.IsOpen = true;
+
+    private void OpenBis() => _bisWindow.IsOpen = true;
 
     private void Chat(string message) => _chatGui.Print(ChatPrefix + message);
 

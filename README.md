@@ -57,6 +57,10 @@ The issued key is **write-only (`gear:write`)** — it can do nothing except pus
   API's 30 uploads/hour limit).
 - **Per-character opt-in**, **toast notifications**, **log verbosity** and a **web app URL** are
   configurable in the settings window.
+- **Gear vs BiS:** the status window's *Gear vs BiS* button reads your pinned BiS targets
+  (`GET /gear/bis`, needs the `gear:read` scope your key now carries) and shows a per-slot diff of
+  your current gear against BiS. If you connected before this existed, **reconnect** to get read
+  access. No BiS shown? Pin one for your gearsets in the web app.
 
 ## Base URL note
 

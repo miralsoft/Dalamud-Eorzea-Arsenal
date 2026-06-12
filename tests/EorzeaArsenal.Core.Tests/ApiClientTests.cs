@@ -141,6 +141,41 @@ public sealed class ApiClientTests
     }
 
     [Fact]
+    public async Task GetBis_sends_auth_and_cid_hash_and_parses()
+    {
+        var handler = new StubHttpMessageHandler().Enqueue(
+            HttpStatusCode.OK,
+            """{"protocol_version":1,"data":[{"cid_hash":"abc","job":"DRK","gear_index":3,"name":"2.50","items":{"Weapon":{"id":49668,"materia":[41773]}}}]}""");
+
+        var result = await Make(handler).GetBisAsync("ea_key", "abc", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var entry = Assert.Single(result.Value!.Data);
+        Assert.Equal("DRK", entry.Job);
+        Assert.Equal(3, entry.GearIndex);
+        Assert.Equal(49668, entry.Items["Weapon"].Id);
+
+        var request = handler.Requests.Single();
+        Assert.Equal(HttpMethod.Get, request.Method);
+        Assert.Equal("Bearer ea_key", request.Authorization);
+        Assert.Contains("/gear/bis?cid_hash=abc", request.Uri!.AbsoluteUri);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Forbidden, ApiErrorKind.Forbidden)]
+    [InlineData(HttpStatusCode.NotFound, ApiErrorKind.NotFound)]
+    public async Task GetBis_maps_errors(HttpStatusCode status, ApiErrorKind expected)
+    {
+        var handler = new StubHttpMessageHandler().Enqueue(
+            status, """{"title":"x","request_id":"req-7"}""", contentType: "application/problem+json");
+
+        var result = await Make(handler).GetBisAsync("k", null, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(expected, result.Error!.Kind);
+    }
+
+    [Fact]
     public async Task Network_failure_maps_to_network_error()
     {
         var client = new ApiClient(new HttpClient(new ThrowingHandler()), new StubHttpMessageHandler.Settings());

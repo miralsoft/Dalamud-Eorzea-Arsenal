@@ -77,6 +77,20 @@ public sealed class ApiClient : IApiClient
         return await SendAsync<VersionResponse>(request, ct).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
+    public async Task<ApiResult<BisResponse>> GetBisAsync(string apiKey, string? cidHash, CancellationToken ct)
+    {
+        var path = "/gear/bis";
+        if (!string.IsNullOrEmpty(cidHash))
+        {
+            path += "?cid_hash=" + Uri.EscapeDataString(cidHash);
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, Url(path));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<BisResponse>(request, ct).ConfigureAwait(false);
+    }
+
     private async Task<ApiResult<T>> SendAsync<T>(
         HttpRequestMessage request,
         CancellationToken ct,
@@ -159,6 +173,7 @@ public sealed class ApiClient : IApiClient
             HttpStatusCode.Forbidden => ApiErrorKind.Forbidden,
             HttpStatusCode.Conflict => ApiErrorKind.Conflict,
             HttpStatusCode.UnprocessableEntity => ApiErrorKind.Validation,
+            HttpStatusCode.NotFound => ApiErrorKind.NotFound,
             HttpStatusCode.BadRequest => ApiErrorKind.BadRequest,
             HttpStatusCode.TooManyRequests => ApiErrorKind.RateLimited,
             _ => ApiErrorKind.Unexpected,
