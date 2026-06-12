@@ -47,8 +47,12 @@ public sealed class VersionResponse
     /// <summary>The gear protocol version the server understands.</summary>
     public int ProtocolVersion { get; init; }
 
-    /// <summary>Scopes the presented key carries (when called with auth).</summary>
-    public string? Scopes { get; init; }
+    /// <summary>
+    /// Scopes advertised by the server. <c>GET /version</c> returns these as a JSON
+    /// <b>array</b> (e.g. <c>["profile:read","gear:write"]</c>), so this must be a list —
+    /// a scalar string here makes <see cref="System.Text.Json"/> throw on parse.
+    /// </summary>
+    public List<string>? Scopes { get; init; }
 
     /// <summary>Webhook event names the server can emit (informational; unused by the plugin).</summary>
     public List<string>? WebhookEvents { get; init; }

@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+- **"Test connection" failed with "Could not parse the server response."**
+  `GET /version` returns `scopes` as a JSON **array**, but `VersionResponse.Scopes` was
+  typed as a scalar `string?`, so `System.Text.Json` threw on deserialization. Changed it
+  to `List<string>?` and added a regression test parsing a real `/version` body.
+
 ### Added
 - Initial plugin implementation.
   - Encapsulated, interface-based core (`IApiClient`, `IGearSource`, `ITokenStore`,

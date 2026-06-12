@@ -123,6 +123,24 @@ public sealed class ApiClientTests
     }
 
     [Fact]
+    public async Task GetVersion_parses_scopes_array()
+    {
+        // Regression: GET /version returns "scopes" as a JSON array, not a scalar string.
+        // A scalar-typed model made deserialization throw ("Could not parse the server response").
+        var handler = new StubHttpMessageHandler().Enqueue(
+            HttpStatusCode.OK,
+            """{"api_version":"v1","app_version":"0.1.0-dev","protocol_version":1,"scopes":["profile:read","gear:write"],"webhook_events":["gear.updated"]}""");
+
+        var result = await Make(handler).GetVersionAsync(null, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("v1", result.Value!.ApiVersion);
+        Assert.Equal(1, result.Value.ProtocolVersion);
+        Assert.Contains("gear:write", result.Value.Scopes!);
+        Assert.EndsWith("/version", handler.Requests.Single().Uri!.AbsoluteUri);
+    }
+
+    [Fact]
     public async Task Network_failure_maps_to_network_error()
     {
         var client = new ApiClient(new HttpClient(new ThrowingHandler()), new StubHttpMessageHandler.Settings());
