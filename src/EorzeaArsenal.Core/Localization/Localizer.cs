@@ -111,6 +111,8 @@ public sealed class Localizer : ILocalizer
         [LocKeys.BisHave] = "have {0} → BiS {1}",
         [LocKeys.BisMissing] = "empty → BiS {0}",
         [LocKeys.BisMateriaDiff] = "materia differs",
+        [LocKeys.BisTooltipHeader] = "Eorzea Arsenal — BiS",
+        [LocKeys.BisTooltipToggle] = "Show BiS info on item hover",
     };
 
     private static readonly IReadOnlyDictionary<string, string> De = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -209,6 +211,8 @@ public sealed class Localizer : ILocalizer
         [LocKeys.BisHave] = "habe {0} → BiS {1}",
         [LocKeys.BisMissing] = "leer → BiS {0}",
         [LocKeys.BisMateriaDiff] = "Materia abweichend",
+        [LocKeys.BisTooltipHeader] = "Eorzea Arsenal — BiS",
+        [LocKeys.BisTooltipToggle] = "BiS-Info beim Item-Hover anzeigen",
     };
 
     private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Languages =

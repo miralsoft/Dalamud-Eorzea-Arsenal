@@ -279,6 +279,13 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
+        var bisTooltip = _config.ShowBisTooltip;
+        if (ImGui.Checkbox(T(LocKeys.BisTooltipToggle), ref bisTooltip))
+        {
+            _config.ShowBisTooltip = bisTooltip;
+            _save();
+        }
+
         var verbosity = (int)_config.Verbosity;
         ReadOnlySpan<string> levels = ["Quiet", "Normal", "Verbose"];
         if (ImGui.Combo(T(LocKeys.Verbosity), ref verbosity, levels, levels.Length))

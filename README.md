@@ -61,6 +61,10 @@ The issued key is **write-only (`gear:write`)** — it can do nothing except pus
   (`GET /gear/bis`, needs the `gear:read` scope your key now carries) and shows a per-slot diff of
   your current gear against BiS. If you connected before this existed, **reconnect** to get read
   access. No BiS shown? Pin one for your gearsets in the web app.
+- **BiS on hover:** with *Show BiS info on item hover* enabled, hovering an item that is one of
+  your BiS targets shows a small overlay listing the matching slot/gearset and your current state
+  (complete / materia differs / different item / empty). It sits next to the game tooltip and never
+  modifies it.
 
 ## Base URL note
 

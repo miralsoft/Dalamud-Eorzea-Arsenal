@@ -16,6 +16,11 @@ All notable changes to this project are documented here. The format is based on
   to `List<string>?` and added a regression test parsing a real `/version` body.
 
 ### Added
+- **BiS hover overlay** — hovering an item whose id is one of your BiS targets shows a small
+  overlay (near the cursor) listing the matching slot(s)/gearset(s) and your current state for that
+  slot (complete / materia differs / different item / empty). Safe ImGui overlay — it does not
+  touch the native game tooltip, so it cannot crash the client and is patch-stable (P2/P6).
+  Toggleable; BiS targets are cached via a shared `BisService` and kept warm (`GET /gear/bis`).
 - **Gear vs BiS (Feature A)** — reads BiS targets via `GET /gear/bis` (new `gear:read` scope,
   issued alongside `gear:write`) and shows an in-game per-slot diff of live gear vs BiS in a new
   **BiS window** (opened from the status window). Pure `BisComparer` matches by `gear_index`+`job`,

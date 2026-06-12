@@ -51,6 +51,9 @@ public sealed class PluginConfig : IPluginConfiguration
     /// <summary>Whether to show a game toast on push outcomes (in addition to chat).</summary>
     public bool UseToasts { get; set; } = true;
 
+    /// <summary>Whether to show the BiS hover overlay over equipment items.</summary>
+    public bool ShowBisTooltip { get; set; } = true;
+
     /// <summary>How verbose the Dalamud log output is.</summary>
     public LogVerbosity Verbosity { get; set; } = LogVerbosity.Normal;
 

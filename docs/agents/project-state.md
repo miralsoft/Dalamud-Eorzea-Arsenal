@@ -47,6 +47,11 @@ _Last updated: 2026-06-12._
   pure `BisComparer` (match by gear_index+job; rings L/R interchangeable; materia multiset).
 - Plugin: `BisWindow` reads live gear → `GET /gear/bis` → renders per-slot diff; opened from the
   status window. 403→reconnect, 404/empty→"no BiS pinned" messaging.
+- **BiS hover overlay**: shared `BisService` (Services/) caches targets + comparison + reverse
+  item lookup; `BisTooltip` (UI/) draws a safe ImGui overlay on `UiBuilder.Draw` using
+  `IGameGui.HoveredItem` (no native-tooltip manipulation, P2/P6). `BisWindow` refactored onto
+  `BisService`. Cache kept warm via a throttled framework-tick refresh. Toggle: `ShowBisTooltip`.
+  Native-tooltip integration intentionally deferred (operator chose overlay-first).
 - **Feature B (inventory) stays deferred** to `protocol_version: 2` (see agent memory).
 
 ### Next / open

@@ -2,19 +2,18 @@ using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
-using EorzeaArsenal.Abstractions;
 using EorzeaArsenal.Gear;
 using EorzeaArsenal.Localization;
 using EorzeaArsenal.Model;
 using EorzeaArsenal.Plugin.Configuration;
+using EorzeaArsenal.Plugin.Services;
 
 namespace EorzeaArsenal.Plugin.UI;
 
 /// <summary>
-/// Shows the in-game "gear vs BiS" diff (Feature A): it reads the live gear, fetches the BiS
-/// targets via <c>GET /gear/bis</c> (needs <c>gear:read</c>) and renders the per-slot comparison
-/// computed by <see cref="BisComparer"/>. Holds no domain logic (R11); all strings via the
-/// localizer (R6).
+/// Shows the in-game "gear vs BiS" diff (Feature A). Reads cached state from
+/// <see cref="BisService"/> (which owns the fetch + comparison) and renders the per-slot diff.
+/// Holds no domain logic (R11); all strings via the localizer (R6).
 /// </summary>
 public sealed class BisWindow : Window
 {
@@ -25,30 +24,20 @@ public sealed class BisWindow : Window
     private readonly PluginConfig _config;
     private readonly ConfigStore _store;
     private readonly Localizer _localizer;
-    private readonly IApiClient _api;
-    private readonly IGearSource _gearSource;
-    private readonly ILog _log;
-
-    private volatile bool _loading;
-    private volatile string _status = string.Empty;
-    private volatile GearsetComparison[] _comparisons = [];
+    private readonly BisService _bis;
 
     /// <summary>Creates the BiS window.</summary>
     /// <param name="config">Live config.</param>
     /// <param name="store">Token store.</param>
     /// <param name="localizer">UI string resolver.</param>
-    /// <param name="api">API client (for <c>GET /gear/bis</c>).</param>
-    /// <param name="gearSource">Live gear source.</param>
-    /// <param name="log">Diagnostics sink.</param>
-    public BisWindow(PluginConfig config, ConfigStore store, Localizer localizer, IApiClient api, IGearSource gearSource, ILog log)
+    /// <param name="bis">The shared BiS service (cache + fetch + comparison).</param>
+    public BisWindow(PluginConfig config, ConfigStore store, Localizer localizer, BisService bis)
         : base("Eorzea Arsenal###EorzeaArsenalBis")
     {
         _config = config;
         _store = store;
         _localizer = localizer;
-        _api = api;
-        _gearSource = gearSource;
-        _log = log;
+        _bis = bis;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -62,31 +51,42 @@ public sealed class BisWindow : Window
     /// <inheritdoc />
     public override void Draw()
     {
-        using (ImRaii.Disabled(_loading || !_store.HasKey || !_config.Enabled))
+        using (ImRaii.Disabled(_bis.IsLoading || !_store.HasKey || !_config.Enabled))
         {
             if (ImGui.Button(T(LocKeys.BisRefresh)))
             {
-                RunCompare();
+                _ = Task.Run(() => _bis.RefreshAsync(CancellationToken.None));
             }
         }
 
-        if (_loading)
+        if (_bis.IsLoading)
         {
             ImGui.SameLine();
             ImGui.TextDisabled(T(LocKeys.BisLoading));
         }
 
-        if (!string.IsNullOrEmpty(_status))
+        var statusMessage = StatusMessage();
+        if (statusMessage is not null)
         {
-            ImGui.TextWrapped(_status);
+            ImGui.TextWrapped(statusMessage);
         }
 
         ImGui.Separator();
-        foreach (var comparison in _comparisons)
+        foreach (var comparison in _bis.Comparisons)
         {
             DrawComparison(comparison);
         }
     }
+
+    private string? StatusMessage() => _bis.Status switch
+    {
+        BisFetchStatus.NotConnected => T(LocKeys.PushNotConnected),
+        BisFetchStatus.NotLoggedIn => T(LocKeys.PushNotLoggedIn),
+        BisFetchStatus.Forbidden => T(LocKeys.BisReconnect),
+        BisFetchStatus.Empty or BisFetchStatus.NotFound => T(LocKeys.BisNone),
+        BisFetchStatus.Error => PushReportFormatter.ErrorMessage(_bis.LastErrorKind, _localizer),
+        _ => null,
+    };
 
     private void DrawComparison(GearsetComparison comparison)
     {
@@ -127,61 +127,5 @@ public sealed class BisWindow : Window
             : _localizer.Get(LocKeys.BisHave, slot.CurrentItemId ?? 0, slot.TargetItemId);
 
         ImGui.TextColored(color, $"  {slot.Slot}: {body}{detail}");
-    }
-
-    private void RunCompare()
-    {
-        _loading = true;
-        _status = string.Empty;
-        _comparisons = [];
-
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                if (!_store.HasKey)
-                {
-                    _status = T(LocKeys.PushNotConnected);
-                    return;
-                }
-
-                var live = await _gearSource.ReadAsync(CancellationToken.None).ConfigureAwait(false);
-                if (live is null)
-                {
-                    _status = T(LocKeys.PushNotLoggedIn);
-                    return;
-                }
-
-                var clean = GearSanitizer.Sanitize(live);
-                var result = await _api.GetBisAsync(_store.ApiKey!, clean.Character.CidHash, CancellationToken.None).ConfigureAwait(false);
-                if (!result.IsSuccess)
-                {
-                    _status = result.Error!.Kind switch
-                    {
-                        ApiErrorKind.Forbidden => T(LocKeys.BisReconnect),
-                        ApiErrorKind.NotFound => T(LocKeys.BisNone),
-                        _ => PushReportFormatter.ErrorMessage(result.Error.Kind, _localizer),
-                    };
-                    return;
-                }
-
-                if (result.Value!.Data.Count == 0)
-                {
-                    _status = T(LocKeys.BisNone);
-                    return;
-                }
-
-                _comparisons = BisComparer.Compare(clean, result.Value.Data).ToArray();
-            }
-            catch (Exception ex)
-            {
-                _log.Error($"BiS comparison failed: {ex.GetType().Name}.");
-                _status = _localizer.Get(LocKeys.TestFailed, ex.GetType().Name);
-            }
-            finally
-            {
-                _loading = false;
-            }
-        });
     }
 }

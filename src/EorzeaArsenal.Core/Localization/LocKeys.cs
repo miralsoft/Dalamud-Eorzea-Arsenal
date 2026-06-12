@@ -258,4 +258,10 @@ public static class LocKeys
 
     /// <summary>Materia-differs note.</summary>
     public const string BisMateriaDiff = "bis.materiadiff";
+
+    /// <summary>BiS hover-overlay header.</summary>
+    public const string BisTooltipHeader = "bis.tooltip.header";
+
+    /// <summary>BiS hover-overlay toggle.</summary>
+    public const string BisTooltipToggle = "config.bistooltip";
 }

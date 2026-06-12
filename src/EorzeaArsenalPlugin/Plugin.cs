@@ -40,16 +40,19 @@ public sealed class Plugin : IDalamudPlugin
     private readonly GameGearSource _gearSource;
     private readonly ConnectionService _connection;
     private readonly GearSyncService _sync;
+    private readonly BisService _bisService;
 
     private readonly WindowSystem _windowSystem = new("EorzeaArsenal");
     private readonly ConfigWindow _configWindow;
     private readonly StatusWindow _statusWindow;
     private readonly BisWindow _bisWindow;
+    private readonly BisTooltip _bisTooltip;
 
     // Framework-tick throttles (Environment.TickCount64 milliseconds).
     private long _nextAutoPushCheckTicks;
     private long _nextSignatureCheckTicks;
     private long _nextCharRecordTicks;
+    private long _nextBisRefreshTicks;
     private ulong _lastSignature;
     private bool _pendingChange;
     private long _changeDebounceUntilTicks;
@@ -61,6 +64,7 @@ public sealed class Plugin : IDalamudPlugin
     /// <param name="playerState">Local character identity (name, world, ContentId).</param>
     /// <param name="framework">Framework-thread marshaller.</param>
     /// <param name="dataManager">Excel data access.</param>
+    /// <param name="gameGui">Provides the hovered item id for the BiS overlay.</param>
     /// <param name="log">Plugin log.</param>
     /// <param name="chatGui">Chat output for user feedback.</param>
     /// <param name="toastGui">Toast notifications.</param>
@@ -71,6 +75,7 @@ public sealed class Plugin : IDalamudPlugin
         IPlayerState playerState,
         IFramework framework,
         IDataManager dataManager,
+        IGameGui gameGui,
         IPluginLog log,
         IChatGui chatGui,
         IToastGui toastGui)
@@ -102,15 +107,18 @@ public sealed class Plugin : IDalamudPlugin
             MinAutoPushInterval = TimeSpan.FromMinutes(Math.Max(1, _config.AutoPushIntervalMinutes)),
         };
         _sync.PushCompleted += OnPushCompleted;
+        _bisService = new BisService(api, _gearSource, _store, _log);
 
-        _bisWindow = new BisWindow(_config, _store, _localizer, api, _gearSource, _log);
+        _bisWindow = new BisWindow(_config, _store, _localizer, _bisService);
         _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearSource, _log, RequestManualPush, OpenConfig, OpenBis);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save, OpenStatus);
+        _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService);
         _windowSystem.AddWindow(_bisWindow);
         _windowSystem.AddWindow(_statusWindow);
         _windowSystem.AddWindow(_configWindow);
 
         _pluginInterface.UiBuilder.Draw += _windowSystem.Draw;
+        _pluginInterface.UiBuilder.Draw += _bisTooltip.Draw;
         _pluginInterface.UiBuilder.OpenConfigUi += OpenConfig;
         _pluginInterface.UiBuilder.OpenMainUi += OpenStatus;
         _clientState.Login += OnLogin;
@@ -129,6 +137,7 @@ public sealed class Plugin : IDalamudPlugin
         _clientState.Login -= OnLogin;
         _framework.Update -= OnFrameworkUpdate;
         _pluginInterface.UiBuilder.Draw -= _windowSystem.Draw;
+        _pluginInterface.UiBuilder.Draw -= _bisTooltip.Draw;
         _pluginInterface.UiBuilder.OpenConfigUi -= OpenConfig;
         _pluginInterface.UiBuilder.OpenMainUi -= OpenStatus;
         _windowSystem.RemoveAllWindows();
@@ -227,6 +236,13 @@ public sealed class Plugin : IDalamudPlugin
         {
             _nextAutoPushCheckTicks = now + 60_000;
             _sync.RequestPush(PushTrigger.Auto);
+        }
+
+        // Keep the BiS cache warm for the hover overlay (reads are cheap: 120/min).
+        if (_config.ShowBisTooltip && now >= _nextBisRefreshTicks && _bisService.IsStale(TimeSpan.FromMinutes(5)))
+        {
+            _nextBisRefreshTicks = now + 60_000;
+            _ = Task.Run(() => _bisService.RefreshAsync(CancellationToken.None));
         }
 
         if (_config.PushOnGearsetChange)
