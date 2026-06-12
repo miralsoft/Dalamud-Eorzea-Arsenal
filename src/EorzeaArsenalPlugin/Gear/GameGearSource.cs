@@ -167,7 +167,10 @@ public sealed class GameGearSource : IGearSource
                     hash = Fnv(hash, item.ItemId);
                     for (var k = 0; k < MateriaSlotCount; k++)
                     {
+                        // Hash both the materia type and its grade: melding/overmelding changes
+                        // the resolved materia item id, so the signature must cover both.
                         hash = Fnv(hash, item.Materia[k]);
+                        hash = Fnv(hash, item.MateriaGrades[k]);
                     }
                 }
             }

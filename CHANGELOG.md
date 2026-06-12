@@ -7,6 +7,9 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Fixed
+- **Gearset-change detection now reacts to materia melds.** The change signature hashed only the
+  materia type, not the grade, so overmelds (grade-only changes) were missed. It now covers both
+  type and grade, matching the resolved materia item ids that get pushed.
 - **"Test connection" failed with "Could not parse the server response."**
   `GET /version` returns `scopes` as a JSON **array**, but `VersionResponse.Scopes` was
   typed as a scalar `string?`, so `System.Text.Json` threw on deserialization. Changed it
