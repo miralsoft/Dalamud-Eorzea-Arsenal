@@ -26,8 +26,11 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IDalamudPluginInterface _pluginInterface;
     private readonly ICommandManager _commandManager;
     private readonly IClientState _clientState;
+    private readonly IFramework _framework;
     private readonly IChatGui _chatGui;
     private readonly ILog _log;
+
+    private long _nextAutoPushCheckTicks;
 
     private readonly HttpClient _httpClient;
     private readonly PluginConfig _config;
@@ -61,6 +64,7 @@ public sealed class Plugin : IDalamudPlugin
         _pluginInterface = pluginInterface;
         _commandManager = commandManager;
         _clientState = clientState;
+        _framework = framework;
         _chatGui = chatGui;
         _log = new PluginLogAdapter(log);
 
@@ -90,10 +94,11 @@ public sealed class Plugin : IDalamudPlugin
         _pluginInterface.UiBuilder.OpenConfigUi += OpenConfig;
         _pluginInterface.UiBuilder.OpenMainUi += OpenConfig;
         _clientState.Login += OnLogin;
+        _framework.Update += OnFrameworkUpdate;
 
         _commandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
-            HelpMessage = "Push your gearsets to Eorzea Arsenal. Open settings with no argument issues.",
+            HelpMessage = _localizer.Get(LocKeys.CommandHelp),
         });
     }
 
@@ -102,6 +107,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         _commandManager.RemoveHandler(CommandName);
         _clientState.Login -= OnLogin;
+        _framework.Update -= OnFrameworkUpdate;
         _pluginInterface.UiBuilder.Draw -= _windowSystem.Draw;
         _pluginInterface.UiBuilder.OpenConfigUi -= OpenConfig;
         _pluginInterface.UiBuilder.OpenMainUi -= OpenConfig;
@@ -143,6 +149,28 @@ public sealed class Plugin : IDalamudPlugin
         {
             _sync.RequestPush(PushTrigger.Login);
         }
+    }
+
+    /// <summary>
+    /// Drives the optional auto-push. Runs every framework tick but only *requests* a push at most
+    /// once a minute; the actual cadence (min interval), the "only when changed" skip and the
+    /// single-in-flight guarantee are all enforced by <see cref="GearSyncService"/> (R23, P11).
+    /// </summary>
+    private void OnFrameworkUpdate(IFramework framework)
+    {
+        if (_config is not { Enabled: true, TosAccepted: true, AutoPush: true } || !_store.HasKey)
+        {
+            return;
+        }
+
+        var now = Environment.TickCount64;
+        if (now < _nextAutoPushCheckTicks)
+        {
+            return;
+        }
+
+        _nextAutoPushCheckTicks = now + 60_000; // re-check at most once per minute
+        _sync.RequestPush(PushTrigger.Auto);
     }
 
     private void OnPushCompleted(PushReport report)

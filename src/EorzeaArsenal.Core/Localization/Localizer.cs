@@ -20,6 +20,7 @@ public sealed class Localizer : ILocalizer
     {
         [LocKeys.PluginName] = "Eorzea Arsenal",
         [LocKeys.ConfigWindowTitle] = "Eorzea Arsenal — Settings",
+        [LocKeys.CommandHelp] = "Push your gearsets to Eorzea Arsenal (opens settings if not yet enabled).",
         [LocKeys.Language] = "Language",
         [LocKeys.Save] = "Save",
         [LocKeys.Close] = "Close",
@@ -80,6 +81,7 @@ public sealed class Localizer : ILocalizer
     {
         [LocKeys.PluginName] = "Eorzea Arsenal",
         [LocKeys.ConfigWindowTitle] = "Eorzea Arsenal — Einstellungen",
+        [LocKeys.CommandHelp] = "Überträgt deine Gearsets an Eorzea Arsenal (öffnet die Einstellungen, falls noch nicht aktiviert).",
         [LocKeys.Language] = "Sprache",
         [LocKeys.Save] = "Speichern",
         [LocKeys.Close] = "Schließen",

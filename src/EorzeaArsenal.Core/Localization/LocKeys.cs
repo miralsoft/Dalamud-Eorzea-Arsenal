@@ -13,6 +13,9 @@ public static class LocKeys
     /// <summary>Config window title.</summary>
     public const string ConfigWindowTitle = "window.config.title";
 
+    /// <summary>Help text for the /bisexport command.</summary>
+    public const string CommandHelp = "command.help";
+
     /// <summary>"Language" label.</summary>
     public const string Language = "common.language";
 

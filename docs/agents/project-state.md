@@ -19,7 +19,10 @@ _Last updated: 2026-06-12._
   (`RaptureGearsetModule` via `IPlayerState`/`IClientState`/`IFramework`/`IDataManager`),
   `PluginConfig` (versioned + migrated), `ConfigStore` (`ITokenStore`/`IApiSettings`),
   `PluginLogAdapter`, `ConfigWindow` (ToS opt-in, language, base URL + test, connect/paste/
-  disconnect, push options).
+  disconnect, push options). Triggers wired: `/bisexport` (manual), login (`PushOnLogin`), and a
+  throttled auto-push driven by `IFramework.Update` (requests at most once/min; the service then
+  enforces the min interval + unchanged-skip). A dedicated gearset-change event is **not** hooked —
+  the periodic auto-push + unchanged-skip covers "push when something changed".
 - **Tests** — 74 passing: cid_hash vectors, job/slot maps, item-id normalize, validation,
   sanitizer, ApiClient (handler-scripted incl. 401/403/409/422/400/429 + Retry-After + network),
   ConnectionService (device flow/expiry/deny/cancel/paste/disconnect), GearSyncService (sent,
