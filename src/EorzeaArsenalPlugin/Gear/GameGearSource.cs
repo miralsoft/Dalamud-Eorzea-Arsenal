@@ -124,6 +124,70 @@ public sealed class GameGearSource : IGearSource
         return result;
     }
 
+    /// <summary>
+    /// Computes a cheap fingerprint of all gearsets (job + item ids + materia types only, no Excel
+    /// lookups) so the plugin can detect changes on the framework thread without a full read. Must
+    /// be called on the framework thread (P1). Returns 0 if gear cannot be read right now.
+    /// </summary>
+    /// <returns>An FNV-1a hash over the current gearsets, or 0.</returns>
+    public unsafe ulong ComputeGearsetSignature()
+    {
+        try
+        {
+            if (!_clientState.IsLoggedIn || !_playerState.IsLoaded)
+            {
+                return 0;
+            }
+
+            var module = RaptureGearsetModule.Instance();
+            if (module == null)
+            {
+                return 0;
+            }
+
+            var hash = 14695981039346656037UL; // FNV-1a offset basis
+            for (var i = 0; i < MaxGearsetSlots; i++)
+            {
+                if (!module->IsValidGearset(i))
+                {
+                    continue;
+                }
+
+                var entry = module->GetGearset(i);
+                if (entry == null)
+                {
+                    continue;
+                }
+
+                hash = Fnv(hash, (ulong)i);
+                hash = Fnv(hash, entry->ClassJob);
+                for (var slot = 0; slot < EquipmentSlotCount; slot++)
+                {
+                    ref var item = ref entry->Items[slot];
+                    hash = Fnv(hash, item.ItemId);
+                    for (var k = 0; k < MateriaSlotCount; k++)
+                    {
+                        hash = Fnv(hash, item.Materia[k]);
+                    }
+                }
+            }
+
+            return hash;
+        }
+        catch (Exception ex)
+        {
+            // P2: never surface into the game.
+            _log.Error($"Gear signature read failed: {ex.GetType().Name}.");
+            return 0;
+        }
+    }
+
+    private static ulong Fnv(ulong hash, ulong value)
+    {
+        hash ^= value;
+        return hash * 1099511628211UL; // FNV-1a prime
+    }
+
     private unsafe Dictionary<string, ItemDto> ReadItems(RaptureGearsetModule.GearsetEntry* entry)
     {
         var items = new Dictionary<string, ItemDto>(StringComparer.Ordinal);

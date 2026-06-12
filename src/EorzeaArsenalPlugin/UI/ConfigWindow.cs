@@ -4,6 +4,7 @@ using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using Dalamud.Utility;
 using EorzeaArsenal.Abstractions;
+using EorzeaArsenal.Api;
 using EorzeaArsenal.Core;
 using EorzeaArsenal.Localization;
 using EorzeaArsenal.Model;
@@ -29,8 +30,10 @@ public sealed class ConfigWindow : Window, IDisposable
     private readonly IApiClient _api;
     private readonly ILog _log;
     private readonly Action _save;
+    private readonly Action _openStatus;
 
     private string _baseUrl;
+    private string _webAppUrl;
     private string _pasteKey = string.Empty;
 
     private CancellationTokenSource? _deviceFlowCts;
@@ -47,6 +50,7 @@ public sealed class ConfigWindow : Window, IDisposable
     /// <param name="api">API client (for the test-connection button).</param>
     /// <param name="log">Diagnostics sink.</param>
     /// <param name="save">Persists the config.</param>
+    /// <param name="openStatus">Callback to open the status window.</param>
     public ConfigWindow(
         PluginConfig config,
         ConfigStore store,
@@ -54,7 +58,8 @@ public sealed class ConfigWindow : Window, IDisposable
         ConnectionService connection,
         IApiClient api,
         ILog log,
-        Action save)
+        Action save,
+        Action openStatus)
         : base("Eorzea Arsenal###EorzeaArsenalConfig")
     {
         _config = config;
@@ -64,7 +69,9 @@ public sealed class ConfigWindow : Window, IDisposable
         _api = api;
         _log = log;
         _save = save;
+        _openStatus = openStatus;
         _baseUrl = config.BaseUrl;
+        _webAppUrl = config.WebAppUrl ?? string.Empty;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -86,6 +93,12 @@ public sealed class ConfigWindow : Window, IDisposable
             return; // nothing else is usable until the ToS notice is acknowledged (R36)
         }
 
+        if (ImGui.Button(T(LocKeys.OpenStatus)))
+        {
+            _openStatus();
+        }
+
+        ImGui.Separator();
         DrawLanguage();
         ImGui.Separator();
         DrawBaseUrl();
@@ -93,6 +106,10 @@ public sealed class ConfigWindow : Window, IDisposable
         DrawConnection();
         ImGui.Separator();
         DrawPushOptions();
+        ImGui.Separator();
+        DrawExtras();
+        ImGui.Separator();
+        DrawCharacters();
     }
 
     private void DrawTosAndMaster()
@@ -242,6 +259,64 @@ public sealed class ConfigWindow : Window, IDisposable
         }
 
         ImGui.TextDisabled(_localizer.Get(LocKeys.AutoPushHint, _config.AutoPushIntervalMinutes));
+
+        var pushOnChange = _config.PushOnGearsetChange;
+        if (ImGui.Checkbox(T(LocKeys.PushOnChange), ref pushOnChange))
+        {
+            _config.PushOnGearsetChange = pushOnChange;
+            _save();
+        }
+
+        ImGui.TextDisabled(T(LocKeys.PushOnChangeHint));
+    }
+
+    private void DrawExtras()
+    {
+        var toasts = _config.UseToasts;
+        if (ImGui.Checkbox(T(LocKeys.UseToasts), ref toasts))
+        {
+            _config.UseToasts = toasts;
+            _save();
+        }
+
+        var verbosity = (int)_config.Verbosity;
+        ReadOnlySpan<string> levels = ["Quiet", "Normal", "Verbose"];
+        if (ImGui.Combo(T(LocKeys.Verbosity), ref verbosity, levels, levels.Length))
+        {
+            _config.Verbosity = (LogVerbosity)verbosity;
+            _save();
+        }
+
+        ImGui.TextUnformatted(T(LocKeys.WebAppUrlLabel));
+        if (ImGui.InputText("##webAppUrl", ref _webAppUrl, 256))
+        {
+            _config.WebAppUrl = string.IsNullOrWhiteSpace(_webAppUrl) ? null : _webAppUrl.Trim();
+            _save();
+        }
+
+        ImGui.TextDisabled(T(LocKeys.WebAppUrlHint));
+    }
+
+    private void DrawCharacters()
+    {
+        ImGui.TextUnformatted(T(LocKeys.CharactersHeader));
+        ImGui.TextDisabled(T(LocKeys.CharactersHint));
+
+        if (_config.Characters.Count == 0)
+        {
+            ImGui.TextDisabled(T(LocKeys.CharactersNone));
+            return;
+        }
+
+        foreach (var (hash, entry) in _config.Characters)
+        {
+            var enabled = entry.Enabled;
+            if (ImGui.Checkbox($"{entry.Name} — {entry.World}##{hash}", ref enabled))
+            {
+                entry.Enabled = enabled;
+                _save();
+            }
+        }
     }
 
     private void RunTestConnection()
@@ -255,9 +330,16 @@ public sealed class ConfigWindow : Window, IDisposable
             try
             {
                 var result = await _api.GetVersionAsync(_store.ApiKey, CancellationToken.None).ConfigureAwait(false);
-                _testStatus = result.IsSuccess
-                    ? _localizer.Get(LocKeys.TestOk, result.Value!.ProtocolVersion)
-                    : _localizer.Get(LocKeys.TestFailed, result.Error!.Message);
+                if (!result.IsSuccess)
+                {
+                    _testStatus = _localizer.Get(LocKeys.TestFailed, result.Error!.Message);
+                    return;
+                }
+
+                var ok = _localizer.Get(LocKeys.TestOk, result.Value!.ProtocolVersion);
+                // R17: if a key is present, warn when it lacks gear:write.
+                var scopeOk = !_store.HasKey || ScopeUtil.HasGearWrite(result.Value.Scopes);
+                _testStatus = scopeOk ? ok : $"{ok} ⚠ {T(LocKeys.ScopeMissing)}";
             }
             catch (Exception ex)
             {

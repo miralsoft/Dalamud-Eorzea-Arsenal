@@ -55,6 +55,21 @@ public sealed class GearSyncServiceTests
     }
 
     [Fact]
+    public async Task Tracks_last_report_and_success_time()
+    {
+        var (svc, _, _, _, _) = Make();
+
+        Assert.Null(svc.LastReport);
+        Assert.Null(svc.LastSuccessfulPushUtc);
+
+        await PushAndWait(svc, PushTrigger.Manual);
+
+        Assert.Equal(PushOutcome.Sent, svc.LastReport!.Value.Outcome);
+        Assert.NotNull(svc.LastSuccessfulPushUtc);
+        Assert.False(svc.IsRateLimited);
+    }
+
+    [Fact]
     public async Task No_key_reports_not_connected()
     {
         var (svc, _, api, _, _) = Make(connected: false);

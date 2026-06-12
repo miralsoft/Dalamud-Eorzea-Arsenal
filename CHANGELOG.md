@@ -13,6 +13,13 @@ All notable changes to this project are documented here. The format is based on
   to `List<string>?` and added a regression test parsing a real `/version` body.
 
 ### Added
+- Plugin UX & robustness (all within the existing API contract):
+  - **Status window** — last push time, outcome + `request_id`, rate-limit countdown, with quick
+    actions: **push now**, **preview what will be sent**, **open web app**, open settings.
+  - **Per-character push opt-in** — choose which of your characters may be pushed.
+  - **Gearset-change detection** — debounced push when a set changes in-game (still rate-limited).
+  - **Scope check** after the connection test — warns if the key lacks `gear:write` (R17).
+  - **Toast notifications**, **log-verbosity** setting, and a **configurable web app URL**.
 - Initial plugin implementation.
   - Encapsulated, interface-based core (`IApiClient`, `IGearSource`, `ITokenStore`,
     `ILocalizer`) with a thin Dalamud host (`EorzeaArsenal.Core` + `EorzeaArsenalPlugin`).

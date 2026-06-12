@@ -48,9 +48,15 @@ The issued key is **write-only (`gear:write`)** — it can do nothing except pus
 
 ## Usage
 
-- Run **`/bisexport`** to push all your gearsets.
-- Optionally enable **Push on login** and **Push automatically** (throttled — at most one push
-  every few minutes, and only when something changed, to respect the API's 30 uploads/hour limit).
+- Run **`/bisexport`** to push all your gearsets. `/bisexport status` opens the status window,
+  `/bisexport config` the settings.
+- The **status window** (Main UI button) shows the last push, its result, a rate-limit countdown,
+  and quick actions: **push now**, **preview what will be sent**, **open web app**.
+- Optionally enable **Push on login**, **Push automatically** and **Push on gearset change**
+  (all throttled — at most one push every few minutes, only when something changed, to respect the
+  API's 30 uploads/hour limit).
+- **Per-character opt-in**, **toast notifications**, **log verbosity** and a **web app URL** are
+  configurable in the settings window.
 
 ## Base URL note
 

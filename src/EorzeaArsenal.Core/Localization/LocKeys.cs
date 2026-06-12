@@ -150,4 +150,78 @@ public static class LocKeys
 
     /// <summary>Generic unexpected error message.</summary>
     public const string ErrorUnexpected = "error.unexpected";
+
+    // Status window
+    /// <summary>Status window title.</summary>
+    public const string StatusWindowTitle = "window.status.title";
+
+    /// <summary>"Last push" label.</summary>
+    public const string StatusLastPush = "status.lastpush";
+
+    /// <summary>"Never" value.</summary>
+    public const string StatusNever = "status.never";
+
+    /// <summary>Last result label.</summary>
+    public const string StatusLastResult = "status.lastresult";
+
+    /// <summary>Rate-limited until label (arg: seconds).</summary>
+    public const string StatusRateLimited = "status.ratelimited";
+
+    /// <summary>"Push now" button.</summary>
+    public const string PushNow = "status.pushnow";
+
+    /// <summary>"Open settings" button.</summary>
+    public const string OpenSettings = "status.opensettings";
+
+    /// <summary>"Open status" button.</summary>
+    public const string OpenStatus = "config.openstatus";
+
+    /// <summary>"Open web app" button.</summary>
+    public const string OpenWebApp = "common.openwebapp";
+
+    // Preview
+    /// <summary>"Preview what will be sent" button.</summary>
+    public const string PreviewButton = "preview.button";
+
+    /// <summary>Preview header (arg: count).</summary>
+    public const string PreviewHeader = "preview.header";
+
+    /// <summary>Preview empty/none message.</summary>
+    public const string PreviewEmpty = "preview.empty";
+
+    // Scope check (R17)
+    /// <summary>Warning that the key lacks gear:write.</summary>
+    public const string ScopeMissing = "connect.scope.missing";
+
+    // New push options
+    /// <summary>Push-on-gearset-change toggle.</summary>
+    public const string PushOnChange = "config.pushonchange";
+
+    /// <summary>Push-on-gearset-change hint.</summary>
+    public const string PushOnChangeHint = "config.pushonchange.hint";
+
+    /// <summary>Toast toggle.</summary>
+    public const string UseToasts = "config.toasts";
+
+    /// <summary>Log verbosity label.</summary>
+    public const string Verbosity = "config.verbosity";
+
+    /// <summary>Web app URL label.</summary>
+    public const string WebAppUrlLabel = "config.webappurl.label";
+
+    /// <summary>Web app URL hint.</summary>
+    public const string WebAppUrlHint = "config.webappurl.hint";
+
+    // Per-character opt-in
+    /// <summary>Characters section header.</summary>
+    public const string CharactersHeader = "config.characters.header";
+
+    /// <summary>Characters section hint.</summary>
+    public const string CharactersHint = "config.characters.hint";
+
+    /// <summary>No characters recorded yet.</summary>
+    public const string CharactersNone = "config.characters.none";
+
+    /// <summary>Message when the current character is opted out.</summary>
+    public const string CharacterDisabled = "push.characterdisabled";
 }

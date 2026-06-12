@@ -30,6 +30,17 @@ _Last updated: 2026-06-12._
 - Build green (0 warnings), `dotnet format` clean, DalamudPackager produces `latest.zip` + manifest.
 - Docs: README, CHANGELOG, AGENTS, this state, handoff, ADRs 0001–0005, operations guide.
 
+### Added after the initial implementation (in-scope, no API change)
+- **Status window** (`StatusWindow`): last push/outcome/`request_id`, rate-limit countdown; quick
+  actions push-now, preview, open-web-app, open-settings. Opens via the Main UI button.
+- **Per-character opt-in** (`PluginConfig.Characters` keyed by `cid_hash`; gated in the plugin).
+- **Gearset-change detection**: `GameGearSource.ComputeGearsetSignature()` + debounced
+  framework-tick trigger (`PushTrigger.GearsetChange`), still bounded by the sync throttle.
+- **Scope check** after Test connection (`ScopeUtil.HasGearWrite` over `/version` scopes).
+- **Toasts** (`IToastGui`), **log verbosity** (`PluginLogAdapter` + `LogVerbosity`), **web app URL**.
+- `GearSyncService` now exposes `LastReport` / `LastSuccessfulPushUtc` / `IsRateLimited` for the UI.
+- In-game verified so far: connect (device-flow/paste) + `/version` test + `/bisexport` push.
+
 ### Next / open
 - **In-game verification (operator):** load the dev build, run `/bisexport`, confirm gearsets,
   materia ids, world name and `cid_hash` are correct. The `GameGearSource` mapping

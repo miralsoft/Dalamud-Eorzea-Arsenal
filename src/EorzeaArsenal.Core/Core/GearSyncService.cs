@@ -117,6 +117,19 @@ public sealed class GearSyncService : IDisposable
     /// <summary>Raised after each push attempt completes (on a background thread).</summary>
     public event Action<PushReport>? PushCompleted;
 
+    /// <summary>The most recent push report, or <see langword="null"/> if nothing has run yet.</summary>
+    public PushReport? LastReport { get; private set; }
+
+    /// <summary>When the last <i>successful</i> push happened, or <see langword="null"/>.</summary>
+    public DateTimeOffset? LastSuccessfulPushUtc =>
+        _lastPushUtc == DateTimeOffset.MinValue ? null : _lastPushUtc;
+
+    /// <summary>The instant until which pushes are backing off after a 429 (UTC).</summary>
+    public DateTimeOffset BackoffUntilUtc => _backoffUntilUtc;
+
+    /// <summary>Whether a 429 back-off window is currently active.</summary>
+    public bool IsRateLimited => _clock.UtcNow < _backoffUntilUtc;
+
     /// <summary>Minimum spacing between automatic pushes (default 5 minutes). Manual pushes bypass it.</summary>
     public TimeSpan MinAutoPushInterval { get; set; } = TimeSpan.FromMinutes(5);
 
@@ -275,6 +288,7 @@ public sealed class GearSyncService : IDisposable
 
     private void RaiseCompleted(PushReport report)
     {
+        LastReport = report;
         try
         {
             PushCompleted?.Invoke(report);

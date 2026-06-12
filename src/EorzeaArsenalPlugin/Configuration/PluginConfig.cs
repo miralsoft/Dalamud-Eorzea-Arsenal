@@ -45,6 +45,46 @@ public sealed class PluginConfig : IPluginConfiguration
     /// <summary>Minimum minutes between automatic pushes (proactive rate-limit guard, R23).</summary>
     public int AutoPushIntervalMinutes { get; set; } = 5;
 
+    /// <summary>Whether to push (debounced) when a gearset changes in-game.</summary>
+    public bool PushOnGearsetChange { get; set; }
+
+    /// <summary>Whether to show a game toast on push outcomes (in addition to chat).</summary>
+    public bool UseToasts { get; set; } = true;
+
+    /// <summary>How verbose the Dalamud log output is.</summary>
+    public LogVerbosity Verbosity { get; set; } = LogVerbosity.Normal;
+
+    /// <summary>Optional web app URL for the "Open web app" button. If empty it is derived from the base URL.</summary>
+    public string? WebAppUrl { get; set; }
+
+    /// <summary>
+    /// Per-character push opt-in, keyed by the character's <c>cid_hash</c>. A character not in the
+    /// map defaults to allowed; the user can disable specific characters (briefing §7).
+    /// </summary>
+    public Dictionary<string, CharacterOptIn> Characters { get; set; } = new();
+
+    /// <summary>Whether the character with the given hash may be pushed (unknown = allowed).</summary>
+    /// <param name="cidHash">The character's <c>cid_hash</c>.</param>
+    /// <returns><see langword="true"/> unless the character is known and explicitly disabled.</returns>
+    public bool IsCharacterEnabled(string cidHash) =>
+        !Characters.TryGetValue(cidHash, out var entry) || entry.Enabled;
+
+    /// <summary>Records a character (enabled by default) if it is not yet known.</summary>
+    /// <param name="cidHash">The character's <c>cid_hash</c>.</param>
+    /// <param name="name">Character name (display only).</param>
+    /// <param name="world">Home world (display only).</param>
+    /// <returns><see langword="true"/> if a new entry was added.</returns>
+    public bool RecordCharacter(string cidHash, string name, string world)
+    {
+        if (Characters.ContainsKey(cidHash))
+        {
+            return false;
+        }
+
+        Characters[cidHash] = new CharacterOptIn { Name = name, World = world, Enabled = true };
+        return true;
+    }
+
     /// <summary>
     /// Migrates an older config in place to <see cref="CurrentVersion"/>. Always additive so no
     /// stored value is lost (P12). Returns whether anything changed (so the caller can re-save).
