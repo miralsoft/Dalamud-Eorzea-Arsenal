@@ -1,0 +1,31 @@
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+
+  <!--
+    Dalamud plugin host project. The Dalamud.NET.Sdk pins the .NET target,
+    the Dalamud API level and FFXIVClientStructs for us (briefing P6) — never
+    hand-pick these. This project holds ONLY game/UI-bound code; all domain
+    logic lives in EorzeaArsenal.Core behind interfaces (R8/R9, R10/R11).
+  -->
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <AssemblyName>EorzeaArsenalPlugin</AssemblyName>
+    <RootNamespace>EorzeaArsenal.Plugin</RootNamespace>
+    <Authors>Michael Tosch</Authors>
+    <Company>MIRAL Soft</Company>
+    <Description>Pushes your FFXIV gearsets to the Eorzea Arsenal API.</Description>
+    <PackageProjectUrl>https://github.com/miralsoft/Dalamud-Eorzea-Arsenal</PackageProjectUrl>
+    <!-- AGPL-3.0 (ADR 0002); FFXIV attribution lives in README/LICENSE (R35). -->
+    <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+    <!-- R39: XML docs for auto-generated API docs/UML. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EorzeaArsenal.Core\EorzeaArsenal.Core.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,45 @@
+# Project state (living)
+
+> The complete in-repo memory so an AI/contributor on another machine can continue without losing
+> context (R3). Keep this current **in the same commit** as the change it describes.
+
+_Last updated: 2026-06-12._
+
+## Status: first implementation complete (pre-release, not yet in-game verified)
+
+### Done
+- Repo scaffolding: `.slnx`, two projects + tests, `.editorconfig` (CRLF, naming), `global.json`
+  (.NET 10), `.gitignore`.
+- **Core (`EorzeaArsenal.Core`)** — abstractions, models/DTOs, `EorzeaJson` (snake_case,
+  literal dict keys), `ApiClient` (device flow + `PUT /gear` + `GET /version`, full 4xx/429
+  mapping, no body logging), `ConnectionService`, `GearSyncService` (single in-flight + coalesce,
+  throttle/back-off, validate-before-send), gear mapping (`JobMap`, `EquipmentSlots`,
+  `ItemIdNormalizer`), `CidHash`, `GearValidator`, `GearSanitizer`, `Localizer` (DE/EN).
+- **Plugin (`EorzeaArsenalPlugin`)** — thin entry point, `GameGearSource`
+  (`RaptureGearsetModule` via `IPlayerState`/`IClientState`/`IFramework`/`IDataManager`),
+  `PluginConfig` (versioned + migrated), `ConfigStore` (`ITokenStore`/`IApiSettings`),
+  `PluginLogAdapter`, `ConfigWindow` (ToS opt-in, language, base URL + test, connect/paste/
+  disconnect, push options).
+- **Tests** — 74 passing: cid_hash vectors, job/slot maps, item-id normalize, validation,
+  sanitizer, ApiClient (handler-scripted incl. 401/403/409/422/400/429 + Retry-After + network),
+  ConnectionService (device flow/expiry/deny/cancel/paste/disconnect), GearSyncService (sent,
+  not-connected, not-logged-in, unchanged, throttle, back-off, invalid-local, **coalescing/P11**).
+- Build green (0 warnings), `dotnet format` clean, DalamudPackager produces `latest.zip` + manifest.
+- Docs: README, CHANGELOG, AGENTS, this state, handoff, ADRs 0001–0005, operations guide.
+
+### Next / open
+- **In-game verification (operator):** load the dev build, run `/bisexport`, confirm gearsets,
+  materia ids, world name and `cid_hash` are correct. The `GameGearSource` mapping
+  (materia resolution via the `Materia` Excel sheet, HQ-offset stripping) is **best-effort and
+  not yet validated in-game** — most likely place for adjustments.
+- **CI:** confirm the workflows run on `windows-latest` with the Dalamud distrib download; enable
+  CodeQL (needs GitHub Advanced Security if the repo stays private).
+- **Custom repo:** the release workflow regenerates `pluginmaster.json`; the operator adds its raw
+  URL in Dalamud settings.
+- **Deferred (design only, do not build yet):** pairing-code connect path; inventory.
+
+## Key facts
+- Build needs **.NET 10 SDK** + local Dalamud dev libs (`%AppData%\XIVLauncher\addon\Hooks\dev`,
+  Dalamud 15 → `Dalamud.NET.Sdk/15.0.0`, .NET 10 target). Don't hand-pick versions (P6).
+- `dotnet format` does not accept `.slnx` yet — run it per-project.
+- Commit author: **Michael Tosch** (`m.tosch@miralsoft.com`); **never** add an AI co-author (R34).

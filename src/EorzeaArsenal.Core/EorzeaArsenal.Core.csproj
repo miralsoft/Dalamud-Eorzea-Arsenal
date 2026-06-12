@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Pure domain core: NO Dalamud, NO game, NO UI framework references.
+    This is what makes the API client, gear mapping and cid_hash derivation
+    unit-testable without the game or network (briefing §2, §13; rules R8/R9).
+    Only the BCL is used (System.Text.Json, System.Net.Http) — R41 supply-chain hygiene.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>EorzeaArsenal.Core</AssemblyName>
+    <RootNamespace>EorzeaArsenal</RootNamespace>
+    <!-- R39: docs/UML auto-generatable; undocumented public API is a warning. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  DOTNET_NOLOGO: "1"
+
+jobs:
+  build:
+    name: Build, test, format, scan
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Download Dalamud dev libraries
+        shell: pwsh
+        run: |
+          $dest = "$env:AppData\XIVLauncher\addon\Hooks\dev"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Invoke-WebRequest -Uri "https://goatcorp.github.io/dalamud-distrib/latest.zip" -OutFile dalamud.zip
+          Expand-Archive -Path dalamud.zip -DestinationPath $dest -Force
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build (Release)
+        run: dotnet build -c Release --no-restore
+
+      - name: Test
+        run: dotnet test -c Release --no-build --verbosity normal
+
+      - name: Format check
+        shell: pwsh
+        run: |
+          $projects = @(
+            "src/EorzeaArsenal.Core/EorzeaArsenal.Core.csproj",
+            "src/EorzeaArsenalPlugin/EorzeaArsenalPlugin.csproj",
+            "tests/EorzeaArsenal.Core.Tests/EorzeaArsenal.Core.Tests.csproj"
+          )
+          $failed = $false
+          foreach ($p in $projects) {
+            dotnet format $p --verify-no-changes --verbosity minimal
+            if ($LASTEXITCODE -ne 0) { $failed = $true }
+          }
+          if ($failed) { Write-Error "Formatting issues found."; exit 1 }
+
+      - name: Vulnerable dependency scan
+        shell: pwsh
+        run: |
+          $out = dotnet list package --vulnerable --include-transitive 2>&1 | Out-String
+          Write-Host $out
+          if ($out -match "has the following vulnerable") {
+            Write-Error "Vulnerable packages detected."
+            exit 1
+          }

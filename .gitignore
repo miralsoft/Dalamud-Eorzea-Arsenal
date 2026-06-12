@@ -1,0 +1,30 @@
+# Build output
+bin/
+obj/
+out/
+[Dd]ebug/
+[Rr]elease/
+*.user
+
+# Rider / VS / VS Code
+.idea/
+.vs/
+*.suo
+*.userprefs
+
+# Packaging output
+dist/
+*.zip
+
+# Local environment overrides
+.env
+*.local
+
+# NuGet
+*.nupkg
+.packages/
+
+# Test results
+TestResults/
+coverage*.xml
+*.trx

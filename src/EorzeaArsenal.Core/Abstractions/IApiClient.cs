@@ -1,0 +1,35 @@
+using EorzeaArsenal.Model;
+
+namespace EorzeaArsenal.Abstractions;
+
+/// <summary>
+/// The <b>only</b> component that talks to the Eorzea Arsenal API (R10: no HTTP outside
+/// this module). Covers exactly the documented slice — device flow, <c>PUT /gear</c> and
+/// <c>GET /version</c> (R13) — and nothing else. Swappable for a fake in tests.
+/// </summary>
+public interface IApiClient
+{
+    /// <summary>Starts the OAuth device flow via <c>POST /device/code</c> (no auth).</summary>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The device/user codes and polling parameters, or an error.</returns>
+    Task<ApiResult<DeviceCodeResponse>> RequestDeviceCodeAsync(CancellationToken ct);
+
+    /// <summary>Polls <c>POST /device/token</c> once for the given device code (no auth).</summary>
+    /// <param name="deviceCode">The device code from <see cref="RequestDeviceCodeAsync"/>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>A pending status, the issued key, or a terminal error.</returns>
+    Task<ApiResult<DeviceTokenResponse>> PollDeviceTokenAsync(string deviceCode, CancellationToken ct);
+
+    /// <summary>Pushes all gearsets via <c>PUT /gear</c> using the supplied bearer key.</summary>
+    /// <param name="apiKey">The <c>gear:write</c> API key (kept secret; never logged — R22).</param>
+    /// <param name="payload">The validated gear payload.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The push result, or a classified error (401/403/409/422/400/429).</returns>
+    Task<ApiResult<GearPushResult>> PushGearAsync(string apiKey, GearPayload payload, CancellationToken ct);
+
+    /// <summary>Calls <c>GET /version</c> for an optional capability/compatibility/connection check.</summary>
+    /// <param name="apiKey">Optional key to also report the key's scopes; may be <see langword="null"/>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The server version info, or an error.</returns>
+    Task<ApiResult<VersionResponse>> GetVersionAsync(string? apiKey, CancellationToken ct);
+}

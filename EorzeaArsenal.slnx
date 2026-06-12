@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/EorzeaArsenal.Core/EorzeaArsenal.Core.csproj" />
+    <Project Path="src/EorzeaArsenalPlugin/EorzeaArsenalPlugin.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/EorzeaArsenal.Core.Tests/EorzeaArsenal.Core.Tests.csproj" />
+  </Folder>
+</Solution>
