@@ -1,5 +1,6 @@
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 using Dalamud.Plugin.Services;
 using EorzeaArsenal.Gear;
 using EorzeaArsenal.Localization;
@@ -11,19 +12,30 @@ namespace EorzeaArsenal.Plugin.UI;
 
 /// <summary>
 /// A safe, additive hover overlay: when the user hovers an item that is a BiS target for the
-/// <b>currently selected</b> gearset, it shows a small tooltip docked next to the native item
-/// tooltip (left if there is room, otherwise right) so it does not overlap it. It never touches
-/// the native game tooltip (no UI-node manipulation), so it cannot crash the client and is
-/// patch-stable (P2/P6). Registered on the UI draw loop.
+/// <b>currently selected</b> gearset, it shows a small styled window docked to the native item
+/// tooltip (above it, or below when there is no room) so it stays attached and never overlaps. It
+/// never touches the native game tooltip (no UI-node manipulation), so it cannot crash the client
+/// and is patch-stable (P2/P6). Registered on the UI draw loop.
 /// </summary>
 public sealed class BisTooltip
 {
-    private const float Margin = 4f;
+    // ItemDetail has a transparent left border; nudge right so we sit flush with the visible frame.
+    private const float FrameInset = 26f;
+    private const float Gap = 1f;
+    private const float ScreenPadding = 4f;
 
-    private static readonly Vector4 Accent = new(0.55f, 0.8f, 1f, 1f);
-    private static readonly Vector4 Green = new(0.4f, 0.8f, 0.4f, 1f);
-    private static readonly Vector4 Red = new(0.9f, 0.4f, 0.4f, 1f);
-    private static readonly Vector4 Yellow = new(0.9f, 0.8f, 0.3f, 1f);
+    private static readonly Vector4 Accent = new(0.62f, 0.82f, 1f, 1f);
+    private static readonly Vector4 Muted = new(0.78f, 0.80f, 0.85f, 1f);
+    private static readonly Vector4 Green = new(0.45f, 0.82f, 0.45f, 1f);
+    private static readonly Vector4 Red = new(0.92f, 0.45f, 0.45f, 1f);
+    private static readonly Vector4 Yellow = new(0.95f, 0.82f, 0.35f, 1f);
+    private static readonly Vector4 Background = new(0.08f, 0.09f, 0.12f, 0.96f);
+
+    private const ImGuiWindowFlags Flags =
+        ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoMove |
+        ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse | ImGuiWindowFlags.NoSavedSettings |
+        ImGuiWindowFlags.NoInputs | ImGuiWindowFlags.NoFocusOnAppearing | ImGuiWindowFlags.NoNav |
+        ImGuiWindowFlags.AlwaysAutoResize;
 
     private readonly PluginConfig _config;
     private readonly Localizer _localizer;
@@ -31,7 +43,7 @@ public sealed class BisTooltip
     private readonly BisService _bis;
     private readonly GameGearSource _gearSource;
 
-    private Vector2 _lastSize = new(220f, 80f);
+    private Vector2 _lastSize = new(240f, 80f);
 
     /// <summary>Creates the overlay.</summary>
     /// <param name="config">Live config (holds the on/off toggle).</param>
@@ -77,23 +89,39 @@ public sealed class BisTooltip
             }
         }
 
-        if (hits.Count == 0)
+        if (hits.Count == 0 || !TryGetDockPosition(out var position))
         {
-            return;
+            return; // not next to a native tooltip → don't show a stray box
         }
 
-        PositionNextToNativeTooltip();
-        ImGui.BeginTooltip();
-        ImGui.TextColored(Accent, T(LocKeys.BisTooltipHeader));
-        foreach (var hit in hits)
+        DrawWindow(position, hits);
+    }
+
+    private void DrawWindow(Vector2 position, List<BisHit> hits)
+    {
+        ImGui.SetNextWindowPos(position);
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 7f);
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(11f, 9f));
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 1.5f);
+        ImGui.PushStyleColor(ImGuiCol.WindowBg, Background);
+        ImGui.PushStyleColor(ImGuiCol.Border, Accent);
+
+        if (ImGui.Begin("##EorzeaArsenalBisOverlay", Flags))
         {
-            var name = string.IsNullOrEmpty(hit.Name) ? string.Empty : $" — {hit.Name}";
-            ImGui.TextUnformatted($"{hit.Job} · {hit.Slot} (Gearset #{hit.GearIndex}){name}");
-            DrawSlotState(hit);
+            IconText(FontAwesomeIcon.Gem, Accent, T(LocKeys.BisTooltipHeader));
+            ImGui.Separator();
+            foreach (var hit in hits)
+            {
+                ImGui.TextColored(Muted, $"{hit.Job} · {hit.Slot} · Gearset #{hit.GearIndex}");
+                DrawSlotState(hit);
+            }
+
+            _lastSize = ImGui.GetWindowSize(); // used next frame to dock above the native tooltip
         }
 
-        _lastSize = ImGui.GetWindowSize(); // used next frame to dock above the native tooltip
-        ImGui.EndTooltip();
+        ImGui.End();
+        ImGui.PopStyleColor(2);
+        ImGui.PopStyleVar(3);
     }
 
     private void DrawSlotState(BisHit hit)
@@ -103,37 +131,52 @@ public sealed class BisTooltip
             return;
         }
 
-        var (color, text) = slot.Status switch
+        var (icon, color, text) = slot.Status switch
         {
-            SlotMatch.Match when slot.MateriaMatch => (Green, T(LocKeys.BisComplete)),
-            SlotMatch.Match => (Yellow, T(LocKeys.BisMateriaDiff)),
-            SlotMatch.ItemDiffers => (Yellow, _localizer.Get(LocKeys.BisHave, slot.CurrentItemId ?? 0, slot.TargetItemId)),
-            _ => (Red, _localizer.Get(LocKeys.BisMissing, slot.TargetItemId)),
+            SlotMatch.Match when slot.MateriaMatch => (FontAwesomeIcon.Check, Green, T(LocKeys.BisComplete)),
+            SlotMatch.Match => (FontAwesomeIcon.ExclamationTriangle, Yellow, T(LocKeys.BisMateriaDiff)),
+            SlotMatch.ItemDiffers => (FontAwesomeIcon.ExclamationTriangle, Yellow, _localizer.Get(LocKeys.BisHave, slot.CurrentItemId ?? 0, slot.TargetItemId)),
+            _ => (FontAwesomeIcon.Times, Red, _localizer.Get(LocKeys.BisMissing, slot.TargetItemId)),
         };
 
-        ImGui.TextColored(color, $"   {text}");
+        IconText(icon, color, text);
+    }
+
+    private static void IconText(FontAwesomeIcon icon, Vector4 color, string text)
+    {
+        ImGui.PushFont(UiBuilder.IconFont);
+        ImGui.TextColored(color, icon.ToIconString());
+        ImGui.PopFont();
+        ImGui.SameLine();
+        ImGui.TextColored(color, text);
     }
 
     /// <summary>
-    /// Docks the next tooltip to the native <c>ItemDetail</c> addon, aligned to its left edge:
-    /// directly <b>above</b> it when there is room, otherwise <b>below</b> it (small margin). This
-    /// keeps it attached to and clearly readable next to the item tooltip. Falls back to the
-    /// default cursor position when the addon is not visible.
+    /// Computes the docked position for the overlay: flush to the native <c>ItemDetail</c> addon's
+    /// left edge, directly above it when there is room (else below), clamped on-screen. Returns
+    /// <see langword="false"/> when no native tooltip is visible.
     /// </summary>
-    private void PositionNextToNativeTooltip()
+    private bool TryGetDockPosition(out Vector2 position)
     {
+        position = default;
+
         var addon = _gameGui.GetAddonByName("ItemDetail", 1);
         if (addon.IsNull || !addon.IsVisible)
         {
-            return; // no native tooltip visible → fall back to the default cursor position
+            return false;
         }
 
-        var position = addon.Position;
-        var aboveY = position.Y - _lastSize.Y - Margin;
-        var y = aboveY >= 0
-            ? aboveY                                    // dock directly above the tooltip
-            : position.Y + addon.ScaledHeight + Margin; // no room above → dock below it
+        var anchor = addon.Position;
+        var display = ImGui.GetIO().DisplaySize;
 
-        ImGui.SetNextWindowPos(new Vector2(position.X, y));
+        var x = anchor.X + FrameInset;
+        var aboveY = anchor.Y - _lastSize.Y - Gap;
+        var y = aboveY >= ScreenPadding ? aboveY : anchor.Y + addon.ScaledHeight + Gap;
+
+        x = Math.Clamp(x, ScreenPadding, Math.Max(ScreenPadding, display.X - _lastSize.X - ScreenPadding));
+        y = Math.Clamp(y, ScreenPadding, Math.Max(ScreenPadding, display.Y - _lastSize.Y - ScreenPadding));
+
+        position = new Vector2(x, y);
+        return true;
     }
 }

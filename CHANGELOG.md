@@ -29,11 +29,12 @@ All notable changes to this project are documented here. The format is based on
   user's explicit click — the plugin never approves programmatically.
 - **BiS hover overlay** — hovering an item whose id is the BiS target for your **currently
   selected** gearset shows a small overlay listing the slot and your current state for it
-  (complete / materia differs / different item / empty). It is **docked to the native item
-  tooltip** — directly above it (aligned to its left edge), or below when there's no room above —
-  so it stays attached and never overlaps, and only the active gearset/class is shown. Safe ImGui
-  overlay — it does not touch the native tooltip, so it cannot crash the client and is patch-stable
-  (P2/P6). Toggleable; cached via a shared `BisService`.
+  (complete / materia differs / different item / empty). It is a **styled window** (rounded, accent
+  border, status icons) **docked flush to the native item tooltip** — directly above it (aligned to
+  its left edge, on-screen-clamped), or below when there's no room — so it stays attached and never
+  overlaps, and only the active gearset/class is shown. Safe ImGui overlay — it does not touch the
+  native tooltip, so it cannot crash the client and is patch-stable (P2/P6). Toggleable; cached via
+  a shared `BisService`.
 - **Gear vs BiS (Feature A)** — reads BiS targets via `GET /gear/bis` (new `gear:read` scope,
   issued alongside `gear:write`) and shows an in-game per-slot diff of live gear vs BiS in a new
   **BiS window** (opened from the status window). Pure `BisComparer` matches by `gear_index`+`job`,
