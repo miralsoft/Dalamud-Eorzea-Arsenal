@@ -118,6 +118,18 @@ public sealed class GearSyncServiceTests
     }
 
     [Fact]
+    public async Task Gearset_change_bypasses_throttle()
+    {
+        var (svc, _, api, _, _) = Make(); // MinAutoPushInterval = 5 min
+
+        await PushAndWait(svc, PushTrigger.Manual);                      // sends at t0
+        var report = await PushAndWait(svc, PushTrigger.GearsetChange);  // immediately after
+
+        Assert.Equal(PushOutcome.Sent, report.Outcome); // event-driven → not throttled
+        Assert.Equal(2, api.PushCalls);
+    }
+
+    [Fact]
     public async Task RateLimit_sets_backoff_for_subsequent_pushes()
     {
         var (svc, _, api, _, clock) = Make();

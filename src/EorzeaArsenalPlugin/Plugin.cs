@@ -255,7 +255,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         if (now >= _nextSignatureCheckTicks)
         {
-            _nextSignatureCheckTicks = now + 3_000;
+            _nextSignatureCheckTicks = now + 2_000;
             var signature = _gearSource.ComputeGearsetSignature();
             if (signature != 0)
             {
@@ -267,7 +267,7 @@ public sealed class Plugin : IDalamudPlugin
                 {
                     _lastSignature = signature;
                     _pendingChange = true;
-                    _changeDebounceUntilTicks = now + 8_000; // coalesce rapid edits
+                    _changeDebounceUntilTicks = now + 5_000; // coalesce rapid edits
                 }
             }
         }

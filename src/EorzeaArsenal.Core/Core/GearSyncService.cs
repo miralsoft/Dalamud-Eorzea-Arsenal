@@ -130,7 +130,10 @@ public sealed class GearSyncService : IDisposable
     /// <summary>Whether a 429 back-off window is currently active.</summary>
     public bool IsRateLimited => _clock.UtcNow < _backoffUntilUtc;
 
-    /// <summary>Minimum spacing between automatic pushes (default 5 minutes). Manual pushes bypass it.</summary>
+    /// <summary>
+    /// Minimum spacing between <i>periodic auto-pushes</i> (default 5 minutes). Manual, login and
+    /// gearset-change pushes bypass it and send promptly (the 429 back-off still applies).
+    /// </summary>
     public TimeSpan MinAutoPushInterval { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>Default back-off when a 429 carries no <c>Retry-After</c> (default 5 minutes).</summary>
@@ -207,7 +210,9 @@ public sealed class GearSyncService : IDisposable
 
     private async Task<PushReport> PushOnceAsync(PushTrigger trigger, CancellationToken ct)
     {
-        var force = trigger == PushTrigger.Manual;
+        // Event-driven triggers (manual, login, gearset change) push promptly; only the periodic
+        // auto-push is throttled by MinAutoPushInterval. The 429 back-off still applies to all.
+        var force = trigger != PushTrigger.Auto;
         var now = _clock.UtcNow;
 
         if (now < _backoffUntilUtc)

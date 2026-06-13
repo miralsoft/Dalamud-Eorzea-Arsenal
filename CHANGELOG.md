@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Fixed
+- **Gearset changes now push promptly (with a confirmation).** Change-detected pushes were caught
+  by the 5-minute auto-push throttle and silently skipped, so editing/switching a gearset seemed
+  to do nothing. Event-driven triggers (manual, login, gearset change) now bypass that interval and
+  send right away — only the periodic auto-push stays throttled; the 429 back-off still protects the
+  rate limit. Change detection is also a bit snappier (poll 2s, debounce 5s). Requires "Push when a
+  gearset changes" to be enabled.
 - **Materia is now read from the live equipped gear, not the gearset snapshot.** A gearset only
   refreshes its materia on save, so melding into worn gear without re-saving sent stale materia.
   For the currently equipped gearset the plugin now reads item ids + materia from the live
