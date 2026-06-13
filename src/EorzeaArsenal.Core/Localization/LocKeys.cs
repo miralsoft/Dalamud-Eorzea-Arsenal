@@ -267,4 +267,16 @@ public static class LocKeys
 
     /// <summary>BiS hover-overlay toggle.</summary>
     public const string BisTooltipToggle = "config.bistooltip";
+
+    /// <summary>"you have {0}" line (current item name).</summary>
+    public const string BisYouHave = "bis.youhave";
+
+    /// <summary>"in your inventory/armoury" line.</summary>
+    public const string BisOwned = "bis.owned";
+
+    /// <summary>"not owned" line.</summary>
+    public const string BisNotOwned = "bis.notowned";
+
+    /// <summary>"Materia: {0}" line (target materia names).</summary>
+    public const string BisMateriaList = "bis.materialist";
 }

@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Changed
+- **BiS hover overlay is now slot-based and much more informative.** Hovering any equippable item
+  now resolves its equipment slot and shows the current gearset's BiS target for that slot — even
+  when your equipped piece differs (previously the overlay only appeared when the hovered item was
+  itself the BiS item, which is why it often seemed missing). For each slot it shows the **target
+  item name**, the **target materia** (what to socket), whether you **own** the target
+  (inventory/armoury/equipped), and your equipped piece for comparison.
+
 ### Fixed
 - **Gearset-change detection now fires only on *saving* a gearset.** The change signature no longer
   folds in the live equipped container, so merely switching gearsets (or melding without saving)

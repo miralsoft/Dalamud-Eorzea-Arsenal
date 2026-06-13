@@ -4,6 +4,7 @@ using EorzeaArsenal.Gear;
 using EorzeaArsenal.Model;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
+using LuminaItem = Lumina.Excel.Sheets.Item;
 using LuminaMateria = Lumina.Excel.Sheets.Materia;
 
 namespace EorzeaArsenal.Plugin.Gear;
@@ -348,6 +349,112 @@ public sealed class GameGearSource : IGearSource
         {
             _log.Error($"Current gearset read failed: {ex.GetType().Name}.");
             return -1;
+        }
+    }
+
+    /// <summary>Resolves an item id to its display name, or <c>#id</c> if unknown.</summary>
+    /// <param name="itemId">The item id.</param>
+    /// <returns>The localized item name.</returns>
+    public string GetItemName(int itemId)
+    {
+        var sheet = _data.GetExcelSheet<LuminaItem>();
+        if (sheet is not null && sheet.TryGetRow((uint)itemId, out var row))
+        {
+            var name = row.Name.ExtractText();
+            if (!string.IsNullOrEmpty(name))
+            {
+                return name;
+            }
+        }
+
+        return $"#{itemId}";
+    }
+
+    /// <summary>Returns the API slot key(s) an item can be equipped into (empty if not equippable).</summary>
+    /// <param name="itemId">The item id.</param>
+    /// <returns>The matching slot keys; rings yield both ring slots.</returns>
+    public IReadOnlyList<string> GetSlotsForItem(int itemId)
+    {
+        var slots = new List<string>();
+        var sheet = _data.GetExcelSheet<LuminaItem>();
+        if (sheet is null || !sheet.TryGetRow((uint)itemId, out var row) || row.EquipSlotCategory.ValueNullable is not { } category)
+        {
+            return slots;
+        }
+
+        if (category.MainHand > 0)
+        {
+            slots.Add("Weapon");
+        }
+
+        if (category.OffHand > 0)
+        {
+            slots.Add("OffHand");
+        }
+
+        if (category.Head > 0)
+        {
+            slots.Add("Head");
+        }
+
+        if (category.Body > 0)
+        {
+            slots.Add("Body");
+        }
+
+        if (category.Gloves > 0)
+        {
+            slots.Add("Hands");
+        }
+
+        if (category.Legs > 0)
+        {
+            slots.Add("Legs");
+        }
+
+        if (category.Feet > 0)
+        {
+            slots.Add("Feet");
+        }
+
+        if (category.Ears > 0)
+        {
+            slots.Add("Ears");
+        }
+
+        if (category.Neck > 0)
+        {
+            slots.Add("Neck");
+        }
+
+        if (category.Wrists > 0)
+        {
+            slots.Add("Wrists");
+        }
+
+        if (category.FingerL > 0 || category.FingerR > 0)
+        {
+            slots.Add("RingLeft");
+            slots.Add("RingRight");
+        }
+
+        return slots;
+    }
+
+    /// <summary>Whether the player owns at least one of the item (inventory, armoury or equipped).</summary>
+    /// <param name="itemId">The item id.</param>
+    /// <returns><see langword="true"/> if owned.</returns>
+    public unsafe bool OwnsItem(int itemId)
+    {
+        try
+        {
+            var inventory = InventoryManager.Instance();
+            return inventory != null && inventory->GetInventoryItemCount((uint)itemId) > 0;
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Ownership check failed: {ex.GetType().Name}.");
+            return false;
         }
     }
 }

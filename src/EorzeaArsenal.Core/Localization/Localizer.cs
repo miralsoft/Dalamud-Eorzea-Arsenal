@@ -114,6 +114,10 @@ public sealed class Localizer : ILocalizer
         [LocKeys.BisMateriaDiff] = "materia differs",
         [LocKeys.BisTooltipHeader] = "Eorzea Arsenal — BiS",
         [LocKeys.BisTooltipToggle] = "Show BiS info on item hover",
+        [LocKeys.BisYouHave] = "equipped: {0}",
+        [LocKeys.BisOwned] = "you own this item",
+        [LocKeys.BisNotOwned] = "not in your inventory/armoury",
+        [LocKeys.BisMateriaList] = "Materia: {0}",
     };
 
     private static readonly IReadOnlyDictionary<string, string> De = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -215,6 +219,10 @@ public sealed class Localizer : ILocalizer
         [LocKeys.BisMateriaDiff] = "Materia abweichend",
         [LocKeys.BisTooltipHeader] = "Eorzea Arsenal — BiS",
         [LocKeys.BisTooltipToggle] = "BiS-Info beim Item-Hover anzeigen",
+        [LocKeys.BisYouHave] = "ausgerüstet: {0}",
+        [LocKeys.BisOwned] = "im Besitz (Inventar/Arsenal)",
+        [LocKeys.BisNotOwned] = "nicht im Inventar/Arsenal",
+        [LocKeys.BisMateriaList] = "Materia: {0}",
     };
 
     private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Languages =
