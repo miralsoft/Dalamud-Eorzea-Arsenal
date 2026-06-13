@@ -9,6 +9,12 @@ using LuminaMateria = Lumina.Excel.Sheets.Materia;
 
 namespace EorzeaArsenal.Plugin.Gear;
 
+/// <summary>Change-detection fingerprints read together from the game.</summary>
+/// <param name="StoredGearsets">Hash over all stored gearset entries (changes only on save).</param>
+/// <param name="Equipped">Hash over the live equipped container (changes on melding/swapping worn gear).</param>
+/// <param name="CurrentGearset">The active gearset index (-1 if unavailable).</param>
+public readonly record struct GearSignatures(ulong StoredGearsets, ulong Equipped, int CurrentGearset);
+
 /// <summary>
 /// Reads the player's gearsets from <see cref="RaptureGearsetModule"/> and maps them to the wire
 /// model. All game-memory access happens on the framework thread (P1) and behind logged-in/null
@@ -20,6 +26,7 @@ public sealed class GameGearSource : IGearSource
     private const int MaxGearsetSlots = 100;
     private const int EquipmentSlotCount = 14;
     private const int MateriaSlotCount = 5;
+    private const ulong FnvOffset = 14695981039346656037UL; // FNV-1a offset basis
 
     private readonly IClientState _clientState;
     private readonly IPlayerState _playerState;
@@ -134,27 +141,29 @@ public sealed class GameGearSource : IGearSource
     }
 
     /// <summary>
-    /// Computes a cheap fingerprint of all gearsets (job + item ids + materia types only, no Excel
-    /// lookups) so the plugin can detect changes on the framework thread without a full read. Must
-    /// be called on the framework thread (P1). Returns 0 if gear cannot be read right now.
+    /// Cheap change-detection fingerprints, read together on the framework thread (P1): a hash over
+    /// the <b>stored</b> gearsets (changes only on save), a separate hash over the <b>live equipped</b>
+    /// container (changes on melding/swapping the worn gear), and the current gearset index. The
+    /// caller distinguishes "saved a gearset" and "changed the worn gear" from a plain gearset
+    /// switch. Returns zero hashes when gear cannot be read.
     /// </summary>
-    /// <returns>An FNV-1a hash over the current gearsets, or 0.</returns>
-    public unsafe ulong ComputeGearsetSignature()
+    /// <returns>The stored-gearset and equipped fingerprints plus the current gearset index.</returns>
+    public unsafe GearSignatures ComputeSignatures()
     {
         try
         {
             if (!_clientState.IsLoggedIn || !_playerState.IsLoaded)
             {
-                return 0;
+                return new GearSignatures(0, 0, -1);
             }
 
             var module = RaptureGearsetModule.Instance();
             if (module == null)
             {
-                return 0;
+                return new GearSignatures(0, 0, -1);
             }
 
-            var hash = 14695981039346656037UL; // FNV-1a offset basis
+            var saved = FnvOffset;
             for (var i = 0; i < MaxGearsetSlots; i++)
             {
                 if (!module->IsValidGearset(i))
@@ -168,34 +177,62 @@ public sealed class GameGearSource : IGearSource
                     continue;
                 }
 
-                hash = Fnv(hash, (ulong)i);
-                hash = Fnv(hash, entry->ClassJob);
+                saved = Fnv(saved, (ulong)i);
+                saved = Fnv(saved, entry->ClassJob);
                 for (var slot = 0; slot < EquipmentSlotCount; slot++)
                 {
                     ref var item = ref entry->Items[slot];
-                    hash = Fnv(hash, item.ItemId);
+                    saved = Fnv(saved, item.ItemId);
                     for (var k = 0; k < MateriaSlotCount; k++)
                     {
-                        // Hash both the materia type and its grade: melding/overmelding changes
-                        // the resolved materia item id, so the signature must cover both.
-                        hash = Fnv(hash, item.Materia[k]);
-                        hash = Fnv(hash, item.MateriaGrades[k]);
+                        saved = Fnv(saved, item.Materia[k]);
+                        saved = Fnv(saved, item.MateriaGrades[k]);
                     }
                 }
             }
 
-            // Intentionally based ONLY on the stored gearset entries: they change only when a
-            // gearset is saved/updated, so change-detection fires on *saving* a gearset — not on
-            // merely switching gearsets or melding without saving. (The push payload still reads
-            // live equipped materia for correctness; that is a separate concern.)
-            return hash;
+            return new GearSignatures(saved, HashEquippedSignature(), module->CurrentGearsetIndex);
         }
         catch (Exception ex)
         {
             // P2: never surface into the game.
             _log.Error($"Gear signature read failed: {ex.GetType().Name}.");
-            return 0;
+            return new GearSignatures(0, 0, -1);
         }
+    }
+
+    private unsafe ulong HashEquippedSignature()
+    {
+        var hash = FnvOffset;
+        var inventory = InventoryManager.Instance();
+        if (inventory == null)
+        {
+            return hash;
+        }
+
+        var container = inventory->GetInventoryContainer(InventoryType.EquippedItems);
+        if (container == null)
+        {
+            return hash;
+        }
+
+        for (var slot = 0; slot < EquipmentSlotCount; slot++)
+        {
+            var item = container->GetInventorySlot(slot);
+            if (item == null)
+            {
+                continue;
+            }
+
+            hash = Fnv(hash, item->ItemId);
+            for (var k = 0; k < MateriaSlotCount; k++)
+            {
+                hash = Fnv(hash, item->Materia[k]);
+                hash = Fnv(hash, item->MateriaGrades[k]);
+            }
+        }
+
+        return hash;
     }
 
     private static ulong Fnv(ulong hash, ulong value)

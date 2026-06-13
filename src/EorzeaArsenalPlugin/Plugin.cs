@@ -53,7 +53,10 @@ public sealed class Plugin : IDalamudPlugin
     private long _nextSignatureCheckTicks;
     private long _nextCharRecordTicks;
     private long _nextBisRefreshTicks;
-    private ulong _lastSignature;
+    private ulong _lastStoredSig;
+    private ulong _lastEquippedSig;
+    private int _lastGearsetIndex;
+    private bool _signaturesInitialized;
     private bool _pendingChange;
     private long _changeDebounceUntilTicks;
 
@@ -256,19 +259,31 @@ public sealed class Plugin : IDalamudPlugin
         if (now >= _nextSignatureCheckTicks)
         {
             _nextSignatureCheckTicks = now + 2_000;
-            var signature = _gearSource.ComputeGearsetSignature();
-            if (signature != 0)
+            var sig = _gearSource.ComputeSignatures();
+            if (sig.StoredGearsets != 0) // 0 = not readable (e.g. not logged in)
             {
-                if (_lastSignature == 0)
+                if (!_signaturesInitialized)
                 {
-                    _lastSignature = signature; // first observation, do not push
+                    _signaturesInitialized = true; // first observation, set the baseline only
                 }
-                else if (signature != _lastSignature)
+                else
                 {
-                    _lastSignature = signature;
-                    _pendingChange = true;
-                    _changeDebounceUntilTicks = now + 5_000; // coalesce rapid edits
+                    var storedChanged = sig.StoredGearsets != _lastStoredSig;
+                    var indexChanged = sig.CurrentGearset != _lastGearsetIndex;
+                    var equippedChanged = sig.Equipped != _lastEquippedSig;
+
+                    // Push when a gearset is saved, or when the worn gear changes (melding/swapping)
+                    // while the gearset index is unchanged. A plain gearset switch is ignored.
+                    if (storedChanged || (equippedChanged && !indexChanged))
+                    {
+                        _pendingChange = true;
+                        _changeDebounceUntilTicks = now + 5_000; // coalesce rapid edits
+                    }
                 }
+
+                _lastStoredSig = sig.StoredGearsets;
+                _lastEquippedSig = sig.Equipped;
+                _lastGearsetIndex = sig.CurrentGearset;
             }
         }
 
