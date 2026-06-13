@@ -24,9 +24,17 @@ public sealed class BisWindow : Window
     private const float IconSize = 34f;
     private const float TileSize = 48f;
 
-    // The character-screen layout: weapon + armour on the left, accessories on the right.
-    private static readonly string[] GridLeft = ["Weapon", "OffHand", "Head", "Body", "Hands", "Legs", "Feet"];
-    private static readonly string[] GridRight = ["Ears", "Neck", "Wrists", "RingLeft", "RingRight"];
+    // The character-screen layout, row by row: each row has a left and a right slot at the same
+    // height. Top row is weapon + off-hand; then five armour rows (left) and accessory rows (right).
+    private static readonly (string Left, string Right)[] GridRows =
+    [
+        ("Weapon", "OffHand"),
+        ("Head", "Ears"),
+        ("Body", "Neck"),
+        ("Hands", "Wrists"),
+        ("Legs", "RingLeft"),
+        ("Feet", "RingRight"),
+    ];
 
     private static readonly Vector4 Accent = new(0.62f, 0.82f, 1f, 1f);
     private static readonly Vector4 Muted = new(0.78f, 0.80f, 0.85f, 1f);
@@ -352,29 +360,46 @@ public sealed class BisWindow : Window
 
         var target = _bis.TargetGearset(comparison.GearIndex);
 
-        ImGui.BeginGroup();
-        foreach (var key in GridLeft)
+        // Four columns per row: [left icon][left name + materia]   [right icon][right name + materia].
+        // The two detail columns stretch, which gives the room in the middle/right for the text.
+        if (ImGui.BeginTable($"##grid{comparison.GearIndex}", 4, ImGuiTableFlags.PadOuterX))
         {
-            DrawTile(comparison.GearIndex, key, bySlot.TryGetValue(key, out var s) ? s : null, target);
+            ImGui.TableSetupColumn("li", ImGuiTableColumnFlags.WidthFixed, TileSize);
+            ImGui.TableSetupColumn("ld", ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableSetupColumn("ri", ImGuiTableColumnFlags.WidthFixed, TileSize);
+            ImGui.TableSetupColumn("rd", ImGuiTableColumnFlags.WidthStretch);
+
+            foreach (var (left, right) in GridRows)
+            {
+                ImGui.TableNextRow();
+                DrawSlotCells(comparison.GearIndex, left, bySlot, target);
+                DrawSlotCells(comparison.GearIndex, right, bySlot, target);
+            }
+
+            ImGui.EndTable();
         }
-
-        ImGui.EndGroup();
-
-        ImGui.SameLine(0f, 28f);
-
-        ImGui.BeginGroup();
-        foreach (var key in GridRight)
-        {
-            DrawTile(comparison.GearIndex, key, bySlot.TryGetValue(key, out var s) ? s : null, target);
-        }
-
-        ImGui.EndGroup();
 
         ImGui.Spacing();
         ImGui.Separator();
     }
 
-    private void DrawTile(int gearIndex, string slotKey, SlotComparison? slot, BisGearset? target)
+    /// <summary>Renders one slot as two table cells: the bordered icon tile and the name + materia detail.</summary>
+    private void DrawSlotCells(int gearIndex, string slotKey, Dictionary<string, SlotComparison> bySlot, BisGearset? target)
+    {
+        var found = bySlot.TryGetValue(slotKey, out var item);
+        var source = found ? target?.Items.GetValueOrDefault(item.Slot)?.Source ?? target?.Source : null;
+
+        ImGui.TableNextColumn();
+        DrawTile(gearIndex, slotKey, found ? item : null, source);
+
+        ImGui.TableNextColumn();
+        if (found)
+        {
+            DrawTileDetail(item);
+        }
+    }
+
+    private void DrawTile(int gearIndex, string slotKey, SlotComparison? slot, string? source)
     {
         var size = new Vector2(TileSize, TileSize);
         var origin = ImGui.GetCursorScreenPos();
@@ -382,7 +407,7 @@ public sealed class BisWindow : Window
 
         if (slot is not { } item)
         {
-            // Absent slot (e.g. no off-hand for this job): faint placeholder so the columns line up.
+            // Absent slot (e.g. no off-hand for this job): faint placeholder so the rows line up.
             drawList.AddRect(origin, origin + size, ImGui.GetColorU32(Muted with { W = 0.16f }), 4f, ImDrawFlags.RoundCornersAll, 1f);
             ImGui.Dummy(size);
             return;
@@ -396,7 +421,6 @@ public sealed class BisWindow : Window
         var color = complete ? Green : item.Status == SlotMatch.MissingCurrent ? Red : Yellow;
         drawList.AddRect(origin, origin + size, ImGui.GetColorU32(color), 4f, ImDrawFlags.RoundCornersAll, 2.5f);
 
-        var source = target?.Items.GetValueOrDefault(item.Slot)?.Source ?? target?.Source;
         if (ImGui.IsItemHovered())
         {
             DrawTileTooltip(item, source);
@@ -415,6 +439,40 @@ public sealed class BisWindow : Window
             }
 
             ImGui.EndPopup();
+        }
+    }
+
+    /// <summary>The detail next to a grid tile: the item name plus the materia still to socket (icons).</summary>
+    private void DrawTileDetail(SlotComparison item)
+    {
+        var complete = item is { Status: SlotMatch.Match, MissingMateria.Count: 0, ExtraMateria.Count: 0 };
+        var color = complete ? Green : item.Status == SlotMatch.MissingCurrent ? Red : Yellow;
+
+        ImGui.PushStyleColor(ImGuiCol.Text, color);
+        ImGui.TextWrapped(_gearSource.GetItemName(item.TargetItemId));
+        ImGui.PopStyleColor();
+
+        // The materia still to socket, as small icons (name on hover). The full wrong/missing
+        // breakdown stays in the tile's hover tooltip to keep the grid uncluttered.
+        var materia = item.MissingMateria;
+        if (materia.Count == 0)
+        {
+            return;
+        }
+
+        var iconSize = ImGui.GetTextLineHeight() * 1.3f;
+        for (var i = 0; i < materia.Count; i++)
+        {
+            if (i > 0)
+            {
+                ImGui.SameLine(0f, 3f);
+            }
+
+            DrawIcon(materia[i], iconSize);
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip(_gearSource.GetItemName(materia[i]));
+            }
         }
     }
 

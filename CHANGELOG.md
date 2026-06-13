@@ -13,10 +13,13 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 - **Character-screen grid view in the BiS window.** A new **Grid** toggle lays each gearset out like
-  the in-game character window — weapon/armour on the left, accessories on the right — as icon tiles
-  with a **status border** (green = BiS, yellow = materia issue, red = wrong/empty). Hover a tile for
-  the full detail (item, item level, source, wrong/missing materia); left-click links it, right-click
-  copies the name. Absent slots show a faint placeholder so the columns stay aligned.
+  the in-game character window — **row by row**: weapon + off-hand share the top row, then five
+  armour rows on the left and five accessory rows on the right, each left/right pair at the same
+  height. Tiles are icons with a **status border** (green = BiS, yellow = materia issue, red =
+  wrong/empty), and next to each tile its **name and the materia still to socket** are shown (the
+  grid/list mix), with the room in the middle/right used for that text. Hover a tile for the full
+  detail (item, item level, source, wrong/missing materia); left-click links it, right-click copies
+  the name. Absent slots (e.g. no off-hand) show a faint placeholder so every row stays aligned.
 - **Shopping list in the BiS window.** A new **Shopping list** toggle aggregates — across the shown
   sets (current or all) — every BiS **item you don't yet own** (not equipped and not in your
   inventory/armoury) and every **missing materia** you don't own, de-duplicated into one list:
