@@ -280,6 +280,12 @@ public static class LocKeys
     /// <summary>"Materia: {0}" line (target materia names).</summary>
     public const string BisMateriaList = "bis.materialist";
 
+    /// <summary>"Wrong: {0}" line — equipped materia that should be removed.</summary>
+    public const string BisMateriaWrong = "bis.materiawrong";
+
+    /// <summary>"Missing: {0}" line — target materia that should be socketed.</summary>
+    public const string BisMateriaMissing = "bis.materiamissing";
+
     /// <summary>Hint when the current gearset has no BiS target (arg: gearset index).</summary>
     public const string BisNoTarget = "bis.notarget";
 }

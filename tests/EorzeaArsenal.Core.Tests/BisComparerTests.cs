@@ -59,6 +59,32 @@ public sealed class BisComparerTests
     }
 
     [Fact]
+    public void Materia_diff_lists_wrong_and_missing()
+    {
+        // Item matches; equipped [1,2], BiS wants [2,3] → wrong: 1, missing: 3.
+        var live = Live(new() { ["Weapon"] = new() { Id = 100, Materia = [1, 2] } });
+        var target = Target(new() { ["Weapon"] = new() { Id = 100, Materia = [2, 3] } });
+
+        var weapon = Slot(BisComparer.Compare(live, [target])[0], "Weapon");
+        Assert.Equal(SlotMatch.Match, weapon.Status);
+        Assert.False(weapon.MateriaMatch);
+        Assert.Equal([3], weapon.MissingMateria);
+        Assert.Equal([1], weapon.ExtraMateria);
+    }
+
+    [Fact]
+    public void Item_differs_lists_target_materia_as_missing()
+    {
+        var live = Live(new() { ["Weapon"] = new() { Id = 100 } });
+        var target = Target(new() { ["Weapon"] = new() { Id = 200, Materia = [5, 6] } });
+
+        var weapon = Slot(BisComparer.Compare(live, [target])[0], "Weapon");
+        Assert.Equal(SlotMatch.ItemDiffers, weapon.Status);
+        Assert.Equal([5, 6], weapon.MissingMateria);
+        Assert.Empty(weapon.ExtraMateria);
+    }
+
+    [Fact]
     public void Different_item_is_item_differs()
     {
         var live = Live(new() { ["Weapon"] = new() { Id = 100 } });

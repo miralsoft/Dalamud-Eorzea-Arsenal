@@ -28,6 +28,10 @@ All notable changes to this project are documented here. The format is based on
   (inventory/armoury/equipped), and your equipped piece for comparison.
 
 ### Fixed
+- **Overlay now shows which materia is wrong vs missing, not just the full BiS list.** When the item
+  matches but materia differs, it shows the equipped materia that don't belong in **red** ("Wrong:")
+  and the BiS materia you still need in **yellow** ("Missing:") — so you see exactly what to replace,
+  instead of the full target list. (Computed as a multiset diff in `BisComparer`.)
 - **Ring materia is shown correctly per finger.** Rings are interchangeable, but left/right often
   need different materia. The comparison now claims exact (id + materia) ring matches first, so two
   same-id rings each pair with the right target regardless of finger; and the overlay always shows

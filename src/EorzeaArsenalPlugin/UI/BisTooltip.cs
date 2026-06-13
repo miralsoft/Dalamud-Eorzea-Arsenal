@@ -148,10 +148,9 @@ public sealed class BisTooltip
             }
 
             target.Items.TryGetValue(slot, out var targetItem);
-            var targetMateria = targetItem is { Materia.Count: > 0 }
-                ? targetItem.Materia.Select(_gearSource.GetItemName).ToList()
-                : [];
             var source = targetItem?.Source ?? target.Source;
+            var missing = slotComparison.MissingMateria.Select(_gearSource.GetItemName).ToList();
+            var wrong = slotComparison.ExtraMateria.Select(_gearSource.GetItemName).ToList();
             string? equippedName = null;
             uint? equippedIlvl = null;
             if (slotComparison.CurrentItemId is { } currentId && currentId > 0)
@@ -166,11 +165,11 @@ public sealed class BisTooltip
                 _gearSource.GetItemLevel(slotComparison.TargetItemId),
                 source,
                 slotComparison.Status,
-                slotComparison.MateriaMatch,
                 equippedName,
                 equippedIlvl,
                 _gearSource.OwnsItem(slotComparison.TargetItemId),
-                targetMateria));
+                missing,
+                wrong));
         }
 
         return lines;
@@ -224,10 +223,10 @@ public sealed class BisTooltip
 
     private void DrawLine(OverlayLine line)
     {
-        var complete = line.Status == SlotMatch.Match && line.MateriaMatch;
+        var clean = line.Missing.Count == 0 && line.Wrong.Count == 0;
         var (icon, color) = line.Status switch
         {
-            SlotMatch.Match when line.MateriaMatch => (FontAwesomeIcon.Check, Green),
+            SlotMatch.Match when clean => (FontAwesomeIcon.Check, Green),
             SlotMatch.Match => (FontAwesomeIcon.ExclamationTriangle, Yellow),
             SlotMatch.ItemDiffers => (FontAwesomeIcon.ExclamationTriangle, Yellow),
             _ => (FontAwesomeIcon.Times, Red),
@@ -249,12 +248,19 @@ public sealed class BisTooltip
             ImGui.TextColored(line.Owned ? Green : Red, Indent + (line.Owned ? T(LocKeys.BisOwned) : T(LocKeys.BisNotOwned)));
         }
 
-        // Show the target materia whenever it isn't fully matched — and always for rings, whose
-        // left/right materia commonly differ and are worth showing even when complete.
-        var isRing = line.Slot is "RingLeft" or "RingRight";
-        if (line.Materia.Count > 0 && (!complete || isRing))
+        // Wrong materia (equipped but not BiS) in red — these need replacing.
+        if (line.Wrong.Count > 0)
         {
-            ImGui.TextColored(Muted, Indent + _localizer.Get(LocKeys.BisMateriaList, string.Join(", ", line.Materia)));
+            ImGui.TextColored(Red, Indent + _localizer.Get(LocKeys.BisMateriaWrong, string.Join(", ", line.Wrong)));
+        }
+
+        // Missing materia: for a matching item these are what to socket ("Missing:"); for a
+        // wrong/empty item they are the target item's materia ("Materia:").
+        if (line.Missing.Count > 0)
+        {
+            var key = line.Status == SlotMatch.Match ? LocKeys.BisMateriaMissing : LocKeys.BisMateriaList;
+            var lineColor = line.Status == SlotMatch.Match ? Yellow : Muted;
+            ImGui.TextColored(lineColor, Indent + _localizer.Get(key, string.Join(", ", line.Missing)));
         }
     }
 
@@ -341,9 +347,9 @@ public sealed class BisTooltip
         uint TargetIlvl,
         string? Source,
         SlotMatch Status,
-        bool MateriaMatch,
         string? EquippedName,
         uint? EquippedIlvl,
         bool Owned,
-        IReadOnlyList<string> Materia);
+        IReadOnlyList<string> Missing,
+        IReadOnlyList<string> Wrong);
 }

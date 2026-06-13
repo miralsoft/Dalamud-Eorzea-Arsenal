@@ -21,12 +21,22 @@ public enum SlotMatch
 /// <param name="TargetItemId">The BiS target item id.</param>
 /// <param name="Status">Whether the item matches.</param>
 /// <param name="MateriaMatch">Whether the melded materia match (only meaningful when item ids match).</param>
+/// <param name="MissingMateria">
+/// Target materia item ids not yet present — for a matching item, what to socket; for a
+/// different/empty item, the target item's full materia.
+/// </param>
+/// <param name="ExtraMateria">
+/// Equipped materia item ids that are wrong (present but not in the target) — what to remove.
+/// Only populated when the item id matches.
+/// </param>
 public readonly record struct SlotComparison(
     string Slot,
     int? CurrentItemId,
     int TargetItemId,
     SlotMatch Status,
-    bool MateriaMatch);
+    bool MateriaMatch,
+    IReadOnlyList<int> MissingMateria,
+    IReadOnlyList<int> ExtraMateria);
 
 /// <summary>The comparison of one gearset against its BiS target.</summary>
 public sealed class GearsetComparison
@@ -149,7 +159,7 @@ public static class BisComparer
             var idx = pool.FindIndex(p => p.Id == targets[i].Item.Id && MateriaEqual(p.Materia, targets[i].Item.Materia));
             if (idx >= 0)
             {
-                slots.Add(new SlotComparison(targets[i].Slot, pool[idx].Id, targets[i].Item.Id, SlotMatch.Match, true));
+                slots.Add(new SlotComparison(targets[i].Slot, pool[idx].Id, targets[i].Item.Id, SlotMatch.Match, true, [], []));
                 pool.RemoveAt(idx);
                 resolved[i] = true;
             }
@@ -166,7 +176,8 @@ public static class BisComparer
             var idx = pool.FindIndex(p => p.Id == targets[i].Item.Id);
             if (idx >= 0)
             {
-                slots.Add(new SlotComparison(targets[i].Slot, pool[idx].Id, targets[i].Item.Id, SlotMatch.Match, false));
+                var (missing, extra) = MateriaDiff(pool[idx].Materia, targets[i].Item.Materia);
+                slots.Add(new SlotComparison(targets[i].Slot, pool[idx].Id, targets[i].Item.Id, SlotMatch.Match, false, missing, extra));
                 pool.RemoveAt(idx);
                 resolved[i] = true;
             }
@@ -180,14 +191,15 @@ public static class BisComparer
                 continue;
             }
 
+            var targetMateria = targets[i].Item.Materia.ToList();
             if (pool.Count > 0)
             {
-                slots.Add(new SlotComparison(targets[i].Slot, pool[0].Id, targets[i].Item.Id, SlotMatch.ItemDiffers, false));
+                slots.Add(new SlotComparison(targets[i].Slot, pool[0].Id, targets[i].Item.Id, SlotMatch.ItemDiffers, false, targetMateria, []));
                 pool.RemoveAt(0);
             }
             else
             {
-                slots.Add(new SlotComparison(targets[i].Slot, null, targets[i].Item.Id, SlotMatch.MissingCurrent, false));
+                slots.Add(new SlotComparison(targets[i].Slot, null, targets[i].Item.Id, SlotMatch.MissingCurrent, false, targetMateria, []));
             }
         }
     }
@@ -196,12 +208,57 @@ public static class BisComparer
     {
         if (current is null)
         {
-            return new SlotComparison(slot, null, target.Id, SlotMatch.MissingCurrent, false);
+            return new SlotComparison(slot, null, target.Id, SlotMatch.MissingCurrent, false, target.Materia.ToList(), []);
         }
 
-        return current.Id == target.Id
-            ? new SlotComparison(slot, current.Id, target.Id, SlotMatch.Match, MateriaEqual(current.Materia, target.Materia))
-            : new SlotComparison(slot, current.Id, target.Id, SlotMatch.ItemDiffers, false);
+        if (current.Id != target.Id)
+        {
+            return new SlotComparison(slot, current.Id, target.Id, SlotMatch.ItemDiffers, false, target.Materia.ToList(), []);
+        }
+
+        var (missing, extra) = MateriaDiff(current.Materia, target.Materia);
+        return new SlotComparison(slot, current.Id, target.Id, SlotMatch.Match, missing.Count == 0 && extra.Count == 0, missing, extra);
+    }
+
+    /// <summary>
+    /// Computes, as multisets, which target materia are missing from the current set (to socket)
+    /// and which current materia are extra/wrong (to remove).
+    /// </summary>
+    private static (List<int> Missing, List<int> Extra) MateriaDiff(IReadOnlyList<int> current, IReadOnlyList<int> target)
+    {
+        var currentCounts = Counts(current);
+        var targetCounts = Counts(target);
+
+        var missing = new List<int>();
+        foreach (var (id, count) in targetCounts)
+        {
+            for (var n = currentCounts.GetValueOrDefault(id); n < count; n++)
+            {
+                missing.Add(id);
+            }
+        }
+
+        var extra = new List<int>();
+        foreach (var (id, count) in currentCounts)
+        {
+            for (var n = targetCounts.GetValueOrDefault(id); n < count; n++)
+            {
+                extra.Add(id);
+            }
+        }
+
+        return (missing, extra);
+    }
+
+    private static Dictionary<int, int> Counts(IReadOnlyList<int> values)
+    {
+        var counts = new Dictionary<int, int>();
+        foreach (var value in values)
+        {
+            counts[value] = counts.GetValueOrDefault(value) + 1;
+        }
+
+        return counts;
     }
 
     private static ItemDto? Lookup(Dictionary<string, ItemDto>? items, string slot) =>
