@@ -31,6 +31,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IFramework _framework;
     private readonly IChatGui _chatGui;
     private readonly IToastGui _toastGui;
+    private readonly LogBuffer _logBuffer;
     private readonly ILog _log;
 
     private readonly HttpClient _httpClient;
@@ -46,6 +47,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ConfigWindow _configWindow;
     private readonly StatusWindow _statusWindow;
     private readonly BisWindow _bisWindow;
+    private readonly LogWindow _logWindow;
     private readonly BisTooltip _bisTooltip;
 
     // Framework-tick throttles (Environment.TickCount64 milliseconds).
@@ -98,7 +100,8 @@ public sealed class Plugin : IDalamudPlugin
             pluginInterface.SavePluginConfig(_config);
         }
 
-        _log = new PluginLogAdapter(log, () => _config.Verbosity);
+        _logBuffer = new LogBuffer();
+        _log = new CompositeLog(new PluginLogAdapter(log, () => _config.Verbosity), _logBuffer);
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(100) };
         _store = new ConfigStore(_config, Save);
         _localizer = new Localizer(_config.Language);
@@ -114,10 +117,12 @@ public sealed class Plugin : IDalamudPlugin
         _bisService = new BisService(api, _gearSource, _store, _log);
 
         _bisWindow = new BisWindow(_config, _store, _localizer, _bisService);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearSource, _log, RequestManualPush, OpenConfig, OpenBis);
+        _logWindow = new LogWindow(_logBuffer, _localizer);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearSource, _log, RequestManualPush, OpenConfig, OpenBis, OpenLog);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save, OpenStatus);
         _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource);
         _windowSystem.AddWindow(_bisWindow);
+        _windowSystem.AddWindow(_logWindow);
         _windowSystem.AddWindow(_statusWindow);
         _windowSystem.AddWindow(_configWindow);
 
@@ -160,6 +165,8 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OpenBis() => _bisWindow.IsOpen = true;
 
+    private void OpenLog() => _logWindow.IsOpen = true;
+
     private void Chat(string message) => _chatGui.Print(ChatPrefix + message);
 
     private void OnCommand(string command, string arguments)
@@ -171,6 +178,9 @@ public sealed class Plugin : IDalamudPlugin
                 break;
             case "status":
                 OpenStatus();
+                break;
+            case "log":
+                OpenLog();
                 break;
             default:
                 RequestManualPush();

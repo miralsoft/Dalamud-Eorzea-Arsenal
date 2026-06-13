@@ -122,6 +122,12 @@ public sealed class Localizer : ILocalizer
         [LocKeys.BisMateriaMissing] = "Missing: {0}",
         [LocKeys.BisNoTarget] = "No BiS target for this gearset (#{0}). Pin one in the web app.",
 
+        [LocKeys.LogWindowTitle] = "Eorzea Arsenal — Log",
+        [LocKeys.OpenLog] = "Log",
+        [LocKeys.LogCopy] = "Copy",
+        [LocKeys.LogClear] = "Clear",
+        [LocKeys.LogEmpty] = "No messages yet.",
+
         ["slot.weapon"] = "Weapon",
         ["slot.offhand"] = "Off Hand",
         ["slot.head"] = "Head",
@@ -255,6 +261,12 @@ public sealed class Localizer : ILocalizer
         [LocKeys.BisMateriaWrong] = "Falsch: {0}",
         [LocKeys.BisMateriaMissing] = "Fehlt: {0}",
         [LocKeys.BisNoTarget] = "Kein BiS-Ziel für dieses Gearset (#{0}). Im Webapp festlegen.",
+
+        [LocKeys.LogWindowTitle] = "Eorzea Arsenal — Log",
+        [LocKeys.OpenLog] = "Log",
+        [LocKeys.LogCopy] = "Kopieren",
+        [LocKeys.LogClear] = "Leeren",
+        [LocKeys.LogEmpty] = "Noch keine Meldungen.",
 
         ["slot.weapon"] = "Waffe",
         ["slot.offhand"] = "Nebenhand",

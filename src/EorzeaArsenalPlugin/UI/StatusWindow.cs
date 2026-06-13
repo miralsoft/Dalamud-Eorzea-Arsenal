@@ -1,5 +1,6 @@
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using Dalamud.Utility;
@@ -33,6 +34,7 @@ public sealed class StatusWindow : Window
     private readonly Action _requestManualPush;
     private readonly Action _openConfig;
     private readonly Action _openBis;
+    private readonly Action _openLog;
 
     private volatile string[] _previewLines = [];
     private volatile bool _previewRan;
@@ -47,6 +49,7 @@ public sealed class StatusWindow : Window
     /// <param name="requestManualPush">Callback to trigger a manual push.</param>
     /// <param name="openConfig">Callback to open the settings window.</param>
     /// <param name="openBis">Callback to open the BiS comparison window.</param>
+    /// <param name="openLog">Callback to open the diagnostics log window.</param>
     public StatusWindow(
         PluginConfig config,
         ConfigStore store,
@@ -56,7 +59,8 @@ public sealed class StatusWindow : Window
         ILog log,
         Action requestManualPush,
         Action openConfig,
-        Action openBis)
+        Action openBis,
+        Action openLog)
         : base("Eorzea Arsenal###EorzeaArsenalStatus")
     {
         _config = config;
@@ -68,6 +72,7 @@ public sealed class StatusWindow : Window
         _requestManualPush = requestManualPush;
         _openConfig = openConfig;
         _openBis = openBis;
+        _openLog = openLog;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -123,6 +128,20 @@ public sealed class StatusWindow : Window
         if (ImGui.Button(T(LocKeys.OpenSettings)))
         {
             _openConfig();
+        }
+
+        ImGui.SameLine();
+        ImGui.PushFont(UiBuilder.IconFont);
+        var openLog = ImGui.Button(FontAwesomeIcon.ClipboardList.ToIconString() + "##openLog");
+        ImGui.PopFont();
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip(T(LocKeys.OpenLog));
+        }
+
+        if (openLog)
+        {
+            _openLog();
         }
 
         DrawPreview();

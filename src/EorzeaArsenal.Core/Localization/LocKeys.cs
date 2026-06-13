@@ -288,4 +288,20 @@ public static class LocKeys
 
     /// <summary>Hint when the current gearset has no BiS target (arg: gearset index).</summary>
     public const string BisNoTarget = "bis.notarget";
+
+    // Log / diagnostics window
+    /// <summary>Log window title.</summary>
+    public const string LogWindowTitle = "window.log.title";
+
+    /// <summary>"Open log" button.</summary>
+    public const string OpenLog = "status.openlog";
+
+    /// <summary>"Copy" button.</summary>
+    public const string LogCopy = "log.copy";
+
+    /// <summary>"Clear" button.</summary>
+    public const string LogClear = "log.clear";
+
+    /// <summary>Empty-log placeholder.</summary>
+    public const string LogEmpty = "log.empty";
 }
