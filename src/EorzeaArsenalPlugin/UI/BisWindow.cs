@@ -90,6 +90,16 @@ public sealed class BisWindow : Window
     private string T(string key) => _localizer.Get(key);
 
     /// <inheritdoc />
+    public override void OnOpen()
+    {
+        // Load fresh BiS data when the window is opened, so the user always sees current values.
+        if (_config.Enabled && _store.HasKey && !_bis.IsLoading && _bis.IsStale(TimeSpan.FromSeconds(30)))
+        {
+            _ = Task.Run(() => _bis.RefreshAsync(CancellationToken.None));
+        }
+    }
+
+    /// <inheritdoc />
     public override void Draw()
     {
         DrawToolbar();
@@ -272,7 +282,7 @@ public sealed class BisWindow : Window
     /// </summary>
     private void DrawShoppingList(IEnumerable<GearsetComparison> scoped)
     {
-        var items = new Dictionary<int, (string? Source, List<int> Sets)>();
+        var items = new Dictionary<int, (string? Source, SortedSet<string> Jobs)>();
         var materia = new Dictionary<int, int>();
 
         foreach (var comparison in scoped)
@@ -285,14 +295,11 @@ public sealed class BisWindow : Window
                     if (!items.TryGetValue(slot.TargetItemId, out var entry))
                     {
                         var source = target?.Items.GetValueOrDefault(slot.Slot)?.Source ?? target?.Source;
-                        entry = (source, new List<int>());
+                        entry = (source, new SortedSet<string>(StringComparer.Ordinal));
                         items[slot.TargetItemId] = entry;
                     }
 
-                    if (!entry.Sets.Contains(comparison.GearIndex))
-                    {
-                        entry.Sets.Add(comparison.GearIndex);
-                    }
+                    entry.Jobs.Add(comparison.Job);
                 }
 
                 foreach (var materiaId in slot.MissingMateria)
@@ -311,39 +318,45 @@ public sealed class BisWindow : Window
             return;
         }
 
-        if (items.Count > 0)
+        // Group the items by the set of jobs that need them, so a long all-sets list is structured by
+        // class — shared pieces collapse under a combined header (e.g. "PLD · WAR · DRK · GNB"), the
+        // rest under their single class. Multi-class groups first, then alphabetical.
+        var groups = items
+            .GroupBy(kv => string.Join(" · ", kv.Value.Jobs))
+            .OrderByDescending(g => g.First().Value.Jobs.Count)
+            .ThenBy(g => g.Key, StringComparer.Ordinal);
+
+        foreach (var group in groups)
         {
-            ImGui.TextColored(Accent, T(LocKeys.BisShoppingItems));
-            foreach (var (itemId, entry) in items.OrderByDescending(kv => _gearSource.GetItemLevel(kv.Key)))
+            ImGui.TextColored(Accent, group.Key);
+            foreach (var kv in group.OrderByDescending(kv => _gearSource.GetItemLevel(kv.Key)))
             {
-                DrawShoppingItem(itemId, entry.Source, entry.Sets);
+                DrawShoppingItem(kv.Key, kv.Value.Source);
             }
+
+            ImGui.Spacing();
         }
 
         if (materia.Count > 0)
         {
-            ImGui.Spacing();
             ImGui.TextColored(Accent, T(LocKeys.BisShoppingMateria));
             foreach (var (materiaId, count) in materia.OrderByDescending(kv => kv.Value))
             {
-                DrawShoppingItem(materiaId, null, [], count);
+                DrawShoppingItem(materiaId, null, count);
             }
         }
     }
 
-    private void DrawShoppingItem(int itemId, string? source, List<int> sets, int count = 0)
+    private void DrawShoppingItem(int itemId, string? source, int count = 0)
     {
         DrawIcon(itemId, IconSize);
         ImGui.SameLine();
 
-        // Materia rows (count > 0) show a quantity; gear rows show the item level + source + sets.
+        // Materia rows (count > 0) show a quantity; gear rows show the item level + source.
         var detail = count > 0
             ? $" ×{count}"
             : $" · iLvl {_gearSource.GetItemLevel(itemId)}{(string.IsNullOrEmpty(source) ? string.Empty : $" · {SourceLabel(source)}")}";
-        var setsSuffix = count == 0 && _config.BisShowAllSets && sets.Count > 0
-            ? $"  ({string.Join(", ", sets.Select(s => $"#{s}"))})"
-            : string.Empty;
-        var line = $"{_gearSource.GetItemName(itemId)}{detail}{setsSuffix}";
+        var line = $"{_gearSource.GetItemName(itemId)}{detail}";
         ClickableItem(Muted, line, itemId, $"##shop{itemId}");
     }
 

@@ -11,7 +11,20 @@ All notable changes to this project are documented here. The format is based on
   localhost dev URL). New installs connect to production out of the box; existing saved configs are
   unchanged, and the value stays user-editable (set it to `localhost` for local testing).
 
+### Added
+- **Server-info-bar (DTR) status entry.** A compact **Arsenal: &lt;last push&gt;** entry now sits in
+  the in-game server-info bar (top-right, next to the clock): it shows how long ago the last push
+  succeeded (e.g. *3m*), **!** if the last push failed, or *off* when not set up. Hovering shows the
+  full last-push time; **clicking opens the status window**.
+- **BiS auto-loads on login and when the window opens.** After logging in, the plugin fetches your
+  BiS targets for the session automatically; opening the "Gear vs BiS" window also refreshes if the
+  data is stale — so you always see current values without a manual refresh.
+
 ### Changed
+- **Shopping list is grouped by class.** With *All sets* active, the previously long flat list is now
+  split into sections by job — shared pieces collapse under a combined header (e.g.
+  *PLD · WAR · DRK · GNB*), the rest under their single class — so you can see at a glance what each
+  item is for. (Materia stays in its own aggregated section.)
 - **BiS status colours now distinguish "wrong item" from "only materia".** Previously a wrong gear
   piece and a materia-only mismatch were both yellow, so you couldn't tell at a glance whether the
   item itself was wrong or it just needed materia. Now it's a clear traffic light everywhere (window

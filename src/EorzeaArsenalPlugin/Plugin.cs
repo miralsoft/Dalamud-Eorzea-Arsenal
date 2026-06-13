@@ -1,4 +1,5 @@
 using Dalamud.Game.Command;
+using Dalamud.Game.Gui.Dtr;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
@@ -50,12 +51,15 @@ public sealed class Plugin : IDalamudPlugin
     private readonly BisWindow _bisWindow;
     private readonly LogWindow _logWindow;
     private readonly BisTooltip _bisTooltip;
+    private readonly IDtrBarEntry _dtrEntry;
 
     // Framework-tick throttles (Environment.TickCount64 milliseconds).
     private long _nextAutoPushCheckTicks;
     private long _nextSignatureCheckTicks;
     private long _nextCharRecordTicks;
     private long _nextBisRefreshTicks;
+    private long _nextDtrUpdateTicks;
+    private bool _bisLoadPending;
     private ulong _lastStoredSig;
     private ulong _lastEquippedItemsSig;
     private ulong _lastEquippedMateriaSig;
@@ -76,6 +80,7 @@ public sealed class Plugin : IDalamudPlugin
     /// <param name="log">Plugin log.</param>
     /// <param name="chatGui">Chat output for user feedback.</param>
     /// <param name="toastGui">Toast notifications.</param>
+    /// <param name="dtrBar">The in-game server-info bar (compact status entry).</param>
     public Plugin(
         IDalamudPluginInterface pluginInterface,
         ICommandManager commandManager,
@@ -87,7 +92,8 @@ public sealed class Plugin : IDalamudPlugin
         ITextureProvider textureProvider,
         IPluginLog log,
         IChatGui chatGui,
-        IToastGui toastGui)
+        IToastGui toastGui,
+        IDtrBar dtrBar)
     {
         _pluginInterface = pluginInterface;
         _commandManager = commandManager;
@@ -129,6 +135,10 @@ public sealed class Plugin : IDalamudPlugin
         _windowSystem.AddWindow(_statusWindow);
         _windowSystem.AddWindow(_configWindow);
 
+        _dtrEntry = dtrBar.Get("Eorzea Arsenal");
+        _dtrEntry.OnClick = _ => OpenStatus();
+        UpdateDtr();
+
         _pluginInterface.UiBuilder.Draw += _windowSystem.Draw;
         _pluginInterface.UiBuilder.Draw += _bisTooltip.Draw;
         _pluginInterface.UiBuilder.OpenConfigUi += OpenConfig;
@@ -154,6 +164,7 @@ public sealed class Plugin : IDalamudPlugin
         _pluginInterface.UiBuilder.OpenMainUi -= OpenStatus;
         _windowSystem.RemoveAllWindows();
 
+        _dtrEntry.Remove();
         _sync.PushCompleted -= OnPushCompleted;
         _sync.Dispose();
         _configWindow.Dispose();
@@ -255,6 +266,14 @@ public sealed class Plugin : IDalamudPlugin
         {
             _sync.RequestPush(PushTrigger.Login);
         }
+
+        // Auto-load BiS for the new session so the window/overlay have current data without a manual
+        // refresh. The framework tick performs it once the character is fully loaded and gear-readable.
+        if (_store.HasKey)
+        {
+            _bisLoadPending = true;
+            _nextBisRefreshTicks = 0;
+        }
     }
 
     /// <summary>
@@ -266,6 +285,12 @@ public sealed class Plugin : IDalamudPlugin
     private void OnFrameworkUpdate(IFramework framework)
     {
         var now = Environment.TickCount64;
+
+        if (now >= _nextDtrUpdateTicks)
+        {
+            _nextDtrUpdateTicks = now + 5_000;
+            UpdateDtr();
+        }
 
         if (now >= _nextCharRecordTicks)
         {
@@ -284,10 +309,13 @@ public sealed class Plugin : IDalamudPlugin
             _sync.RequestPush(PushTrigger.Auto);
         }
 
-        // Keep the BiS cache warm for the hover overlay (reads are cheap: 120/min).
-        if (_config.ShowBisTooltip && now >= _nextBisRefreshTicks && _bisService.IsStale(TimeSpan.FromMinutes(5)))
+        // Keep the BiS cache warm (reads are cheap: 120/min) for the hover overlay, the open window,
+        // or a pending login auto-load.
+        var wantBis = _config.ShowBisTooltip || _bisWindow.IsOpen || _bisLoadPending;
+        if (wantBis && now >= _nextBisRefreshTicks && _bisService.IsStale(TimeSpan.FromMinutes(5)))
         {
             _nextBisRefreshTicks = now + 60_000;
+            _bisLoadPending = false;
             _ = Task.Run(() => _bisService.RefreshAsync(CancellationToken.None));
         }
 
@@ -367,6 +395,8 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OnPushCompleted(PushReport report)
     {
+        UpdateDtr();
+
         var message = PushReportFormatter.Describe(report, _localizer);
         if (message is null)
         {
@@ -387,5 +417,48 @@ public sealed class Plugin : IDalamudPlugin
     {
         var baseUrl = _store.BaseUrl;
         return Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) ? uri.Host : baseUrl;
+    }
+
+    /// <summary>
+    /// Refreshes the server-info-bar entry: a compact "Arsenal: &lt;last push&gt;" label (or "off"
+    /// when not set up), a tooltip with the full last-push time, and click-to-open the status window.
+    /// </summary>
+    private void UpdateDtr()
+    {
+        if (!_config.Enabled || !_config.TosAccepted || !_store.HasKey)
+        {
+            _dtrEntry.Text = "Arsenal: off";
+            _dtrEntry.Tooltip = $"{_localizer.Get(LocKeys.StatusDisconnected)}\n{_localizer.Get(LocKeys.DtrClickHint)}";
+            return;
+        }
+
+        var last = _sync.LastSuccessfulPushUtc;
+        var failed = _sync.LastReport?.Outcome == PushOutcome.Failed;
+        var when = last is { } t ? RelativeTime(t) : _localizer.Get(LocKeys.StatusNever);
+
+        _dtrEntry.Text = failed ? "Arsenal: !" : $"Arsenal: {when}";
+        _dtrEntry.Tooltip = $"{_localizer.Get(LocKeys.StatusLastPush)}: {when}\n{_localizer.Get(LocKeys.DtrClickHint)}";
+    }
+
+    /// <summary>Compact relative-age label (e.g. "now", "12s", "5m", "2h", "1d") for the DTR entry.</summary>
+    private static string RelativeTime(DateTimeOffset utc)
+    {
+        var age = DateTimeOffset.UtcNow - utc;
+        if (age < TimeSpan.FromSeconds(10))
+        {
+            return "now";
+        }
+
+        if (age < TimeSpan.FromMinutes(1))
+        {
+            return $"{(int)age.TotalSeconds}s";
+        }
+
+        if (age < TimeSpan.FromHours(1))
+        {
+            return $"{(int)age.TotalMinutes}m";
+        }
+
+        return age < TimeSpan.FromDays(1) ? $"{(int)age.TotalHours}h" : $"{(int)age.TotalDays}d";
     }
 }

@@ -316,6 +316,9 @@ public static class LocKeys
     /// <summary>Hover hint for clickable items.</summary>
     public const string BisItemHint = "bis.itemhint";
 
+    /// <summary>Server-info-bar click hint.</summary>
+    public const string DtrClickHint = "dtr.clickhint";
+
     /// <summary>BiS window: "shopping list" toggle.</summary>
     public const string BisShoppingList = "bis.shopping";
 
