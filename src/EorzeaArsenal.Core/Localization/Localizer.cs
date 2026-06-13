@@ -118,6 +118,19 @@ public sealed class Localizer : ILocalizer
         [LocKeys.BisOwned] = "you own this item",
         [LocKeys.BisNotOwned] = "not in your inventory/armoury",
         [LocKeys.BisMateriaList] = "Materia: {0}",
+
+        ["slot.weapon"] = "Weapon",
+        ["slot.offhand"] = "Off Hand",
+        ["slot.head"] = "Head",
+        ["slot.body"] = "Body",
+        ["slot.hands"] = "Hands",
+        ["slot.legs"] = "Legs",
+        ["slot.feet"] = "Feet",
+        ["slot.ears"] = "Ears",
+        ["slot.neck"] = "Neck",
+        ["slot.wrists"] = "Wrists",
+        ["slot.ringleft"] = "Ring (left)",
+        ["slot.ringright"] = "Ring (right)",
     };
 
     private static readonly IReadOnlyDictionary<string, string> De = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -223,6 +236,19 @@ public sealed class Localizer : ILocalizer
         [LocKeys.BisOwned] = "im Besitz (Inventar/Arsenal)",
         [LocKeys.BisNotOwned] = "nicht im Inventar/Arsenal",
         [LocKeys.BisMateriaList] = "Materia: {0}",
+
+        ["slot.weapon"] = "Waffe",
+        ["slot.offhand"] = "Nebenhand",
+        ["slot.head"] = "Kopf",
+        ["slot.body"] = "Rumpf",
+        ["slot.hands"] = "Hände",
+        ["slot.legs"] = "Beine",
+        ["slot.feet"] = "Füße",
+        ["slot.ears"] = "Ohren",
+        ["slot.neck"] = "Hals",
+        ["slot.wrists"] = "Handgelenke",
+        ["slot.ringleft"] = "Ring (links)",
+        ["slot.ringright"] = "Ring (rechts)",
     };
 
     private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Languages =

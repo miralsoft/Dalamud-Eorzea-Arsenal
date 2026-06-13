@@ -421,6 +421,15 @@ public sealed class GameGearSource : IGearSource
         return $"#{itemId}";
     }
 
+    /// <summary>Returns an item's item level (iLvl), or 0 if unknown.</summary>
+    /// <param name="itemId">The item id.</param>
+    /// <returns>The item level.</returns>
+    public uint GetItemLevel(int itemId)
+    {
+        var sheet = _data.GetExcelSheet<LuminaItem>();
+        return sheet is not null && sheet.TryGetRow((uint)itemId, out var row) ? row.LevelItem.RowId : 0;
+    }
+
     /// <summary>Returns the API slot key(s) an item can be equipped into (empty if not equippable).</summary>
     /// <param name="itemId">The item id.</param>
     /// <returns>The matching slot keys; rings yield both ring slots.</returns>

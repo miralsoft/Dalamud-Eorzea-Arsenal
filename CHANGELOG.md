@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- **BiS overlay shows item level and localized slot names.** Each line now reads the localized slot
+  name (DE/EN, e.g. *Kopf*/*Head*) and the **iLvl** of both the BiS target and your equipped piece,
+  so you can gauge the gap at a glance.
+
 ### Changed
 - **BiS hover overlay is now slot-based and much more informative.** Hovering any equippable item
   now resolves its equipment slot and shows the current gearset's BiS target for that slot — even

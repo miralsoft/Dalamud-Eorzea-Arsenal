@@ -148,16 +148,22 @@ public sealed class BisTooltip
             var targetMateria = target.Items.TryGetValue(slot, out var targetItem) && targetItem.Materia.Count > 0
                 ? targetItem.Materia.Select(_gearSource.GetItemName).ToList()
                 : [];
-            var equippedName = slotComparison.CurrentItemId is { } currentId && currentId > 0
-                ? _gearSource.GetItemName(currentId)
-                : null;
+            string? equippedName = null;
+            uint? equippedIlvl = null;
+            if (slotComparison.CurrentItemId is { } currentId && currentId > 0)
+            {
+                equippedName = _gearSource.GetItemName(currentId);
+                equippedIlvl = _gearSource.GetItemLevel(currentId);
+            }
 
             lines.Add(new OverlayLine(
                 slot,
                 _gearSource.GetItemName(slotComparison.TargetItemId),
+                _gearSource.GetItemLevel(slotComparison.TargetItemId),
                 slotComparison.Status,
                 slotComparison.MateriaMatch,
                 equippedName,
+                equippedIlvl,
                 _gearSource.OwnsItem(slotComparison.TargetItemId),
                 targetMateria));
         }
@@ -215,7 +221,8 @@ public sealed class BisTooltip
             _ => (FontAwesomeIcon.Times, Red),
         };
 
-        IconText(icon, color, $"{line.Slot}: {line.TargetName}");
+        var slotName = _localizer.Get(SlotNames.LocKey(line.Slot));
+        IconText(icon, color, $"{slotName}: {line.TargetName} · iLvl {line.TargetIlvl}");
         if (complete)
         {
             return;
@@ -223,7 +230,8 @@ public sealed class BisTooltip
 
         if (line.Status == SlotMatch.ItemDiffers && line.EquippedName is not null)
         {
-            ImGui.TextColored(Muted, Indent + _localizer.Get(LocKeys.BisYouHave, line.EquippedName));
+            var equipped = line.EquippedIlvl is { } ilvl ? $"{line.EquippedName} · iLvl {ilvl}" : line.EquippedName;
+            ImGui.TextColored(Muted, Indent + _localizer.Get(LocKeys.BisYouHave, equipped));
         }
 
         if (line.Status is SlotMatch.ItemDiffers or SlotMatch.MissingCurrent)
@@ -284,9 +292,11 @@ public sealed class BisTooltip
     private readonly record struct OverlayLine(
         string Slot,
         string TargetName,
+        uint TargetIlvl,
         SlotMatch Status,
         bool MateriaMatch,
         string? EquippedName,
+        uint? EquippedIlvl,
         bool Owned,
         IReadOnlyList<string> Materia);
 }
