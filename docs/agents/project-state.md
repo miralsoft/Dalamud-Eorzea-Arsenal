@@ -67,8 +67,9 @@ _Last updated: 2026-06-12._
   materia ids, world name and `cid_hash` are correct. The `GameGearSource` mapping
   (materia resolution via the `Materia` Excel sheet, HQ-offset stripping) is **best-effort and
   not yet validated in-game** — most likely place for adjustments.
-- **CI:** confirm the workflows run on `windows-latest` with the Dalamud distrib download; enable
-  CodeQL (needs GitHub Advanced Security if the repo stays private).
+- **CI:** confirm the workflows run on `windows-latest` with the Dalamud distrib download. CodeQL
+  was removed — code scanning needs GitHub Advanced Security on a private repo (which this isn't).
+  Re-add a CodeQL workflow if the repo is ever made public (free there).
 - **Custom repo:** the release workflow regenerates `pluginmaster.json`; the operator adds its raw
   URL in Dalamud settings.
 - **Deferred (design only, do not build yet):** pairing-code connect path; inventory.

@@ -34,8 +34,10 @@ Drop `--verify-no-changes` to apply fixes. CRLF line endings are enforced by `.e
 
 `.github/workflows/ci.yml` runs on every push/PR (Windows runner): restore, `build -c Release`,
 `test`, `format --verify-no-changes` (per project), and `dotnet list package --vulnerable`
-(R41/R43). A red pipeline blocks merge/release (R32). `.github/workflows/codeql.yml` runs the
-CodeQL SAST pass (R43) — it needs GitHub Advanced Security if the repository is private.
+(R41/R43). A red pipeline blocks merge/release (R32). CodeQL SAST is **not** part of CI: code
+scanning needs GitHub Advanced Security on a private repo, which this repo doesn't have, so the
+workflow was removed (the vulnerable-dependency scan stays). If the repo is ever made public,
+re-add a CodeQL workflow — it's free for public repos.
 
 CI obtains the Dalamud assemblies by downloading the official distrib
 (`https://goatcorp.github.io/dalamud-distrib/latest.zip`) into the dev path before building.
