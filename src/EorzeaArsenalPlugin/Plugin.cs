@@ -331,10 +331,19 @@ public sealed class Plugin : IDalamudPlugin
             return; // quiet "skipped" outcomes
         }
 
-        Chat(message);
+        // On failure, append the target server host so a base-URL mismatch (e.g. an old key sent
+        // to the wrong server) is immediately obvious. The host is not a secret (R22).
+        var chatMessage = report.Outcome == PushOutcome.Failed ? $"{message} ({ServerHost()})" : message;
+        Chat(chatMessage);
         if (_config.UseToasts)
         {
             _toastGui.ShowNormal(message);
         }
+    }
+
+    private string ServerHost()
+    {
+        var baseUrl = _store.BaseUrl;
+        return Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) ? uri.Host : baseUrl;
     }
 }
