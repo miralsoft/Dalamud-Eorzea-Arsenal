@@ -12,6 +12,7 @@ public static class SourceNames
         ["crafted"] = "source.crafted",
         ["raid"] = "source.raid",
         ["tome"] = "source.tome",
+        ["augmented_tome"] = "source.augmented_tome",
         ["alliance"] = "source.alliance",
         ["dungeon"] = "source.dungeon",
         ["extreme"] = "source.extreme",
