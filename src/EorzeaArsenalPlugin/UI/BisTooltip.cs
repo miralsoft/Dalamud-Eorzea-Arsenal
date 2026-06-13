@@ -18,8 +18,7 @@ namespace EorzeaArsenal.Plugin.UI;
 /// </summary>
 public sealed class BisTooltip
 {
-    private const float Margin = 2f;
-    private const float EstimatedWidth = 340f;
+    private const float Margin = 4f;
 
     private static readonly Vector4 Accent = new(0.55f, 0.8f, 1f, 1f);
     private static readonly Vector4 Green = new(0.4f, 0.8f, 0.4f, 1f);
@@ -31,6 +30,8 @@ public sealed class BisTooltip
     private readonly IGameGui _gameGui;
     private readonly BisService _bis;
     private readonly GameGearSource _gearSource;
+
+    private Vector2 _lastSize = new(220f, 80f);
 
     /// <summary>Creates the overlay.</summary>
     /// <param name="config">Live config (holds the on/off toggle).</param>
@@ -91,6 +92,7 @@ public sealed class BisTooltip
             DrawSlotState(hit);
         }
 
+        _lastSize = ImGui.GetWindowSize(); // used next frame to dock above the native tooltip
         ImGui.EndTooltip();
     }
 
@@ -113,9 +115,10 @@ public sealed class BisTooltip
     }
 
     /// <summary>
-    /// Positions the next tooltip beside the native <c>ItemDetail</c> addon: to its left if there
-    /// is room, otherwise to its right (docked with a small margin). Falls back to the default
-    /// cursor position when the addon is not visible.
+    /// Docks the next tooltip to the native <c>ItemDetail</c> addon, aligned to its left edge:
+    /// directly <b>above</b> it when there is room, otherwise <b>below</b> it (small margin). This
+    /// keeps it attached to and clearly readable next to the item tooltip. Falls back to the
+    /// default cursor position when the addon is not visible.
     /// </summary>
     private void PositionNextToNativeTooltip()
     {
@@ -126,10 +129,11 @@ public sealed class BisTooltip
         }
 
         var position = addon.Position;
-        var posX = position.X - EstimatedWidth - Margin >= 0
-            ? position.X - EstimatedWidth - Margin     // dock to the left
-            : position.X + addon.ScaledWidth + Margin; // not enough room left → dock to the right
+        var aboveY = position.Y - _lastSize.Y - Margin;
+        var y = aboveY >= 0
+            ? aboveY                                    // dock directly above the tooltip
+            : position.Y + addon.ScaledHeight + Margin; // no room above → dock below it
 
-        ImGui.SetNextWindowPos(new Vector2(posX, position.Y));
+        ImGui.SetNextWindowPos(new Vector2(position.X, y));
     }
 }
