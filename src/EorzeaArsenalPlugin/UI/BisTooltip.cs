@@ -30,6 +30,7 @@ public sealed class BisTooltip
     private static readonly Vector4 Muted = new(0.78f, 0.80f, 0.85f, 1f);
     private static readonly Vector4 Green = new(0.45f, 0.82f, 0.45f, 1f);
     private static readonly Vector4 Red = new(0.92f, 0.45f, 0.45f, 1f);
+    private static readonly Vector4 Orange = new(0.96f, 0.62f, 0.22f, 1f);
     private static readonly Vector4 Yellow = new(0.95f, 0.82f, 0.35f, 1f);
     private static readonly Vector4 Background = new(0.08f, 0.09f, 0.12f, 0.96f);
 
@@ -227,8 +228,9 @@ public sealed class BisTooltip
         var (icon, color) = line.Status switch
         {
             SlotMatch.Match when clean => (FontAwesomeIcon.Check, Green),
-            SlotMatch.Match => (FontAwesomeIcon.ExclamationTriangle, Yellow),
-            SlotMatch.ItemDiffers => (FontAwesomeIcon.ExclamationTriangle, Yellow),
+            // Item correct, only materia off → orange warning; wrong/empty item → red.
+            SlotMatch.Match => (FontAwesomeIcon.ExclamationTriangle, Orange),
+            SlotMatch.ItemDiffers => (FontAwesomeIcon.Times, Red),
             _ => (FontAwesomeIcon.Times, Red),
         };
 
@@ -259,7 +261,7 @@ public sealed class BisTooltip
         if (line.Missing.Count > 0)
         {
             var key = line.Status == SlotMatch.Match ? LocKeys.BisMateriaMissing : LocKeys.BisMateriaList;
-            var lineColor = line.Status == SlotMatch.Match ? Yellow : Muted;
+            var lineColor = line.Status == SlotMatch.Match ? Orange : Muted;
             ImGui.TextColored(lineColor, Indent + _localizer.Get(key, string.Join(", ", line.Missing)));
         }
     }

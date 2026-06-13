@@ -40,7 +40,7 @@ public sealed class BisWindow : Window
     private static readonly Vector4 Muted = new(0.78f, 0.80f, 0.85f, 1f);
     private static readonly Vector4 Green = new(0.45f, 0.82f, 0.45f, 1f);
     private static readonly Vector4 Red = new(0.92f, 0.45f, 0.45f, 1f);
-    private static readonly Vector4 Yellow = new(0.95f, 0.82f, 0.35f, 1f);
+    private static readonly Vector4 Orange = new(0.96f, 0.62f, 0.22f, 1f);
 
     private readonly PluginConfig _config;
     private readonly ConfigStore _store;
@@ -217,6 +217,21 @@ public sealed class BisWindow : Window
             2 => materiaIssue,
             _ => true,
         };
+    }
+
+    /// <summary>
+    /// The traffic-light status colour for a slot: green = fully BiS, <b>orange = item is correct but
+    /// the materia is off</b>, <b>red = the item itself is wrong or the slot is empty</b>. This lets
+    /// the user tell "just needs materia" apart from "wrong gear piece" at a glance.
+    /// </summary>
+    private Vector4 StatusColor(SlotComparison slot)
+    {
+        if (slot is { Status: SlotMatch.Match, MissingMateria.Count: 0, ExtraMateria.Count: 0 })
+        {
+            return Green;
+        }
+
+        return slot.Status == SlotMatch.Match ? Orange : Red;
     }
 
     private void DrawSetHeader(GearsetComparison comparison)
@@ -417,8 +432,7 @@ public sealed class BisWindow : Window
         ImGui.SetCursorScreenPos(origin);
         ImGui.InvisibleButton($"##tile{gearIndex}_{slotKey}", size);
 
-        var complete = item is { Status: SlotMatch.Match, MissingMateria.Count: 0, ExtraMateria.Count: 0 };
-        var color = complete ? Green : item.Status == SlotMatch.MissingCurrent ? Red : Yellow;
+        var color = StatusColor(item);
         drawList.AddRect(origin, origin + size, ImGui.GetColorU32(color), 4f, ImDrawFlags.RoundCornersAll, 2.5f);
 
         if (ImGui.IsItemHovered())
@@ -445,10 +459,7 @@ public sealed class BisWindow : Window
     /// <summary>The detail next to a grid tile: the item name plus the materia still to socket (icons).</summary>
     private void DrawTileDetail(SlotComparison item)
     {
-        var complete = item is { Status: SlotMatch.Match, MissingMateria.Count: 0, ExtraMateria.Count: 0 };
-        var color = complete ? Green : item.Status == SlotMatch.MissingCurrent ? Red : Yellow;
-
-        ImGui.PushStyleColor(ImGuiCol.Text, color);
+        ImGui.PushStyleColor(ImGuiCol.Text, StatusColor(item));
         ImGui.TextWrapped(_gearSource.GetItemName(item.TargetItemId));
         ImGui.PopStyleColor();
 
@@ -480,8 +491,7 @@ public sealed class BisWindow : Window
     {
         ImGui.BeginTooltip();
 
-        var complete = slot is { Status: SlotMatch.Match, MissingMateria.Count: 0, ExtraMateria.Count: 0 };
-        var color = complete ? Green : slot.Status == SlotMatch.MissingCurrent ? Red : Yellow;
+        var color = StatusColor(slot);
         var slotName = _localizer.Get(SlotNames.LocKey(slot.Slot));
         var sourceSuffix = string.IsNullOrEmpty(source) ? string.Empty : $" · {SourceLabel(source)}";
         ImGui.TextColored(color, $"{slotName}: {_gearSource.GetItemName(slot.TargetItemId)} · iLvl {_gearSource.GetItemLevel(slot.TargetItemId)}{sourceSuffix}");
@@ -499,7 +509,7 @@ public sealed class BisWindow : Window
         if (slot.MissingMateria.Count > 0)
         {
             var key = slot.Status == SlotMatch.Match ? LocKeys.BisMateriaMissing : LocKeys.BisMateriaList;
-            ImGui.TextColored(slot.Status == SlotMatch.Match ? Yellow : Muted, _localizer.Get(key, string.Join(", ", slot.MissingMateria.Select(_gearSource.GetItemName))));
+            ImGui.TextColored(slot.Status == SlotMatch.Match ? Orange : Muted, _localizer.Get(key, string.Join(", ", slot.MissingMateria.Select(_gearSource.GetItemName))));
         }
 
         ImGui.Spacing();
@@ -513,8 +523,7 @@ public sealed class BisWindow : Window
         ImGui.SameLine();
         ImGui.BeginGroup();
 
-        var complete = slot is { Status: SlotMatch.Match, MissingMateria.Count: 0, ExtraMateria.Count: 0 };
-        var color = complete ? Green : slot.Status == SlotMatch.MissingCurrent ? Red : Yellow;
+        var color = StatusColor(slot);
         var slotName = _localizer.Get(SlotNames.LocKey(slot.Slot));
         var sourceSuffix = string.IsNullOrEmpty(source) ? string.Empty : $" · {SourceLabel(source)}";
         var line = $"{slotName}: {_gearSource.GetItemName(slot.TargetItemId)} · iLvl {_gearSource.GetItemLevel(slot.TargetItemId)}{sourceSuffix}";
@@ -533,7 +542,7 @@ public sealed class BisWindow : Window
         if (slot.MissingMateria.Count > 0)
         {
             var key = slot.Status == SlotMatch.Match ? LocKeys.BisMateriaMissing : LocKeys.BisMateriaList;
-            DrawMateria(_localizer.Get(key, string.Empty), slot.MissingMateria, slot.Status == SlotMatch.Match ? Yellow : Muted);
+            DrawMateria(_localizer.Get(key, string.Empty), slot.MissingMateria, slot.Status == SlotMatch.Match ? Orange : Muted);
         }
 
         ImGui.EndGroup();

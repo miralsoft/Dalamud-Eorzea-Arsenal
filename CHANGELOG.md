@@ -11,6 +11,13 @@ All notable changes to this project are documented here. The format is based on
   localhost dev URL). New installs connect to production out of the box; existing saved configs are
   unchanged, and the value stays user-editable (set it to `localhost` for local testing).
 
+### Changed
+- **BiS status colours now distinguish "wrong item" from "only materia".** Previously a wrong gear
+  piece and a materia-only mismatch were both yellow, so you couldn't tell at a glance whether the
+  item itself was wrong or it just needed materia. Now it's a clear traffic light everywhere (window
+  list, grid tiles, hover tooltips and the in-game overlay): **green** = fully BiS, **orange** = item
+  is correct but materia is off, **red** = the item itself is wrong or the slot is empty.
+
 ### Added
 - **Character-screen grid view in the BiS window.** A new **Grid** toggle lays each gearset out like
   the in-game character window — **row by row**: weapon + off-hand share the top row, then five
