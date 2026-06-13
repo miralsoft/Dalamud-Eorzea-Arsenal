@@ -169,7 +169,14 @@ public sealed class BisTooltip
         var anchor = addon.Position;
         var display = ImGui.GetIO().DisplaySize;
 
-        var x = anchor.X + FrameInset;
+        // If the native tooltip sits to the LEFT of the cursor, dock to its right edge (near the
+        // cursor) so the overlay is quicker to spot; otherwise dock to its left edge.
+        var mouse = ImGui.GetMousePos();
+        var tooltipLeftOfCursor = anchor.X + (addon.ScaledWidth * 0.5f) < mouse.X;
+        var x = tooltipLeftOfCursor
+            ? anchor.X + addon.ScaledWidth - _lastSize.X - FrameInset
+            : anchor.X + FrameInset;
+
         var aboveY = anchor.Y - _lastSize.Y - Gap;
         var y = aboveY >= ScreenPadding ? aboveY : anchor.Y + addon.ScaledHeight + Gap;
 

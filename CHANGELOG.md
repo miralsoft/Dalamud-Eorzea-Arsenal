@@ -7,6 +7,13 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Fixed
+- **Gearset-change detection now fires only on *saving* a gearset.** The change signature no longer
+  folds in the live equipped container, so merely switching gearsets (or melding without saving)
+  does not trigger a push — only saving/updating a gearset does. (The push payload still reads live
+  equipped materia for correctness; that is unchanged.)
+- **BiS overlay docks toward the cursor.** When the native item tooltip is to the left of the
+  cursor, the overlay now docks to the tooltip's right edge (near the cursor) so it's quicker to
+  spot; otherwise it stays on the left edge.
 - **Gearset changes now push promptly (with a confirmation).** Change-detected pushes were caught
   by the 5-minute auto-push throttle and silently skipped, so editing/switching a gearset seemed
   to do nothing. Event-driven triggers (manual, login, gearset change) now bypass that interval and

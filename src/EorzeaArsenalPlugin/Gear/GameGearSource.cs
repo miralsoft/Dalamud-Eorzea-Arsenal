@@ -183,9 +183,10 @@ public sealed class GameGearSource : IGearSource
                 }
             }
 
-            // Also fold in the live equipped items so melding on worn gear (which does not update
-            // the gearset snapshot) still changes the signature and triggers a push.
-            hash = HashEquipped(hash);
+            // Intentionally based ONLY on the stored gearset entries: they change only when a
+            // gearset is saved/updated, so change-detection fires on *saving* a gearset — not on
+            // merely switching gearsets or melding without saving. (The push payload still reads
+            // live equipped materia for correctness; that is a separate concern.)
             return hash;
         }
         catch (Exception ex)
@@ -327,40 +328,6 @@ public sealed class GameGearSource : IGearSource
         }
 
         return (int)row.Item[grade].RowId;
-    }
-
-    /// <summary>Folds the live equipped items into the change-detection hash (P1: framework thread).</summary>
-    private unsafe ulong HashEquipped(ulong hash)
-    {
-        var inventory = InventoryManager.Instance();
-        if (inventory == null)
-        {
-            return hash;
-        }
-
-        var container = inventory->GetInventoryContainer(InventoryType.EquippedItems);
-        if (container == null)
-        {
-            return hash;
-        }
-
-        for (var slot = 0; slot < EquipmentSlotCount; slot++)
-        {
-            var item = container->GetInventorySlot(slot);
-            if (item == null)
-            {
-                continue;
-            }
-
-            hash = Fnv(hash, item->ItemId);
-            for (var k = 0; k < MateriaSlotCount; k++)
-            {
-                hash = Fnv(hash, item->Materia[k]);
-                hash = Fnv(hash, item->MateriaGrades[k]);
-            }
-        }
-
-        return hash;
     }
 
     /// <summary>The currently equipped gearset index, or -1 if unavailable. Read on the main thread.</summary>
