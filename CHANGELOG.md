@@ -20,6 +20,10 @@ All notable changes to this project are documented here. The format is based on
   (inventory/armoury/equipped), and your equipped piece for comparison.
 
 ### Fixed
+- **Ring materia is shown correctly per finger.** Rings are interchangeable, but left/right often
+  need different materia. The comparison now claims exact (id + materia) ring matches first, so two
+  same-id rings each pair with the right target regardless of finger; and the overlay always shows
+  each ring's target materia (even when complete), so you can see what belongs in each.
 - **BiS overlay compares against the live equipped gear.** The comparison was taken from the
   (≤5-min) cached fetch, so after swapping a piece the overlay still showed the old verdict. It now
   recomputes against the currently worn gear whenever the equipment changes — correct immediately,

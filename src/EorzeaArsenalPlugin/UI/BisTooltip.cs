@@ -223,10 +223,6 @@ public sealed class BisTooltip
 
         var slotName = _localizer.Get(SlotNames.LocKey(line.Slot));
         IconText(icon, color, $"{slotName}: {line.TargetName} · iLvl {line.TargetIlvl}");
-        if (complete)
-        {
-            return;
-        }
 
         if (line.Status == SlotMatch.ItemDiffers && line.EquippedName is not null)
         {
@@ -239,7 +235,10 @@ public sealed class BisTooltip
             ImGui.TextColored(line.Owned ? Green : Red, Indent + (line.Owned ? T(LocKeys.BisOwned) : T(LocKeys.BisNotOwned)));
         }
 
-        if (line.Materia.Count > 0)
+        // Show the target materia whenever it isn't fully matched — and always for rings, whose
+        // left/right materia commonly differ and are worth showing even when complete.
+        var isRing = line.Slot is "RingLeft" or "RingRight";
+        if (line.Materia.Count > 0 && (!complete || isRing))
         {
             ImGui.TextColored(Muted, Indent + _localizer.Get(LocKeys.BisMateriaList, string.Join(", ", line.Materia)));
         }

@@ -131,29 +131,63 @@ public static class BisComparer
             pool.Add(r);
         }
 
+        var targets = new List<(string Slot, ItemDto Item)>(2);
         foreach (var slot in new[] { RingLeft, RingRight })
         {
-            if (Lookup(targetItems, slot) is not { } target)
+            if (Lookup(targetItems, slot) is { } target)
+            {
+                targets.Add((slot, target));
+            }
+        }
+
+        var resolved = new bool[targets.Count];
+
+        // Pass 1: claim exact matches (same id AND same materia) first, so two same-id rings with
+        // different materia each pair with the right one regardless of which finger they sit on.
+        for (var i = 0; i < targets.Count; i++)
+        {
+            var idx = pool.FindIndex(p => p.Id == targets[i].Item.Id && MateriaEqual(p.Materia, targets[i].Item.Materia));
+            if (idx >= 0)
+            {
+                slots.Add(new SlotComparison(targets[i].Slot, pool[idx].Id, targets[i].Item.Id, SlotMatch.Match, true));
+                pool.RemoveAt(idx);
+                resolved[i] = true;
+            }
+        }
+
+        // Pass 2: same item id but different materia → match, materia differs.
+        for (var i = 0; i < targets.Count; i++)
+        {
+            if (resolved[i])
             {
                 continue;
             }
 
-            var idx = pool.FindIndex(p => p.Id == target.Id);
+            var idx = pool.FindIndex(p => p.Id == targets[i].Item.Id);
             if (idx >= 0)
             {
-                var current = pool[idx];
+                slots.Add(new SlotComparison(targets[i].Slot, pool[idx].Id, targets[i].Item.Id, SlotMatch.Match, false));
                 pool.RemoveAt(idx);
-                slots.Add(new SlotComparison(slot, current.Id, target.Id, SlotMatch.Match, MateriaEqual(current.Materia, target.Materia)));
+                resolved[i] = true;
             }
-            else if (pool.Count > 0)
+        }
+
+        // Pass 3: leftovers → a different ring is worn, or the slot is empty.
+        for (var i = 0; i < targets.Count; i++)
+        {
+            if (resolved[i])
             {
-                var current = pool[0];
+                continue;
+            }
+
+            if (pool.Count > 0)
+            {
+                slots.Add(new SlotComparison(targets[i].Slot, pool[0].Id, targets[i].Item.Id, SlotMatch.ItemDiffers, false));
                 pool.RemoveAt(0);
-                slots.Add(new SlotComparison(slot, current.Id, target.Id, SlotMatch.ItemDiffers, false));
             }
             else
             {
-                slots.Add(new SlotComparison(slot, null, target.Id, SlotMatch.MissingCurrent, false));
+                slots.Add(new SlotComparison(targets[i].Slot, null, targets[i].Item.Id, SlotMatch.MissingCurrent, false));
             }
         }
     }

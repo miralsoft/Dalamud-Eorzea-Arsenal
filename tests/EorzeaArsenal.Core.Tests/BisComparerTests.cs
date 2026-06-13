@@ -96,6 +96,50 @@ public sealed class BisComparerTests
     }
 
     [Fact]
+    public void Same_ring_id_different_materia_pairs_by_materia()
+    {
+        // Both rings are the same item id but need different materia; the player has both, swapped
+        // across fingers. Each target must pair with the matching ring → both complete.
+        var live = Live(new()
+        {
+            ["RingLeft"] = new() { Id = 5, Materia = [2, 2] },
+            ["RingRight"] = new() { Id = 5, Materia = [1, 1] },
+        });
+        var target = Target(new()
+        {
+            ["RingLeft"] = new() { Id = 5, Materia = [1, 1] },
+            ["RingRight"] = new() { Id = 5, Materia = [2, 2] },
+        });
+
+        var comp = BisComparer.Compare(live, [target])[0];
+        Assert.True(Slot(comp, "RingLeft").MateriaMatch);
+        Assert.True(Slot(comp, "RingRight").MateriaMatch);
+        Assert.True(comp.IsComplete);
+    }
+
+    [Fact]
+    public void Same_ring_id_one_wrong_materia_flags_one_ring()
+    {
+        // Player has two identical rings ([1,1]); BiS wants one [1,1] and one [2,2].
+        var live = Live(new()
+        {
+            ["RingLeft"] = new() { Id = 5, Materia = [1, 1] },
+            ["RingRight"] = new() { Id = 5, Materia = [1, 1] },
+        });
+        var target = Target(new()
+        {
+            ["RingLeft"] = new() { Id = 5, Materia = [1, 1] },
+            ["RingRight"] = new() { Id = 5, Materia = [2, 2] },
+        });
+
+        var comp = BisComparer.Compare(live, [target])[0];
+        var matched = comp.Slots.Count(s => s is { Status: SlotMatch.Match, MateriaMatch: true });
+        var materiaOff = comp.Slots.Count(s => s is { Status: SlotMatch.Match, MateriaMatch: false });
+        Assert.Equal(1, matched);
+        Assert.Equal(1, materiaOff);
+    }
+
+    [Fact]
     public void Target_without_live_gearset_is_all_missing()
     {
         var live = new GearData
