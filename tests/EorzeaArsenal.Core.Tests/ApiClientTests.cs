@@ -174,6 +174,21 @@ public sealed class ApiClientTests
         Assert.Contains("/gear/bis?cid_hash=abc", request.Uri!.AbsoluteUri);
     }
 
+    [Fact]
+    public async Task GetBis_parses_item_and_set_source()
+    {
+        var handler = new StubHttpMessageHandler().Enqueue(
+            HttpStatusCode.OK,
+            """{"protocol_version":1,"data":[{"job":"DRK","gear_index":0,"name":"BiS","source":"raid","items":{"Weapon":{"id":49668,"materia":[],"source":"ultimate"}}}]}""");
+
+        var result = await Make(handler).GetBisAsync("k", null, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var set = Assert.Single(result.Value!.Data);
+        Assert.Equal("raid", set.Source);
+        Assert.Equal("ultimate", set.Items["Weapon"].Source);
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.Forbidden, ApiErrorKind.Forbidden)]
     [InlineData(HttpStatusCode.NotFound, ApiErrorKind.NotFound)]

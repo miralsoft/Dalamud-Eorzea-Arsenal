@@ -145,9 +145,11 @@ public sealed class BisTooltip
                 continue; // no BiS target for this slot
             }
 
-            var targetMateria = target.Items.TryGetValue(slot, out var targetItem) && targetItem.Materia.Count > 0
+            target.Items.TryGetValue(slot, out var targetItem);
+            var targetMateria = targetItem is { Materia.Count: > 0 }
                 ? targetItem.Materia.Select(_gearSource.GetItemName).ToList()
                 : [];
+            var source = targetItem?.Source ?? target.Source;
             string? equippedName = null;
             uint? equippedIlvl = null;
             if (slotComparison.CurrentItemId is { } currentId && currentId > 0)
@@ -160,6 +162,7 @@ public sealed class BisTooltip
                 slot,
                 _gearSource.GetItemName(slotComparison.TargetItemId),
                 _gearSource.GetItemLevel(slotComparison.TargetItemId),
+                source,
                 slotComparison.Status,
                 slotComparison.MateriaMatch,
                 equippedName,
@@ -222,7 +225,9 @@ public sealed class BisTooltip
         };
 
         var slotName = _localizer.Get(SlotNames.LocKey(line.Slot));
-        IconText(icon, color, $"{slotName}: {line.TargetName} · iLvl {line.TargetIlvl}");
+        var source = SourceLabel(line.Source);
+        var suffix = source is null ? string.Empty : $" · {source}";
+        IconText(icon, color, $"{slotName}: {line.TargetName} · iLvl {line.TargetIlvl}{suffix}");
 
         if (line.Status == SlotMatch.ItemDiffers && line.EquippedName is not null)
         {
@@ -242,6 +247,19 @@ public sealed class BisTooltip
         {
             ImGui.TextColored(Muted, Indent + _localizer.Get(LocKeys.BisMateriaList, string.Join(", ", line.Materia)));
         }
+    }
+
+    private string? SourceLabel(string? source)
+    {
+        if (string.IsNullOrEmpty(source))
+        {
+            return null;
+        }
+
+        // Known values get a localized label; unknown values fall back to the raw value, so a new
+        // API source still shows up (forward-compatible).
+        var key = SourceNames.LocKey(source);
+        return key is not null ? _localizer.Get(key) : char.ToUpperInvariant(source[0]) + source[1..];
     }
 
     private static void IconText(FontAwesomeIcon icon, Vector4 color, string text)
@@ -292,6 +310,7 @@ public sealed class BisTooltip
         string Slot,
         string TargetName,
         uint TargetIlvl,
+        string? Source,
         SlotMatch Status,
         bool MateriaMatch,
         string? EquippedName,

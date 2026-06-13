@@ -131,6 +131,18 @@ public sealed class Localizer : ILocalizer
         ["slot.wrists"] = "Wrists",
         ["slot.ringleft"] = "Ring (left)",
         ["slot.ringright"] = "Ring (right)",
+
+        ["source.crafted"] = "Crafted",
+        ["source.raid"] = "Raid",
+        ["source.tome"] = "Tomestone",
+        ["source.alliance"] = "Alliance Raid",
+        ["source.dungeon"] = "Dungeon",
+        ["source.extreme"] = "Extreme",
+        ["source.trial"] = "Trial",
+        ["source.ultimate"] = "Ultimate",
+        ["source.relic"] = "Relic",
+        ["source.pvp"] = "PvP",
+        ["source.other"] = "Other",
     };
 
     private static readonly IReadOnlyDictionary<string, string> De = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -249,6 +261,18 @@ public sealed class Localizer : ILocalizer
         ["slot.wrists"] = "Handgelenke",
         ["slot.ringleft"] = "Ring (links)",
         ["slot.ringright"] = "Ring (rechts)",
+
+        ["source.crafted"] = "Handwerk",
+        ["source.raid"] = "Raid",
+        ["source.tome"] = "Steine",
+        ["source.alliance"] = "Allianz-Raid",
+        ["source.dungeon"] = "Dungeon",
+        ["source.extreme"] = "Extrem",
+        ["source.trial"] = "Prüfung",
+        ["source.ultimate"] = "Ultimativ",
+        ["source.relic"] = "Relikt",
+        ["source.pvp"] = "PvP",
+        ["source.other"] = "Sonstige",
     };
 
     private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Languages =

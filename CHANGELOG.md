@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **BiS overlay shows the item source.** When `GET /gear/bis` provides a `source` (per item, or a
+  set-level fallback) it is shown next to each slot — e.g. *Raid*, *Tomestone*, *Crafted*, *Relic*,
+  *Ultimate* — localized DE/EN, with the raw value shown for any source the plugin doesn't know yet
+  (forward-compatible).
 - **BiS overlay shows item level and localized slot names.** Each line now reads the localized slot
   name (DE/EN, e.g. *Kopf*/*Head*) and the **iLvl** of both the BiS target and your equipped piece,
   so you can gauge the gap at a glance.

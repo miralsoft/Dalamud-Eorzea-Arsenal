@@ -15,7 +15,10 @@ public sealed class BisGearset
     /// <summary>Optional target name.</summary>
     public string? Name { get; init; }
 
-    /// <summary>Target items keyed by the 12 PascalCase slot keys, each <c>{ id, materia }</c>.</summary>
+    /// <summary>Optional set-level source (used as a fallback when an item has no own source).</summary>
+    public string? Source { get; init; }
+
+    /// <summary>Target items keyed by the 12 PascalCase slot keys, each <c>{ id, materia, source? }</c>.</summary>
     public Dictionary<string, ItemDto> Items { get; init; } = [];
 }
 

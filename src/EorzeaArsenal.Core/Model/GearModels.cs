@@ -32,6 +32,13 @@ public sealed class ItemDto
 
     /// <summary>Materia <i>item</i> ids melded into the piece; may be empty.</summary>
     public List<int> Materia { get; init; } = [];
+
+    /// <summary>
+    /// Optional item source as classified by the API (e.g. <c>raid</c>, <c>tome</c>, <c>crafted</c>,
+    /// <c>relic</c>, <c>ultimate</c>). Returned by <c>GET /gear/bis</c>; never sent on push (R14
+    /// forward-compatible). <see langword="null"/> when unknown.
+    /// </summary>
+    public string? Source { get; init; }
 }
 
 /// <summary>One in-game gearset (one job loadout).</summary>
