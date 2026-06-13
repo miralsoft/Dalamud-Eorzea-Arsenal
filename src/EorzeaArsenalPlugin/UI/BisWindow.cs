@@ -6,6 +6,7 @@ using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using EorzeaArsenal.Gear;
 using EorzeaArsenal.Localization;
+using EorzeaArsenal.Model;
 using EorzeaArsenal.Plugin.Configuration;
 using EorzeaArsenal.Plugin.Gear;
 using EorzeaArsenal.Plugin.Services;
@@ -21,6 +22,11 @@ namespace EorzeaArsenal.Plugin.UI;
 public sealed class BisWindow : Window
 {
     private const float IconSize = 34f;
+    private const float TileSize = 48f;
+
+    // The character-screen layout: weapon + armour on the left, accessories on the right.
+    private static readonly string[] GridLeft = ["Weapon", "OffHand", "Head", "Body", "Hands", "Legs", "Feet"];
+    private static readonly string[] GridRight = ["Ears", "Neck", "Wrists", "RingLeft", "RingRight"];
 
     private static readonly Vector4 Accent = new(0.62f, 0.82f, 1f, 1f);
     private static readonly Vector4 Muted = new(0.78f, 0.80f, 0.85f, 1f);
@@ -97,6 +103,12 @@ public sealed class BisWindow : Window
             return;
         }
 
+        if (_config.BisGridView)
+        {
+            DrawGrids(scoped);
+            return;
+        }
+
         var shownAny = false;
         foreach (var comparison in scoped)
         {
@@ -150,11 +162,29 @@ public sealed class BisWindow : Window
         if (ImGui.Checkbox(T(LocKeys.BisShoppingList), ref shopping))
         {
             _config.BisShoppingList = shopping;
+            if (shopping)
+            {
+                _config.BisGridView = false;
+            }
+
             _save();
         }
 
-        // The per-slot filter only makes sense in the per-set view, not the aggregated shopping list.
-        if (_config.BisShoppingList)
+        ImGui.SameLine();
+        var grid = _config.BisGridView;
+        if (ImGui.Checkbox(T(LocKeys.BisGridView), ref grid))
+        {
+            _config.BisGridView = grid;
+            if (grid)
+            {
+                _config.BisShoppingList = false;
+            }
+
+            _save();
+        }
+
+        // The per-slot filter only applies to the per-set list, not the shopping list or the grid.
+        if (_config.BisShoppingList || _config.BisGridView)
         {
             return;
         }
@@ -181,7 +211,7 @@ public sealed class BisWindow : Window
         };
     }
 
-    private void DrawGearset(GearsetComparison comparison, List<SlotComparison> slots)
+    private void DrawSetHeader(GearsetComparison comparison)
     {
         var name = string.IsNullOrEmpty(comparison.Name) ? string.Empty : $" — {comparison.Name}";
         ImGui.TextColored(Accent, $"#{comparison.GearIndex} {comparison.Job}{name}");
@@ -196,6 +226,11 @@ public sealed class BisWindow : Window
         ImGui.PushStyleColor(ImGuiCol.PlotHistogram, comparison.IsComplete ? Green : Accent);
         ImGui.ProgressBar(fraction, new Vector2(180f, 0f), overlay);
         ImGui.PopStyleColor();
+    }
+
+    private void DrawGearset(GearsetComparison comparison, List<SlotComparison> slots)
+    {
+        DrawSetHeader(comparison);
 
         var target = _bis.TargetGearset(comparison.GearIndex);
         foreach (var slot in slots)
@@ -287,6 +322,131 @@ public sealed class BisWindow : Window
             : string.Empty;
         var line = $"{_gearSource.GetItemName(itemId)}{detail}{setsSuffix}";
         ClickableItem(Muted, line, itemId, $"##shop{itemId}");
+    }
+
+    /// <summary>Renders each shown gearset as a character-screen-style two-column icon grid.</summary>
+    private void DrawGrids(IEnumerable<GearsetComparison> scoped)
+    {
+        var shownAny = false;
+        foreach (var comparison in scoped)
+        {
+            DrawGrid(comparison);
+            shownAny = true;
+        }
+
+        if (!shownAny && _bis.Comparisons.Count > 0)
+        {
+            ImGui.TextDisabled(T(LocKeys.BisNothingShown));
+        }
+    }
+
+    private void DrawGrid(GearsetComparison comparison)
+    {
+        DrawSetHeader(comparison);
+
+        var bySlot = new Dictionary<string, SlotComparison>(StringComparer.Ordinal);
+        foreach (var slot in comparison.Slots)
+        {
+            bySlot[slot.Slot] = slot;
+        }
+
+        var target = _bis.TargetGearset(comparison.GearIndex);
+
+        ImGui.BeginGroup();
+        foreach (var key in GridLeft)
+        {
+            DrawTile(comparison.GearIndex, key, bySlot.TryGetValue(key, out var s) ? s : null, target);
+        }
+
+        ImGui.EndGroup();
+
+        ImGui.SameLine(0f, 28f);
+
+        ImGui.BeginGroup();
+        foreach (var key in GridRight)
+        {
+            DrawTile(comparison.GearIndex, key, bySlot.TryGetValue(key, out var s) ? s : null, target);
+        }
+
+        ImGui.EndGroup();
+
+        ImGui.Spacing();
+        ImGui.Separator();
+    }
+
+    private void DrawTile(int gearIndex, string slotKey, SlotComparison? slot, BisGearset? target)
+    {
+        var size = new Vector2(TileSize, TileSize);
+        var origin = ImGui.GetCursorScreenPos();
+        var drawList = ImGui.GetWindowDrawList();
+
+        if (slot is not { } item)
+        {
+            // Absent slot (e.g. no off-hand for this job): faint placeholder so the columns line up.
+            drawList.AddRect(origin, origin + size, ImGui.GetColorU32(Muted with { W = 0.16f }), 4f, ImDrawFlags.RoundCornersAll, 1f);
+            ImGui.Dummy(size);
+            return;
+        }
+
+        DrawIcon(item.TargetItemId, TileSize);
+        ImGui.SetCursorScreenPos(origin);
+        ImGui.InvisibleButton($"##tile{gearIndex}_{slotKey}", size);
+
+        var complete = item is { Status: SlotMatch.Match, MissingMateria.Count: 0, ExtraMateria.Count: 0 };
+        var color = complete ? Green : item.Status == SlotMatch.MissingCurrent ? Red : Yellow;
+        drawList.AddRect(origin, origin + size, ImGui.GetColorU32(color), 4f, ImDrawFlags.RoundCornersAll, 2.5f);
+
+        var source = target?.Items.GetValueOrDefault(item.Slot)?.Source ?? target?.Source;
+        if (ImGui.IsItemHovered())
+        {
+            DrawTileTooltip(item, source);
+        }
+
+        if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
+        {
+            _linkItem(item.TargetItemId);
+        }
+
+        if (ImGui.BeginPopupContextItem($"##tile{gearIndex}_{slotKey}"))
+        {
+            if (ImGui.Selectable(T(LocKeys.BisCopyName)))
+            {
+                ImGui.SetClipboardText(_gearSource.GetItemName(item.TargetItemId));
+            }
+
+            ImGui.EndPopup();
+        }
+    }
+
+    private void DrawTileTooltip(SlotComparison slot, string? source)
+    {
+        ImGui.BeginTooltip();
+
+        var complete = slot is { Status: SlotMatch.Match, MissingMateria.Count: 0, ExtraMateria.Count: 0 };
+        var color = complete ? Green : slot.Status == SlotMatch.MissingCurrent ? Red : Yellow;
+        var slotName = _localizer.Get(SlotNames.LocKey(slot.Slot));
+        var sourceSuffix = string.IsNullOrEmpty(source) ? string.Empty : $" · {SourceLabel(source)}";
+        ImGui.TextColored(color, $"{slotName}: {_gearSource.GetItemName(slot.TargetItemId)} · iLvl {_gearSource.GetItemLevel(slot.TargetItemId)}{sourceSuffix}");
+
+        if (slot.Status == SlotMatch.ItemDiffers && slot.CurrentItemId is { } currentId && currentId > 0)
+        {
+            ImGui.TextColored(Muted, _localizer.Get(LocKeys.BisYouHave, $"{_gearSource.GetItemName(currentId)} · iLvl {_gearSource.GetItemLevel(currentId)}"));
+        }
+
+        if (slot.ExtraMateria.Count > 0)
+        {
+            ImGui.TextColored(Red, _localizer.Get(LocKeys.BisMateriaWrong, string.Join(", ", slot.ExtraMateria.Select(_gearSource.GetItemName))));
+        }
+
+        if (slot.MissingMateria.Count > 0)
+        {
+            var key = slot.Status == SlotMatch.Match ? LocKeys.BisMateriaMissing : LocKeys.BisMateriaList;
+            ImGui.TextColored(slot.Status == SlotMatch.Match ? Yellow : Muted, _localizer.Get(key, string.Join(", ", slot.MissingMateria.Select(_gearSource.GetItemName))));
+        }
+
+        ImGui.Spacing();
+        ImGui.TextDisabled(T(LocKeys.BisItemHint));
+        ImGui.EndTooltip();
     }
 
     private void DrawSlot(int gearIndex, SlotComparison slot, string? source)

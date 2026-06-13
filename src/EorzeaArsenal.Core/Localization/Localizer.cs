@@ -134,6 +134,7 @@ public sealed class Localizer : ILocalizer
         [LocKeys.BisShoppingItems] = "Items to get",
         [LocKeys.BisShoppingMateria] = "Materia to get",
         [LocKeys.BisShoppingEmpty] = "Nothing to get — you own everything for the shown sets!",
+        [LocKeys.BisGridView] = "Grid",
 
         [LocKeys.LogWindowTitle] = "Eorzea Arsenal — Log",
         [LocKeys.OpenLog] = "Log",
@@ -287,6 +288,7 @@ public sealed class Localizer : ILocalizer
         [LocKeys.BisShoppingItems] = "Noch zu holen",
         [LocKeys.BisShoppingMateria] = "Materia zu holen",
         [LocKeys.BisShoppingEmpty] = "Nichts zu holen — du besitzt alles für die angezeigten Sets!",
+        [LocKeys.BisGridView] = "Raster",
 
         [LocKeys.LogWindowTitle] = "Eorzea Arsenal — Log",
         [LocKeys.OpenLog] = "Log",

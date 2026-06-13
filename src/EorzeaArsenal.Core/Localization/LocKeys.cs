@@ -328,6 +328,9 @@ public static class LocKeys
     /// <summary>Shopping list: nothing left to get.</summary>
     public const string BisShoppingEmpty = "bis.shopping.empty";
 
+    /// <summary>BiS window: "grid" (character-screen layout) toggle.</summary>
+    public const string BisGridView = "bis.grid";
+
     // Log / diagnostics window
     /// <summary>Log window title.</summary>
     public const string LogWindowTitle = "window.log.title";
