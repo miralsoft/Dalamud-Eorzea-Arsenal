@@ -57,6 +57,7 @@ public sealed class BisTooltip
     private int _cachedGearIndex = -2;
     private ulong _cachedEquippedSig;
     private List<OverlayLine> _cachedLines = [];
+    private string? _cachedHint;
 
     /// <summary>Creates the overlay.</summary>
     /// <param name="config">Live config (holds the on/off toggle).</param>
@@ -101,9 +102,10 @@ public sealed class BisTooltip
             _cachedGearIndex = gearIndex;
             _cachedEquippedSig = equippedSig;
             _cachedLines = BuildLines(itemId, gearIndex);
+            _cachedHint = _cachedLines.Count == 0 ? NoTargetHint(itemId, gearIndex) : null;
         }
 
-        if (_cachedLines.Count == 0 || !TryGetDockPosition(out var position))
+        if ((_cachedLines.Count == 0 && _cachedHint is null) || !TryGetDockPosition(out var position))
         {
             return;
         }
@@ -200,9 +202,16 @@ public sealed class BisTooltip
         {
             IconText(FontAwesomeIcon.Gem, Accent, T(LocKeys.BisTooltipHeader));
             ImGui.Separator();
-            foreach (var line in _cachedLines)
+            if (_cachedLines.Count > 0)
             {
-                DrawLine(line);
+                foreach (var line in _cachedLines)
+                {
+                    DrawLine(line);
+                }
+            }
+            else if (_cachedHint is not null)
+            {
+                ImGui.TextColored(Yellow, _cachedHint);
             }
 
             _lastSize = ImGui.GetWindowSize();
@@ -247,6 +256,26 @@ public sealed class BisTooltip
         {
             ImGui.TextColored(Muted, Indent + _localizer.Get(LocKeys.BisMateriaList, string.Join(", ", line.Materia)));
         }
+    }
+
+    /// <summary>
+    /// When the current gearset has no BiS target at all, returns a hint (so hovering gear isn't a
+    /// confusing silent no-op) — but only once a fetch has actually completed, and only for
+    /// equippable items. Returns <see langword="null"/> otherwise.
+    /// </summary>
+    private string? NoTargetHint(int itemId, int gearIndex)
+    {
+        if (gearIndex < 0 || _bis.TargetGearset(gearIndex) is not null || _gearSource.GetSlotsForItem(itemId).Count == 0)
+        {
+            return null;
+        }
+
+        return _bis.Status switch
+        {
+            BisFetchStatus.Forbidden => T(LocKeys.BisReconnect),
+            BisFetchStatus.Ok or BisFetchStatus.Empty or BisFetchStatus.NotFound => _localizer.Get(LocKeys.BisNoTarget, gearIndex),
+            _ => null, // not fetched yet / not connected → no stray hint
+        };
     }
 
     private string? SourceLabel(string? source)

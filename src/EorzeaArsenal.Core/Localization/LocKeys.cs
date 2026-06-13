@@ -279,4 +279,7 @@ public static class LocKeys
 
     /// <summary>"Materia: {0}" line (target materia names).</summary>
     public const string BisMateriaList = "bis.materialist";
+
+    /// <summary>Hint when the current gearset has no BiS target (arg: gearset index).</summary>
+    public const string BisNoTarget = "bis.notarget";
 }

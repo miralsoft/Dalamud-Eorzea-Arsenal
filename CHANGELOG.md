@@ -7,6 +7,10 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **BiS overlay tells you when a gearset has no BiS target.** Instead of silently showing nothing
+  (which looked like a bug for jobs/gearsets without a pinned/returned BiS, e.g. Summoner), hovering
+  an equippable item now shows a clear hint with the gearset index — so you can see it's "no target
+  from the server for gearset #N" and pin one in the web app (or check you're on the pinned gearset).
 - **BiS overlay shows the item source.** When `GET /gear/bis` provides a `source` (per item, or a
   set-level fallback) it is shown next to each slot — e.g. *Raid*, *Tomestone*, *Crafted*, *Relic*,
   *Ultimate* — localized DE/EN, with the raw value shown for any source the plugin doesn't know yet

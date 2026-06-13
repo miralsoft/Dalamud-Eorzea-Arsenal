@@ -118,6 +118,7 @@ public sealed class Localizer : ILocalizer
         [LocKeys.BisOwned] = "you own this item",
         [LocKeys.BisNotOwned] = "not in your inventory/armoury",
         [LocKeys.BisMateriaList] = "Materia: {0}",
+        [LocKeys.BisNoTarget] = "No BiS target for this gearset (#{0}). Pin one in the web app.",
 
         ["slot.weapon"] = "Weapon",
         ["slot.offhand"] = "Off Hand",
@@ -249,6 +250,7 @@ public sealed class Localizer : ILocalizer
         [LocKeys.BisOwned] = "im Besitz (Inventar/Arsenal)",
         [LocKeys.BisNotOwned] = "nicht im Inventar/Arsenal",
         [LocKeys.BisMateriaList] = "Materia: {0}",
+        [LocKeys.BisNoTarget] = "Kein BiS-Ziel für dieses Gearset (#{0}). Im Webapp festlegen.",
 
         ["slot.weapon"] = "Waffe",
         ["slot.offhand"] = "Nebenhand",
