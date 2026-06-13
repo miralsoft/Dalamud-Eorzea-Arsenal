@@ -425,6 +425,12 @@ public sealed class Plugin : IDalamudPlugin
     /// </summary>
     private void UpdateDtr()
     {
+        _dtrEntry.Shown = _config.ShowDtrBar;
+        if (!_dtrEntry.Shown)
+        {
+            return;
+        }
+
         if (!_config.Enabled || !_config.TosAccepted || !_store.HasKey)
         {
             _dtrEntry.Text = "Arsenal: off";

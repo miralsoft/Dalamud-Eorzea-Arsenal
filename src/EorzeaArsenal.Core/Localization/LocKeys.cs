@@ -319,6 +319,12 @@ public static class LocKeys
     /// <summary>Server-info-bar click hint.</summary>
     public const string DtrClickHint = "dtr.clickhint";
 
+    /// <summary>Toggle: show the server-info-bar entry.</summary>
+    public const string ShowDtrBar = "config.dtrbar";
+
+    /// <summary>Hint for the server-info-bar toggle.</summary>
+    public const string ShowDtrBarHint = "config.dtrbar.hint";
+
     /// <summary>BiS window: "shopping list" toggle.</summary>
     public const string BisShoppingList = "bis.shopping";
 

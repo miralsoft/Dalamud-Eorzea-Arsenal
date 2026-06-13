@@ -15,7 +15,7 @@ All notable changes to this project are documented here. The format is based on
 - **Server-info-bar (DTR) status entry.** A compact **Arsenal: &lt;last push&gt;** entry now sits in
   the in-game server-info bar (top-right, next to the clock): it shows how long ago the last push
   succeeded (e.g. *3m*), **!** if the last push failed, or *off* when not set up. Hovering shows the
-  full last-push time; **clicking opens the status window**.
+  full last-push time; **clicking opens the status window**. Can be turned off in the settings.
 - **BiS auto-loads on login and when the window opens.** After logging in, the plugin fetches your
   BiS targets for the session automatically; opening the "Gear vs BiS" window also refreshes if the
   data is stale — so you always see current values without a manual refresh.

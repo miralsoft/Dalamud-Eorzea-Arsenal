@@ -306,6 +306,15 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
+        var dtrBar = _config.ShowDtrBar;
+        if (ImGui.Checkbox(T(LocKeys.ShowDtrBar), ref dtrBar))
+        {
+            _config.ShowDtrBar = dtrBar;
+            _save();
+        }
+
+        ImGui.TextDisabled(T(LocKeys.ShowDtrBarHint));
+
         var verbosity = (int)_config.Verbosity;
         ReadOnlySpan<string> levels = ["Quiet", "Normal", "Verbose"];
         if (ImGui.Combo(T(LocKeys.Verbosity), ref verbosity, levels, levels.Length))

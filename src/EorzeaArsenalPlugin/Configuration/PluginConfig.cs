@@ -57,6 +57,9 @@ public sealed class PluginConfig : IPluginConfiguration
     /// <summary>Whether to show the BiS hover overlay over equipment items.</summary>
     public bool ShowBisTooltip { get; set; } = true;
 
+    /// <summary>Whether to show the compact status entry in the in-game server-info (DTR) bar.</summary>
+    public bool ShowDtrBar { get; set; } = true;
+
     /// <summary>BiS window: show all gearsets (<see langword="true"/>) or only the current one.</summary>
     public bool BisShowAllSets { get; set; }
 
