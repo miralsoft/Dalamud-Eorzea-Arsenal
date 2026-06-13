@@ -1,4 +1,5 @@
 using Dalamud.Game.Command;
+using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
@@ -118,7 +119,7 @@ public sealed class Plugin : IDalamudPlugin
         _sync.PushCompleted += OnPushCompleted;
         _bisService = new BisService(api, _gearSource, _store, _log);
 
-        _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, Save);
+        _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, Save, LinkItemInChat);
         _logWindow = new LogWindow(_logBuffer, _localizer);
         _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearSource, _log, RequestManualPush, OpenConfig, OpenBis, OpenLog);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save, OpenStatus);
@@ -170,6 +171,31 @@ public sealed class Plugin : IDalamudPlugin
     private void OpenLog() => _logWindow.IsOpen = true;
 
     private void Chat(string message) => _chatGui.Print(ChatPrefix + message);
+
+    /// <summary>
+    /// Prints a clickable item link to the game chat so the user can inspect it or jump to the
+    /// marketboard. The link text is the game's localized item name (P2: wrapped, never throws).
+    /// </summary>
+    private void LinkItemInChat(int itemId)
+    {
+        if (itemId <= 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var message = new SeStringBuilder()
+                .AddText(ChatPrefix)
+                .AddItemLink((uint)itemId, false)
+                .Build();
+            _chatGui.Print(message);
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Item link failed: {ex.GetType().Name}.");
+        }
+    }
 
     private void OnCommand(string command, string arguments)
     {

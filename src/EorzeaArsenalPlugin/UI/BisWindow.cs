@@ -35,6 +35,7 @@ public sealed class BisWindow : Window
     private readonly GameGearSource _gearSource;
     private readonly ITextureProvider _textures;
     private readonly Action _save;
+    private readonly Action<int> _linkItem;
 
     /// <summary>Creates the BiS window.</summary>
     /// <param name="config">Live config.</param>
@@ -44,6 +45,7 @@ public sealed class BisWindow : Window
     /// <param name="gearSource">Resolves item names, item levels and icons.</param>
     /// <param name="textures">Loads game icons.</param>
     /// <param name="save">Persists the config (filter/scope choices).</param>
+    /// <param name="linkItem">Posts a clickable item link to the game chat (arg: item id).</param>
     public BisWindow(
         PluginConfig config,
         ConfigStore store,
@@ -51,7 +53,8 @@ public sealed class BisWindow : Window
         BisService bis,
         GameGearSource gearSource,
         ITextureProvider textures,
-        Action save)
+        Action save,
+        Action<int> linkItem)
         : base("Eorzea Arsenal###EorzeaArsenalBis")
     {
         _config = config;
@@ -61,6 +64,7 @@ public sealed class BisWindow : Window
         _gearSource = gearSource;
         _textures = textures;
         _save = save;
+        _linkItem = linkItem;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -165,23 +169,30 @@ public sealed class BisWindow : Window
         var name = string.IsNullOrEmpty(comparison.Name) ? string.Empty : $" — {comparison.Name}";
         ImGui.TextColored(Accent, $"#{comparison.GearIndex} {comparison.Job}{name}");
         ImGui.SameLine();
-        ImGui.TextDisabled(comparison.IsComplete
-            ? $"({T(LocKeys.BisComplete)})"
-            : $"({_localizer.Get(LocKeys.BisSummary, comparison.FullyMatchedSlots, comparison.Slots.Count)})");
+
+        var total = comparison.Slots.Count;
+        var matched = comparison.FullyMatchedSlots;
+        var fraction = total == 0 ? 1f : (float)matched / total;
+        var overlay = comparison.IsComplete
+            ? T(LocKeys.BisComplete)
+            : _localizer.Get(LocKeys.BisSummary, matched, total);
+        ImGui.PushStyleColor(ImGuiCol.PlotHistogram, comparison.IsComplete ? Green : Accent);
+        ImGui.ProgressBar(fraction, new Vector2(180f, 0f), overlay);
+        ImGui.PopStyleColor();
 
         var target = _bis.TargetGearset(comparison.GearIndex);
         foreach (var slot in slots)
         {
-            DrawSlot(slot, target?.Items.GetValueOrDefault(slot.Slot)?.Source ?? target?.Source);
+            DrawSlot(comparison.GearIndex, slot, target?.Items.GetValueOrDefault(slot.Slot)?.Source ?? target?.Source);
         }
 
         ImGui.Spacing();
         ImGui.Separator();
     }
 
-    private void DrawSlot(SlotComparison slot, string? source)
+    private void DrawSlot(int gearIndex, SlotComparison slot, string? source)
     {
-        DrawIcon(slot.TargetItemId);
+        DrawIcon(slot.TargetItemId, IconSize);
         ImGui.SameLine();
         ImGui.BeginGroup();
 
@@ -189,7 +200,8 @@ public sealed class BisWindow : Window
         var color = complete ? Green : slot.Status == SlotMatch.MissingCurrent ? Red : Yellow;
         var slotName = _localizer.Get(SlotNames.LocKey(slot.Slot));
         var sourceSuffix = string.IsNullOrEmpty(source) ? string.Empty : $" · {SourceLabel(source)}";
-        Wrapped(color, $"{slotName}: {_gearSource.GetItemName(slot.TargetItemId)} · iLvl {_gearSource.GetItemLevel(slot.TargetItemId)}{sourceSuffix}");
+        var line = $"{slotName}: {_gearSource.GetItemName(slot.TargetItemId)} · iLvl {_gearSource.GetItemLevel(slot.TargetItemId)}{sourceSuffix}";
+        ClickableItem(color, line, slot.TargetItemId, $"##slot{gearIndex}_{slot.Slot}");
 
         if (slot.Status == SlotMatch.ItemDiffers && slot.CurrentItemId is { } currentId && currentId > 0)
         {
@@ -198,32 +210,85 @@ public sealed class BisWindow : Window
 
         if (slot.ExtraMateria.Count > 0)
         {
-            Wrapped(Red, $"    {_localizer.Get(LocKeys.BisMateriaWrong, Names(slot.ExtraMateria))}");
+            DrawMateria(_localizer.Get(LocKeys.BisMateriaWrong, string.Empty), slot.ExtraMateria, Red);
         }
 
         if (slot.MissingMateria.Count > 0)
         {
             var key = slot.Status == SlotMatch.Match ? LocKeys.BisMateriaMissing : LocKeys.BisMateriaList;
-            Wrapped(slot.Status == SlotMatch.Match ? Yellow : Muted, $"    {_localizer.Get(key, Names(slot.MissingMateria))}");
+            DrawMateria(_localizer.Get(key, string.Empty), slot.MissingMateria, slot.Status == SlotMatch.Match ? Yellow : Muted);
         }
 
         ImGui.EndGroup();
     }
 
-    private void DrawIcon(int itemId)
+    /// <summary>
+    /// Renders the slot's main line as a hoverable item: left-click links it in chat, right-click
+    /// opens a context menu (copy name for marketboard search / link in chat).
+    /// </summary>
+    private void ClickableItem(Vector4 color, string text, int itemId, string id)
+    {
+        ImGui.PushStyleColor(ImGuiCol.Text, color);
+        var clicked = ImGui.Selectable(text + id);
+        ImGui.PopStyleColor();
+
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetTooltip(T(LocKeys.BisItemHint));
+        }
+
+        if (clicked)
+        {
+            _linkItem(itemId);
+        }
+
+        if (ImGui.BeginPopupContextItem(id))
+        {
+            if (ImGui.Selectable(T(LocKeys.BisCopyName)))
+            {
+                ImGui.SetClipboardText(_gearSource.GetItemName(itemId));
+            }
+
+            if (ImGui.Selectable(T(LocKeys.BisLinkChat)))
+            {
+                _linkItem(itemId);
+            }
+
+            ImGui.EndPopup();
+        }
+    }
+
+    /// <summary>Renders a materia label followed by each materia's icon + name inline.</summary>
+    private void DrawMateria(string label, IReadOnlyList<int> materiaItemIds, Vector4 color)
+    {
+        var iconSize = ImGui.GetTextLineHeight();
+        ImGui.PushStyleColor(ImGuiCol.Text, color);
+        ImGui.TextUnformatted($"    {label.TrimEnd()}");
+        ImGui.PopStyleColor();
+
+        foreach (var id in materiaItemIds)
+        {
+            ImGui.SameLine();
+            DrawIcon(id, iconSize);
+            ImGui.SameLine(0f, 3f);
+            ImGui.PushStyleColor(ImGuiCol.Text, color);
+            ImGui.TextUnformatted(_gearSource.GetItemName(id));
+            ImGui.PopStyleColor();
+        }
+    }
+
+    private void DrawIcon(int itemId, float size)
     {
         var iconId = _gearSource.GetItemIconId(itemId);
         if (iconId == 0)
         {
-            ImGui.Dummy(new Vector2(IconSize, IconSize));
+            ImGui.Dummy(new Vector2(size, size));
             return;
         }
 
         var wrap = _textures.GetFromGameIcon(new GameIconLookup(iconId)).GetWrapOrEmpty();
-        ImGui.Image(wrap.Handle, new Vector2(IconSize, IconSize));
+        ImGui.Image(wrap.Handle, new Vector2(size, size));
     }
-
-    private string Names(IReadOnlyList<int> itemIds) => string.Join(", ", itemIds.Select(_gearSource.GetItemName));
 
     private string SourceLabel(string source)
     {

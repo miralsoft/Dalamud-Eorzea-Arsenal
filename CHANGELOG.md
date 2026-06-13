@@ -12,6 +12,11 @@ All notable changes to this project are documented here. The format is based on
   unchanged, and the value stays user-editable (set it to `localhost` for local testing).
 
 ### Added
+- **Clickable items, materia icons and per-set progress in the BiS window.** Each slot's item line
+  is now interactive: **left-click** posts a clickable item link to chat (inspect / jump to the
+  marketboard), **right-click** opens a menu to **copy the item name** (for the marketboard search)
+  or link it in chat. The wrong/missing **materia now show their icons** next to the names, and each
+  gearset has a **progress bar** (e.g. *9/12*, green when complete).
 - **Gear vs BiS window overhaul.** It now shows **item icons** and **names** (not raw ids), the
   item level and source per slot, and the **wrong (red) / missing (yellow) materia** at a glance.
   New toolbar: **scope** (current set / all sets) and a **filter** (all slots / incomplete only /

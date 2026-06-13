@@ -310,6 +310,15 @@ public static class LocKeys
     /// <summary>BiS window: nothing matches the current filter.</summary>
     public const string BisNothingShown = "bis.nothingshown";
 
+    /// <summary>"Copy name" context action.</summary>
+    public const string BisCopyName = "bis.copyname";
+
+    /// <summary>"Link in chat" context action.</summary>
+    public const string BisLinkChat = "bis.linkchat";
+
+    /// <summary>Hover hint for clickable items.</summary>
+    public const string BisItemHint = "bis.itemhint";
+
     // Log / diagnostics window
     /// <summary>Log window title.</summary>
     public const string LogWindowTitle = "window.log.title";
