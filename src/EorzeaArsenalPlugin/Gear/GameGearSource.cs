@@ -2,6 +2,7 @@ using Dalamud.Plugin.Services;
 using EorzeaArsenal.Abstractions;
 using EorzeaArsenal.Gear;
 using EorzeaArsenal.Model;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using LuminaMateria = Lumina.Excel.Sheets.Materia;
 
@@ -93,6 +94,12 @@ public sealed class GameGearSource : IGearSource
             return result;
         }
 
+        // The gearset only stores a materia snapshot updated on save. The currently-worn gear has
+        // live materia in the EquippedItems container, so for the active gearset we read that
+        // instead — materia changes are then sent without needing to re-save the gearset.
+        var currentIndex = module->CurrentGearsetIndex;
+        var equipped = ReadEquippedItems();
+
         for (var i = 0; i < MaxGearsetSlots; i++)
         {
             if (!module->IsValidGearset(i))
@@ -112,12 +119,13 @@ public sealed class GameGearSource : IGearSource
                 continue; // base classes / non-whitelisted jobs are skipped
             }
 
+            var items = i == currentIndex && equipped.Count > 0 ? equipped : ReadItems(entry);
             result.Add(new GearsetDto
             {
                 GearIndex = i,
                 Name = entry->NameString,
                 Job = job,
-                Items = ReadItems(entry),
+                Items = items,
             });
         }
 
@@ -175,6 +183,9 @@ public sealed class GameGearSource : IGearSource
                 }
             }
 
+            // Also fold in the live equipped items so melding on worn gear (which does not update
+            // the gearset snapshot) still changes the signature and triggers a push.
+            hash = HashEquipped(hash);
             return hash;
         }
         catch (Exception ex)
@@ -223,39 +234,153 @@ public sealed class GameGearSource : IGearSource
     private unsafe List<int> ReadMateria(ref RaptureGearsetModule.GearsetItem gearsetItem)
     {
         var materia = new List<int>();
-
-        var sheet = _data.GetExcelSheet<LuminaMateria>();
-        if (sheet is null)
-        {
-            return materia;
-        }
-
         for (var k = 0; k < MateriaSlotCount; k++)
         {
-            var type = gearsetItem.Materia[k];
-            if (type == 0)
+            var id = ResolveMateriaId(gearsetItem.Materia[k], gearsetItem.MateriaGrades[k]);
+            if (id > 0)
             {
-                continue;
-            }
-
-            var grade = gearsetItem.MateriaGrades[k];
-            if (!sheet.TryGetRow(type, out var row))
-            {
-                continue;
-            }
-
-            if (grade >= row.Item.Count)
-            {
-                continue;
-            }
-
-            var itemId = (int)row.Item[grade].RowId;
-            if (itemId > 0)
-            {
-                materia.Add(itemId);
+                materia.Add(id);
             }
         }
 
         return materia;
+    }
+
+    /// <summary>
+    /// Reads the live equipped items (with up-to-date materia) from the EquippedItems container.
+    /// Unlike a gearset, this reflects melds on the worn gear immediately, without a re-save.
+    /// </summary>
+    private unsafe Dictionary<string, ItemDto> ReadEquippedItems()
+    {
+        var items = new Dictionary<string, ItemDto>(StringComparer.Ordinal);
+
+        var inventory = InventoryManager.Instance();
+        if (inventory == null)
+        {
+            return items;
+        }
+
+        var container = inventory->GetInventoryContainer(InventoryType.EquippedItems);
+        if (container == null)
+        {
+            return items;
+        }
+
+        for (var slot = 0; slot < EquipmentSlotCount; slot++)
+        {
+            var key = EquipmentSlots.KeyForIndex(slot);
+            if (key is null)
+            {
+                continue;
+            }
+
+            var item = container->GetInventorySlot(slot);
+            if (item == null || item->ItemId == 0)
+            {
+                continue;
+            }
+
+            // Equipped items hold the base id (HQ is a flag, not a +1,000,000 offset).
+            var id = (int)item->ItemId;
+            if (id is <= 0 or > 9_999_999)
+            {
+                continue;
+            }
+
+            items[key] = new ItemDto
+            {
+                Id = id,
+                Materia = ReadMateriaInventory(item),
+            };
+        }
+
+        return items;
+    }
+
+    private unsafe List<int> ReadMateriaInventory(InventoryItem* item)
+    {
+        var materia = new List<int>();
+        for (var k = 0; k < MateriaSlotCount; k++)
+        {
+            var id = ResolveMateriaId(item->Materia[k], item->MateriaGrades[k]);
+            if (id > 0)
+            {
+                materia.Add(id);
+            }
+        }
+
+        return materia;
+    }
+
+    /// <summary>Resolves a materia (type + grade) to its real item id via the Materia sheet.</summary>
+    private int ResolveMateriaId(ushort type, byte grade)
+    {
+        if (type == 0)
+        {
+            return 0;
+        }
+
+        var sheet = _data.GetExcelSheet<LuminaMateria>();
+        if (sheet is null || !sheet.TryGetRow(type, out var row) || grade >= row.Item.Count)
+        {
+            return 0;
+        }
+
+        return (int)row.Item[grade].RowId;
+    }
+
+    /// <summary>Folds the live equipped items into the change-detection hash (P1: framework thread).</summary>
+    private unsafe ulong HashEquipped(ulong hash)
+    {
+        var inventory = InventoryManager.Instance();
+        if (inventory == null)
+        {
+            return hash;
+        }
+
+        var container = inventory->GetInventoryContainer(InventoryType.EquippedItems);
+        if (container == null)
+        {
+            return hash;
+        }
+
+        for (var slot = 0; slot < EquipmentSlotCount; slot++)
+        {
+            var item = container->GetInventorySlot(slot);
+            if (item == null)
+            {
+                continue;
+            }
+
+            hash = Fnv(hash, item->ItemId);
+            for (var k = 0; k < MateriaSlotCount; k++)
+            {
+                hash = Fnv(hash, item->Materia[k]);
+                hash = Fnv(hash, item->MateriaGrades[k]);
+            }
+        }
+
+        return hash;
+    }
+
+    /// <summary>The currently equipped gearset index, or -1 if unavailable. Read on the main thread.</summary>
+    /// <returns>The active gearset index, or -1.</returns>
+    public unsafe int GetCurrentGearsetIndex()
+    {
+        try
+        {
+            if (!_clientState.IsLoggedIn)
+            {
+                return -1;
+            }
+
+            var module = RaptureGearsetModule.Instance();
+            return module == null ? -1 : module->CurrentGearsetIndex;
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Current gearset read failed: {ex.GetType().Name}.");
+            return -1;
+        }
     }
 }

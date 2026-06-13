@@ -39,8 +39,9 @@ Open the settings with `/xlplugins` → Eorzea Arsenal → settings, or the gear
 2. Set the **API base URL** — the full URL **including `/api/v1`**, e.g.
    `http://127.0.0.1:8080/api/v1`. Use **Test connection** to confirm.
 3. Connect one of two ways:
-   - **Connect via browser** (device flow): click the button, open the shown page, and approve
-     the displayed code while logged in via Discord.
+   - **Connect via browser** (device flow): click the button — the plugin opens the approval page
+     with the code pre-filled and copies the code to your clipboard, so you just click **Approve**
+     (logged in via Discord). The dialog also has a copy button and an "Open browser again" button.
    - **Paste API key** (works today): create a key in the web app at `/me/keys` and paste it.
 
 The issued key is **write-only (`gear:write`)** — it can do nothing except push gear. Use

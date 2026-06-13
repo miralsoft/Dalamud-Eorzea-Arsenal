@@ -32,6 +32,19 @@ public sealed class ApiClientTests
     }
 
     [Fact]
+    public async Task RequestDeviceCode_parses_verification_uri_complete()
+    {
+        var handler = new StubHttpMessageHandler().Enqueue(
+            HttpStatusCode.OK,
+            """{"device_code":"d1","user_code":"AB-12","verification_uri":"http://x/approve","verification_uri_complete":"http://x/approve?code=AB-12","interval":5,"expires_in":300}""");
+
+        var result = await Make(handler).RequestDeviceCodeAsync(CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("http://x/approve?code=AB-12", result.Value!.VerificationUriComplete);
+    }
+
+    [Fact]
     public async Task PollDeviceToken_returns_pending()
     {
         var handler = new StubHttpMessageHandler().Enqueue(HttpStatusCode.OK, """{"status":"pending"}""");

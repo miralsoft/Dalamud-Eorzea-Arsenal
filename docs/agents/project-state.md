@@ -52,6 +52,14 @@ _Last updated: 2026-06-12._
   `IGameGui.HoveredItem` (no native-tooltip manipulation, P2/P6). `BisWindow` refactored onto
   `BisService`. Cache kept warm via a throttled framework-tick refresh. Toggle: `ShowBisTooltip`.
   Native-tooltip integration intentionally deferred (operator chose overlay-first).
+- **Live equipped materia**: `GameGearSource` reads the active gearset's items + materia from the
+  `EquippedItems` container (live), so melding without re-saving is sent/detected; the change
+  signature folds the equipped container in too. Non-equipped sets keep their saved snapshot.
+- **Device-flow UX**: opens `verification_uri_complete` (RFC 8628, fallback `verification_uri`),
+  auto-copies `user_code`, copy button (FontAwesome) + "Open browser again". No programmatic approve.
+- **BiS overlay** now docks beside the native `ItemDetail` addon (via `IGameGui.GetAddonByName` →
+  `AtkUnitBasePtr.Position/ScaledWidth`) and shows only the current gearset index
+  (`GameGearSource.GetCurrentGearsetIndex`).
 - **Feature B (inventory) stays deferred** to `protocol_version: 2` (see agent memory).
 
 ### Next / open

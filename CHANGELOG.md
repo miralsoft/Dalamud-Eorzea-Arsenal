@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Fixed
+- **Materia is now read from the live equipped gear, not the gearset snapshot.** A gearset only
+  refreshes its materia on save, so melding into worn gear without re-saving sent stale materia.
+  For the currently equipped gearset the plugin now reads item ids + materia from the live
+  EquippedItems container, and change-detection folds the equipped container into its signature —
+  so socketing materia is pushed/detected without re-saving the gearset. (Non-equipped gearsets
+  still reflect their last save, which is inherent — those items aren't worn.)
 - **Gearset-change detection now reacts to materia melds.** The change signature hashed only the
   materia type, not the grade, so overmelds (grade-only changes) were missed. It now covers both
   type and grade, matching the resolved materia item ids that get pushed.
@@ -16,11 +22,17 @@ All notable changes to this project are documented here. The format is based on
   to `List<string>?` and added a regression test parsing a real `/version` body.
 
 ### Added
-- **BiS hover overlay** — hovering an item whose id is one of your BiS targets shows a small
-  overlay (near the cursor) listing the matching slot(s)/gearset(s) and your current state for that
-  slot (complete / materia differs / different item / empty). Safe ImGui overlay — it does not
-  touch the native game tooltip, so it cannot crash the client and is patch-stable (P2/P6).
-  Toggleable; BiS targets are cached via a shared `BisService` and kept warm (`GET /gear/bis`).
+- **Smoother device-flow connect.** Starting "connect via browser" now opens the pre-filled
+  approval page (`verification_uri_complete`, RFC 8628 — falls back to `verification_uri`) and
+  copies the `user_code` to the clipboard, so the user only clicks Approve. The dialog shows the
+  code with a copy button (clipboard icon) and an "Open browser again" button. Approval stays the
+  user's explicit click — the plugin never approves programmatically.
+- **BiS hover overlay** — hovering an item whose id is the BiS target for your **currently
+  selected** gearset shows a small overlay listing the slot and your current state for it
+  (complete / materia differs / different item / empty). It is **docked next to the native item
+  tooltip** (left if there is room, otherwise right) so it never overlaps it, and only the active
+  gearset/class is shown. Safe ImGui overlay — it does not touch the native tooltip, so it cannot
+  crash the client and is patch-stable (P2/P6). Toggleable; cached via a shared `BisService`.
 - **Gear vs BiS (Feature A)** — reads BiS targets via `GET /gear/bis` (new `gear:read` scope,
   issued alongside `gear:write`) and shows an in-game per-slot diff of live gear vs BiS in a new
   **BiS window** (opened from the status window). Pure `BisComparer` matches by `gear_index`+`job`,

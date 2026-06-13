@@ -4,18 +4,23 @@ using Dalamud.Plugin.Services;
 using EorzeaArsenal.Gear;
 using EorzeaArsenal.Localization;
 using EorzeaArsenal.Plugin.Configuration;
+using EorzeaArsenal.Plugin.Gear;
 using EorzeaArsenal.Plugin.Services;
 
 namespace EorzeaArsenal.Plugin.UI;
 
 /// <summary>
-/// A safe, additive hover overlay: when the user hovers an item whose id is a BiS target, it draws
-/// a small ImGui tooltip near the cursor with the BiS slot(s) and the player's current state for
-/// that slot. It does <b>not</b> touch the native game tooltip (no UI-node manipulation), so it
-/// cannot crash the client and is patch-stable (P2/P6). Registered on the UI draw loop.
+/// A safe, additive hover overlay: when the user hovers an item that is a BiS target for the
+/// <b>currently selected</b> gearset, it shows a small tooltip docked next to the native item
+/// tooltip (left if there is room, otherwise right) so it does not overlap it. It never touches
+/// the native game tooltip (no UI-node manipulation), so it cannot crash the client and is
+/// patch-stable (P2/P6). Registered on the UI draw loop.
 /// </summary>
 public sealed class BisTooltip
 {
+    private const float Margin = 2f;
+    private const float EstimatedWidth = 340f;
+
     private static readonly Vector4 Accent = new(0.55f, 0.8f, 1f, 1f);
     private static readonly Vector4 Green = new(0.4f, 0.8f, 0.4f, 1f);
     private static readonly Vector4 Red = new(0.9f, 0.4f, 0.4f, 1f);
@@ -25,18 +30,21 @@ public sealed class BisTooltip
     private readonly Localizer _localizer;
     private readonly IGameGui _gameGui;
     private readonly BisService _bis;
+    private readonly GameGearSource _gearSource;
 
     /// <summary>Creates the overlay.</summary>
     /// <param name="config">Live config (holds the on/off toggle).</param>
     /// <param name="localizer">UI string resolver.</param>
-    /// <param name="gameGui">Provides the hovered item id.</param>
+    /// <param name="gameGui">Provides the hovered item id and addon bounds.</param>
     /// <param name="bis">The shared BiS cache/lookup.</param>
-    public BisTooltip(PluginConfig config, Localizer localizer, IGameGui gameGui, BisService bis)
+    /// <param name="gearSource">Provides the current gearset index.</param>
+    public BisTooltip(PluginConfig config, Localizer localizer, IGameGui gameGui, BisService bis, GameGearSource gearSource)
     {
         _config = config;
         _localizer = localizer;
         _gameGui = gameGui;
         _bis = bis;
+        _gearSource = gearSource;
     }
 
     private string T(string key) => _localizer.Get(key);
@@ -56,12 +64,24 @@ public sealed class BisTooltip
         }
 
         var itemId = ItemIdNormalizer.Normalize((uint)raw);
-        var hits = _bis.FindForItem(itemId);
+        var currentIndex = _gearSource.GetCurrentGearsetIndex();
+
+        // Only the currently selected gearset/class is relevant while hovering.
+        var hits = new List<BisHit>();
+        foreach (var hit in _bis.FindForItem(itemId))
+        {
+            if (hit.GearIndex == currentIndex)
+            {
+                hits.Add(hit);
+            }
+        }
+
         if (hits.Count == 0)
         {
             return;
         }
 
+        PositionNextToNativeTooltip();
         ImGui.BeginTooltip();
         ImGui.TextColored(Accent, T(LocKeys.BisTooltipHeader));
         foreach (var hit in hits)
@@ -90,5 +110,26 @@ public sealed class BisTooltip
         };
 
         ImGui.TextColored(color, $"   {text}");
+    }
+
+    /// <summary>
+    /// Positions the next tooltip beside the native <c>ItemDetail</c> addon: to its left if there
+    /// is room, otherwise to its right (docked with a small margin). Falls back to the default
+    /// cursor position when the addon is not visible.
+    /// </summary>
+    private void PositionNextToNativeTooltip()
+    {
+        var addon = _gameGui.GetAddonByName("ItemDetail", 1);
+        if (addon.IsNull || !addon.IsVisible)
+        {
+            return; // no native tooltip visible → fall back to the default cursor position
+        }
+
+        var position = addon.Position;
+        var posX = position.X - EstimatedWidth - Margin >= 0
+            ? position.X - EstimatedWidth - Margin     // dock to the left
+            : position.X + addon.ScaledWidth + Margin; // not enough room left → dock to the right
+
+        ImGui.SetNextWindowPos(new Vector2(posX, position.Y));
     }
 }

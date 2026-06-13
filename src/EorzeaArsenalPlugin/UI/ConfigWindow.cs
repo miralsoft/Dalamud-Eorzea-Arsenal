@@ -1,5 +1,6 @@
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using Dalamud.Utility;
@@ -41,6 +42,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private volatile string _connectStatus = string.Empty;
     private volatile bool _connecting;
     private volatile string _testStatus = string.Empty;
+    private string? _lastCopiedDeviceCode;
 
     /// <summary>Creates the window.</summary>
     /// <param name="config">Live config.</param>
@@ -222,13 +224,31 @@ public sealed class ConfigWindow : Window, IDisposable
         var code = _deviceCode;
         if (code is not null)
         {
-            ImGui.TextWrapped(T(LocKeys.ConnectOpenBrowser));
-            if (ImGui.Button(code.VerificationUri))
+            // Auto-copy the code once when the dialog first shows it (render thread).
+            if (_lastCopiedDeviceCode != code.DeviceCode)
             {
-                Util.OpenLink(code.VerificationUri);
+                _lastCopiedDeviceCode = code.DeviceCode;
+                ImGui.SetClipboardText(code.UserCode);
             }
 
+            ImGui.TextWrapped(T(LocKeys.ConnectOpenBrowser));
+
             ImGui.TextColored(Yellow, _localizer.Get(LocKeys.ConnectUserCode, code.UserCode));
+            ImGui.SameLine();
+            ImGui.PushFont(UiBuilder.IconFont);
+            if (ImGui.Button($"{FontAwesomeIcon.Copy.ToIconString()}##copyUserCode"))
+            {
+                ImGui.SetClipboardText(code.UserCode);
+            }
+
+            ImGui.PopFont();
+
+            if (ImGui.Button(T(LocKeys.ConnectOpenBrowserAgain)))
+            {
+                Util.OpenLink(CompleteVerificationUri(code));
+            }
+
+            ImGui.TextDisabled(code.VerificationUri);
         }
 
         if (_connecting && ImGui.Button(T(LocKeys.ConnectCancel)))
@@ -356,6 +376,9 @@ public sealed class ConfigWindow : Window, IDisposable
         });
     }
 
+    private static string CompleteVerificationUri(DeviceCodeResponse code) =>
+        string.IsNullOrEmpty(code.VerificationUriComplete) ? code.VerificationUri : code.VerificationUriComplete;
+
     private void StartDeviceFlow()
     {
         _deviceFlowCts?.Cancel();
@@ -379,6 +402,10 @@ public sealed class ConfigWindow : Window, IDisposable
 
                 _deviceCode = start.Value;
                 _connectStatus = T(LocKeys.ConnectWaiting);
+
+                // Open the pre-filled approval page so the user only clicks "Approve".
+                // We never approve programmatically — that is the user's explicit action.
+                Util.OpenLink(CompleteVerificationUri(start.Value!));
 
                 var result = await _connection.PollForKeyAsync(start.Value!, ct).ConfigureAwait(false);
                 _connectStatus = result.IsSuccess

@@ -112,7 +112,7 @@ public sealed class Plugin : IDalamudPlugin
         _bisWindow = new BisWindow(_config, _store, _localizer, _bisService);
         _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearSource, _log, RequestManualPush, OpenConfig, OpenBis);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save, OpenStatus);
-        _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService);
+        _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource);
         _windowSystem.AddWindow(_bisWindow);
         _windowSystem.AddWindow(_statusWindow);
         _windowSystem.AddWindow(_configWindow);

@@ -79,6 +79,9 @@ public static class LocKeys
     /// <summary>"Cancel" connect button.</summary>
     public const string ConnectCancel = "connect.cancel";
 
+    /// <summary>"Open browser again" button.</summary>
+    public const string ConnectOpenBrowserAgain = "connect.openbrowseragain";
+
     /// <summary>Pasted-key field label.</summary>
     public const string PasteKeyLabel = "connect.pastekey.label";
 

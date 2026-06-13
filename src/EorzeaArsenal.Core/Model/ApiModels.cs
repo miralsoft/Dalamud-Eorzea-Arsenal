@@ -12,6 +12,12 @@ public sealed class DeviceCodeResponse
     /// <summary>URL the user opens in a browser to approve the pairing.</summary>
     public required string VerificationUri { get; init; }
 
+    /// <summary>
+    /// Approval URL with the <c>user_code</c> already embedded (RFC 8628). Preferred when present
+    /// so the user only has to click "Approve". Falls back to <see cref="VerificationUri"/>.
+    /// </summary>
+    public string? VerificationUriComplete { get; init; }
+
     /// <summary>Minimum seconds the client must wait between token polls (R23).</summary>
     public int Interval { get; init; } = 5;
 
