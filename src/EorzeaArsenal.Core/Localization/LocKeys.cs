@@ -316,6 +316,18 @@ public static class LocKeys
     /// <summary>Hover hint for clickable items.</summary>
     public const string BisItemHint = "bis.itemhint";
 
+    /// <summary>BiS window: "shopping list" toggle.</summary>
+    public const string BisShoppingList = "bis.shopping";
+
+    /// <summary>Shopping list: "items to get" header.</summary>
+    public const string BisShoppingItems = "bis.shopping.items";
+
+    /// <summary>Shopping list: "materia to get" header.</summary>
+    public const string BisShoppingMateria = "bis.shopping.materia";
+
+    /// <summary>Shopping list: nothing left to get.</summary>
+    public const string BisShoppingEmpty = "bis.shopping.empty";
+
     // Log / diagnostics window
     /// <summary>Log window title.</summary>
     public const string LogWindowTitle = "window.log.title";

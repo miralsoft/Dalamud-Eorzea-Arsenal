@@ -130,6 +130,10 @@ public sealed class Localizer : ILocalizer
         [LocKeys.BisNothingShown] = "Nothing to show with the current filter.",
         [LocKeys.BisCopyName] = "Copy name",
         [LocKeys.BisItemHint] = "Left-click: link in chat · Right-click: copy name",
+        [LocKeys.BisShoppingList] = "Shopping list",
+        [LocKeys.BisShoppingItems] = "Items to get",
+        [LocKeys.BisShoppingMateria] = "Materia to get",
+        [LocKeys.BisShoppingEmpty] = "Nothing to get — you own everything for the shown sets!",
 
         [LocKeys.LogWindowTitle] = "Eorzea Arsenal — Log",
         [LocKeys.OpenLog] = "Log",
@@ -279,6 +283,10 @@ public sealed class Localizer : ILocalizer
         [LocKeys.BisNothingShown] = "Mit dem aktuellen Filter gibt es nichts anzuzeigen.",
         [LocKeys.BisCopyName] = "Namen kopieren",
         [LocKeys.BisItemHint] = "Linksklick: im Chat verlinken · Rechtsklick: Namen kopieren",
+        [LocKeys.BisShoppingList] = "Einkaufsliste",
+        [LocKeys.BisShoppingItems] = "Noch zu holen",
+        [LocKeys.BisShoppingMateria] = "Materia zu holen",
+        [LocKeys.BisShoppingEmpty] = "Nichts zu holen — du besitzt alles für die angezeigten Sets!",
 
         [LocKeys.LogWindowTitle] = "Eorzea Arsenal — Log",
         [LocKeys.OpenLog] = "Log",

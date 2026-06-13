@@ -12,6 +12,12 @@ All notable changes to this project are documented here. The format is based on
   unchanged, and the value stays user-editable (set it to `localhost` for local testing).
 
 ### Added
+- **Shopping list in the BiS window.** A new **Shopping list** toggle aggregates — across the shown
+  sets (current or all) — every BiS **item you don't yet own** (not equipped and not in your
+  inventory/armoury) and every **missing materia** you don't own, de-duplicated into one list:
+  items first (sorted by item level, with source and which sets need them), then materia with a
+  needed **×count**. Each row keeps the same left-click-link / right-click-copy actions, so it
+  doubles as a "what to farm/buy next" checklist.
 - **Clickable items, materia icons and per-set progress in the BiS window.** Each slot's item line
   is now interactive: **left-click** posts a clickable item link to your local chat log (inspect /
   jump to the marketboard), **right-click** copies the **item name** to the clipboard so you can

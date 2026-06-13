@@ -63,6 +63,9 @@ public sealed class PluginConfig : IPluginConfiguration
     /// <summary>BiS window slot filter: 0 = all, 1 = incomplete only, 2 = materia issues only.</summary>
     public int BisFilter { get; set; }
 
+    /// <summary>BiS window: show the aggregated "shopping list" (still-needed items + materia) instead of per-set slots.</summary>
+    public bool BisShoppingList { get; set; }
+
     /// <summary>How verbose the Dalamud log output is.</summary>
     public LogVerbosity Verbosity { get; set; } = LogVerbosity.Normal;
 

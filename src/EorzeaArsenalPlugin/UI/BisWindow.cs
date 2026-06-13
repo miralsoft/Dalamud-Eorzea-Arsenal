@@ -89,14 +89,17 @@ public sealed class BisWindow : Window
         ImGui.Separator();
 
         var currentIndex = _gearSource.GetCurrentGearsetIndex();
-        var shownAny = false;
-        foreach (var comparison in _bis.Comparisons)
-        {
-            if (!_config.BisShowAllSets && comparison.GearIndex != currentIndex)
-            {
-                continue;
-            }
+        var scoped = _bis.Comparisons.Where(c => _config.BisShowAllSets || c.GearIndex == currentIndex);
 
+        if (_config.BisShoppingList)
+        {
+            DrawShoppingList(scoped);
+            return;
+        }
+
+        var shownAny = false;
+        foreach (var comparison in scoped)
+        {
             var slots = comparison.Slots.Where(Included).ToList();
             if (slots.Count == 0)
             {
@@ -140,6 +143,20 @@ public sealed class BisWindow : Window
         {
             _config.BisShowAllSets = true;
             _save();
+        }
+
+        ImGui.SameLine();
+        var shopping = _config.BisShoppingList;
+        if (ImGui.Checkbox(T(LocKeys.BisShoppingList), ref shopping))
+        {
+            _config.BisShoppingList = shopping;
+            _save();
+        }
+
+        // The per-slot filter only makes sense in the per-set view, not the aggregated shopping list.
+        if (_config.BisShoppingList)
+        {
+            return;
         }
 
         var filter = Math.Clamp(_config.BisFilter, 0, 2);
@@ -188,6 +205,88 @@ public sealed class BisWindow : Window
 
         ImGui.Spacing();
         ImGui.Separator();
+    }
+
+    /// <summary>
+    /// Aggregates, across the shown sets, the BiS items you don't yet own (not equipped and not in
+    /// your inventory/armoury) and the missing materia you don't own — a single de-duplicated
+    /// "shopping list". Each row keeps the link/copy actions.
+    /// </summary>
+    private void DrawShoppingList(IEnumerable<GearsetComparison> scoped)
+    {
+        var items = new Dictionary<int, (string? Source, List<int> Sets)>();
+        var materia = new Dictionary<int, int>();
+
+        foreach (var comparison in scoped)
+        {
+            var target = _bis.TargetGearset(comparison.GearIndex);
+            foreach (var slot in comparison.Slots)
+            {
+                if (slot.TargetItemId > 0 && slot.Status != SlotMatch.Match && !_gearSource.OwnsItem(slot.TargetItemId))
+                {
+                    if (!items.TryGetValue(slot.TargetItemId, out var entry))
+                    {
+                        var source = target?.Items.GetValueOrDefault(slot.Slot)?.Source ?? target?.Source;
+                        entry = (source, new List<int>());
+                        items[slot.TargetItemId] = entry;
+                    }
+
+                    if (!entry.Sets.Contains(comparison.GearIndex))
+                    {
+                        entry.Sets.Add(comparison.GearIndex);
+                    }
+                }
+
+                foreach (var materiaId in slot.MissingMateria)
+                {
+                    if (!_gearSource.OwnsItem(materiaId))
+                    {
+                        materia[materiaId] = materia.GetValueOrDefault(materiaId) + 1;
+                    }
+                }
+            }
+        }
+
+        if (items.Count == 0 && materia.Count == 0)
+        {
+            ImGui.TextDisabled(T(LocKeys.BisShoppingEmpty));
+            return;
+        }
+
+        if (items.Count > 0)
+        {
+            ImGui.TextColored(Accent, T(LocKeys.BisShoppingItems));
+            foreach (var (itemId, entry) in items.OrderByDescending(kv => _gearSource.GetItemLevel(kv.Key)))
+            {
+                DrawShoppingItem(itemId, entry.Source, entry.Sets);
+            }
+        }
+
+        if (materia.Count > 0)
+        {
+            ImGui.Spacing();
+            ImGui.TextColored(Accent, T(LocKeys.BisShoppingMateria));
+            foreach (var (materiaId, count) in materia.OrderByDescending(kv => kv.Value))
+            {
+                DrawShoppingItem(materiaId, null, [], count);
+            }
+        }
+    }
+
+    private void DrawShoppingItem(int itemId, string? source, List<int> sets, int count = 0)
+    {
+        DrawIcon(itemId, IconSize);
+        ImGui.SameLine();
+
+        // Materia rows (count > 0) show a quantity; gear rows show the item level + source + sets.
+        var detail = count > 0
+            ? $" ×{count}"
+            : $" · iLvl {_gearSource.GetItemLevel(itemId)}{(string.IsNullOrEmpty(source) ? string.Empty : $" · {SourceLabel(source)}")}";
+        var setsSuffix = count == 0 && _config.BisShowAllSets && sets.Count > 0
+            ? $"  ({string.Join(", ", sets.Select(s => $"#{s}"))})"
+            : string.Empty;
+        var line = $"{_gearSource.GetItemName(itemId)}{detail}{setsSuffix}";
+        ClickableItem(Muted, line, itemId, $"##shop{itemId}");
     }
 
     private void DrawSlot(int gearIndex, SlotComparison slot, string? source)
