@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Changed
+- **Default API base URL is now the production server** `https://xivarsenal.app/api/v1` (was the
+  localhost dev URL). New installs connect to production out of the box; existing saved configs are
+  unchanged, and the value stays user-editable (set it to `localhost` for local testing).
+
 ### Added
 - **BiS overlay tells you when a gearset has no BiS target.** Instead of silently showing nothing
   (which looked like a bug for jobs/gearsets without a pinned/returned BiS, e.g. Summoner), hovering

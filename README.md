@@ -36,8 +36,9 @@ plugin list.
 Open the settings with `/xlplugins` → Eorzea Arsenal → settings, or the gear icon.
 
 1. **Accept the ToS notice** and tick **Enable connecting and pushing** (master opt-in).
-2. Set the **API base URL** — the full URL **including `/api/v1`**, e.g.
-   `http://127.0.0.1:8080/api/v1`. Use **Test connection** to confirm.
+2. Set the **API base URL** — the full URL **including `/api/v1`**. It defaults to the production
+   server `https://xivarsenal.app/api/v1`; for local testing use the launcher's URL (e.g.
+   `http://127.0.0.1:8080/api/v1`). Use **Test connection** to confirm.
 3. Connect one of two ways:
    - **Connect via browser** (device flow): click the button — the plugin opens the approval page
      with the code pre-filled and copies the code to your clipboard, so you just click **Approve**
@@ -69,9 +70,10 @@ The issued key is **write-only (`gear:write`)** — it can do nothing except pus
 
 ## Base URL note
 
-There is **no fixed production URL yet**, and local testing uses `localhost` with a port that may
-vary (the API's launcher falls back from `8080` to `8081`, …). Always set the **exact** URL the
-launcher printed, including `/api/v1`. A trailing slash is trimmed automatically.
+The default is the production server **`https://xivarsenal.app/api/v1`**. For **local testing**,
+set it to `localhost` with the port the API's launcher printed (it falls back from `8080` to
+`8081`, …) — e.g. `http://127.0.0.1:8080/api/v1`. The value is the full base **including `/api/v1`**;
+a trailing slash is trimmed automatically.
 
 ## Troubleshooting
 

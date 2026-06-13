@@ -15,8 +15,11 @@ public sealed class PluginConfig : IPluginConfiguration
     /// <summary>The current configuration schema version.</summary>
     public const int CurrentVersion = 1;
 
-    /// <summary>The default dev base URL; always user-editable (P9).</summary>
-    public const string DefaultBaseUrl = "http://127.0.0.1:8080/api/v1";
+    /// <summary>
+    /// The default production API base URL; always user-editable (P9). For local development,
+    /// change it to the launcher's URL (e.g. <c>http://127.0.0.1:8080/api/v1</c>).
+    /// </summary>
+    public const string DefaultBaseUrl = "https://xivarsenal.app/api/v1";
 
     /// <inheritdoc />
     public int Version { get; set; } = CurrentVersion;
