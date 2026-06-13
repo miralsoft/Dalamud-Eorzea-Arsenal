@@ -12,6 +12,8 @@ All notable changes to this project are documented here. The format is based on
   unchanged, and the value stays user-editable (set it to `localhost` for local testing).
 
 ### Added
+- **Per-session log.** The diagnostics log is cleared on each login, so it always reflects the
+  current game session (it lives only in memory — nothing is written to disk).
 - **Diagnostics log window.** A new window lists the recent plugin messages (status codes,
   `request_id`s, the **failing request URL**, errors — never secrets/bodies, R22) with **Copy** and
   **Clear** buttons, so you can copy them for support. Open via the **log icon** in the status

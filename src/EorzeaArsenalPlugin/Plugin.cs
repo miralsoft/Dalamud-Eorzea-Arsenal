@@ -218,6 +218,10 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OnLogin()
     {
+        // Each login starts a fresh diagnostics log for the new game session.
+        _logBuffer.Clear();
+        _log.Info("New game session (logged in).");
+
         RecordCurrentCharacter();
         if (_config is { Enabled: true, TosAccepted: true, PushOnLogin: true } && _store.HasKey && CurrentCharacterAllowed())
         {
