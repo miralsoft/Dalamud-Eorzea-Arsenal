@@ -12,6 +12,10 @@ All notable changes to this project are documented here. The format is based on
   unchanged, and the value stays user-editable (set it to `localhost` for local testing).
 
 ### Added
+- **Gear vs BiS window overhaul.** It now shows **item icons** and **names** (not raw ids), the
+  item level and source per slot, and the **wrong (red) / missing (yellow) materia** at a glance.
+  New toolbar: **scope** (current set / all sets) and a **filter** (all slots / incomplete only /
+  materia issues only) so you can cut the noise. Choices persist.
 - **Per-session log.** The diagnostics log is cleared on each login, so it always reflects the
   current game session (it lives only in memory — nothing is written to disk).
 - **Diagnostics log window.** A new window lists the recent plugin messages (status codes,

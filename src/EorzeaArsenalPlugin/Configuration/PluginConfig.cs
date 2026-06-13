@@ -57,6 +57,12 @@ public sealed class PluginConfig : IPluginConfiguration
     /// <summary>Whether to show the BiS hover overlay over equipment items.</summary>
     public bool ShowBisTooltip { get; set; } = true;
 
+    /// <summary>BiS window: show all gearsets (<see langword="true"/>) or only the current one.</summary>
+    public bool BisShowAllSets { get; set; }
+
+    /// <summary>BiS window slot filter: 0 = all, 1 = incomplete only, 2 = materia issues only.</summary>
+    public int BisFilter { get; set; }
+
     /// <summary>How verbose the Dalamud log output is.</summary>
     public LogVerbosity Verbosity { get; set; } = LogVerbosity.Normal;
 

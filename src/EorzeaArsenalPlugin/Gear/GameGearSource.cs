@@ -430,6 +430,15 @@ public sealed class GameGearSource : IGearSource
         return sheet is not null && sheet.TryGetRow((uint)itemId, out var row) ? row.LevelItem.RowId : 0;
     }
 
+    /// <summary>Returns an item's game icon id (for <c>ITextureProvider.GetFromGameIcon</c>), or 0.</summary>
+    /// <param name="itemId">The item id.</param>
+    /// <returns>The icon id.</returns>
+    public uint GetItemIconId(int itemId)
+    {
+        var sheet = _data.GetExcelSheet<LuminaItem>();
+        return sheet is not null && sheet.TryGetRow((uint)itemId, out var row) ? row.Icon : 0u;
+    }
+
     /// <summary>Returns the API slot key(s) an item can be equipped into (empty if not equippable).</summary>
     /// <param name="itemId">The item id.</param>
     /// <returns>The matching slot keys; rings yield both ring slots.</returns>

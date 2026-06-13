@@ -71,6 +71,7 @@ public sealed class Plugin : IDalamudPlugin
     /// <param name="framework">Framework-thread marshaller.</param>
     /// <param name="dataManager">Excel data access.</param>
     /// <param name="gameGui">Provides the hovered item id for the BiS overlay.</param>
+    /// <param name="textureProvider">Loads game item icons for the BiS window.</param>
     /// <param name="log">Plugin log.</param>
     /// <param name="chatGui">Chat output for user feedback.</param>
     /// <param name="toastGui">Toast notifications.</param>
@@ -82,6 +83,7 @@ public sealed class Plugin : IDalamudPlugin
         IFramework framework,
         IDataManager dataManager,
         IGameGui gameGui,
+        ITextureProvider textureProvider,
         IPluginLog log,
         IChatGui chatGui,
         IToastGui toastGui)
@@ -116,7 +118,7 @@ public sealed class Plugin : IDalamudPlugin
         _sync.PushCompleted += OnPushCompleted;
         _bisService = new BisService(api, _gearSource, _store, _log);
 
-        _bisWindow = new BisWindow(_config, _store, _localizer, _bisService);
+        _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, Save);
         _logWindow = new LogWindow(_logBuffer, _localizer);
         _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearSource, _log, RequestManualPush, OpenConfig, OpenBis, OpenLog);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save, OpenStatus);

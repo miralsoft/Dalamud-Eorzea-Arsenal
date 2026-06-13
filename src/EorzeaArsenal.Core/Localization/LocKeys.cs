@@ -289,6 +289,27 @@ public static class LocKeys
     /// <summary>Hint when the current gearset has no BiS target (arg: gearset index).</summary>
     public const string BisNoTarget = "bis.notarget";
 
+    /// <summary>BiS window: "current set" scope.</summary>
+    public const string BisScopeCurrent = "bis.scope.current";
+
+    /// <summary>BiS window: "all sets" scope.</summary>
+    public const string BisScopeAll = "bis.scope.all";
+
+    /// <summary>BiS window: filter label.</summary>
+    public const string BisFilterLabel = "bis.filter";
+
+    /// <summary>BiS window filter: all slots.</summary>
+    public const string BisFilterAll = "bis.filter.all";
+
+    /// <summary>BiS window filter: incomplete only.</summary>
+    public const string BisFilterIncomplete = "bis.filter.incomplete";
+
+    /// <summary>BiS window filter: materia issues only.</summary>
+    public const string BisFilterMateria = "bis.filter.materia";
+
+    /// <summary>BiS window: nothing matches the current filter.</summary>
+    public const string BisNothingShown = "bis.nothingshown";
+
     // Log / diagnostics window
     /// <summary>Log window title.</summary>
     public const string LogWindowTitle = "window.log.title";
