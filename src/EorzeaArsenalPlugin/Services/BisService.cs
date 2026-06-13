@@ -190,42 +190,16 @@ public sealed class BisService
         return null;
     }
 
-    /// <summary>Returns the BiS target item for one slot of a gearset, if any.</summary>
+    /// <summary>Returns the full BiS target gearset for an index, if cached.</summary>
     /// <param name="gearIndex">The gearset index.</param>
-    /// <param name="slot">The slot key.</param>
-    /// <returns>The target item, or <see langword="null"/>.</returns>
-    public ItemDto? TargetForSlot(int gearIndex, string slot)
+    /// <returns>The target gearset, or <see langword="null"/>.</returns>
+    public BisGearset? TargetGearset(int gearIndex)
     {
         foreach (var target in _targets)
         {
-            if (target.GearIndex == gearIndex && target.Items.TryGetValue(slot, out var item))
+            if (target.GearIndex == gearIndex)
             {
-                return item;
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>Returns the live-vs-BiS comparison for one slot of a gearset (by index), if known.</summary>
-    /// <param name="gearIndex">The gearset index.</param>
-    /// <param name="slot">The slot key.</param>
-    /// <returns>The slot comparison, or <see langword="null"/>.</returns>
-    public SlotComparison? SlotComparisonByIndex(int gearIndex, string slot)
-    {
-        foreach (var comparison in _comparisons)
-        {
-            if (comparison.GearIndex != gearIndex)
-            {
-                continue;
-            }
-
-            foreach (var slotComparison in comparison.Slots)
-            {
-                if (slotComparison.Slot == slot)
-                {
-                    return slotComparison;
-                }
+                return target;
             }
         }
 

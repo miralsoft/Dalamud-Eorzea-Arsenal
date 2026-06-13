@@ -4,6 +4,7 @@ using Dalamud.Interface;
 using Dalamud.Plugin.Services;
 using EorzeaArsenal.Gear;
 using EorzeaArsenal.Localization;
+using EorzeaArsenal.Model;
 using EorzeaArsenal.Plugin.Configuration;
 using EorzeaArsenal.Plugin.Gear;
 using EorzeaArsenal.Plugin.Services;
@@ -44,9 +45,17 @@ public sealed class BisTooltip
     private readonly BisService _bis;
     private readonly GameGearSource _gearSource;
 
+    private static readonly CharacterDto LiveCharacter = new()
+    {
+        Name = string.Empty,
+        World = string.Empty,
+        CidHash = new string('0', 64),
+    };
+
     private Vector2 _lastSize = new(260f, 90f);
     private int _cachedItemId = -1;
     private int _cachedGearIndex = -2;
+    private ulong _cachedEquippedSig;
     private List<OverlayLine> _cachedLines = [];
 
     /// <summary>Creates the overlay.</summary>
@@ -82,12 +91,15 @@ public sealed class BisTooltip
 
         var itemId = ItemIdNormalizer.Normalize((uint)raw);
         var gearIndex = _gearSource.GetCurrentGearsetIndex();
+        var equippedSig = _gearSource.GetEquippedSignature();
 
-        // Resolving names/slots/ownership is only done when the hovered item or gearset changes.
-        if (itemId != _cachedItemId || gearIndex != _cachedGearIndex)
+        // Recompute when the hovered item, the gearset, or the worn gear changes — so the
+        // comparison is always live (e.g. right after swapping a piece), independent of the cache.
+        if (itemId != _cachedItemId || gearIndex != _cachedGearIndex || equippedSig != _cachedEquippedSig)
         {
             _cachedItemId = itemId;
             _cachedGearIndex = gearIndex;
+            _cachedEquippedSig = equippedSig;
             _cachedLines = BuildLines(itemId, gearIndex);
         }
 
@@ -102,37 +114,68 @@ public sealed class BisTooltip
     private List<OverlayLine> BuildLines(int itemId, int gearIndex)
     {
         var lines = new List<OverlayLine>();
-        if (gearIndex < 0)
+        if (gearIndex < 0 || _bis.TargetGearset(gearIndex) is not { } target)
         {
             return lines;
         }
 
-        foreach (var slot in _gearSource.GetSlotsForItem(itemId))
+        var slots = _gearSource.GetSlotsForItem(itemId);
+        if (slots.Count == 0)
         {
-            if (_bis.TargetForSlot(gearIndex, slot) is not { } target)
+            return lines;
+        }
+
+        // Compare the BiS target against the LIVE equipped gear (not the cached fetch-time state),
+        // so the overlay is correct immediately after a swap/meld.
+        var live = new GearData
+        {
+            Character = LiveCharacter,
+            Gearsets = [new GearsetDto { GearIndex = gearIndex, Job = target.Job, Items = _gearSource.GetEquippedItems() }],
+        };
+        var comparison = BisComparer.Compare(live, [target]).FirstOrDefault();
+        if (comparison is null)
+        {
+            return lines;
+        }
+
+        foreach (var slot in slots)
+        {
+            if (FindSlot(comparison, slot) is not { } slotComparison)
             {
-                continue; // no BiS target for this slot in the current gearset
+                continue; // no BiS target for this slot
             }
 
-            var comparison = _bis.SlotComparisonByIndex(gearIndex, slot);
-            var equipped = comparison is { CurrentItemId: { } currentId } && currentId > 0
+            var targetMateria = target.Items.TryGetValue(slot, out var targetItem) && targetItem.Materia.Count > 0
+                ? targetItem.Materia.Select(_gearSource.GetItemName).ToList()
+                : [];
+            var equippedName = slotComparison.CurrentItemId is { } currentId && currentId > 0
                 ? _gearSource.GetItemName(currentId)
                 : null;
-            var materia = target.Materia.Count > 0
-                ? target.Materia.Select(_gearSource.GetItemName).ToList()
-                : [];
 
             lines.Add(new OverlayLine(
                 slot,
-                _gearSource.GetItemName(target.Id),
-                comparison?.Status ?? SlotMatch.MissingCurrent,
-                comparison?.MateriaMatch ?? false,
-                equipped,
-                _gearSource.OwnsItem(target.Id),
-                materia));
+                _gearSource.GetItemName(slotComparison.TargetItemId),
+                slotComparison.Status,
+                slotComparison.MateriaMatch,
+                equippedName,
+                _gearSource.OwnsItem(slotComparison.TargetItemId),
+                targetMateria));
         }
 
         return lines;
+    }
+
+    private static SlotComparison? FindSlot(GearsetComparison comparison, string slot)
+    {
+        foreach (var slotComparison in comparison.Slots)
+        {
+            if (slotComparison.Slot == slot)
+            {
+                return slotComparison;
+            }
+        }
+
+        return null;
     }
 
     private void DrawWindow(Vector2 position)

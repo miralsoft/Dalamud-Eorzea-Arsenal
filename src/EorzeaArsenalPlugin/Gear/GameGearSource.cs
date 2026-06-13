@@ -11,9 +11,10 @@ namespace EorzeaArsenal.Plugin.Gear;
 
 /// <summary>Change-detection fingerprints read together from the game.</summary>
 /// <param name="StoredGearsets">Hash over all stored gearset entries (changes only on save).</param>
-/// <param name="Equipped">Hash over the live equipped container (changes on melding/swapping worn gear).</param>
+/// <param name="EquippedItems">Hash over the worn item ids (changes when a piece is swapped).</param>
+/// <param name="EquippedMateria">Hash over the worn materia (changes when materia is socketed).</param>
 /// <param name="CurrentGearset">The active gearset index (-1 if unavailable).</param>
-public readonly record struct GearSignatures(ulong StoredGearsets, ulong Equipped, int CurrentGearset);
+public readonly record struct GearSignatures(ulong StoredGearsets, ulong EquippedItems, ulong EquippedMateria, int CurrentGearset);
 
 /// <summary>
 /// Reads the player's gearsets from <see cref="RaptureGearsetModule"/> and maps them to the wire
@@ -106,7 +107,7 @@ public sealed class GameGearSource : IGearSource
         // live materia in the EquippedItems container, so for the active gearset we read that
         // instead — materia changes are then sent without needing to re-save the gearset.
         var currentIndex = module->CurrentGearsetIndex;
-        var equipped = ReadEquippedItems();
+        var equipped = GetEquippedItems();
 
         for (var i = 0; i < MaxGearsetSlots; i++)
         {
@@ -154,13 +155,13 @@ public sealed class GameGearSource : IGearSource
         {
             if (!_clientState.IsLoggedIn || !_playerState.IsLoaded)
             {
-                return new GearSignatures(0, 0, -1);
+                return new GearSignatures(0, 0, 0, -1);
             }
 
             var module = RaptureGearsetModule.Instance();
             if (module == null)
             {
-                return new GearSignatures(0, 0, -1);
+                return new GearSignatures(0, 0, 0, -1);
             }
 
             var saved = FnvOffset;
@@ -191,29 +192,40 @@ public sealed class GameGearSource : IGearSource
                 }
             }
 
-            return new GearSignatures(saved, HashEquippedSignature(), module->CurrentGearsetIndex);
+            var (items, materia) = HashEquippedSignatures();
+            return new GearSignatures(saved, items, materia, module->CurrentGearsetIndex);
         }
         catch (Exception ex)
         {
             // P2: never surface into the game.
             _log.Error($"Gear signature read failed: {ex.GetType().Name}.");
-            return new GearSignatures(0, 0, -1);
+            return new GearSignatures(0, 0, 0, -1);
         }
     }
 
-    private unsafe ulong HashEquippedSignature()
+    /// <summary>A combined hash of the worn items + materia, for cheap "did the worn gear change?" checks.</summary>
+    /// <returns>An FNV-1a hash, or the offset basis when unreadable.</returns>
+    public unsafe ulong GetEquippedSignature()
     {
-        var hash = FnvOffset;
+        var (items, materia) = HashEquippedSignatures();
+        return Fnv(items, materia);
+    }
+
+    private unsafe (ulong Items, ulong Materia) HashEquippedSignatures()
+    {
+        var items = FnvOffset;
+        var materia = FnvOffset;
+
         var inventory = InventoryManager.Instance();
         if (inventory == null)
         {
-            return hash;
+            return (items, materia);
         }
 
         var container = inventory->GetInventoryContainer(InventoryType.EquippedItems);
         if (container == null)
         {
-            return hash;
+            return (items, materia);
         }
 
         for (var slot = 0; slot < EquipmentSlotCount; slot++)
@@ -224,15 +236,15 @@ public sealed class GameGearSource : IGearSource
                 continue;
             }
 
-            hash = Fnv(hash, item->ItemId);
+            items = Fnv(items, item->ItemId);
             for (var k = 0; k < MateriaSlotCount; k++)
             {
-                hash = Fnv(hash, item->Materia[k]);
-                hash = Fnv(hash, item->MateriaGrades[k]);
+                materia = Fnv(materia, item->Materia[k]);
+                materia = Fnv(materia, item->MateriaGrades[k]);
             }
         }
 
-        return hash;
+        return (items, materia);
     }
 
     private static ulong Fnv(ulong hash, ulong value)
@@ -287,9 +299,11 @@ public sealed class GameGearSource : IGearSource
 
     /// <summary>
     /// Reads the live equipped items (with up-to-date materia) from the EquippedItems container.
-    /// Unlike a gearset, this reflects melds on the worn gear immediately, without a re-save.
+    /// Unlike a gearset, this reflects melds/swaps on the worn gear immediately, without a re-save.
+    /// Used both for the push payload (current gearset) and the live BiS-overlay comparison.
     /// </summary>
-    private unsafe Dictionary<string, ItemDto> ReadEquippedItems()
+    /// <returns>The worn items keyed by slot.</returns>
+    public unsafe Dictionary<string, ItemDto> GetEquippedItems()
     {
         var items = new Dictionary<string, ItemDto>(StringComparer.Ordinal);
 

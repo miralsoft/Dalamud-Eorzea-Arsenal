@@ -54,7 +54,8 @@ public sealed class Plugin : IDalamudPlugin
     private long _nextCharRecordTicks;
     private long _nextBisRefreshTicks;
     private ulong _lastStoredSig;
-    private ulong _lastEquippedSig;
+    private ulong _lastEquippedItemsSig;
+    private ulong _lastEquippedMateriaSig;
     private int _lastGearsetIndex;
     private bool _signaturesInitialized;
     private bool _pendingChange;
@@ -270,11 +271,13 @@ public sealed class Plugin : IDalamudPlugin
                 {
                     var storedChanged = sig.StoredGearsets != _lastStoredSig;
                     var indexChanged = sig.CurrentGearset != _lastGearsetIndex;
-                    var equippedChanged = sig.Equipped != _lastEquippedSig;
+                    var itemsChanged = sig.EquippedItems != _lastEquippedItemsSig;
+                    var materiaChanged = sig.EquippedMateria != _lastEquippedMateriaSig;
 
-                    // Push when a gearset is saved, or when the worn gear changes (melding/swapping)
-                    // while the gearset index is unchanged. A plain gearset switch is ignored.
-                    if (storedChanged || (equippedChanged && !indexChanged))
+                    // Push when a gearset is saved, or when materia is socketed on the worn gear
+                    // (materia changed, items unchanged, same gearset). Swapping a piece (items
+                    // changed — possibly temporary) or merely switching gearsets is ignored.
+                    if (storedChanged || (materiaChanged && !itemsChanged && !indexChanged))
                     {
                         _pendingChange = true;
                         _changeDebounceUntilTicks = now + 5_000; // coalesce rapid edits
@@ -282,7 +285,8 @@ public sealed class Plugin : IDalamudPlugin
                 }
 
                 _lastStoredSig = sig.StoredGearsets;
-                _lastEquippedSig = sig.Equipped;
+                _lastEquippedItemsSig = sig.EquippedItems;
+                _lastEquippedMateriaSig = sig.EquippedMateria;
                 _lastGearsetIndex = sig.CurrentGearset;
             }
         }

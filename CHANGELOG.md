@@ -15,11 +15,14 @@ All notable changes to this project are documented here. The format is based on
   (inventory/armoury/equipped), and your equipped piece for comparison.
 
 ### Fixed
-- **Gearset-change detection now also catches melding/swapping on worn gear, but still ignores a
-  plain gearset switch.** It tracks the stored gearsets and the live equipped container separately:
-  a push fires when a gearset is saved, or when the worn gear changes (e.g. socketing materia)
-  while the gearset index is unchanged — so melding no longer needs a re-save. Merely switching
-  gearsets does not trigger.
+- **BiS overlay compares against the live equipped gear.** The comparison was taken from the
+  (≤5-min) cached fetch, so after swapping a piece the overlay still showed the old verdict. It now
+  recomputes against the currently worn gear whenever the equipment changes — correct immediately,
+  with no upload needed.
+- **Change-detection push rules refined.** A push now fires only when a gearset is **saved**, or
+  when **materia is socketed** on the worn gear (materia changed, item ids unchanged, same
+  gearset). **Swapping** a piece (item id changes — possibly temporary) and merely **switching**
+  gearsets no longer push.
 - **BiS overlay docks toward the cursor.** When the native item tooltip is to the left of the
   cursor, the overlay now docks to the tooltip's right edge (near the cursor) so it's quicker to
   spot; otherwise it stays on the left edge.
