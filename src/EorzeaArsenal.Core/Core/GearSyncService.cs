@@ -285,7 +285,7 @@ public sealed class GearSyncService : IDisposable
         }
         else
         {
-            _log.Warning($"Push failed: {error.Kind} (HTTP {error.StatusCode}). request_id={error.RequestId}.");
+            _log.Warning($"Push failed: {error.Kind} (HTTP {error.StatusCode}) {error.Endpoint}. request_id={error.RequestId}.");
         }
 
         return new PushReport(PushOutcome.Failed, ErrorKind: error.Kind, RequestId: error.RequestId, Detail: error.Message);

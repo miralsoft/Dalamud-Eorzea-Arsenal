@@ -49,6 +49,9 @@ public sealed class ApiError
     /// <summary>Server correlation id from the problem body, if any — safe to log/show.</summary>
     public string? RequestId { get; init; }
 
+    /// <summary>The request method + URL that failed (no secrets) — safe to log for diagnostics.</summary>
+    public string? Endpoint { get; init; }
+
     /// <summary>For <see cref="ApiErrorKind.RateLimited"/>: how long to back off, if the server said so.</summary>
     public TimeSpan? RetryAfter { get; init; }
 }

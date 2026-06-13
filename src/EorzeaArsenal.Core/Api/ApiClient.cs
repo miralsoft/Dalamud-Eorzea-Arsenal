@@ -98,6 +98,7 @@ public sealed class ApiClient : IApiClient
     {
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(_requestTimeout);
+        var endpoint = $"{request.Method} {request.RequestUri}";
 
         try
         {
@@ -113,7 +114,7 @@ public sealed class ApiClient : IApiClient
                 return Deserialize<T>(body);
             }
 
-            return ApiResult<T>.Fail(MapError(response, body));
+            return ApiResult<T>.Fail(MapError(response, body, endpoint));
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -126,6 +127,7 @@ public sealed class ApiClient : IApiClient
             {
                 Kind = ApiErrorKind.Network,
                 Message = "The request timed out.",
+                Endpoint = endpoint,
             });
         }
         catch (HttpRequestException ex)
@@ -135,6 +137,7 @@ public sealed class ApiClient : IApiClient
             {
                 Kind = ApiErrorKind.Network,
                 Message = ex.Message,
+                Endpoint = endpoint,
             });
         }
     }
@@ -165,7 +168,7 @@ public sealed class ApiClient : IApiClient
         }
     }
 
-    private static ApiError MapError(HttpResponseMessage response, string body)
+    private static ApiError MapError(HttpResponseMessage response, string body, string endpoint)
     {
         var kind = response.StatusCode switch
         {
@@ -189,6 +192,7 @@ public sealed class ApiClient : IApiClient
             StatusCode = (int)response.StatusCode,
             Message = problem?.Title ?? $"HTTP {(int)response.StatusCode}",
             RequestId = problem?.RequestId,
+            Endpoint = endpoint,
             RetryAfter = retryAfter is { Ticks: > 0 } ? retryAfter : null,
         };
     }

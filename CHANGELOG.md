@@ -13,8 +13,9 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 - **Diagnostics log window.** A new window lists the recent plugin messages (status codes,
-  `request_id`s, errors — never secrets/bodies, R22) with **Copy** and **Clear** buttons, so you can
-  copy them for support. Open via the **log icon** in the status window or `/bisexport log`.
+  `request_id`s, the **failing request URL**, errors — never secrets/bodies, R22) with **Copy** and
+  **Clear** buttons, so you can copy them for support. Open via the **log icon** in the status
+  window or `/bisexport log`. Failed pushes and connection tests now log the exact method + URL.
 - **BiS overlay tells you when a gearset has no BiS target.** Instead of silently showing nothing
   (which looked like a bug for jobs/gearsets without a pinned/returned BiS, e.g. Summoner), hovering
   an equippable item now shows a clear hint with the gearset index — so you can see it's "no target

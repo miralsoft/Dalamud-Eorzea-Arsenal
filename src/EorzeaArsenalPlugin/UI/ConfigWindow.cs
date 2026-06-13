@@ -359,11 +359,13 @@ public sealed class ConfigWindow : Window, IDisposable
                 var result = await _api.GetVersionAsync(_store.ApiKey, CancellationToken.None).ConfigureAwait(false);
                 if (!result.IsSuccess)
                 {
-                    _testStatus = _localizer.Get(LocKeys.TestFailed, result.Error!.Message);
+                    _log.Warning($"Test connection failed: {result.Error!.Kind} (HTTP {result.Error.StatusCode}) {result.Error.Endpoint}.");
+                    _testStatus = _localizer.Get(LocKeys.TestFailed, result.Error.Message);
                     return;
                 }
 
-                var ok = _localizer.Get(LocKeys.TestOk, result.Value!.ProtocolVersion);
+                _log.Info($"Test connection OK (protocol v{result.Value!.ProtocolVersion}) at {_store.BaseUrl}/version.");
+                var ok = _localizer.Get(LocKeys.TestOk, result.Value.ProtocolVersion);
                 // R17: if a key is present, warn when it lacks gear:write.
                 var scopeOk = !_store.HasKey || ScopeUtil.HasGearWrite(result.Value.Scopes);
                 _testStatus = scopeOk ? ok : $"{ok} ⚠ {T(LocKeys.ScopeMissing)}";
