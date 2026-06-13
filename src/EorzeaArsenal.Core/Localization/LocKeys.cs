@@ -313,9 +313,6 @@ public static class LocKeys
     /// <summary>"Copy name" context action.</summary>
     public const string BisCopyName = "bis.copyname";
 
-    /// <summary>"Link in chat" context action.</summary>
-    public const string BisLinkChat = "bis.linkchat";
-
     /// <summary>Hover hint for clickable items.</summary>
     public const string BisItemHint = "bis.itemhint";
 

@@ -13,9 +13,11 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 - **Clickable items, materia icons and per-set progress in the BiS window.** Each slot's item line
-  is now interactive: **left-click** posts a clickable item link to chat (inspect / jump to the
-  marketboard), **right-click** opens a menu to **copy the item name** (for the marketboard search)
-  or link it in chat. The wrong/missing **materia now show their icons** next to the names, and each
+  is now interactive: **left-click** posts a clickable item link to your local chat log (inspect /
+  jump to the marketboard), **right-click** copies the **item name** to the clipboard so you can
+  paste it anywhere — FC/party chat, Discord, the marketboard search. (A plugin can't write into the
+  game's chat input or send messages — Dalamud blocks that for ban-safety — so copy-and-paste is the
+  safe way to share.) The wrong/missing **materia now show their icons** next to the names, and each
   gearset has a **progress bar** (e.g. *9/12*, green when complete).
 - **Gear vs BiS window overhaul.** It now shows **item icons** and **names** (not raw ids), the
   item level and source per slot, and the **wrong (red) / missing (yellow) materia** at a glance.

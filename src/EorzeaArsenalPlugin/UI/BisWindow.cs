@@ -223,8 +223,9 @@ public sealed class BisWindow : Window
     }
 
     /// <summary>
-    /// Renders the slot's main line as a hoverable item: left-click links it in chat, right-click
-    /// opens a context menu (copy name for marketboard search / link in chat).
+    /// Renders the slot's main line as a hoverable item: left-click prints a clickable item link to
+    /// the local chat log (preview), right-click copies the item name to the clipboard so the user
+    /// can paste it anywhere (FC/party chat, Discord, the marketboard search).
     /// </summary>
     private void ClickableItem(Vector4 color, string text, int itemId, string id)
     {
@@ -247,11 +248,6 @@ public sealed class BisWindow : Window
             if (ImGui.Selectable(T(LocKeys.BisCopyName)))
             {
                 ImGui.SetClipboardText(_gearSource.GetItemName(itemId));
-            }
-
-            if (ImGui.Selectable(T(LocKeys.BisLinkChat)))
-            {
-                _linkItem(itemId);
             }
 
             ImGui.EndPopup();

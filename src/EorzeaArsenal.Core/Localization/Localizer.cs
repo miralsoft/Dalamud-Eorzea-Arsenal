@@ -129,8 +129,7 @@ public sealed class Localizer : ILocalizer
         [LocKeys.BisFilterMateria] = "Materia issues only",
         [LocKeys.BisNothingShown] = "Nothing to show with the current filter.",
         [LocKeys.BisCopyName] = "Copy name",
-        [LocKeys.BisLinkChat] = "Link in chat",
-        [LocKeys.BisItemHint] = "Left-click: link in chat · Right-click: menu",
+        [LocKeys.BisItemHint] = "Left-click: link in chat · Right-click: copy name",
 
         [LocKeys.LogWindowTitle] = "Eorzea Arsenal — Log",
         [LocKeys.OpenLog] = "Log",
@@ -279,8 +278,7 @@ public sealed class Localizer : ILocalizer
         [LocKeys.BisFilterMateria] = "Nur Materia-Probleme",
         [LocKeys.BisNothingShown] = "Mit dem aktuellen Filter gibt es nichts anzuzeigen.",
         [LocKeys.BisCopyName] = "Namen kopieren",
-        [LocKeys.BisLinkChat] = "Im Chat verlinken",
-        [LocKeys.BisItemHint] = "Linksklick: im Chat verlinken · Rechtsklick: Menü",
+        [LocKeys.BisItemHint] = "Linksklick: im Chat verlinken · Rechtsklick: Namen kopieren",
 
         [LocKeys.LogWindowTitle] = "Eorzea Arsenal — Log",
         [LocKeys.OpenLog] = "Log",
