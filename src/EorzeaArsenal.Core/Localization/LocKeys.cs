@@ -340,6 +340,37 @@ public static class LocKeys
     /// <summary>BiS window: "grid" (character-screen layout) toggle.</summary>
     public const string BisGridView = "bis.grid";
 
+    // Owned items / inventory upload (Phase 2)
+    /// <summary>Opt-in: also upload owned items (inventory).</summary>
+    public const string SyncInventory = "config.syncinventory";
+
+    /// <summary>Hint for the inventory opt-in.</summary>
+    public const string SyncInventoryHint = "config.syncinventory.hint";
+
+    /// <summary>Opt-in: also scan retainers when visited.</summary>
+    public const string SyncRetainers = "config.syncretainers";
+
+    /// <summary>Hint for the retainer opt-in.</summary>
+    public const string SyncRetainersHint = "config.syncretainers.hint";
+
+    /// <summary>"Sync inventory" button (status window).</summary>
+    public const string InventorySyncButton = "inventory.sync.button";
+
+    /// <summary>Hint to visit retainers to refresh their stock.</summary>
+    public const string InventorySyncHint = "inventory.sync.hint";
+
+    /// <summary>"Syncing inventory…" status.</summary>
+    public const string InventoryStarted = "inventory.started";
+
+    /// <summary>Inventory upload success (args: item count, scope count).</summary>
+    public const string InventorySuccess = "inventory.success";
+
+    /// <summary>"Last inventory sync" label.</summary>
+    public const string StatusLastInventory = "status.lastinventory";
+
+    /// <summary>403 error message specific to the inventory:write scope.</summary>
+    public const string Error403Inventory = "error.403.inventory";
+
     // Log / diagnostics window
     /// <summary>Log window title.</summary>
     public const string LogWindowTitle = "window.log.title";

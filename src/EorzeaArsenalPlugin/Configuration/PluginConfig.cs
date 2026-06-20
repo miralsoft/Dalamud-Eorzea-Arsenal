@@ -60,6 +60,18 @@ public sealed class PluginConfig : IPluginConfiguration
     /// <summary>Whether to show the compact status entry in the in-game server-info (DTR) bar.</summary>
     public bool ShowDtrBar { get; set; } = true;
 
+    /// <summary>
+    /// Opt-in: also upload the owned, equippable items (inventory) via <c>POST /inventory</c> so the
+    /// web app can tick off what the player already has. Independent of the gear push; off by default.
+    /// </summary>
+    public bool SyncInventory { get; set; }
+
+    /// <summary>
+    /// Opt-in: when <see cref="SyncInventory"/> is on, also scan a retainer's gear when its bag is
+    /// opened at a summoning bell. Off by default (retainers are only read when explicitly enabled).
+    /// </summary>
+    public bool SyncRetainers { get; set; }
+
     /// <summary>BiS window: show all gearsets (<see langword="true"/>) or only the current one.</summary>
     public bool BisShowAllSets { get; set; }
 

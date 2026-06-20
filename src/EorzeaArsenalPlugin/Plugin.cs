@@ -41,8 +41,10 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ConfigStore _store;
     private readonly Localizer _localizer;
     private readonly GameGearSource _gearSource;
+    private readonly GameInventorySource _inventorySource;
     private readonly ConnectionService _connection;
     private readonly GearSyncService _sync;
+    private readonly InventorySyncService _inventorySync;
     private readonly BisService _bisService;
 
     private readonly WindowSystem _windowSystem = new("EorzeaArsenal");
@@ -59,6 +61,9 @@ public sealed class Plugin : IDalamudPlugin
     private long _nextCharRecordTicks;
     private long _nextBisRefreshTicks;
     private long _nextDtrUpdateTicks;
+    private long _nextInventoryAutoTicks;
+    private long _nextRetainerCheckTicks;
+    private string? _lastRetainerScope;
     private bool _bisLoadPending;
     private ulong _lastStoredSig;
     private ulong _lastEquippedItemsSig;
@@ -117,17 +122,20 @@ public sealed class Plugin : IDalamudPlugin
 
         var api = new ApiClient(_httpClient, _store);
         _gearSource = new GameGearSource(clientState, playerState, framework, dataManager, _log);
+        _inventorySource = new GameInventorySource(clientState, playerState, framework, dataManager, _log);
         _connection = new ConnectionService(api, _store, new RealDelay(), _log);
         _sync = new GearSyncService(_gearSource, api, _store, new SystemClock(), _log)
         {
             MinAutoPushInterval = TimeSpan.FromMinutes(Math.Max(1, _config.AutoPushIntervalMinutes)),
         };
         _sync.PushCompleted += OnPushCompleted;
+        _inventorySync = new InventorySyncService(_inventorySource, api, _store, new SystemClock(), _log);
+        _inventorySync.SyncCompleted += OnInventoryCompleted;
         _bisService = new BisService(api, _gearSource, _store, _log);
 
         _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, Save, LinkItemInChat);
         _logWindow = new LogWindow(_logBuffer, _localizer);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearSource, _log, RequestManualPush, OpenConfig, OpenBis, OpenLog);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _gearSource, _log, RequestManualPush, RequestInventorySync, OpenConfig, OpenBis, OpenLog);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save, OpenStatus);
         _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource);
         _windowSystem.AddWindow(_bisWindow);
@@ -167,6 +175,8 @@ public sealed class Plugin : IDalamudPlugin
         _dtrEntry.Remove();
         _sync.PushCompleted -= OnPushCompleted;
         _sync.Dispose();
+        _inventorySync.SyncCompleted -= OnInventoryCompleted;
+        _inventorySync.Dispose();
         _configWindow.Dispose();
         _httpClient.Dispose();
     }
@@ -255,6 +265,34 @@ public sealed class Plugin : IDalamudPlugin
         _sync.RequestPush(PushTrigger.Manual);
     }
 
+    /// <summary>Triggers a manual inventory (character-scope) sync, gated like the gear push.</summary>
+    private void RequestInventorySync()
+    {
+        if (!_config.Enabled || !_config.TosAccepted || !_config.SyncInventory)
+        {
+            OpenConfig();
+            Chat(_localizer.Get(LocKeys.EnablePushMasterHint));
+            return;
+        }
+
+        if (!_store.HasKey)
+        {
+            OpenConfig();
+            Chat(_localizer.Get(LocKeys.PushNotConnected));
+            return;
+        }
+
+        RecordCurrentCharacter();
+        if (!CurrentCharacterAllowed())
+        {
+            Chat(_localizer.Get(LocKeys.CharacterDisabled));
+            return;
+        }
+
+        Chat(_localizer.Get(LocKeys.InventoryStarted));
+        _inventorySync.RequestCharacterSync(InventoryTrigger.Manual);
+    }
+
     private void OnLogin()
     {
         // Each login starts a fresh diagnostics log for the new game session.
@@ -265,6 +303,13 @@ public sealed class Plugin : IDalamudPlugin
         if (_config is { Enabled: true, TosAccepted: true, PushOnLogin: true } && _store.HasKey && CurrentCharacterAllowed())
         {
             _sync.RequestPush(PushTrigger.Login);
+        }
+
+        // Upload owned items once per session start so the web app reflects this character on login.
+        if (_config is { Enabled: true, TosAccepted: true, SyncInventory: true } && _store.HasKey && CurrentCharacterAllowed())
+        {
+            _inventorySync.RequestCharacterSync(InventoryTrigger.Login);
+            _lastRetainerScope = null;
         }
 
         // Auto-load BiS for the new session so the window/overlay have current data without a manual
@@ -319,10 +364,57 @@ public sealed class Plugin : IDalamudPlugin
             _ = Task.Run(() => _bisService.RefreshAsync(CancellationToken.None));
         }
 
+        if (_config.SyncInventory)
+        {
+            // Periodic character-scope refresh so sold/looted items reconcile. The service throttles
+            // (≥ 15 min) and skips unchanged scans, so this is cheap and never spams the upload budget.
+            if (now >= _nextInventoryAutoTicks)
+            {
+                _nextInventoryAutoTicks = now + 300_000;
+                _inventorySync.RequestCharacterSync(InventoryTrigger.Auto);
+            }
+
+            if (_config.SyncRetainers)
+            {
+                DetectOpenRetainer(now);
+            }
+        }
+
         if (_config.PushOnGearsetChange)
         {
             DetectGearsetChange(now);
         }
+    }
+
+    /// <summary>
+    /// Polls (cheaply, on the framework thread) for an open retainer whose bag is loaded and uploads
+    /// its <c>retainer:&lt;id&gt;</c> scope once per visit; resets when the retainer is closed so the
+    /// next visit re-scans (and reconciles anything sold there).
+    /// </summary>
+    private void DetectOpenRetainer(long now)
+    {
+        if (now < _nextRetainerCheckTicks)
+        {
+            return;
+        }
+
+        _nextRetainerCheckTicks = now + 2_000;
+
+        var data = _inventorySource.TryReadActiveRetainer();
+        if (data is null || data.Scopes.Count == 0)
+        {
+            _lastRetainerScope = null; // no retainer open — allow the next visit to re-scan
+            return;
+        }
+
+        var scope = data.Scopes[0];
+        if (scope == _lastRetainerScope)
+        {
+            return; // already uploaded this retainer for the current visit
+        }
+
+        _lastRetainerScope = scope;
+        _inventorySync.RequestScopeSync(data);
     }
 
     private void DetectGearsetChange(long now)
@@ -412,6 +504,43 @@ public sealed class Plugin : IDalamudPlugin
             _toastGui.ShowNormal(message);
         }
     }
+
+    /// <summary>Reports inventory upload outcomes to chat/toast; stays quiet for skipped/no-op runs.</summary>
+    private void OnInventoryCompleted(InventoryReport report)
+    {
+        var message = InventoryMessage(report);
+        if (message is null)
+        {
+            return;
+        }
+
+        var chatMessage = report.Outcome == InventoryOutcome.Failed ? $"{message} ({ServerHost()})" : message;
+        Chat(chatMessage);
+        if (_config.UseToasts)
+        {
+            _toastGui.ShowNormal(message);
+        }
+    }
+
+    /// <summary>Maps an inventory report to a user message, or <see langword="null"/> to stay quiet.</summary>
+    private string? InventoryMessage(InventoryReport report) => report.Outcome switch
+    {
+        InventoryOutcome.Sent => _localizer.Get(LocKeys.InventorySuccess, report.ItemCount ?? 0, report.ScopeCount ?? 0),
+        InventoryOutcome.Failed => InventoryErrorMessage(report.ErrorKind),
+        _ => null, // skipped/unchanged/throttled/backoff/not-connected/not-logged-in: no noise
+    };
+
+    private string InventoryErrorMessage(ApiErrorKind? kind) => kind switch
+    {
+        ApiErrorKind.Unauthorized => _localizer.Get(LocKeys.Error401),
+        ApiErrorKind.Forbidden => _localizer.Get(LocKeys.Error403Inventory),
+        ApiErrorKind.Conflict => _localizer.Get(LocKeys.Error409),
+        ApiErrorKind.Validation => _localizer.Get(LocKeys.Error422),
+        ApiErrorKind.BadRequest => _localizer.Get(LocKeys.Error400),
+        ApiErrorKind.RateLimited => _localizer.Get(LocKeys.Error429),
+        ApiErrorKind.Network => _localizer.Get(LocKeys.ErrorNetwork),
+        _ => _localizer.Get(LocKeys.ErrorUnexpected),
+    };
 
     private string ServerHost()
     {

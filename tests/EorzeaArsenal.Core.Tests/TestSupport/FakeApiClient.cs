@@ -8,6 +8,7 @@ public sealed class FakeApiClient : IApiClient
 {
     private readonly Queue<ApiResult<DeviceTokenResponse>> _tokenResults = new();
     private readonly Queue<ApiResult<GearPushResult>> _pushResults = new();
+    private readonly Queue<ApiResult<InventoryPushResult>> _inventoryResults = new();
 
     /// <summary>Result returned by <see cref="RequestDeviceCodeAsync"/>.</summary>
     public ApiResult<DeviceCodeResponse> DeviceCodeResult { get; set; } =
@@ -29,6 +30,16 @@ public sealed class FakeApiClient : IApiClient
 
     /// <summary>The payloads passed to <see cref="PushGearAsync"/>, in order.</summary>
     public List<GearPayload> PushedPayloads { get; } = [];
+
+    /// <summary>Number of inventory upload calls made.</summary>
+    public int InventoryCalls { get; private set; }
+
+    /// <summary>The payloads passed to <see cref="PushInventoryAsync"/>, in order.</summary>
+    public List<InventoryPayload> InventoryPayloads { get; } = [];
+
+    /// <summary>Queues an inventory upload result.</summary>
+    /// <param name="result">The result to return on the next upload.</param>
+    public void EnqueueInventory(ApiResult<InventoryPushResult> result) => _inventoryResults.Enqueue(result);
 
     /// <summary>Queues a device-token poll result.</summary>
     /// <param name="result">The result to return on the next poll.</param>
@@ -59,6 +70,17 @@ public sealed class FakeApiClient : IApiClient
         var result = _pushResults.Count > 0
             ? _pushResults.Dequeue()
             : ApiResult<GearPushResult>.Ok(new GearPushResult { Status = "ok", Gearsets = payload.Gearsets.Count });
+        return Task.FromResult(result);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<InventoryPushResult>> PushInventoryAsync(string apiKey, InventoryPayload payload, CancellationToken ct)
+    {
+        InventoryCalls++;
+        InventoryPayloads.Add(payload);
+        var result = _inventoryResults.Count > 0
+            ? _inventoryResults.Dequeue()
+            : ApiResult<InventoryPushResult>.Ok(new InventoryPushResult { Status = "ok", Items = payload.Items.Count });
         return Task.FromResult(result);
     }
 

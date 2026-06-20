@@ -29,9 +29,11 @@ public sealed class StatusWindow : Window
     private readonly ConfigStore _store;
     private readonly Localizer _localizer;
     private readonly GearSyncService _sync;
+    private readonly InventorySyncService _inventory;
     private readonly IGearSource _gearSource;
     private readonly ILog _log;
     private readonly Action _requestManualPush;
+    private readonly Action _requestInventorySync;
     private readonly Action _openConfig;
     private readonly Action _openBis;
     private readonly Action _openLog;
@@ -44,9 +46,11 @@ public sealed class StatusWindow : Window
     /// <param name="store">Token/base-URL store.</param>
     /// <param name="localizer">UI string resolver.</param>
     /// <param name="sync">The sync service whose state is shown.</param>
+    /// <param name="inventory">The inventory sync service (for status + manual sync).</param>
     /// <param name="gearSource">Gear source (for the preview).</param>
     /// <param name="log">Diagnostics sink.</param>
     /// <param name="requestManualPush">Callback to trigger a manual push.</param>
+    /// <param name="requestInventorySync">Callback to trigger a manual inventory sync.</param>
     /// <param name="openConfig">Callback to open the settings window.</param>
     /// <param name="openBis">Callback to open the BiS comparison window.</param>
     /// <param name="openLog">Callback to open the diagnostics log window.</param>
@@ -55,9 +59,11 @@ public sealed class StatusWindow : Window
         ConfigStore store,
         Localizer localizer,
         GearSyncService sync,
+        InventorySyncService inventory,
         IGearSource gearSource,
         ILog log,
         Action requestManualPush,
+        Action requestInventorySync,
         Action openConfig,
         Action openBis,
         Action openLog)
@@ -67,9 +73,11 @@ public sealed class StatusWindow : Window
         _store = store;
         _localizer = localizer;
         _sync = sync;
+        _inventory = inventory;
         _gearSource = gearSource;
         _log = log;
         _requestManualPush = requestManualPush;
+        _requestInventorySync = requestInventorySync;
         _openConfig = openConfig;
         _openBis = openBis;
         _openLog = openLog;
@@ -144,7 +152,42 @@ public sealed class StatusWindow : Window
             _openLog();
         }
 
+        if (_config.SyncInventory)
+        {
+            ImGui.Separator();
+            using (ImRaii.Disabled(!connected || !_config.Enabled))
+            {
+                if (ImGui.Button(T(LocKeys.InventorySyncButton)))
+                {
+                    _requestInventorySync();
+                }
+            }
+
+            ImGui.SameLine();
+            ImGui.TextDisabled($"{T(LocKeys.StatusLastInventory)}: {LastInventoryText()}");
+            if (_config.SyncRetainers)
+            {
+                ImGui.TextDisabled(T(LocKeys.InventorySyncHint));
+            }
+        }
+
         DrawPreview();
+    }
+
+    private string LastInventoryText()
+    {
+        if (_inventory.LastSuccessfulSyncUtc is not { } last)
+        {
+            return T(LocKeys.StatusNever);
+        }
+
+        var ago = DateTimeOffset.UtcNow - last;
+        if (ago < TimeSpan.FromMinutes(1))
+        {
+            return $"{(int)ago.TotalSeconds}s";
+        }
+
+        return ago < TimeSpan.FromHours(1) ? $"{(int)ago.TotalMinutes}m" : $"{(int)ago.TotalHours}h";
     }
 
     private void DrawLastResult()

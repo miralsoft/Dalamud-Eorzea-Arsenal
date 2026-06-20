@@ -315,6 +315,29 @@ public sealed class ConfigWindow : Window, IDisposable
 
         ImGui.TextDisabled(T(LocKeys.ShowDtrBarHint));
 
+        var syncInventory = _config.SyncInventory;
+        if (ImGui.Checkbox(T(LocKeys.SyncInventory), ref syncInventory))
+        {
+            _config.SyncInventory = syncInventory;
+            _save();
+        }
+
+        ImGui.TextDisabled(T(LocKeys.SyncInventoryHint));
+
+        if (_config.SyncInventory)
+        {
+            ImGui.Indent();
+            var syncRetainers = _config.SyncRetainers;
+            if (ImGui.Checkbox(T(LocKeys.SyncRetainers), ref syncRetainers))
+            {
+                _config.SyncRetainers = syncRetainers;
+                _save();
+            }
+
+            ImGui.TextDisabled(T(LocKeys.SyncRetainersHint));
+            ImGui.Unindent();
+        }
+
         var verbosity = (int)_config.Verbosity;
         ReadOnlySpan<string> levels = ["Quiet", "Normal", "Verbose"];
         if (ImGui.Combo(T(LocKeys.Verbosity), ref verbosity, levels, levels.Length))

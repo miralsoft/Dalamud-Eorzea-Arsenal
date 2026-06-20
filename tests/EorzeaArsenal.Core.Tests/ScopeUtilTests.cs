@@ -31,4 +31,12 @@ public sealed class ScopeUtilTests
     {
         Assert.False(ScopeUtil.HasGearWrite(null));
     }
+
+    [Fact]
+    public void Detects_inventory_write()
+    {
+        Assert.True(ScopeUtil.HasInventoryWrite(["gear:write", "inventory:write"]));
+        Assert.False(ScopeUtil.HasInventoryWrite(["gear:write"]));
+        Assert.False(ScopeUtil.HasInventoryWrite(null));
+    }
 }

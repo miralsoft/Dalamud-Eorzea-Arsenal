@@ -12,6 +12,19 @@ All notable changes to this project are documented here. The format is based on
   unchanged, and the value stays user-editable (set it to `localhost` for local testing).
 
 ### Added
+- **Owned-items / inventory upload (opt-in, Phase 2).** When enabled, the plugin uploads which
+  equippable gear you **own** via `POST /inventory` so the web app can tick off pieces in the
+  overview, item search and collection. It is **scope-accurate**: each upload reports exactly which
+  storages it fully scanned, and the server replaces only those — unreported areas keep their last
+  state, and a reported-empty area is cleared (so selling a piece in your bags removes it on the next
+  scan). The **`character`** scope bundles every locally readable storage in one scan (equipped,
+  armoury, bags, saddlebag, glamour dresser) so moving items between them is harmless; it uploads on
+  login and on a throttled timer (unchanged scans are skipped, so it never wastes the 30/hour
+  budget), plus a **"Sync inventory"** button in the status window. With the extra **"Include
+  retainers"** opt-in, each retainer is scanned as its own `retainer:<id>` scope when you open it at
+  a summoning bell. Only equippable items are sent (weapons/armour/accessories — never
+  materia/consumables/materials), and your manual web-app markings are never touched. Uses the same
+  `cid_hash` as the gear push; needs an `inventory:write` key (reconnect if a 403 says it's missing).
 - **Server-info-bar (DTR) status entry.** A compact **Arsenal: &lt;last push&gt;** entry now sits in
   the in-game server-info bar (top-right, next to the clock): it shows how long ago the last push
   succeeded (e.g. *3m*), **!** if the last push failed, or *off* when not set up. Hovering shows the

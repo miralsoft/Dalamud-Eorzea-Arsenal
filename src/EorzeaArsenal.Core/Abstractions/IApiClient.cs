@@ -27,6 +27,17 @@ public interface IApiClient
     /// <returns>The push result, or a classified error (401/403/409/422/400/429).</returns>
     Task<ApiResult<GearPushResult>> PushGearAsync(string apiKey, GearPayload payload, CancellationToken ct);
 
+    /// <summary>
+    /// Uploads scope-scoped owned items via <c>POST /inventory</c> (requires the
+    /// <c>inventory:write</c> scope). The server replaces only the reported scopes; unreported
+    /// scopes keep their last state (R13: documented Phase-2 slice).
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>inventory:write</c>; never logged — R22).</param>
+    /// <param name="payload">The validated inventory payload.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The push result, or a classified error (401/403/409/422/400/429).</returns>
+    Task<ApiResult<InventoryPushResult>> PushInventoryAsync(string apiKey, InventoryPayload payload, CancellationToken ct);
+
     /// <summary>Calls <c>GET /version</c> for an optional capability/compatibility/connection check.</summary>
     /// <param name="apiKey">Optional key to also report the key's scopes; may be <see langword="null"/>.</param>
     /// <param name="ct">Cancellation token.</param>

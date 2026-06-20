@@ -80,3 +80,23 @@ public sealed class FakeGearSource : IGearSource
         return Task.FromResult(Snapshot);
     }
 }
+
+/// <summary>A programmable <see cref="IInventorySource"/>.</summary>
+public sealed class FakeInventorySource : IInventorySource
+{
+    /// <inheritdoc />
+    public bool IsAvailable { get; set; } = true;
+
+    /// <summary>The snapshot returned by <see cref="ReadCharacterAsync"/>.</summary>
+    public InventoryData? Snapshot { get; set; }
+
+    /// <summary>Number of character reads performed.</summary>
+    public int Reads { get; private set; }
+
+    /// <inheritdoc />
+    public Task<InventoryData?> ReadCharacterAsync(CancellationToken ct)
+    {
+        Reads++;
+        return Task.FromResult(Snapshot);
+    }
+}

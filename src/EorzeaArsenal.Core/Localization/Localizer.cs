@@ -139,6 +139,19 @@ public sealed class Localizer : ILocalizer
         [LocKeys.BisShoppingEmpty] = "Nothing to get — you own everything for the shown sets!",
         [LocKeys.BisGridView] = "Grid",
 
+        [LocKeys.SyncInventory] = "Also upload owned items",
+        [LocKeys.SyncInventoryHint] =
+            "Uploads which gear you own (equipped, armoury, bags, saddlebag, glamour dresser) so the " +
+            "web app can tick off what you already have. Opt-in, same as gear.",
+        [LocKeys.SyncRetainers] = "Include retainers",
+        [LocKeys.SyncRetainersHint] = "Also scan a retainer's gear when you open it at a summoning bell.",
+        [LocKeys.InventorySyncButton] = "Sync inventory",
+        [LocKeys.InventorySyncHint] = "Visit your retainers to refresh their stock.",
+        [LocKeys.InventoryStarted] = "Syncing inventory…",
+        [LocKeys.InventorySuccess] = "Synced {0} item(s) across {1} scope(s).",
+        [LocKeys.StatusLastInventory] = "Last inventory sync",
+        [LocKeys.Error403Inventory] = "Your key lacks the inventory:write permission. Reconnect to enable inventory upload.",
+
         [LocKeys.LogWindowTitle] = "Eorzea Arsenal — Log",
         [LocKeys.OpenLog] = "Log",
         [LocKeys.LogCopy] = "Copy",
@@ -295,6 +308,19 @@ public sealed class Localizer : ILocalizer
         [LocKeys.BisShoppingMateria] = "Materia zu holen",
         [LocKeys.BisShoppingEmpty] = "Nichts zu holen — du besitzt alles für die angezeigten Sets!",
         [LocKeys.BisGridView] = "Raster",
+
+        [LocKeys.SyncInventory] = "Auch Besitz (Inventar) übertragen",
+        [LocKeys.SyncInventoryHint] =
+            "Überträgt, welche Ausrüstung du besitzt (angelegt, Arsenal, Taschen, Satteltasche, " +
+            "Schrank), damit die Webapp abhaken kann, was du schon hast. Opt-in, wie bei der Ausrüstung.",
+        [LocKeys.SyncRetainers] = "Gehilfen einbeziehen",
+        [LocKeys.SyncRetainersHint] = "Scannt auch die Ausrüstung eines Gehilfen, wenn du ihn an der Rufglocke öffnest.",
+        [LocKeys.InventorySyncButton] = "Inventar synchronisieren",
+        [LocKeys.InventorySyncHint] = "Besuche deine Gehilfen, um deren Bestand zu aktualisieren.",
+        [LocKeys.InventoryStarted] = "Synchronisiere Inventar…",
+        [LocKeys.InventorySuccess] = "{0} Gegenstand/Gegenstände in {1} Bereich(en) synchronisiert.",
+        [LocKeys.StatusLastInventory] = "Letzte Inventar-Synchronisierung",
+        [LocKeys.Error403Inventory] = "Deinem Schlüssel fehlt die Berechtigung inventory:write. Bitte neu verbinden, um den Inventar-Upload zu nutzen.",
 
         [LocKeys.LogWindowTitle] = "Eorzea Arsenal — Log",
         [LocKeys.OpenLog] = "Log",

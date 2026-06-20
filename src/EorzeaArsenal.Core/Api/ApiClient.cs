@@ -66,6 +66,17 @@ public sealed class ApiClient : IApiClient
     }
 
     /// <inheritdoc />
+    public async Task<ApiResult<InventoryPushResult>> PushInventoryAsync(string apiKey, InventoryPayload payload, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, Url("/inventory"))
+        {
+            Content = JsonBody(payload),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<InventoryPushResult>(request, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async Task<ApiResult<VersionResponse>> GetVersionAsync(string? apiKey, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, Url("/version"));
