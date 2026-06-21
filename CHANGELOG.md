@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-06-21
+
+### Added
+- **Plugin icon in the Dalamud installer** via the manifest `IconUrl` (a 512×512 PNG served from
+  `xivarsenal.app`), shown both in the available list and, after install, in the installed list.
+
+### Changed
+- **Plugin author is now "Sanaka"** (the name shown in the installer); the company field was removed.
+  This is a personal hobby project, intentionally not tied to a business identity.
+
+### Fixed
+- **`pluginmaster.json` generator** now runs on Windows PowerShell 5.1 (it no longer relies on the
+  pwsh-only `-AsArray`) and writes UTF-8 **without a BOM**, which Dalamud's parser rejects — so the
+  repo index is produced correctly both in CI and locally.
+
 ## [0.1.0] - 2026-06-21
 
 First public release.

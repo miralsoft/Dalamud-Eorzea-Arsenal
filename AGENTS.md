@@ -31,7 +31,9 @@ point or UI, and never by calling `HttpClient` outside the API module.
 - **R5/R6** — code, comments, logs, docs in **English**; UI strings bilingual **DE/EN** via
   `ILocalizer` (never hardcode UI text).
 - **R34** — **no AI authorship.** Commits are authored by the human only; never add a
-  `Co-Authored-By` AI line. Author: `Michael Tosch`.
+  `Co-Authored-By` AI line. Author: `Sanaka <20637644+miralsoft@users.noreply.github.com>`
+  (this repo's local git identity — a private hobby project, deliberately not tied to any
+  business name or address).
 - **R33** — conventional commits.
 - **R19/R20/R22** — the API key is a secret: only in local config, **never logged or committed**;
   never log `/device/token` or `/gear` bodies. Log status + `request_id` only.
