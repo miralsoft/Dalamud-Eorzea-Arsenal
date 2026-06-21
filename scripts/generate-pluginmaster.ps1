@@ -38,6 +38,16 @@ $m | Add-Member -NotePropertyName DownloadLinkUpdate  -NotePropertyValue $downlo
 $m | Add-Member -NotePropertyName DownloadLinkTesting -NotePropertyValue $download -Force
 $m | Add-Member -NotePropertyName AcceptsFeedback     -NotePropertyValue $true     -Force
 
-# -AsArray: Dalamud's plugin master must be a JSON array, even with a single entry.
-@($m) | ConvertTo-Json -Depth 10 -AsArray | Set-Content -Path $Output -Encoding utf8
+# Dalamud's plugin master must be a JSON array, even with a single entry. PowerShell 5.1 has no
+# `-AsArray` and collapses a one-element array to a bare object, so wrap it manually when needed
+# (works on both Windows PowerShell 5.1 and pwsh 7+). Write UTF-8 *without* BOM — Dalamud's parser
+# rejects a leading BOM (Set-Content -Encoding utf8 adds one on 5.1).
+$json = @($m) | ConvertTo-Json -Depth 10
+if ($json.TrimStart().StartsWith('{')) {
+    $json = "[$([Environment]::NewLine)$json$([Environment]::NewLine)]"
+}
+[System.IO.File]::WriteAllText(
+    (Join-Path (Get-Location) $Output),
+    $json,
+    (New-Object System.Text.UTF8Encoding($false)))
 Write-Host "Wrote $Output (1 entry, AssemblyVersion=$($m.AssemblyVersion), DalamudApiLevel=$($m.DalamudApiLevel))."

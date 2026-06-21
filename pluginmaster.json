@@ -1,4 +1,5 @@
-[{
+[
+{
     "Author":  "Michael Tosch",
     "Name":  "Eorzea Arsenal",
     "InternalName":  "EorzeaArsenalPlugin",
@@ -21,9 +22,11 @@
     "LoadSync":  false,
     "CanUnloadAsync":  false,
     "LoadPriority":  0,
+    "IconUrl":  "https://xivarsenal.app/assets/img/logo-512.png",
     "Punchline":  "Push your gearsets to Eorzea Arsenal to compare them against BiS.",
     "DownloadLinkInstall":  "https://github.com/miralsoft/Dalamud-Eorzea-Arsenal/releases/latest/download/latest.zip",
     "DownloadLinkUpdate":  "https://github.com/miralsoft/Dalamud-Eorzea-Arsenal/releases/latest/download/latest.zip",
     "DownloadLinkTesting":  "https://github.com/miralsoft/Dalamud-Eorzea-Arsenal/releases/latest/download/latest.zip",
     "AcceptsFeedback":  true
-}]
+}
+]
