@@ -124,7 +124,14 @@ public sealed class StatusWindow : Window
         ImGui.SameLine();
         if (ImGui.Button(T(LocKeys.OpenWebApp)))
         {
-            Util.OpenLink(WebUrl());
+            // Only follow http(s) links (the URL is config-derived); never hand the OS shell an
+            // arbitrary scheme.
+            var url = WebUrl();
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+            {
+                Util.OpenLink(url);
+            }
         }
 
         if (ImGui.Button(T(LocKeys.BisOpen)))

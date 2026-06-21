@@ -245,7 +245,7 @@ public sealed class ConfigWindow : Window, IDisposable
 
             if (ImGui.Button(T(LocKeys.ConnectOpenBrowserAgain)))
             {
-                Util.OpenLink(CompleteVerificationUri(code));
+                OpenWeb(CompleteVerificationUri(code));
             }
 
             ImGui.TextDisabled(code.VerificationUri);
@@ -413,6 +413,19 @@ public sealed class ConfigWindow : Window, IDisposable
     private static string CompleteVerificationUri(DeviceCodeResponse code) =>
         string.IsNullOrEmpty(code.VerificationUriComplete) ? code.VerificationUri : code.VerificationUriComplete;
 
+    /// <summary>
+    /// Opens a link in the browser only if it is an <c>http(s)</c> URL. The value comes from the
+    /// configured API server's device-code response; never hand an arbitrary scheme to the OS shell.
+    /// </summary>
+    private static void OpenWeb(string url)
+    {
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            Util.OpenLink(url);
+        }
+    }
+
     private void StartDeviceFlow()
     {
         _deviceFlowCts?.Cancel();
@@ -439,7 +452,7 @@ public sealed class ConfigWindow : Window, IDisposable
 
                 // Open the pre-filled approval page so the user only clicks "Approve".
                 // We never approve programmatically — that is the user's explicit action.
-                Util.OpenLink(CompleteVerificationUri(start.Value!));
+                OpenWeb(CompleteVerificationUri(start.Value!));
 
                 var result = await _connection.PollForKeyAsync(start.Value!, ct).ConfigureAwait(false);
                 _connectStatus = result.IsSuccess

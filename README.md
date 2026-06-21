@@ -13,15 +13,22 @@ then push gear**.
 
 ## What it does
 
-- Reads every in-game gearset (all 21 combat jobs) via `RaptureGearsetModule`.
-- Computes a stable, privacy-preserving character id (a salted-free SHA-256 hash of your
+- Reads every in-game gearset (all jobs) via `RaptureGearsetModule`.
+- Computes a stable, privacy-preserving character id (a salt-free SHA-256 hash of your
   ContentId — the raw ContentId is **never** sent).
 - Pushes the gearsets to the API with a single `PUT /gear`. Re-pushes update in place.
+- Shows an in-game **"Gear vs BiS"** comparison window and a hover overlay, plus a compact status
+  entry in the **server-info bar** (DTR) — time since last push, click to open the status window
+  (toggleable).
+- A **diagnostics log window** (`/bisexport log`) with copy/clear for support.
 - Bilingual UI (**Deutsch / English**).
 
-It can **optionally** also upload which **owned, equippable items** you have (inventory, armoury,
-saddlebag, glamour dresser, and — if enabled — retainers) so the web app can tick off what you
-already own. This is a separate opt-in and off by default.
+It can **optionally** also upload which **owned, equippable items** you have — equipped, armoury,
+bags, saddlebag and glamour dresser, plus (if separately enabled) your **retainers**, scanned when
+you open them at a summoning bell — so the web app can tick off what you already own. Only
+equippable items are sent (never materia/consumables); the **Armoire is not scanned**; and your
+manual web-app markings are never touched. Both opt-ins are **off by default** and need an
+`inventory:write` key (reconnect if an upload reports a 403).
 
 ## Install (custom plugin repository)
 

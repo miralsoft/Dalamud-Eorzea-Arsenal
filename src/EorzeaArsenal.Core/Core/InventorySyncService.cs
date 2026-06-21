@@ -93,7 +93,7 @@ public sealed class InventorySyncService : IDisposable
 
     private DateTimeOffset _lastPushUtc = DateTimeOffset.MinValue;
     private DateTimeOffset _backoffUntilUtc = DateTimeOffset.MinValue;
-    private CancellationTokenSource _cts = new();
+    private readonly CancellationTokenSource _cts = new();
 
     /// <summary>Creates the service.</summary>
     /// <param name="source">Reads owned items from the game.</param>
@@ -261,6 +261,7 @@ public sealed class InventorySyncService : IDisposable
 
     private async Task RunLoopAsync()
     {
+        var token = _cts.Token; // captured once: stays cancelled after Dispose, never reads a disposed CTS
         while (true)
         {
             CharacterDto character;
@@ -290,7 +291,7 @@ public sealed class InventorySyncService : IDisposable
             InventoryReport report;
             try
             {
-                report = await PushBatchAsync(character, batch, _cts.Token).ConfigureAwait(false);
+                report = await PushBatchAsync(character, batch, token).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -345,6 +346,15 @@ public sealed class InventorySyncService : IDisposable
         };
 
         var chunks = InventoryChunker.Split(data);
+
+        // Visibility for the (in practice unreachable) case of a single scope larger than the
+        // per-request limits: the chunker caps it, so warn instead of silently uploading a partial set.
+        var dropped = data.Items.Count - chunks.Sum(c => c.Items.Count);
+        if (dropped > 0)
+        {
+            _log.Warning($"Inventory exceeded the per-scope size limit; {dropped} item(s) were not uploaded.");
+        }
+
         var sentScopes = 0;
         var sentItems = 0;
 
@@ -467,12 +477,14 @@ public sealed class InventorySyncService : IDisposable
         }
     }
 
-    /// <summary>Cancels any in-flight upload. Safe to call on plugin unload (P3).</summary>
+    /// <summary>
+    /// Cancels any in-flight upload on plugin unload (P3). Single-use after this — the token is not
+    /// replaced, so a draining loop stops cleanly instead of running against a disposed HttpClient.
+    /// </summary>
     public void Dispose()
     {
         _cts.Cancel();
         _cts.Dispose();
-        _cts = new CancellationTokenSource();
     }
 
     private sealed class PendingScope(bool force)

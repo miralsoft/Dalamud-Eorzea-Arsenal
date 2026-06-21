@@ -2,6 +2,7 @@ using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Plugin.Services;
+using EorzeaArsenal.Abstractions;
 using EorzeaArsenal.Gear;
 using EorzeaArsenal.Localization;
 using EorzeaArsenal.Model;
@@ -45,6 +46,7 @@ public sealed class BisTooltip
     private readonly IGameGui _gameGui;
     private readonly BisService _bis;
     private readonly GameGearSource _gearSource;
+    private readonly ILog _log;
 
     private static readonly CharacterDto LiveCharacter = new()
     {
@@ -66,19 +68,33 @@ public sealed class BisTooltip
     /// <param name="gameGui">Provides the hovered item id and addon bounds.</param>
     /// <param name="bis">The shared BiS cache/lookup.</param>
     /// <param name="gearSource">Provides the current gearset index, item names and ownership.</param>
-    public BisTooltip(PluginConfig config, Localizer localizer, IGameGui gameGui, BisService bis, GameGearSource gearSource)
+    /// <param name="log">Diagnostics sink (so a draw failure is recorded, never thrown into the game).</param>
+    public BisTooltip(PluginConfig config, Localizer localizer, IGameGui gameGui, BisService bis, GameGearSource gearSource, ILog log)
     {
         _config = config;
         _localizer = localizer;
         _gameGui = gameGui;
         _bis = bis;
         _gearSource = gearSource;
+        _log = log;
     }
 
     private string T(string key) => _localizer.Get(key);
 
-    /// <summary>Draws the overlay when an equippable item with a BiS target is hovered.</summary>
+    /// <summary>Draws the overlay; wrapped so a failure is never thrown into the game UI loop (P2).</summary>
     public void Draw()
+    {
+        try
+        {
+            DrawInternal();
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"BiS overlay draw failed: {ex.GetType().Name}.");
+        }
+    }
+
+    private void DrawInternal()
     {
         if (!_config.ShowBisTooltip || !_config.Enabled)
         {
