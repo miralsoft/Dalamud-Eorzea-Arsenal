@@ -2,42 +2,42 @@
 .SYNOPSIS
   Generates the custom Dalamud repository index (pluginmaster.json) for Eorzea Arsenal.
 .DESCRIPTION
-  Reads the built plugin manifest and emits a one-entry pluginmaster array whose download links
-  point at the stable `releases/latest/download/latest.zip` redirect (always the newest release).
-  Both this file and the zip are uploaded as release assets, so the workflow never has to push to
-  `main` and the public custom-repo URL stays constant. Run by the release workflow on a `v*` tag.
+  Builds a one-entry pluginmaster **array** from the *built* plugin manifest (the one DalamudPackager
+  emits into bin/Release, which already carries DalamudApiLevel, AssemblyVersion, Punchline, Tags …)
+  and adds the download links pointing at the stable `releases/latest/download/latest.zip` redirect.
+  Emitting from the built manifest guarantees the entry carries `DalamudApiLevel` (else Dalamud hides
+  the plugin as "outdated"); `-AsArray` guarantees a JSON array (Dalamud rejects a bare object).
+  Both this file and the zip are uploaded as release assets, so the workflow never pushes to `main`.
 #>
 param(
-    [Parameter(Mandatory = $true)][string]$Version,
-    [Parameter(Mandatory = $true)][string]$Tag,
+    [string]$Version = "",
+    [string]$Tag = "",
     [string]$Repository = $env:GITHUB_REPOSITORY,
-    [string]$Manifest = "src/EorzeaArsenalPlugin/EorzeaArsenalPlugin.json",
+    [string]$Manifest = "src/EorzeaArsenalPlugin/bin/Release/EorzeaArsenalPlugin/EorzeaArsenalPlugin.json",
     [string]$Output = "pluginmaster.json"
 )
 
 $ErrorActionPreference = "Stop"
 
-$m = Get-Content $Manifest -Raw | ConvertFrom-Json
-# Stable redirect to the newest published release's asset (independent of the tag name), so older
-# manifests never point at a stale zip and the workflow needs no write access to the repo.
-$download = "https://github.com/$Repository/releases/latest/download/latest.zip"
-
-$entry = [ordered]@{
-    Author              = $m.Author
-    Name                = $m.Name
-    InternalName        = "EorzeaArsenalPlugin"
-    AssemblyVersion     = $Version
-    Description         = $m.Description
-    Punchline           = $m.Punchline
-    ApplicableVersion   = $m.ApplicableVersion
-    RepoUrl             = $m.RepoUrl
-    Tags                = $m.Tags
-    CategoryTags        = $m.CategoryTags
-    AcceptsFeedback     = $true
-    DownloadLinkInstall = $download
-    DownloadLinkUpdate  = $download
-    DownloadLinkTesting = $download
+if ([string]::IsNullOrWhiteSpace($Repository)) {
+    throw "Repository is not set (pass -Repository or set GITHUB_REPOSITORY, e.g. owner/repo)."
 }
 
-@($entry) | ConvertTo-Json -Depth 8 | Set-Content -Path $Output -Encoding utf8
-Write-Host "Wrote $Output for $Version ($Tag)."
+if (-not (Test-Path $Manifest)) {
+    throw "Built manifest not found at '$Manifest'. Run 'dotnet build -c Release' first."
+}
+
+# Start from the built manifest so every field DalamudPackager produced (DalamudApiLevel,
+# AssemblyVersion, Punchline, Tags, CategoryTags, …) carries through unchanged.
+$m = Get-Content $Manifest -Raw | ConvertFrom-Json
+
+# Stable redirect to the newest published release's asset (independent of the tag name).
+$download = "https://github.com/$Repository/releases/latest/download/latest.zip"
+$m | Add-Member -NotePropertyName DownloadLinkInstall -NotePropertyValue $download -Force
+$m | Add-Member -NotePropertyName DownloadLinkUpdate  -NotePropertyValue $download -Force
+$m | Add-Member -NotePropertyName DownloadLinkTesting -NotePropertyValue $download -Force
+$m | Add-Member -NotePropertyName AcceptsFeedback     -NotePropertyValue $true     -Force
+
+# -AsArray: Dalamud's plugin master must be a JSON array, even with a single entry.
+@($m) | ConvertTo-Json -Depth 10 -AsArray | Set-Content -Path $Output -Encoding utf8
+Write-Host "Wrote $Output (1 entry, AssemblyVersion=$($m.AssemblyVersion), DalamudApiLevel=$($m.DalamudApiLevel))."

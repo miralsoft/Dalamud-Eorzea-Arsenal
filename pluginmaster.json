@@ -1,1 +1,29 @@
-[]
+[{
+    "Author":  "Michael Tosch",
+    "Name":  "Eorzea Arsenal",
+    "InternalName":  "EorzeaArsenalPlugin",
+    "AssemblyVersion":  "0.1.0.0",
+    "Description":  "Reads your gearsets across all jobs and pushes them to your Eorzea Arsenal account so the web app can show your gear vs BiS, and can optionally upload which equippable items you own (inventory + retainers). Connect once (browser approval or paste an API key), then use /bisexport. Bilingual DE/EN. Using Dalamud violates the FFXIV ToS; all uploads are strictly opt-in.",
+    "ApplicableVersion":  "any",
+    "RepoUrl":  "https://github.com/miralsoft/Dalamud-Eorzea-Arsenal",
+    "Tags":  [
+                 "gear",
+                 "gearset",
+                 "bis",
+                 "inventory",
+                 "eorzea-arsenal"
+             ],
+    "CategoryTags":  [
+                         "utility"
+                     ],
+    "DalamudApiLevel":  15,
+    "LoadRequiredState":  0,
+    "LoadSync":  false,
+    "CanUnloadAsync":  false,
+    "LoadPriority":  0,
+    "Punchline":  "Push your gearsets to Eorzea Arsenal to compare them against BiS.",
+    "DownloadLinkInstall":  "https://github.com/miralsoft/Dalamud-Eorzea-Arsenal/releases/latest/download/latest.zip",
+    "DownloadLinkUpdate":  "https://github.com/miralsoft/Dalamud-Eorzea-Arsenal/releases/latest/download/latest.zip",
+    "DownloadLinkTesting":  "https://github.com/miralsoft/Dalamud-Eorzea-Arsenal/releases/latest/download/latest.zip",
+    "AcceptsFeedback":  true
+}]
