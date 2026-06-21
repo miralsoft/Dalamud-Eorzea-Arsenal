@@ -3,7 +3,9 @@
   Generates the custom Dalamud repository index (pluginmaster.json) for Eorzea Arsenal.
 .DESCRIPTION
   Reads the built plugin manifest and emits a one-entry pluginmaster array whose download links
-  point at the given release tag's `latest.zip` asset. Run by the release workflow on a `v*` tag.
+  point at the stable `releases/latest/download/latest.zip` redirect (always the newest release).
+  Both this file and the zip are uploaded as release assets, so the workflow never has to push to
+  `main` and the public custom-repo URL stays constant. Run by the release workflow on a `v*` tag.
 #>
 param(
     [Parameter(Mandatory = $true)][string]$Version,
@@ -16,7 +18,9 @@ param(
 $ErrorActionPreference = "Stop"
 
 $m = Get-Content $Manifest -Raw | ConvertFrom-Json
-$download = "https://github.com/$Repository/releases/download/$Tag/latest.zip"
+# Stable redirect to the newest published release's asset (independent of the tag name), so older
+# manifests never point at a stale zip and the workflow needs no write access to the repo.
+$download = "https://github.com/$Repository/releases/latest/download/latest.zip"
 
 $entry = [ordered]@{
     Author              = $m.Author

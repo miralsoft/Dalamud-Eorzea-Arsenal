@@ -18,10 +18,10 @@ jobs:
     name: Package & publish
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
         with:
           dotnet-version: "10.0.x"
 
@@ -49,21 +49,14 @@ jobs:
           $version = "${{ github.ref_name }}".TrimStart("v")
           ./scripts/generate-pluginmaster.ps1 -Version $version -Tag "${{ github.ref_name }}"
 
+      # Both the manifest and the binary are published as release assets and served via the stable
+      # `releases/latest/download/<asset>` redirect. This means the workflow never pushes to `main`
+      # (so `main` can be fully branch-protected) and the public custom-repo URL never changes:
+      #   https://github.com/<owner>/<repo>/releases/latest/download/pluginmaster.json
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          files: latest.zip
+          files: |
+            latest.zip
+            pluginmaster.json
           generate_release_notes: true
-
-      - name: Commit pluginmaster.json to main
-        shell: pwsh
-        run: |
-          git config user.name "Michael Tosch"
-          git config user.email "m.tosch@miralsoft.com"
-          git fetch origin main
-          git checkout main
-          Copy-Item pluginmaster.json -Destination pluginmaster.json -Force
-          git add pluginmaster.json
-          if (git diff --cached --quiet) { Write-Host "No pluginmaster changes."; exit 0 }
-          git commit -m "chore(release): update pluginmaster for ${{ github.ref_name }}"
-          git push origin main

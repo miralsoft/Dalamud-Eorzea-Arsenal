@@ -19,16 +19,23 @@ then push gear**.
 - Pushes the gearsets to the API with a single `PUT /gear`. Re-pushes update in place.
 - Bilingual UI (**Deutsch / English**).
 
-Armoury/inventory is **out of scope** for now.
+It can **optionally** also upload which **owned, equippable items** you have (inventory, armoury,
+saddlebag, glamour dresser, and — if enabled — retainers) so the web app can tick off what you
+already own. This is a separate opt-in and off by default.
 
 ## Install (custom plugin repository)
 
-This plugin is distributed through a **private/custom Dalamud repository**, not the official
-plugin list.
+This plugin is distributed through a **custom Dalamud repository**, not the official plugin list.
 
 1. In game, open Dalamud settings: `/xlsettings` → **Experimental**.
-2. Under **Custom Plugin Repositories**, add the repository URL provided by the operator
-   (the `pluginmaster.json` raw URL), then **Save**.
+2. Under **Custom Plugin Repositories**, add this URL, then **Save**:
+
+   ```
+   https://github.com/miralsoft/Dalamud-Eorzea-Arsenal/releases/latest/download/pluginmaster.json
+   ```
+
+   (This `releases/latest/download` link always resolves to the newest release, so updates are
+   picked up automatically.)
 3. Open `/xlplugins`, find **Eorzea Arsenal**, and install it.
 
 ## Connect
@@ -93,6 +100,16 @@ Logs go to the Dalamud log (`/xllog`). The plugin **never logs your API key** or
 See [docs/operations/build-test-release.md](docs/operations/build-test-release.md). In short:
 `dotnet build -c Release` (requires the .NET 10 SDK and a local Dalamud dev install) produces the
 plugin and, via DalamudPackager, the distributable zip + manifest.
+
+## Security & privacy
+
+- **What leaves your machine (only after you opt in):** your character **name + home world**, a
+  one-way **hash of your ContentId** (`cid_hash` — the raw id is never sent), an optional public
+  Lodestone id, your **gearsets**, and — if you enable it — your **owned equippable items**. Never
+  your API key, never request bodies in any log, never chat or personal messages.
+- **The API key** is stored only in your local Dalamud config on your own machine.
+- **Found a vulnerability?** Please report it privately — see **[SECURITY.md](SECURITY.md)**. Don't
+  open a public issue for security problems.
 
 ## License & attribution
 

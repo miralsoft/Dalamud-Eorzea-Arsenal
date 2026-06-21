@@ -34,10 +34,10 @@ Drop `--verify-no-changes` to apply fixes. CRLF line endings are enforced by `.e
 
 `.github/workflows/ci.yml` runs on every push/PR (Windows runner): restore, `build -c Release`,
 `test`, `format --verify-no-changes` (per project), and `dotnet list package --vulnerable`
-(R41/R43). A red pipeline blocks merge/release (R32). CodeQL SAST is **not** part of CI: code
-scanning needs GitHub Advanced Security on a private repo, which this repo doesn't have, so the
-workflow was removed (the vulnerable-dependency scan stays). If the repo is ever made public,
-re-add a CodeQL workflow — it's free for public repos.
+(R41/R43). A red pipeline blocks merge/release (R32). **CodeQL SAST** runs in
+`.github/workflows/codeql.yml` (C# + workflow analysis) — free now that the repo is public.
+All actions are **pinned to commit SHAs** and kept current by Dependabot
+(`.github/dependabot.yml`).
 
 CI obtains the Dalamud assemblies by downloading the official distrib
 (`https://goatcorp.github.io/dalamud-distrib/latest.zip`) into the dev path before building.
@@ -47,12 +47,14 @@ CI obtains the Dalamud assemblies by downloading the official distrib
 Releases are **SemVer**, tag-driven. `.github/workflows/release.yml` triggers on a `v*` tag:
 
 1. Build `-c Release` and package via DalamudPackager.
-2. Attach `latest.zip` to a GitHub Release.
-3. Regenerate **`pluginmaster.json`** (the custom-repo index) pointing at the release asset, and
-   commit/publish it.
+2. Regenerate **`pluginmaster.json`** (the custom-repo index) pointing at the stable
+   `releases/latest/download/latest.zip` redirect.
+3. Attach **both** `latest.zip` and `pluginmaster.json` to a GitHub Release. The workflow does **not**
+   push to `main` (so `main` can be fully branch-protected).
 
-Users add the **raw URL of `pluginmaster.json`** under Dalamud → Settings → Experimental → Custom
-Plugin Repositories (private; not the official list).
+Users add this stable URL under Dalamud → Settings → Experimental → Custom Plugin Repositories
+(not the official list):
+`https://github.com/<owner>/<repo>/releases/latest/download/pluginmaster.json`.
 
 ### Cutting a release
 

@@ -1,0 +1,23 @@
+version: 2
+
+# Keeps dependencies and CI actions patched automatically. NuGet catches vulnerable/outdated
+# packages; the github-actions ecosystem bumps the SHA-pinned actions (Dependabot understands the
+# `<sha> # <tag>` pin format and updates both), so pinning never goes stale.
+updates:
+  - package-ecosystem: nuget
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      nuget:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]
