@@ -137,7 +137,7 @@ public sealed class Plugin : IDalamudPlugin
         _logWindow = new LogWindow(_logBuffer, _localizer);
         _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _gearSource, _log, RequestManualPush, RequestInventorySync, OpenConfig, OpenBis, OpenLog);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save, OpenStatus);
-        _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource);
+        _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _log);
         _windowSystem.AddWindow(_bisWindow);
         _windowSystem.AddWindow(_logWindow);
         _windowSystem.AddWindow(_statusWindow);
@@ -305,11 +305,14 @@ public sealed class Plugin : IDalamudPlugin
             _sync.RequestPush(PushTrigger.Login);
         }
 
+        // A new session means no retainer is open and the character may differ — reset the
+        // retainer-scan dedup so the next visited retainer is re-scanned.
+        _lastRetainerScope = null;
+
         // Upload owned items once per session start so the web app reflects this character on login.
         if (_config is { Enabled: true, TosAccepted: true, SyncInventory: true } && _store.HasKey && CurrentCharacterAllowed())
         {
             _inventorySync.RequestCharacterSync(InventoryTrigger.Login);
-            _lastRetainerScope = null;
         }
 
         // Auto-load BiS for the new session so the window/overlay have current data without a manual

@@ -97,7 +97,7 @@ public sealed class GearSyncService : IDisposable
     private DateTimeOffset _lastPushUtc = DateTimeOffset.MinValue;
     private DateTimeOffset _backoffUntilUtc = DateTimeOffset.MinValue;
     private string? _lastSentHash;
-    private CancellationTokenSource _cts = new();
+    private readonly CancellationTokenSource _cts = new();
 
     /// <summary>Creates the service.</summary>
     /// <param name="gearSource">Reads gear from the game.</param>
@@ -173,12 +173,13 @@ public sealed class GearSyncService : IDisposable
     private async Task RunLoopAsync(PushTrigger trigger)
     {
         var current = trigger;
+        var token = _cts.Token; // captured once: stays cancelled after Dispose, never reads a disposed CTS
         while (true)
         {
             PushReport report;
             try
             {
-                report = await PushOnceAsync(current, _cts.Token).ConfigureAwait(false);
+                report = await PushOnceAsync(current, token).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -310,11 +311,14 @@ public sealed class GearSyncService : IDisposable
         return Convert.ToHexStringLower(SHA256.HashData(bytes));
     }
 
-    /// <summary>Cancels any in-flight push. Safe to call on plugin unload (P3).</summary>
+    /// <summary>
+    /// Cancels any in-flight push on plugin unload (P3). The service is single-use after this — the
+    /// token is <b>not</b> replaced, so a still-draining loop sees a cancelled token (clean stop)
+    /// instead of continuing against a disposed <see cref="HttpClient"/>.
+    /// </summary>
     public void Dispose()
     {
         _cts.Cancel();
         _cts.Dispose();
-        _cts = new CancellationTokenSource();
     }
 }
