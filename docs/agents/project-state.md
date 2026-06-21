@@ -78,4 +78,5 @@ _Last updated: 2026-06-12._
 - Build needs **.NET 10 SDK** + local Dalamud dev libs (`%AppData%\XIVLauncher\addon\Hooks\dev`,
   Dalamud 15 → `Dalamud.NET.Sdk/15.0.0`, .NET 10 target). Don't hand-pick versions (P6).
 - `dotnet format` does not accept `.slnx` yet — run it per-project.
-- Commit author: **Michael Tosch** (`m.tosch@miralsoft.com`); **never** add an AI co-author (R34).
+- Commit author: **Sanaka** (`20637644+miralsoft@users.noreply.github.com`, repo-local identity);
+  **never** add an AI co-author (R34).
