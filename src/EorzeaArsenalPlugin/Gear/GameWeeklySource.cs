@@ -3,6 +3,7 @@ using EorzeaArsenal.Abstractions;
 using EorzeaArsenal.Gear;
 using EorzeaArsenal.Model;
 using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.Game.UI;
 
 namespace EorzeaArsenal.Plugin.Gear;
 
@@ -128,5 +129,34 @@ public sealed class GameWeeklySource : IWeeklySource
         // Only report a *confident* "done": all weekly allowances used. Never send "not done" — the
         // data may not be loaded yet, and merge must never overwrite a manual web-app entry.
         return used + remaining == CustomWeeklyAllowances && remaining == 0 ? true : null;
+    }
+
+    /// <summary>
+    /// Temporary diagnostic: reads the accessible Faux-Hollows (Unreal) and Wondrous-Tails state and
+    /// returns it for the log, so the "done this week" encoding can be reverse-engineered from known
+    /// in-game states before it is trusted. (The Savage weekly loot lockout is <b>not</b> included:
+    /// its only candidate field is an internal, single-byte, undocumented value that cannot represent
+    /// per-floor loot and is not safely readable.) Read-only; framework thread; never throws (P2).
+    /// </summary>
+    /// <returns>A human-readable dump of the raw values.</returns>
+    public unsafe string ReadRawWeeklyDiagnostics()
+    {
+        try
+        {
+            var ps = PlayerState.Instance();
+            if (ps == null)
+            {
+                return "weekdump: PlayerState unavailable.";
+            }
+
+            return $"weekdump: fauxState={ps->FauxHollowsState} fauxTs={ps->FauxHollowsTimestamp} " +
+                   $"bingoJournal={ps->HasWeeklyBingoJournal} bingoStickers={ps->WeeklyBingoNumPlacedStickers} " +
+                   $"bingoSecondChance={ps->WeeklyBingoNumSecondChancePoints}";
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"weekdump failed: {ex.GetType().Name}.");
+            return "weekdump: read failed.";
+        }
     }
 }

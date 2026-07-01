@@ -247,6 +247,15 @@ public sealed class Plugin : IDalamudPlugin
             case "log":
                 OpenLog();
                 break;
+            case "weekdump":
+                // Temporary diagnostic to reverse-engineer the Savage/Unreal weekly encoding.
+                _ = _framework.RunOnFrameworkThread(() =>
+                {
+                    var dump = _weeklySource.ReadRawWeeklyDiagnostics();
+                    _log.Info(dump);
+                    Chat(dump);
+                });
+                break;
             default:
                 RequestManualPush();
                 break;
