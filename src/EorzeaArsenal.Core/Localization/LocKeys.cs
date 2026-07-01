@@ -371,6 +371,28 @@ public static class LocKeys
     /// <summary>403 error message specific to the inventory:write scope.</summary>
     public const string Error403Inventory = "error.403.inventory";
 
+    // Weekly checklist (Phase 3)
+    /// <summary>Opt-in: also sync the weekly checklist.</summary>
+    public const string SyncWeekly = "config.syncweekly";
+
+    /// <summary>Hint for the weekly-checklist opt-in.</summary>
+    public const string SyncWeeklyHint = "config.syncweekly.hint";
+
+    /// <summary>"Sync weekly" button (status window).</summary>
+    public const string WeeklySyncButton = "weekly.sync.button";
+
+    /// <summary>"Syncing weekly checklist…" status.</summary>
+    public const string WeeklyStarted = "weekly.started";
+
+    /// <summary>Weekly-checklist sync success (arg: merged field count).</summary>
+    public const string WeeklySuccess = "weekly.success";
+
+    /// <summary>"Last weekly sync" label.</summary>
+    public const string StatusLastWeekly = "status.lastweekly";
+
+    /// <summary>403 error message specific to the characters:write scope.</summary>
+    public const string Error403Weekly = "error.403.weekly";
+
     // Log / diagnostics window
     /// <summary>Log window title.</summary>
     public const string LogWindowTitle = "window.log.title";

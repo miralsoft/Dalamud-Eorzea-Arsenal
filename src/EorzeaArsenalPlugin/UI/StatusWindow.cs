@@ -30,10 +30,12 @@ public sealed class StatusWindow : Window
     private readonly Localizer _localizer;
     private readonly GearSyncService _sync;
     private readonly InventorySyncService _inventory;
+    private readonly WeeklySyncService _weekly;
     private readonly IGearSource _gearSource;
     private readonly ILog _log;
     private readonly Action _requestManualPush;
     private readonly Action _requestInventorySync;
+    private readonly Action _requestWeeklySync;
     private readonly Action _openConfig;
     private readonly Action _openBis;
     private readonly Action _openLog;
@@ -47,10 +49,12 @@ public sealed class StatusWindow : Window
     /// <param name="localizer">UI string resolver.</param>
     /// <param name="sync">The sync service whose state is shown.</param>
     /// <param name="inventory">The inventory sync service (for status + manual sync).</param>
+    /// <param name="weekly">The weekly-checklist sync service (for status + manual sync).</param>
     /// <param name="gearSource">Gear source (for the preview).</param>
     /// <param name="log">Diagnostics sink.</param>
     /// <param name="requestManualPush">Callback to trigger a manual push.</param>
     /// <param name="requestInventorySync">Callback to trigger a manual inventory sync.</param>
+    /// <param name="requestWeeklySync">Callback to trigger a manual weekly-checklist sync.</param>
     /// <param name="openConfig">Callback to open the settings window.</param>
     /// <param name="openBis">Callback to open the BiS comparison window.</param>
     /// <param name="openLog">Callback to open the diagnostics log window.</param>
@@ -60,10 +64,12 @@ public sealed class StatusWindow : Window
         Localizer localizer,
         GearSyncService sync,
         InventorySyncService inventory,
+        WeeklySyncService weekly,
         IGearSource gearSource,
         ILog log,
         Action requestManualPush,
         Action requestInventorySync,
+        Action requestWeeklySync,
         Action openConfig,
         Action openBis,
         Action openLog)
@@ -74,10 +80,12 @@ public sealed class StatusWindow : Window
         _localizer = localizer;
         _sync = sync;
         _inventory = inventory;
+        _weekly = weekly;
         _gearSource = gearSource;
         _log = log;
         _requestManualPush = requestManualPush;
         _requestInventorySync = requestInventorySync;
+        _requestWeeklySync = requestWeeklySync;
         _openConfig = openConfig;
         _openBis = openBis;
         _openLog = openLog;
@@ -178,6 +186,21 @@ public sealed class StatusWindow : Window
             }
         }
 
+        if (_config.SyncWeekly)
+        {
+            ImGui.Separator();
+            using (ImRaii.Disabled(!connected || !_config.Enabled))
+            {
+                if (ImGui.Button(T(LocKeys.WeeklySyncButton)))
+                {
+                    _requestWeeklySync();
+                }
+            }
+
+            ImGui.SameLine();
+            ImGui.TextDisabled($"{T(LocKeys.StatusLastWeekly)}: {LastWeeklyText()}");
+        }
+
         DrawPreview();
     }
 
@@ -195,6 +218,27 @@ public sealed class StatusWindow : Window
         }
 
         return ago < TimeSpan.FromHours(1) ? $"{(int)ago.TotalMinutes}m" : $"{(int)ago.TotalHours}h";
+    }
+
+    private string LastWeeklyText()
+    {
+        if (_weekly.LastSuccessfulSyncUtc is not { } last)
+        {
+            return T(LocKeys.StatusNever);
+        }
+
+        var ago = DateTimeOffset.UtcNow - last;
+        if (ago < TimeSpan.FromMinutes(1))
+        {
+            return $"{(int)ago.TotalSeconds}s";
+        }
+
+        if (ago < TimeSpan.FromHours(1))
+        {
+            return $"{(int)ago.TotalMinutes}m";
+        }
+
+        return ago < TimeSpan.FromDays(1) ? $"{(int)ago.TotalHours}h" : $"{(int)ago.TotalDays}d";
     }
 
     private void DrawLastResult()

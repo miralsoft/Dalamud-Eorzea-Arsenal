@@ -42,9 +42,12 @@ public sealed class Plugin : IDalamudPlugin
     private readonly Localizer _localizer;
     private readonly GameGearSource _gearSource;
     private readonly GameInventorySource _inventorySource;
+    private readonly GameWeeklySource _weeklySource;
     private readonly ConnectionService _connection;
+    private readonly CharacterDirectory _characterDirectory;
     private readonly GearSyncService _sync;
     private readonly InventorySyncService _inventorySync;
+    private readonly WeeklySyncService _weeklySync;
     private readonly BisService _bisService;
 
     private readonly WindowSystem _windowSystem = new("EorzeaArsenal");
@@ -63,6 +66,7 @@ public sealed class Plugin : IDalamudPlugin
     private long _nextDtrUpdateTicks;
     private long _nextInventoryAutoTicks;
     private long _nextRetainerCheckTicks;
+    private long _nextWeeklyAutoTicks;
     private string? _lastRetainerScope;
     private bool _bisLoadPending;
     private ulong _lastStoredSig;
@@ -123,19 +127,28 @@ public sealed class Plugin : IDalamudPlugin
         var api = new ApiClient(_httpClient, _store);
         _gearSource = new GameGearSource(clientState, playerState, framework, dataManager, _log);
         _inventorySource = new GameInventorySource(clientState, playerState, framework, dataManager, _log);
+        _weeklySource = new GameWeeklySource(clientState, playerState, framework, _log);
         _connection = new ConnectionService(api, _store, new RealDelay(), _log);
-        _sync = new GearSyncService(_gearSource, api, _store, new SystemClock(), _log)
+
+        // Learns cid_hash → server character_id from push responses (persisted); the weekly sync needs
+        // that numeric id to address per-character REST paths.
+        _characterDirectory = new CharacterDirectory(_config.CharacterIds);
+        _characterDirectory.Changed += OnCharacterDirectoryChanged;
+
+        _sync = new GearSyncService(_gearSource, api, _store, new SystemClock(), _log, _characterDirectory)
         {
             MinAutoPushInterval = TimeSpan.FromMinutes(Math.Max(1, _config.AutoPushIntervalMinutes)),
         };
         _sync.PushCompleted += OnPushCompleted;
-        _inventorySync = new InventorySyncService(_inventorySource, api, _store, new SystemClock(), _log);
+        _inventorySync = new InventorySyncService(_inventorySource, api, _store, new SystemClock(), _log, _characterDirectory);
         _inventorySync.SyncCompleted += OnInventoryCompleted;
+        _weeklySync = new WeeklySyncService(_weeklySource, api, _store, _characterDirectory, new SystemClock(), _log);
+        _weeklySync.SyncCompleted += OnWeeklyCompleted;
         _bisService = new BisService(api, _gearSource, _store, _log);
 
         _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, Save, LinkItemInChat);
         _logWindow = new LogWindow(_logBuffer, _localizer);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _gearSource, _log, RequestManualPush, RequestInventorySync, OpenConfig, OpenBis, OpenLog);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, _gearSource, _log, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenLog);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save, OpenStatus);
         _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _log);
         _windowSystem.AddWindow(_bisWindow);
@@ -177,6 +190,9 @@ public sealed class Plugin : IDalamudPlugin
         _sync.Dispose();
         _inventorySync.SyncCompleted -= OnInventoryCompleted;
         _inventorySync.Dispose();
+        _weeklySync.SyncCompleted -= OnWeeklyCompleted;
+        _weeklySync.Dispose();
+        _characterDirectory.Changed -= OnCharacterDirectoryChanged;
         _configWindow.Dispose();
         _httpClient.Dispose();
     }
@@ -293,6 +309,34 @@ public sealed class Plugin : IDalamudPlugin
         _inventorySync.RequestCharacterSync(InventoryTrigger.Manual);
     }
 
+    /// <summary>Triggers a manual weekly-checklist sync, gated like the gear push.</summary>
+    private void RequestWeeklySync()
+    {
+        if (!_config.Enabled || !_config.TosAccepted || !_config.SyncWeekly)
+        {
+            OpenConfig();
+            Chat(_localizer.Get(LocKeys.EnablePushMasterHint));
+            return;
+        }
+
+        if (!_store.HasKey)
+        {
+            OpenConfig();
+            Chat(_localizer.Get(LocKeys.PushNotConnected));
+            return;
+        }
+
+        RecordCurrentCharacter();
+        if (!CurrentCharacterAllowed())
+        {
+            Chat(_localizer.Get(LocKeys.CharacterDisabled));
+            return;
+        }
+
+        Chat(_localizer.Get(LocKeys.WeeklyStarted));
+        _weeklySync.RequestSync(WeeklyTrigger.Manual);
+    }
+
     private void OnLogin()
     {
         // Each login starts a fresh diagnostics log for the new game session.
@@ -313,6 +357,13 @@ public sealed class Plugin : IDalamudPlugin
         if (_config is { Enabled: true, TosAccepted: true, SyncInventory: true } && _store.HasKey && CurrentCharacterAllowed())
         {
             _inventorySync.RequestCharacterSync(InventoryTrigger.Login);
+        }
+
+        // Sync the weekly checklist on login. If this character's server id isn't known yet, the sync
+        // reports NotResolved and retries after the gear push records it (see OnPushCompleted).
+        if (_config is { Enabled: true, TosAccepted: true, SyncWeekly: true } && _store.HasKey && CurrentCharacterAllowed())
+        {
+            _weeklySync.RequestSync(WeeklyTrigger.Login);
         }
 
         // Auto-load BiS for the new session so the window/overlay have current data without a manual
@@ -381,6 +432,14 @@ public sealed class Plugin : IDalamudPlugin
             {
                 DetectOpenRetainer(now);
             }
+        }
+
+        if (_config.SyncWeekly && now >= _nextWeeklyAutoTicks)
+        {
+            // Hourly is ample: the service GETs the server state and sends only changed fields, so an
+            // unchanged week costs one read and no write.
+            _nextWeeklyAutoTicks = now + 3_600_000;
+            _weeklySync.RequestSync(WeeklyTrigger.Auto);
         }
 
         if (_config.PushOnGearsetChange)
@@ -492,6 +551,14 @@ public sealed class Plugin : IDalamudPlugin
     {
         UpdateDtr();
 
+        // A successful push just recorded this character's server id — sync the weekly checklist now
+        // (covers a first-time character whose id was not yet known at login).
+        if (report.Outcome == PushOutcome.Sent &&
+            _config is { Enabled: true, TosAccepted: true, SyncWeekly: true } && _store.HasKey)
+        {
+            _weeklySync.RequestSync(WeeklyTrigger.GearPush);
+        }
+
         var message = PushReportFormatter.Describe(report, _localizer);
         if (message is null)
         {
@@ -544,6 +611,50 @@ public sealed class Plugin : IDalamudPlugin
         ApiErrorKind.Network => _localizer.Get(LocKeys.ErrorNetwork),
         _ => _localizer.Get(LocKeys.ErrorUnexpected),
     };
+
+    /// <summary>Reports weekly-checklist sync outcomes to chat/toast; stays quiet for skipped/no-op runs.</summary>
+    private void OnWeeklyCompleted(WeeklyReport report)
+    {
+        var message = WeeklyMessage(report);
+        if (message is null)
+        {
+            return;
+        }
+
+        var chatMessage = report.Outcome == WeeklyOutcome.Failed ? $"{message} ({ServerHost()})" : message;
+        Chat(chatMessage);
+        if (_config.UseToasts)
+        {
+            _toastGui.ShowNormal(message);
+        }
+    }
+
+    /// <summary>Maps a weekly report to a user message, or <see langword="null"/> to stay quiet.</summary>
+    private string? WeeklyMessage(WeeklyReport report) => report.Outcome switch
+    {
+        WeeklyOutcome.Sent => _localizer.Get(LocKeys.WeeklySuccess, report.FieldCount ?? 0),
+        WeeklyOutcome.Failed => WeeklyErrorMessage(report.ErrorKind),
+        _ => null, // skipped/unchanged/backoff/not-connected/not-logged-in/not-resolved/nothing: no noise
+    };
+
+    private string WeeklyErrorMessage(ApiErrorKind? kind) => kind switch
+    {
+        ApiErrorKind.Unauthorized => _localizer.Get(LocKeys.Error401),
+        ApiErrorKind.Forbidden => _localizer.Get(LocKeys.Error403Weekly),
+        ApiErrorKind.Conflict => _localizer.Get(LocKeys.Error409),
+        ApiErrorKind.Validation => _localizer.Get(LocKeys.Error422),
+        ApiErrorKind.BadRequest => _localizer.Get(LocKeys.Error400),
+        ApiErrorKind.RateLimited => _localizer.Get(LocKeys.Error429),
+        ApiErrorKind.Network => _localizer.Get(LocKeys.ErrorNetwork),
+        _ => _localizer.Get(LocKeys.ErrorUnexpected),
+    };
+
+    /// <summary>Persists the learned <c>cid_hash → character_id</c> map (best-effort; runs off-thread).</summary>
+    private void OnCharacterDirectoryChanged()
+    {
+        _config.CharacterIds = new Dictionary<string, string>(_characterDirectory.Snapshot(), StringComparer.Ordinal);
+        Save();
+    }
 
     private string ServerHost()
     {

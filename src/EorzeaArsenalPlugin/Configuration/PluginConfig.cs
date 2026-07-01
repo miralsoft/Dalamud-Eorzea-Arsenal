@@ -72,6 +72,14 @@ public sealed class PluginConfig : IPluginConfiguration
     /// </summary>
     public bool SyncRetainers { get; set; }
 
+    /// <summary>
+    /// Opt-in: also upload the weekly checklist (tomestones acquired, weekly content done) via
+    /// <c>PUT /characters/{id}/weekly</c> so the web app can track weekly progress without manual
+    /// ticking. Independent of the gear push; off by default. Only fields read with confidence are
+    /// sent, so it never overwrites a manual web-app entry.
+    /// </summary>
+    public bool SyncWeekly { get; set; }
+
     /// <summary>BiS window: show all gearsets (<see langword="true"/>) or only the current one.</summary>
     public bool BisShowAllSets { get; set; }
 
@@ -95,6 +103,13 @@ public sealed class PluginConfig : IPluginConfiguration
     /// map defaults to allowed; the user can disable specific characters (briefing §7).
     /// </summary>
     public Dictionary<string, CharacterOptIn> Characters { get; set; } = new();
+
+    /// <summary>
+    /// Learned mapping of <c>cid_hash → server character_id</c> (e.g. <c>"42"</c>), populated from
+    /// gear/inventory push responses. Needed to address the per-character REST paths the weekly
+    /// checklist uses; persisted so a character's id survives restarts.
+    /// </summary>
+    public Dictionary<string, string> CharacterIds { get; set; } = new();
 
     /// <summary>Whether the character with the given hash may be pushed (unknown = allowed).</summary>
     /// <param name="cidHash">The character's <c>cid_hash</c>.</param>

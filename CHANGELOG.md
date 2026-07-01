@@ -6,6 +6,20 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- **Weekly-checklist auto-fill (opt-in, Phase 3).** When enabled, the plugin fills your web-app
+  **weekly checklist** from the game so completed weeklies show up without manual ticking — for the
+  right character, cross-device (stored server-side). It reads only what it can determine **with
+  certainty** and merges just those fields via `PUT /characters/{id}/weekly`, so it **never
+  overwrites a manual entry**: **`tomesHave`** (weekly-limited tomestones acquired this week) and
+  **`custom`** (Custom Deliveries — reported *done* only when all weekly allowances are used).
+  Fields whose in-game state is not reliable enough (Savage floor loot, Unreal, Wondrous Tails) are
+  intentionally left untouched. It reads the server's current values first and sends only the fields
+  that changed (no wasted writes), syncs on login, after a gear push and hourly, plus a **"Sync
+  weekly"** button and a last-sync line in the status window. Needs a key with **`characters:write`**
+  + **`gear:read`** (a 403 shows a reconnect hint). The per-character server id is learned from the
+  gear/inventory push response and cached so the per-character paths resolve.
+
 ## [0.1.1] - 2026-06-21
 
 ### Added

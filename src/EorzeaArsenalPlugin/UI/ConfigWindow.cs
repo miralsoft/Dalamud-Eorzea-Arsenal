@@ -338,6 +338,15 @@ public sealed class ConfigWindow : Window, IDisposable
             ImGui.Unindent();
         }
 
+        var syncWeekly = _config.SyncWeekly;
+        if (ImGui.Checkbox(T(LocKeys.SyncWeekly), ref syncWeekly))
+        {
+            _config.SyncWeekly = syncWeekly;
+            _save();
+        }
+
+        ImGui.TextDisabled(T(LocKeys.SyncWeeklyHint));
+
         var verbosity = (int)_config.Verbosity;
         ReadOnlySpan<string> levels = ["Quiet", "Normal", "Verbose"];
         if (ImGui.Combo(T(LocKeys.Verbosity), ref verbosity, levels, levels.Length))
