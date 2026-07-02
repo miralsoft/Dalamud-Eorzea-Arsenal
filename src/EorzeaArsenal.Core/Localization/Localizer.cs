@@ -163,6 +163,15 @@ public sealed class Localizer : ILocalizer
         [LocKeys.StatusLastWeekly] = "Last weekly sync",
         [LocKeys.Error403Weekly] = "Your key lacks the characters:write permission. Reconnect to enable the weekly checklist.",
 
+        [LocKeys.SectionActions] = "Actions",
+        [LocKeys.SectionView] = "View",
+        [LocKeys.SectionManage] = "Manage",
+        [LocKeys.StatusConnectHint] = "Not connected. Open the settings to link your Eorzea Arsenal account.",
+        [LocKeys.TabSync] = "Sync",
+        [LocKeys.TabDisplay] = "Display",
+        [LocKeys.TabCharacters] = "Characters",
+        [LocKeys.TabConnection] = "Connection",
+
         [LocKeys.LogWindowTitle] = "Eorzea Arsenal — Log",
         [LocKeys.OpenLog] = "Log",
         [LocKeys.LogCopy] = "Copy",
@@ -343,6 +352,15 @@ public sealed class Localizer : ILocalizer
         [LocKeys.WeeklySuccess] = "{0} Wochenfeld(er) synchronisiert.",
         [LocKeys.StatusLastWeekly] = "Letzte Checklisten-Synchronisierung",
         [LocKeys.Error403Weekly] = "Deinem Schlüssel fehlt die Berechtigung characters:write. Bitte neu verbinden, um die wöchentliche Checkliste zu nutzen.",
+
+        [LocKeys.SectionActions] = "Aktionen",
+        [LocKeys.SectionView] = "Ansehen",
+        [LocKeys.SectionManage] = "Verwaltung",
+        [LocKeys.StatusConnectHint] = "Nicht verbunden. Öffne die Einstellungen, um dein Eorzea-Arsenal-Konto zu verknüpfen.",
+        [LocKeys.TabSync] = "Übertragung",
+        [LocKeys.TabDisplay] = "Anzeige",
+        [LocKeys.TabCharacters] = "Charaktere",
+        [LocKeys.TabConnection] = "Verbindung",
 
         [LocKeys.LogWindowTitle] = "Eorzea Arsenal — Log",
         [LocKeys.OpenLog] = "Log",

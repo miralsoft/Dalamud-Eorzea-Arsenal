@@ -21,6 +21,19 @@ public sealed class WeeklySyncServiceTests
         Values = new WeeklyValues { TomesHave = tomes, Custom = custom },
     };
 
+    private static WeeklyData SnapshotWithSavage() => new()
+    {
+        Character = new CharacterDto { Name = "Sanaka Sundream", World = "Twintania", CidHash = TestData.ExampleHash },
+        Values = new WeeklyValues { TomesHave = 60, F1 = true, F2 = true, F3 = false, F4 = false },
+    };
+
+    private static ApiResult<WeeklyResponse> EmptyServer(bool savageLockout) =>
+        ApiResult<WeeklyResponse>.Ok(new WeeklyResponse
+        {
+            Data = JsonSerializer.SerializeToElement(new Dictionary<string, object>()),
+            SavageLockout = savageLockout,
+        });
+
     private static (WeeklySyncService svc, FakeWeeklySource src, FakeApiClient api, CharacterDirectory dir)
         Make(bool connected = true, bool available = true, bool resolved = true, WeeklyData? snapshot = null)
     {
@@ -169,6 +182,37 @@ public sealed class WeeklySyncServiceTests
 
         Assert.Equal(WeeklyOutcome.Sent, report.Outcome);
         Assert.True(api.WeeklyPayloads[0].Items.ContainsKey("tomesHave"));
+    }
+
+    [Fact]
+    public async Task Savage_fields_sent_when_lockout_enabled()
+    {
+        var (svc, _, api, _) = Make(snapshot: SnapshotWithSavage());
+        api.EnqueueWeeklyGet(EmptyServer(savageLockout: true));
+
+        var report = await Wait(svc, () => svc.RequestSync(WeeklyTrigger.RaidFinder));
+
+        Assert.Equal(WeeklyOutcome.Sent, report.Outcome);
+        var items = api.WeeklyPayloads[0].Items;
+        Assert.True(items.ContainsKey("f1"));
+        Assert.True(items.ContainsKey("f4"));
+        Assert.True((bool)items["f1"]);
+        Assert.False((bool)items["f4"]);
+    }
+
+    [Fact]
+    public async Task Savage_fields_withheld_when_lockout_disabled()
+    {
+        var (svc, _, api, _) = Make(snapshot: SnapshotWithSavage());
+        api.EnqueueWeeklyGet(EmptyServer(savageLockout: false));
+
+        var report = await Wait(svc, () => svc.RequestSync(WeeklyTrigger.RaidFinder));
+
+        Assert.Equal(WeeklyOutcome.Sent, report.Outcome); // tomes still sent
+        var items = api.WeeklyPayloads[0].Items;
+        Assert.False(items.ContainsKey("f1"));
+        Assert.False(items.ContainsKey("f4"));
+        Assert.True(items.ContainsKey("tomesHave"));
     }
 
     [Fact]

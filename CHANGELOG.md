@@ -6,19 +6,35 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-02
+
 ### Added
-- **Weekly-checklist auto-fill (opt-in, Phase 3).** When enabled, the plugin fills your web-app
-  **weekly checklist** from the game so completed weeklies show up without manual ticking — for the
-  right character, cross-device (stored server-side). It reads only what it can determine **with
-  certainty** and merges just those fields via `PUT /characters/{id}/weekly`, so it **never
-  overwrites a manual entry**: **`tomesHave`** (weekly-limited tomestones acquired this week) and
-  **`custom`** (Custom Deliveries — reported *done* only when all weekly allowances are used).
-  Fields whose in-game state is not reliable enough (Savage floor loot, Unreal, Wondrous Tails) are
-  intentionally left untouched. It reads the server's current values first and sends only the fields
-  that changed (no wasted writes), syncs on login, after a gear push and hourly, plus a **"Sync
-  weekly"** button and a last-sync line in the status window. Needs a key with **`characters:write`**
-  + **`gear:read`** (a 403 shows a reconnect hint). The per-character server id is learned from the
-  gear/inventory push response and cached so the per-character paths resolve.
+- **Weekly-checklist auto-fill (opt-in).** When enabled, the plugin fills your web-app **weekly
+  checklist** from the game so completed weeklies show up without manual ticking — for the right
+  character, cross-device (stored server-side). It reads only values it can determine **with
+  certainty**, reads the server's current state first and merges just the fields that **changed** via
+  `PUT /characters/{id}/weekly`, so it **never overwrites a manual entry** and never wastes a write.
+  Covered:
+  - **Tomestones** (`tomesHave`) — weekly-limited tomestones acquired this week.
+  - **Custom Deliveries** (`custom`) — reported *done* once all weekly allowances are used.
+  - **Savage floor loot** (`f1`–`f4`) — obtained-this-week per floor, gated on the account's
+    `savage_lockout`. This state lives only in the Raid Finder, so the plugin fetches it via a
+    **hidden, instant Raid-Finder refresh** — the window never actually opens — at login, hourly and
+    whenever you open the Raid Finder yourself. It is guarded to never run in combat, a duty, a
+    cutscene or between areas, and is purely read-only.
+
+  Syncs on login, after a gear push, hourly and via a **"Sync weekly"** button; needs a key with
+  **`characters:write`** + **`gear:read`** (a 403 shows a reconnect hint). The per-character server
+  id is learned from the gear/inventory push response and cached.
+
+### Changed
+- **Reworked the plugin windows for clarity.**
+  - The **main window is now a hub**: large single-per-row action buttons with icons, grouped into
+    *Actions* / *View* / *Manage*, above a clear connection banner.
+  - **Settings are organised into tabs** — *Sync*, *Display*, *Characters*, *Connection* — that
+    appear once connected; before that you only see the connect flow. Connection management and the
+    third-party-tool notice live in the last tab. Everything is larger and roomier, and hint lines
+    now wrap to the window width instead of overflowing.
 
 ## [0.1.1] - 2026-06-21
 

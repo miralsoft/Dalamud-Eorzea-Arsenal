@@ -16,6 +16,9 @@ public enum WeeklyTrigger
     /// <summary>A gear push just linked/refreshed this character's server id.</summary>
     GearPush,
 
+    /// <summary>The Raid Finder was opened — a chance to read the Savage floor state (diff-based).</summary>
+    RaidFinder,
+
     /// <summary>The periodic auto-sync timer fired.</summary>
     Auto,
 }
@@ -138,7 +141,9 @@ public sealed class WeeklySyncService : IDisposable
     /// <param name="trigger">What caused the request.</param>
     public void RequestSync(WeeklyTrigger trigger)
     {
-        var force = trigger != WeeklyTrigger.Auto;
+        // Auto and Raid-Finder syncs are diff-based (send only what changed); explicit triggers force
+        // a resend of everything known.
+        var force = trigger is WeeklyTrigger.Manual or WeeklyTrigger.Login or WeeklyTrigger.GearPush;
         lock (_gate)
         {
             if (_running)
@@ -233,9 +238,11 @@ public sealed class WeeklySyncService : IDisposable
         var getResult = await _api.GetWeeklyAsync(apiKey, characterId, ct).ConfigureAwait(false);
 
         Dictionary<string, JsonElement>? serverData;
+        var savageLockout = false;
         if (getResult.IsSuccess)
         {
             serverData = AsObjectMap(getResult.Value!.Data);
+            savageLockout = getResult.Value!.SavageLockout;
         }
         else if (getResult.Error!.Kind == ApiErrorKind.NotFound)
         {
@@ -249,6 +256,13 @@ public sealed class WeeklySyncService : IDisposable
         var send = new Dictionary<string, object>(StringComparer.Ordinal);
         foreach (var (key, value) in data.Values.Present())
         {
+            // Savage floors (f1..f4) are only tracked when the account opted in — never send them
+            // unless the server confirms savage_lockout, so we don't clobber a disabled section.
+            if (WeeklyProtocol.IsSavageField(key) && !savageLockout)
+            {
+                continue;
+            }
+
             if (force || !ServerMatches(serverData, key, value))
             {
                 send[key] = value;

@@ -16,8 +16,21 @@ public sealed class WeeklyValues
     /// <summary>Custom Deliveries done this week (all weekly allowances used), or <see langword="null"/> if unknown.</summary>
     public bool? Custom { get; init; }
 
+    /// <summary>Savage floor 1 weekly loot obtained this week, or <see langword="null"/> if unknown.</summary>
+    public bool? F1 { get; init; }
+
+    /// <summary>Savage floor 2 weekly loot obtained this week, or <see langword="null"/> if unknown.</summary>
+    public bool? F2 { get; init; }
+
+    /// <summary>Savage floor 3 weekly loot obtained this week, or <see langword="null"/> if unknown.</summary>
+    public bool? F3 { get; init; }
+
+    /// <summary>Savage floor 4 weekly loot obtained this week, or <see langword="null"/> if unknown.</summary>
+    public bool? F4 { get; init; }
+
     /// <summary>Whether no field could be determined (nothing to send).</summary>
-    public bool IsEmpty => TomesHave is null && Custom is null;
+    public bool IsEmpty =>
+        TomesHave is null && Custom is null && F1 is null && F2 is null && F3 is null && F4 is null;
 
     /// <summary>
     /// Enumerates the fields that are known, as <c>(wireKey, boxedValue)</c> pairs using the literal
@@ -34,6 +47,26 @@ public sealed class WeeklyValues
         if (Custom is bool custom)
         {
             yield return new KeyValuePair<string, object>(WeeklyProtocol.FieldCustom, custom);
+        }
+
+        if (F1 is bool f1)
+        {
+            yield return new KeyValuePair<string, object>(WeeklyProtocol.FieldF1, f1);
+        }
+
+        if (F2 is bool f2)
+        {
+            yield return new KeyValuePair<string, object>(WeeklyProtocol.FieldF2, f2);
+        }
+
+        if (F3 is bool f3)
+        {
+            yield return new KeyValuePair<string, object>(WeeklyProtocol.FieldF3, f3);
+        }
+
+        if (F4 is bool f4)
+        {
+            yield return new KeyValuePair<string, object>(WeeklyProtocol.FieldF4, f4);
         }
     }
 }
@@ -107,6 +140,24 @@ public static class WeeklyProtocol
     /// <summary>Item key: Custom Deliveries done this week.</summary>
     public const string FieldCustom = "custom";
 
+    /// <summary>Item key: Savage floor 1 weekly loot obtained.</summary>
+    public const string FieldF1 = "f1";
+
+    /// <summary>Item key: Savage floor 2 weekly loot obtained.</summary>
+    public const string FieldF2 = "f2";
+
+    /// <summary>Item key: Savage floor 3 weekly loot obtained.</summary>
+    public const string FieldF3 = "f3";
+
+    /// <summary>Item key: Savage floor 4 weekly loot obtained.</summary>
+    public const string FieldF4 = "f4";
+
     /// <summary>Upper bound for <see cref="FieldTomesHave"/> (the weekly tomestone cap).</summary>
     public const int MaxTomes = 450;
+
+    /// <summary>Whether a wire key is a Savage-floor field (<c>f1</c>..<c>f4</c>), gated by <c>savage_lockout</c>.</summary>
+    /// <param name="key">The wire field key.</param>
+    /// <returns><see langword="true"/> for <c>f1</c>..<c>f4</c>.</returns>
+    public static bool IsSavageField(string key) =>
+        key is FieldF1 or FieldF2 or FieldF3 or FieldF4;
 }

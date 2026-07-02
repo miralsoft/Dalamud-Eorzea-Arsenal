@@ -24,6 +24,7 @@ public sealed class StatusWindow : Window
     private static readonly Vector4 Green = new(0.4f, 0.8f, 0.4f, 1f);
     private static readonly Vector4 Red = new(0.9f, 0.4f, 0.4f, 1f);
     private static readonly Vector4 Yellow = new(0.9f, 0.8f, 0.3f, 1f);
+    private static readonly Vector4 Dim = new(0.65f, 0.65f, 0.65f, 1f);
 
     private readonly PluginConfig _config;
     private readonly ConfigStore _store;
@@ -103,8 +104,9 @@ public sealed class StatusWindow : Window
     public override void Draw()
     {
         var connected = _store.HasKey;
-        ImGui.TextColored(connected ? Green : Red, connected ? T(LocKeys.StatusConnected) : T(LocKeys.StatusDisconnected));
+        var ready = connected && _config.Enabled;
 
+        ImGui.TextColored(connected ? Green : Red, connected ? T(LocKeys.StatusConnected) : T(LocKeys.StatusDisconnected));
         DrawLastResult();
 
         if (_sync.IsRateLimited)
@@ -113,95 +115,121 @@ public sealed class StatusWindow : Window
             ImGui.TextColored(Yellow, _localizer.Get(LocKeys.StatusRateLimited, seconds));
         }
 
-        ImGui.Separator();
+        ImGui.Spacing();
 
-        using (ImRaii.Disabled(!connected || !_config.Enabled))
+        // Not connected yet: point the user straight at the settings to link their account.
+        if (!connected)
         {
-            if (ImGui.Button(T(LocKeys.PushNow)))
+            using (ImRaii.PushColor(ImGuiCol.Text, Dim))
             {
-                _requestManualPush();
+                ImGui.TextWrapped(T(LocKeys.StatusConnectHint));
             }
-        }
 
-        ImGui.SameLine();
-        if (ImGui.Button(T(LocKeys.PreviewButton)))
-        {
-            RunPreview();
-        }
-
-        ImGui.SameLine();
-        if (ImGui.Button(T(LocKeys.OpenWebApp)))
-        {
-            // Only follow http(s) links (the URL is config-derived); never hand the OS shell an
-            // arbitrary scheme.
-            var url = WebUrl();
-            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
-                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+            ImGui.Spacing();
+            if (MenuButton(FontAwesomeIcon.Plug, T(LocKeys.OpenSettings)))
             {
-                Util.OpenLink(url);
+                _openConfig();
             }
+
+            return;
         }
 
-        if (ImGui.Button(T(LocKeys.BisOpen)))
+        Section(T(LocKeys.SectionActions));
+        if (MenuButton(FontAwesomeIcon.CloudUploadAlt, T(LocKeys.PushNow), ready))
+        {
+            _requestManualPush();
+        }
+
+        if (_config.SyncInventory &&
+            MenuButton(FontAwesomeIcon.Boxes, $"{T(LocKeys.InventorySyncButton)}   ·   {LastInventoryText()}", ready))
+        {
+            _requestInventorySync();
+        }
+
+        if (_config.SyncWeekly &&
+            MenuButton(FontAwesomeIcon.CalendarCheck, $"{T(LocKeys.WeeklySyncButton)}   ·   {LastWeeklyText()}", ready))
+        {
+            _requestWeeklySync();
+        }
+
+        Section(T(LocKeys.SectionView));
+        if (MenuButton(FontAwesomeIcon.BalanceScale, T(LocKeys.BisOpen)))
         {
             _openBis();
         }
 
-        ImGui.SameLine();
-        if (ImGui.Button(T(LocKeys.OpenSettings)))
+        if (MenuButton(FontAwesomeIcon.Eye, T(LocKeys.PreviewButton)))
+        {
+            RunPreview();
+        }
+
+        if (MenuButton(FontAwesomeIcon.Globe, T(LocKeys.OpenWebApp)))
+        {
+            OpenWebApp();
+        }
+
+        Section(T(LocKeys.SectionManage));
+        if (MenuButton(FontAwesomeIcon.Cog, T(LocKeys.OpenSettings)))
         {
             _openConfig();
         }
 
-        ImGui.SameLine();
-        ImGui.PushFont(UiBuilder.IconFont);
-        var openLog = ImGui.Button(FontAwesomeIcon.ClipboardList.ToIconString() + "##openLog");
-        ImGui.PopFont();
-        if (ImGui.IsItemHovered())
-        {
-            ImGui.SetTooltip(T(LocKeys.OpenLog));
-        }
-
-        if (openLog)
+        if (MenuButton(FontAwesomeIcon.ClipboardList, T(LocKeys.OpenLog)))
         {
             _openLog();
         }
 
-        if (_config.SyncInventory)
-        {
-            ImGui.Separator();
-            using (ImRaii.Disabled(!connected || !_config.Enabled))
-            {
-                if (ImGui.Button(T(LocKeys.InventorySyncButton)))
-                {
-                    _requestInventorySync();
-                }
-            }
-
-            ImGui.SameLine();
-            ImGui.TextDisabled($"{T(LocKeys.StatusLastInventory)}: {LastInventoryText()}");
-            if (_config.SyncRetainers)
-            {
-                ImGui.TextDisabled(T(LocKeys.InventorySyncHint));
-            }
-        }
-
-        if (_config.SyncWeekly)
-        {
-            ImGui.Separator();
-            using (ImRaii.Disabled(!connected || !_config.Enabled))
-            {
-                if (ImGui.Button(T(LocKeys.WeeklySyncButton)))
-                {
-                    _requestWeeklySync();
-                }
-            }
-
-            ImGui.SameLine();
-            ImGui.TextDisabled($"{T(LocKeys.StatusLastWeekly)}: {LastWeeklyText()}");
-        }
-
         DrawPreview();
+    }
+
+    /// <summary>A dimmed, labelled section separator.</summary>
+    private static void Section(string label)
+    {
+        ImGui.Spacing();
+        using (ImRaii.PushColor(ImGuiCol.Text, Dim))
+        {
+            ImGui.TextUnformatted(label);
+        }
+
+        ImGui.Separator();
+    }
+
+    /// <summary>A full-width "menu" button with a leading FontAwesome icon and a text label.</summary>
+    private bool MenuButton(FontAwesomeIcon icon, string label, bool enabled = true)
+    {
+        using var disabled = ImRaii.Disabled(!enabled);
+
+        var height = ImGui.GetFrameHeight() * 1.5f;
+        var width = ImGui.GetContentRegionAvail().X;
+        var origin = ImGui.GetCursorScreenPos();
+        var clicked = ImGui.Button($"##menu_{label}", new Vector2(width, height));
+
+        var draw = ImGui.GetWindowDrawList();
+        var color = ImGui.GetColorU32(enabled ? ImGuiCol.Text : ImGuiCol.TextDisabled);
+        var midY = origin.Y + (height / 2f);
+
+        ImGui.PushFont(UiBuilder.IconFont);
+        var iconStr = icon.ToIconString();
+        var iconSize = ImGui.CalcTextSize(iconStr);
+        draw.AddText(new Vector2(origin.X + 14f, midY - (iconSize.Y / 2f)), color, iconStr);
+        ImGui.PopFont();
+
+        var labelSize = ImGui.CalcTextSize(label);
+        draw.AddText(new Vector2(origin.X + 48f, midY - (labelSize.Y / 2f)), color, label);
+
+        return clicked;
+    }
+
+    private void OpenWebApp()
+    {
+        // Only follow http(s) links (the URL is config-derived); never hand the OS shell an
+        // arbitrary scheme.
+        var url = WebUrl();
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            Util.OpenLink(url);
+        }
     }
 
     private string LastInventoryText()
