@@ -84,6 +84,7 @@ public sealed class InventorySyncService : IDisposable
     private readonly ITokenStore _tokens;
     private readonly IClock _clock;
     private readonly ILog _log;
+    private readonly CharacterDirectory? _directory;
 
     private readonly Lock _gate = new();
     private readonly Dictionary<string, PendingScope> _pending = new(StringComparer.Ordinal);
@@ -101,13 +102,15 @@ public sealed class InventorySyncService : IDisposable
     /// <param name="tokens">Holds the API key.</param>
     /// <param name="clock">Time source (injectable for tests).</param>
     /// <param name="log">Diagnostics sink.</param>
-    public InventorySyncService(IInventorySource source, IApiClient api, ITokenStore tokens, IClock clock, ILog? log = null)
+    /// <param name="directory">Optional registry that learns this character's server id from the upload response.</param>
+    public InventorySyncService(IInventorySource source, IApiClient api, ITokenStore tokens, IClock clock, ILog? log = null, CharacterDirectory? directory = null)
     {
         _source = source;
         _api = api;
         _tokens = tokens;
         _clock = clock;
         _log = log ?? NullLog.Instance;
+        _directory = directory;
     }
 
     /// <summary>Raised after each upload attempt completes (on a background thread).</summary>
@@ -392,6 +395,9 @@ public sealed class InventorySyncService : IDisposable
                     _sentHashes[scope] = hash;
                 }
             }
+
+            // Learn the server's numeric character id so per-character paths (weekly, …) can resolve it.
+            _directory?.Record(character.CidHash, result.Value!.CharacterId);
 
             sentScopes += chunk.Scopes.Count;
             sentItems += result.Value!.Items;

@@ -371,6 +371,53 @@ public static class LocKeys
     /// <summary>403 error message specific to the inventory:write scope.</summary>
     public const string Error403Inventory = "error.403.inventory";
 
+    // Weekly checklist (Phase 3)
+    /// <summary>Opt-in: also sync the weekly checklist.</summary>
+    public const string SyncWeekly = "config.syncweekly";
+
+    /// <summary>Hint for the weekly-checklist opt-in.</summary>
+    public const string SyncWeeklyHint = "config.syncweekly.hint";
+
+    /// <summary>"Sync weekly" button (status window).</summary>
+    public const string WeeklySyncButton = "weekly.sync.button";
+
+    /// <summary>"Syncing weekly checklist…" status.</summary>
+    public const string WeeklyStarted = "weekly.started";
+
+    /// <summary>Weekly-checklist sync success (arg: merged field count).</summary>
+    public const string WeeklySuccess = "weekly.success";
+
+    /// <summary>"Last weekly sync" label.</summary>
+    public const string StatusLastWeekly = "status.lastweekly";
+
+    /// <summary>403 error message specific to the characters:write scope.</summary>
+    public const string Error403Weekly = "error.403.weekly";
+
+    // Window layout: hub sections + config tabs
+    /// <summary>Hub section header: sync actions.</summary>
+    public const string SectionActions = "status.section.actions";
+
+    /// <summary>Hub section header: view/open things.</summary>
+    public const string SectionView = "status.section.view";
+
+    /// <summary>Hub section header: management.</summary>
+    public const string SectionManage = "status.section.manage";
+
+    /// <summary>Hub hint shown when not connected.</summary>
+    public const string StatusConnectHint = "status.connecthint";
+
+    /// <summary>Config tab: sync/upload options.</summary>
+    public const string TabSync = "config.tab.sync";
+
+    /// <summary>Config tab: display options.</summary>
+    public const string TabDisplay = "config.tab.display";
+
+    /// <summary>Config tab: per-character opt-in.</summary>
+    public const string TabCharacters = "config.tab.characters";
+
+    /// <summary>Config tab: connection management.</summary>
+    public const string TabConnection = "config.tab.connection";
+
     // Log / diagnostics window
     /// <summary>Log window title.</summary>
     public const string LogWindowTitle = "window.log.title";

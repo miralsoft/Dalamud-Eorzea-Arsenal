@@ -30,6 +30,12 @@ equippable items are sent (never materia/consumables); the **Armoire is not scan
 manual web-app markings are never touched. Both opt-ins are **off by default** and need an
 `inventory:write` key (reconnect if an upload reports a 403).
 
+It can **optionally** also fill your **weekly checklist** automatically: weekly tomestones, Custom
+Deliveries and per-floor **Savage loot** are read from the game and merged into the web app so you
+never have to tick them by hand. It only ever sends values it can read with certainty and only what
+changed, so your manual entries are never overwritten. This opt-in is **off by default** and needs a
+key with `characters:write` + `gear:read`.
+
 ## Install (custom plugin repository)
 
 This plugin is distributed through a **custom Dalamud repository**, not the official plugin list.

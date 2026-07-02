@@ -23,6 +23,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private static readonly Vector4 Green = new(0.4f, 0.8f, 0.4f, 1f);
     private static readonly Vector4 Red = new(0.9f, 0.4f, 0.4f, 1f);
     private static readonly Vector4 Yellow = new(0.9f, 0.8f, 0.3f, 1f);
+    private static readonly Vector4 Dim = new(0.65f, 0.65f, 0.65f, 1f);
 
     private readonly PluginConfig _config;
     private readonly ConfigStore _store;
@@ -31,7 +32,6 @@ public sealed class ConfigWindow : Window, IDisposable
     private readonly IApiClient _api;
     private readonly ILog _log;
     private readonly Action _save;
-    private readonly Action _openStatus;
 
     private string _baseUrl;
     private string _webAppUrl;
@@ -52,7 +52,6 @@ public sealed class ConfigWindow : Window, IDisposable
     /// <param name="api">API client (for the test-connection button).</param>
     /// <param name="log">Diagnostics sink.</param>
     /// <param name="save">Persists the config.</param>
-    /// <param name="openStatus">Callback to open the status window.</param>
     public ConfigWindow(
         PluginConfig config,
         ConfigStore store,
@@ -60,8 +59,7 @@ public sealed class ConfigWindow : Window, IDisposable
         ConnectionService connection,
         IApiClient api,
         ILog log,
-        Action save,
-        Action openStatus)
+        Action save)
         : base("Eorzea Arsenal###EorzeaArsenalConfig")
     {
         _config = config;
@@ -71,54 +69,99 @@ public sealed class ConfigWindow : Window, IDisposable
         _api = api;
         _log = log;
         _save = save;
-        _openStatus = openStatus;
         _baseUrl = config.BaseUrl;
         _webAppUrl = config.WebAppUrl ?? string.Empty;
 
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(440, 360),
-            MaximumSize = new Vector2(900, 1200),
+            MinimumSize = new Vector2(520, 480),
+            MaximumSize = new Vector2(1000, 1400),
         };
     }
 
     private string T(string key) => _localizer.Get(key);
 
+    /// <summary>A wrapped, dimmed hint line (auto-breaks to the window width).</summary>
+    private static void Hint(string text)
+    {
+        using (ImRaii.PushColor(ImGuiCol.Text, Dim))
+        {
+            ImGui.TextWrapped(text);
+        }
+    }
+
+    /// <summary>Vertical breathing room between groups: spacing, a rule, and more spacing.</summary>
+    private static void GroupGap()
+    {
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.Spacing();
+    }
+
     /// <inheritdoc />
     public override void Draw()
     {
-        DrawTosAndMaster();
-        ImGui.Separator();
+        // Bigger, roomier settings: scale the font up and add padding/spacing for legibility.
+        ImGui.SetWindowFontScale(1.2f);
+        using var framePad = ImRaii.PushStyle(ImGuiStyleVar.FramePadding, new Vector2(7f, 6f));
+        using var itemSpace = ImRaii.PushStyle(ImGuiStyleVar.ItemSpacing, new Vector2(9f, 10f));
 
+        // First run: the ToS gate is all that's shown until acknowledged (R36).
         if (!_config.TosAccepted)
         {
-            return; // nothing else is usable until the ToS notice is acknowledged (R36)
+            DrawTosGate();
+            return;
         }
 
-        if (ImGui.Button(T(LocKeys.OpenStatus)))
+        // Not linked yet: just the "get connected" flow — the tabs appear once connected.
+        if (!_store.HasKey)
         {
-            _openStatus();
+            DrawConnectPanel();
+            return;
         }
 
-        ImGui.Separator();
-        DrawLanguage();
-        ImGui.Separator();
-        DrawBaseUrl();
-        ImGui.Separator();
-        DrawConnection();
-        ImGui.Separator();
-        DrawPushOptions();
-        ImGui.Separator();
-        DrawExtras();
-        ImGui.Separator();
-        DrawCharacters();
+        using var tabBar = ImRaii.TabBar("##eaConfigTabs");
+        if (!tabBar)
+        {
+            return;
+        }
+
+        Tab(LocKeys.TabSync, DrawSyncTab);
+        Tab(LocKeys.TabDisplay, DrawDisplayTab);
+        Tab(LocKeys.TabCharacters, DrawCharacters);
+        Tab(LocKeys.TabConnection, DrawConnectionTab);
     }
 
-    private void DrawTosAndMaster()
+    private void Tab(string key, Action body)
+    {
+        using var tab = ImRaii.TabItem(T(key));
+        if (!tab)
+        {
+            return;
+        }
+
+        ImGui.Spacing();
+        body();
+        ImGui.Spacing();
+    }
+
+    /// <summary>First-run gate: the ToS notice plus the acceptance checkbox (R36).</summary>
+    private void DrawTosGate()
+    {
+        DrawTosNotice();
+        GroupGap();
+        DrawTosAccept();
+    }
+
+    private void DrawTosNotice()
     {
         ImGui.TextColored(Yellow, T(LocKeys.TosHeader));
+        ImGui.Spacing();
         ImGui.TextWrapped(T(LocKeys.TosBody));
+    }
 
+    private void DrawTosAccept()
+    {
         var accepted = _config.TosAccepted;
         if (ImGui.Checkbox(T(LocKeys.TosAccept), ref accepted))
         {
@@ -130,15 +173,6 @@ public sealed class ConfigWindow : Window, IDisposable
 
             _save();
         }
-
-        var enabled = _config.Enabled;
-        if (ImGui.Checkbox(T(LocKeys.EnablePushMaster), ref enabled))
-        {
-            _config.Enabled = accepted && enabled;
-            _save();
-        }
-
-        ImGui.TextDisabled(T(LocKeys.EnablePushMasterHint));
     }
 
     private void DrawLanguage()
@@ -153,16 +187,17 @@ public sealed class ConfigWindow : Window, IDisposable
         }
     }
 
-    private void DrawBaseUrl()
+    private void DrawBaseUrlAndTest()
     {
         ImGui.TextUnformatted(T(LocKeys.BaseUrlLabel));
+        ImGui.SetNextItemWidth(-1);
         if (ImGui.InputText("##baseUrl", ref _baseUrl, 256))
         {
             _config.BaseUrl = _baseUrl;
             _save();
         }
 
-        ImGui.TextDisabled(T(LocKeys.BaseUrlHint));
+        Hint(T(LocKeys.BaseUrlHint));
 
         if (ImGui.Button(T(LocKeys.TestConnection)))
         {
@@ -176,23 +211,12 @@ public sealed class ConfigWindow : Window, IDisposable
         }
     }
 
-    private void DrawConnection()
+    /// <summary>The "get connected" flow shown before an account is linked (no tabs yet).</summary>
+    private void DrawConnectPanel()
     {
-        var connected = _store.HasKey;
-        ImGui.TextColored(connected ? Green : Red, connected ? T(LocKeys.StatusConnected) : T(LocKeys.StatusDisconnected));
+        DrawBaseUrlAndTest();
 
-        if (connected)
-        {
-            if (ImGui.Button(T(LocKeys.Disconnect)))
-            {
-                _connection.Disconnect();
-                _connectStatus = string.Empty;
-                _deviceCode = null;
-            }
-
-            return;
-        }
-
+        ImGui.Separator();
         ImGui.TextUnformatted(T(LocKeys.ConnectHeader));
 
         using (ImRaii.Disabled(_connecting))
@@ -207,16 +231,40 @@ public sealed class ConfigWindow : Window, IDisposable
 
         ImGui.Spacing();
         ImGui.TextUnformatted(T(LocKeys.PasteKeyLabel));
+        ImGui.SetNextItemWidth(-1);
         ImGui.InputText("##pasteKey", ref _pasteKey, 512, ImGuiInputTextFlags.Password);
-        ImGui.TextDisabled(T(LocKeys.PasteKeyHint));
-        if (ImGui.Button(T(LocKeys.PasteKeyButton)))
+        Hint(T(LocKeys.PasteKeyHint));
+        if (ImGui.Button(T(LocKeys.PasteKeyButton)) && _connection.ConnectWithPastedKey(_pasteKey))
         {
-            if (_connection.ConnectWithPastedKey(_pasteKey))
-            {
-                _pasteKey = string.Empty;
-                _connectStatus = T(LocKeys.ConnectSuccess);
-            }
+            _pasteKey = string.Empty;
+            _connectStatus = T(LocKeys.ConnectSuccess);
         }
+    }
+
+    /// <summary>
+    /// The last tab: connection status + disconnect, the base URL / test controls, and the ToS
+    /// notice (moved here — it is really only relevant during first-time setup).
+    /// </summary>
+    private void DrawConnectionTab()
+    {
+        var connected = _store.HasKey;
+        ImGui.TextColored(connected ? Green : Red, connected ? T(LocKeys.StatusConnected) : T(LocKeys.StatusDisconnected));
+        ImGui.Spacing();
+
+        if (connected && ImGui.Button(T(LocKeys.Disconnect)))
+        {
+            _connection.Disconnect();
+            _connectStatus = string.Empty;
+            _deviceCode = null;
+        }
+
+        GroupGap();
+        DrawBaseUrlAndTest();
+
+        GroupGap();
+        DrawTosNotice();
+        ImGui.Spacing();
+        DrawTosAccept();
     }
 
     private void DrawDeviceFlowState()
@@ -262,8 +310,21 @@ public sealed class ConfigWindow : Window, IDisposable
         }
     }
 
-    private void DrawPushOptions()
+    private void DrawSyncTab()
     {
+        // The master switch lives here (the "Sync" tab), so a fresh user finds it right where the
+        // upload options are — instead of hidden away.
+        var enabled = _config.Enabled;
+        if (ImGui.Checkbox(T(LocKeys.EnablePushMaster), ref enabled))
+        {
+            _config.Enabled = _config.TosAccepted && enabled;
+            _save();
+        }
+
+        Hint(T(LocKeys.EnablePushMasterHint));
+
+        GroupGap();
+
         var pushOnLogin = _config.PushOnLogin;
         if (ImGui.Checkbox(T(LocKeys.PushOnLogin), ref pushOnLogin))
         {
@@ -278,7 +339,7 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        ImGui.TextDisabled(_localizer.Get(LocKeys.AutoPushHint, _config.AutoPushIntervalMinutes));
+        Hint(_localizer.Get(LocKeys.AutoPushHint, _config.AutoPushIntervalMinutes));
 
         var pushOnChange = _config.PushOnGearsetChange;
         if (ImGui.Checkbox(T(LocKeys.PushOnChange), ref pushOnChange))
@@ -287,10 +348,46 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        ImGui.TextDisabled(T(LocKeys.PushOnChangeHint));
+        Hint(T(LocKeys.PushOnChangeHint));
+
+        GroupGap();
+
+        var syncInventory = _config.SyncInventory;
+        if (ImGui.Checkbox(T(LocKeys.SyncInventory), ref syncInventory))
+        {
+            _config.SyncInventory = syncInventory;
+            _save();
+        }
+
+        Hint(T(LocKeys.SyncInventoryHint));
+
+        if (_config.SyncInventory)
+        {
+            ImGui.Indent();
+            var syncRetainers = _config.SyncRetainers;
+            if (ImGui.Checkbox(T(LocKeys.SyncRetainers), ref syncRetainers))
+            {
+                _config.SyncRetainers = syncRetainers;
+                _save();
+            }
+
+            Hint(T(LocKeys.SyncRetainersHint));
+            ImGui.Unindent();
+        }
+
+        GroupGap();
+
+        var syncWeekly = _config.SyncWeekly;
+        if (ImGui.Checkbox(T(LocKeys.SyncWeekly), ref syncWeekly))
+        {
+            _config.SyncWeekly = syncWeekly;
+            _save();
+        }
+
+        Hint(T(LocKeys.SyncWeeklyHint));
     }
 
-    private void DrawExtras()
+    private void DrawDisplayTab()
     {
         var toasts = _config.UseToasts;
         if (ImGui.Checkbox(T(LocKeys.UseToasts), ref toasts))
@@ -313,31 +410,14 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        ImGui.TextDisabled(T(LocKeys.ShowDtrBarHint));
+        Hint(T(LocKeys.ShowDtrBarHint));
 
-        var syncInventory = _config.SyncInventory;
-        if (ImGui.Checkbox(T(LocKeys.SyncInventory), ref syncInventory))
-        {
-            _config.SyncInventory = syncInventory;
-            _save();
-        }
+        GroupGap();
 
-        ImGui.TextDisabled(T(LocKeys.SyncInventoryHint));
+        ImGui.SetNextItemWidth(-1);
+        DrawLanguage();
 
-        if (_config.SyncInventory)
-        {
-            ImGui.Indent();
-            var syncRetainers = _config.SyncRetainers;
-            if (ImGui.Checkbox(T(LocKeys.SyncRetainers), ref syncRetainers))
-            {
-                _config.SyncRetainers = syncRetainers;
-                _save();
-            }
-
-            ImGui.TextDisabled(T(LocKeys.SyncRetainersHint));
-            ImGui.Unindent();
-        }
-
+        ImGui.SetNextItemWidth(-1);
         var verbosity = (int)_config.Verbosity;
         ReadOnlySpan<string> levels = ["Quiet", "Normal", "Verbose"];
         if (ImGui.Combo(T(LocKeys.Verbosity), ref verbosity, levels, levels.Length))
@@ -346,20 +426,24 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
+        GroupGap();
+
         ImGui.TextUnformatted(T(LocKeys.WebAppUrlLabel));
+        ImGui.SetNextItemWidth(-1);
         if (ImGui.InputText("##webAppUrl", ref _webAppUrl, 256))
         {
             _config.WebAppUrl = string.IsNullOrWhiteSpace(_webAppUrl) ? null : _webAppUrl.Trim();
             _save();
         }
 
-        ImGui.TextDisabled(T(LocKeys.WebAppUrlHint));
+        Hint(T(LocKeys.WebAppUrlHint));
     }
 
     private void DrawCharacters()
     {
         ImGui.TextUnformatted(T(LocKeys.CharactersHeader));
-        ImGui.TextDisabled(T(LocKeys.CharactersHint));
+        Hint(T(LocKeys.CharactersHint));
+        ImGui.Spacing();
 
         if (_config.Characters.Count == 0)
         {

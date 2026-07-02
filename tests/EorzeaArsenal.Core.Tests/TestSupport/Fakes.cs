@@ -100,3 +100,23 @@ public sealed class FakeInventorySource : IInventorySource
         return Task.FromResult(Snapshot);
     }
 }
+
+/// <summary>A programmable <see cref="IWeeklySource"/>.</summary>
+public sealed class FakeWeeklySource : IWeeklySource
+{
+    /// <inheritdoc />
+    public bool IsAvailable { get; set; } = true;
+
+    /// <summary>The read returned by <see cref="ReadAsync"/>.</summary>
+    public WeeklyData? Snapshot { get; set; }
+
+    /// <summary>Number of reads performed.</summary>
+    public int Reads { get; private set; }
+
+    /// <inheritdoc />
+    public Task<WeeklyData?> ReadAsync(CancellationToken ct)
+    {
+        Reads++;
+        return Task.FromResult(Snapshot);
+    }
+}

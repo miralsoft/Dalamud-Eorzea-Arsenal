@@ -1,3 +1,4 @@
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Command;
 using Dalamud.Game.Gui.Dtr;
 using Dalamud.Game.Text.SeStringHandling;
@@ -31,6 +32,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IClientState _clientState;
     private readonly IPlayerState _playerState;
     private readonly IFramework _framework;
+    private readonly ICondition _condition;
     private readonly IChatGui _chatGui;
     private readonly IToastGui _toastGui;
     private readonly LogBuffer _logBuffer;
@@ -42,9 +44,12 @@ public sealed class Plugin : IDalamudPlugin
     private readonly Localizer _localizer;
     private readonly GameGearSource _gearSource;
     private readonly GameInventorySource _inventorySource;
+    private readonly GameWeeklySource _weeklySource;
     private readonly ConnectionService _connection;
+    private readonly CharacterDirectory _characterDirectory;
     private readonly GearSyncService _sync;
     private readonly InventorySyncService _inventorySync;
+    private readonly WeeklySyncService _weeklySync;
     private readonly BisService _bisService;
 
     private readonly WindowSystem _windowSystem = new("EorzeaArsenal");
@@ -63,6 +68,11 @@ public sealed class Plugin : IDalamudPlugin
     private long _nextDtrUpdateTicks;
     private long _nextInventoryAutoTicks;
     private long _nextRetainerCheckTicks;
+    private long _nextWeeklyAutoTicks;
+    private long _nextRaidFinderCheckTicks;
+    private bool _raidFinderWasOpen;
+    private long _hiddenRefreshDueTicks; // 0 = none scheduled
+    private long _nextHiddenRefreshTryTicks;
     private string? _lastRetainerScope;
     private bool _bisLoadPending;
     private ulong _lastStoredSig;
@@ -79,6 +89,7 @@ public sealed class Plugin : IDalamudPlugin
     /// <param name="clientState">Login state.</param>
     /// <param name="playerState">Local character identity (name, world, ContentId).</param>
     /// <param name="framework">Framework-thread marshaller.</param>
+    /// <param name="condition">Game condition flags (combat/duty guards for the weekly refresh).</param>
     /// <param name="dataManager">Excel data access.</param>
     /// <param name="gameGui">Provides the hovered item id for the BiS overlay.</param>
     /// <param name="textureProvider">Loads game item icons for the BiS window.</param>
@@ -92,6 +103,7 @@ public sealed class Plugin : IDalamudPlugin
         IClientState clientState,
         IPlayerState playerState,
         IFramework framework,
+        ICondition condition,
         IDataManager dataManager,
         IGameGui gameGui,
         ITextureProvider textureProvider,
@@ -105,6 +117,7 @@ public sealed class Plugin : IDalamudPlugin
         _clientState = clientState;
         _playerState = playerState;
         _framework = framework;
+        _condition = condition;
         _chatGui = chatGui;
         _toastGui = toastGui;
 
@@ -123,20 +136,30 @@ public sealed class Plugin : IDalamudPlugin
         var api = new ApiClient(_httpClient, _store);
         _gearSource = new GameGearSource(clientState, playerState, framework, dataManager, _log);
         _inventorySource = new GameInventorySource(clientState, playerState, framework, dataManager, _log);
+        _weeklySource = new GameWeeklySource(clientState, playerState, framework, gameGui, _log);
         _connection = new ConnectionService(api, _store, new RealDelay(), _log);
-        _sync = new GearSyncService(_gearSource, api, _store, new SystemClock(), _log)
+
+        // Learns cid_hash → server character_id from push responses (persisted); the weekly sync needs
+        // that numeric id to address per-character REST paths.
+        _characterDirectory = new CharacterDirectory(_config.CharacterIds);
+        _characterDirectory.Changed += OnCharacterDirectoryChanged;
+
+        _sync = new GearSyncService(_gearSource, api, _store, new SystemClock(), _log, _characterDirectory)
         {
             MinAutoPushInterval = TimeSpan.FromMinutes(Math.Max(1, _config.AutoPushIntervalMinutes)),
         };
         _sync.PushCompleted += OnPushCompleted;
-        _inventorySync = new InventorySyncService(_inventorySource, api, _store, new SystemClock(), _log);
+        _inventorySync = new InventorySyncService(_inventorySource, api, _store, new SystemClock(), _log, _characterDirectory);
         _inventorySync.SyncCompleted += OnInventoryCompleted;
+        _weeklySync = new WeeklySyncService(_weeklySource, api, _store, _characterDirectory, new SystemClock(), _log);
+        _weeklySync.SyncCompleted += OnWeeklyCompleted;
+        _weeklySource.HiddenRefreshCompleted += OnHiddenRefreshCompleted;
         _bisService = new BisService(api, _gearSource, _store, _log);
 
         _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, Save, LinkItemInChat);
         _logWindow = new LogWindow(_logBuffer, _localizer);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _gearSource, _log, RequestManualPush, RequestInventorySync, OpenConfig, OpenBis, OpenLog);
-        _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save, OpenStatus);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, _gearSource, _log, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenLog);
+        _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save);
         _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _log);
         _windowSystem.AddWindow(_bisWindow);
         _windowSystem.AddWindow(_logWindow);
@@ -177,6 +200,10 @@ public sealed class Plugin : IDalamudPlugin
         _sync.Dispose();
         _inventorySync.SyncCompleted -= OnInventoryCompleted;
         _inventorySync.Dispose();
+        _weeklySource.HiddenRefreshCompleted -= OnHiddenRefreshCompleted;
+        _weeklySync.SyncCompleted -= OnWeeklyCompleted;
+        _weeklySync.Dispose();
+        _characterDirectory.Changed -= OnCharacterDirectoryChanged;
         _configWindow.Dispose();
         _httpClient.Dispose();
     }
@@ -230,6 +257,21 @@ public sealed class Plugin : IDalamudPlugin
                 break;
             case "log":
                 OpenLog();
+                break;
+            case "weekdump":
+                RunWeeklyProbe();
+                break;
+            case "weekopen":
+                // Temporary experiment: trigger the Raid Finder's own data load, hidden.
+                _ = _framework.RunOnFrameworkThread(() => Chat(_weeklySource.TriggerRaidFinderLoad(keepVisible: false)));
+                break;
+            case "weekopen2":
+                // Stage 2: keep the agent alive but suppress the window until the data arrives.
+                _ = _framework.RunOnFrameworkThread(() => Chat(_weeklySource.BeginHiddenRefresh()));
+                break;
+            case "weekshow":
+                // Control variant: same trigger but visibly (close manually).
+                _ = _framework.RunOnFrameworkThread(() => Chat(_weeklySource.TriggerRaidFinderLoad(keepVisible: true)));
                 break;
             default:
                 RequestManualPush();
@@ -293,6 +335,46 @@ public sealed class Plugin : IDalamudPlugin
         _inventorySync.RequestCharacterSync(InventoryTrigger.Manual);
     }
 
+    /// <summary>
+    /// Developer probe: reads the candidate weekly values via the game's own APIs on the framework
+    /// thread and writes them to the diagnostics log so their meaning can be confirmed / re-verified
+    /// after a game patch. Triggered by <c>/bisexport weekdump</c> (see docs/dev/weekly-data-probing.md).
+    /// </summary>
+    private void RunWeeklyProbe() => _ = _framework.RunOnFrameworkThread(() =>
+    {
+        var dump = _weeklySource.ReadRawWeeklyDiagnostics();
+        _log.Info(dump);
+        Chat("Weekly probe written to the log (open it via the log button / /bisexport log).");
+    });
+
+    /// <summary>Triggers a manual weekly-checklist sync, gated like the gear push.</summary>
+    private void RequestWeeklySync()
+    {
+        if (!_config.Enabled || !_config.TosAccepted || !_config.SyncWeekly)
+        {
+            OpenConfig();
+            Chat(_localizer.Get(LocKeys.EnablePushMasterHint));
+            return;
+        }
+
+        if (!_store.HasKey)
+        {
+            OpenConfig();
+            Chat(_localizer.Get(LocKeys.PushNotConnected));
+            return;
+        }
+
+        RecordCurrentCharacter();
+        if (!CurrentCharacterAllowed())
+        {
+            Chat(_localizer.Get(LocKeys.CharacterDisabled));
+            return;
+        }
+
+        Chat(_localizer.Get(LocKeys.WeeklyStarted));
+        _weeklySync.RequestSync(WeeklyTrigger.Manual);
+    }
+
     private void OnLogin()
     {
         // Each login starts a fresh diagnostics log for the new game session.
@@ -315,6 +397,17 @@ public sealed class Plugin : IDalamudPlugin
             _inventorySync.RequestCharacterSync(InventoryTrigger.Login);
         }
 
+        // Sync the weekly checklist on login. If this character's server id isn't known yet, the sync
+        // reports NotResolved and retries after the gear push records it (see OnPushCompleted).
+        if (_config is { Enabled: true, TosAccepted: true, SyncWeekly: true } && _store.HasKey && CurrentCharacterAllowed())
+        {
+            _weeklySync.RequestSync(WeeklyTrigger.Login);
+
+            // Also fetch the Savage floor state via the invisible Raid-Finder refresh, once the
+            // session has settled (the tick performs it when the character is out of combat/duty).
+            _hiddenRefreshDueTicks = Environment.TickCount64 + 10_000;
+        }
+
         // Auto-load BiS for the new session so the window/overlay have current data without a manual
         // refresh. The framework tick performs it once the character is fully loaded and gear-readable.
         if (_store.HasKey)
@@ -333,6 +426,9 @@ public sealed class Plugin : IDalamudPlugin
     private void OnFrameworkUpdate(IFramework framework)
     {
         var now = Environment.TickCount64;
+
+        // Temporary experiment driver (no-op while idle): the hidden Raid-Finder refresh probe.
+        _weeklySource.PumpHiddenRefresh();
 
         if (now >= _nextDtrUpdateTicks)
         {
@@ -381,6 +477,43 @@ public sealed class Plugin : IDalamudPlugin
             {
                 DetectOpenRetainer(now);
             }
+        }
+
+        if (_config.SyncWeekly && now >= _nextWeeklyAutoTicks)
+        {
+            // Hourly is ample: the service GETs the server state and sends only changed fields, so an
+            // unchanged week costs one read and no write. Refresh the Savage state first (invisible
+            // Raid-Finder request); its completion triggers a follow-up diff-sync with fresh floors.
+            _nextWeeklyAutoTicks = now + 3_600_000;
+            _hiddenRefreshDueTicks = now;
+            _weeklySync.RequestSync(WeeklyTrigger.Auto);
+        }
+
+        // Run a due hidden Savage refresh once the character is in a safe state (never in combat,
+        // in a duty, between areas or in a cutscene); retries every 5s until it can run.
+        if (_config.SyncWeekly && _hiddenRefreshDueTicks != 0 && now >= _hiddenRefreshDueTicks && now >= _nextHiddenRefreshTryTicks)
+        {
+            _nextHiddenRefreshTryTicks = now + 5_000;
+            if (CanHiddenRefresh())
+            {
+                _hiddenRefreshDueTicks = 0;
+                _weeklySource.BeginHiddenRefresh();
+            }
+        }
+
+        // Opportunistic Savage read: the per-floor weekly-loot state is only in memory while the Raid
+        // Finder is open, so sync once each time it opens (edge-triggered; diff-based, so it only
+        // writes when a floor actually changed).
+        if (_config.SyncWeekly && now >= _nextRaidFinderCheckTicks)
+        {
+            _nextRaidFinderCheckTicks = now + 2_000;
+            var raidFinderOpen = _weeklySource.IsSavageReadable;
+            if (raidFinderOpen && !_raidFinderWasOpen)
+            {
+                _weeklySync.RequestSync(WeeklyTrigger.RaidFinder);
+            }
+
+            _raidFinderWasOpen = raidFinderOpen;
         }
 
         if (_config.PushOnGearsetChange)
@@ -492,6 +625,14 @@ public sealed class Plugin : IDalamudPlugin
     {
         UpdateDtr();
 
+        // A successful push just recorded this character's server id — sync the weekly checklist now
+        // (covers a first-time character whose id was not yet known at login).
+        if (report.Outcome == PushOutcome.Sent &&
+            _config is { Enabled: true, TosAccepted: true, SyncWeekly: true } && _store.HasKey)
+        {
+            _weeklySync.RequestSync(WeeklyTrigger.GearPush);
+        }
+
         var message = PushReportFormatter.Describe(report, _localizer);
         if (message is null)
         {
@@ -544,6 +685,69 @@ public sealed class Plugin : IDalamudPlugin
         ApiErrorKind.Network => _localizer.Get(LocKeys.ErrorNetwork),
         _ => _localizer.Get(LocKeys.ErrorUnexpected),
     };
+
+    /// <summary>Whether the invisible Savage refresh may run right now (safe, idle game state).</summary>
+    private bool CanHiddenRefresh() =>
+        _store.HasKey
+        && CurrentCharacterAllowed()
+        && !_condition[ConditionFlag.InCombat]
+        && !_condition[ConditionFlag.BoundByDuty]
+        && !_condition[ConditionFlag.BetweenAreas]
+        && !_condition[ConditionFlag.OccupiedInCutSceneEvent]
+        && !_condition[ConditionFlag.WatchingCutscene];
+
+    /// <summary>A hidden refresh just delivered fresh Savage data — sync it (diff-based, quiet).</summary>
+    private void OnHiddenRefreshCompleted()
+    {
+        if (_config is { Enabled: true, TosAccepted: true, SyncWeekly: true } && _store.HasKey && CurrentCharacterAllowed())
+        {
+            _weeklySync.RequestSync(WeeklyTrigger.RaidFinder);
+        }
+    }
+
+    /// <summary>Reports weekly-checklist sync outcomes to chat/toast; stays quiet for skipped/no-op runs.</summary>
+    private void OnWeeklyCompleted(WeeklyReport report)
+    {
+        var message = WeeklyMessage(report);
+        if (message is null)
+        {
+            return;
+        }
+
+        var chatMessage = report.Outcome == WeeklyOutcome.Failed ? $"{message} ({ServerHost()})" : message;
+        Chat(chatMessage);
+        if (_config.UseToasts)
+        {
+            _toastGui.ShowNormal(message);
+        }
+    }
+
+    /// <summary>Maps a weekly report to a user message, or <see langword="null"/> to stay quiet.</summary>
+    private string? WeeklyMessage(WeeklyReport report) => report.Outcome switch
+    {
+        WeeklyOutcome.Sent => _localizer.Get(LocKeys.WeeklySuccess, report.FieldCount ?? 0),
+        WeeklyOutcome.Failed => WeeklyErrorMessage(report.ErrorKind),
+        _ => null, // skipped/unchanged/backoff/not-connected/not-logged-in/not-resolved/nothing: no noise
+    };
+
+    private string WeeklyErrorMessage(ApiErrorKind? kind) => kind switch
+    {
+        ApiErrorKind.Unauthorized => _localizer.Get(LocKeys.Error401),
+        ApiErrorKind.Forbidden => _localizer.Get(LocKeys.Error403Weekly),
+        ApiErrorKind.Conflict => _localizer.Get(LocKeys.Error409),
+        ApiErrorKind.Validation => _localizer.Get(LocKeys.Error422),
+        ApiErrorKind.BadRequest => _localizer.Get(LocKeys.Error400),
+        ApiErrorKind.RateLimited => _localizer.Get(LocKeys.Error429),
+        ApiErrorKind.Network => _localizer.Get(LocKeys.ErrorNetwork),
+        _ => _localizer.Get(LocKeys.ErrorUnexpected),
+    };
+
+    /// <summary>Persists the learned <c>cid_hash → character_id</c> map (best-effort; runs off-thread).</summary>
+    private void OnCharacterDirectoryChanged()
+    {
+        _config.CharacterIds = new Dictionary<string, string>(_characterDirectory.Snapshot(), StringComparer.Ordinal);
+        Save();
+    }
 
     private string ServerHost()
     {

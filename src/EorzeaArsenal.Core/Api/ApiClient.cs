@@ -102,6 +102,28 @@ public sealed class ApiClient : IApiClient
         return await SendAsync<BisResponse>(request, ct).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
+    public async Task<ApiResult<WeeklyResponse>> GetWeeklyAsync(string apiKey, string characterId, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, Url(WeeklyPath(characterId)));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<WeeklyResponse>(request, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiResult<WeeklyPushResult>> PutWeeklyAsync(string apiKey, string characterId, WeeklyPayload payload, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, Url(WeeklyPath(characterId)))
+        {
+            Content = JsonBody(payload),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<WeeklyPushResult>(request, ct).ConfigureAwait(false);
+    }
+
+    private static string WeeklyPath(string characterId) =>
+        $"/characters/{Uri.EscapeDataString(characterId)}/weekly";
+
     private async Task<ApiResult<T>> SendAsync<T>(
         HttpRequestMessage request,
         CancellationToken ct,
@@ -122,7 +144,7 @@ public sealed class ApiClient : IApiClient
             if (response.IsSuccessStatusCode ||
                 (treatBadRequestAsValue && response.StatusCode == HttpStatusCode.BadRequest))
             {
-                return Deserialize<T>(body);
+                return Deserialize<T>(body, endpoint);
             }
 
             return ApiResult<T>.Fail(MapError(response, body, endpoint));
@@ -153,7 +175,7 @@ public sealed class ApiClient : IApiClient
         }
     }
 
-    private static ApiResult<T> Deserialize<T>(string body)
+    private static ApiResult<T> Deserialize<T>(string body, string endpoint)
     {
         try
         {
@@ -164,6 +186,7 @@ public sealed class ApiClient : IApiClient
                 {
                     Kind = ApiErrorKind.Unexpected,
                     Message = "Empty response body.",
+                    Endpoint = endpoint,
                 });
             }
 
@@ -175,6 +198,7 @@ public sealed class ApiClient : IApiClient
             {
                 Kind = ApiErrorKind.Unexpected,
                 Message = "Could not parse the server response.",
+                Endpoint = endpoint,
             });
         }
     }

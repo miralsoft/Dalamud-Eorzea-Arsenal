@@ -152,6 +152,26 @@ public sealed class Localizer : ILocalizer
         [LocKeys.StatusLastInventory] = "Last inventory sync",
         [LocKeys.Error403Inventory] = "Your key lacks the inventory:write permission. Reconnect to enable inventory upload.",
 
+        [LocKeys.SyncWeekly] = "Also sync the weekly checklist",
+        [LocKeys.SyncWeeklyHint] =
+            "Fills your weekly checklist in the web app automatically from the game (tomestones this " +
+            "week, Custom Deliveries done). Only values it can read with certainty are sent, so your " +
+            "manual entries are never overwritten. Opt-in, same as gear.",
+        [LocKeys.WeeklySyncButton] = "Sync weekly",
+        [LocKeys.WeeklyStarted] = "Syncing weekly checklist…",
+        [LocKeys.WeeklySuccess] = "Synced {0} weekly field(s).",
+        [LocKeys.StatusLastWeekly] = "Last weekly sync",
+        [LocKeys.Error403Weekly] = "Your key lacks the characters:write permission. Reconnect to enable the weekly checklist.",
+
+        [LocKeys.SectionActions] = "Actions",
+        [LocKeys.SectionView] = "View",
+        [LocKeys.SectionManage] = "Manage",
+        [LocKeys.StatusConnectHint] = "Not connected. Open the settings to link your Eorzea Arsenal account.",
+        [LocKeys.TabSync] = "Sync",
+        [LocKeys.TabDisplay] = "Display",
+        [LocKeys.TabCharacters] = "Characters",
+        [LocKeys.TabConnection] = "Connection",
+
         [LocKeys.LogWindowTitle] = "Eorzea Arsenal — Log",
         [LocKeys.OpenLog] = "Log",
         [LocKeys.LogCopy] = "Copy",
@@ -321,6 +341,26 @@ public sealed class Localizer : ILocalizer
         [LocKeys.InventorySuccess] = "{0} Gegenstand/Gegenstände in {1} Bereich(en) synchronisiert.",
         [LocKeys.StatusLastInventory] = "Letzte Inventar-Synchronisierung",
         [LocKeys.Error403Inventory] = "Deinem Schlüssel fehlt die Berechtigung inventory:write. Bitte neu verbinden, um den Inventar-Upload zu nutzen.",
+
+        [LocKeys.SyncWeekly] = "Auch die wöchentliche Checkliste übertragen",
+        [LocKeys.SyncWeeklyHint] =
+            "Füllt deine wöchentliche Checkliste in der Webapp automatisch aus dem Spiel (Steine diese " +
+            "Woche, Sammelaufträge erledigt). Es werden nur sicher auslesbare Werte gesendet, deine " +
+            "manuellen Einträge werden nie überschrieben. Opt-in, wie bei der Ausrüstung.",
+        [LocKeys.WeeklySyncButton] = "Checkliste synchronisieren",
+        [LocKeys.WeeklyStarted] = "Synchronisiere wöchentliche Checkliste…",
+        [LocKeys.WeeklySuccess] = "{0} Wochenfeld(er) synchronisiert.",
+        [LocKeys.StatusLastWeekly] = "Letzte Checklisten-Synchronisierung",
+        [LocKeys.Error403Weekly] = "Deinem Schlüssel fehlt die Berechtigung characters:write. Bitte neu verbinden, um die wöchentliche Checkliste zu nutzen.",
+
+        [LocKeys.SectionActions] = "Aktionen",
+        [LocKeys.SectionView] = "Ansehen",
+        [LocKeys.SectionManage] = "Verwaltung",
+        [LocKeys.StatusConnectHint] = "Nicht verbunden. Öffne die Einstellungen, um dein Eorzea-Arsenal-Konto zu verknüpfen.",
+        [LocKeys.TabSync] = "Übertragung",
+        [LocKeys.TabDisplay] = "Anzeige",
+        [LocKeys.TabCharacters] = "Charaktere",
+        [LocKeys.TabConnection] = "Verbindung",
 
         [LocKeys.LogWindowTitle] = "Eorzea Arsenal — Log",
         [LocKeys.OpenLog] = "Log",

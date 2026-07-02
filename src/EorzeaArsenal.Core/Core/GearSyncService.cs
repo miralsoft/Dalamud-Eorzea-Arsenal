@@ -88,6 +88,7 @@ public sealed class GearSyncService : IDisposable
     private readonly ITokenStore _tokens;
     private readonly IClock _clock;
     private readonly ILog _log;
+    private readonly CharacterDirectory? _directory;
 
     private readonly Lock _gate = new();
     private bool _running;
@@ -105,13 +106,15 @@ public sealed class GearSyncService : IDisposable
     /// <param name="tokens">Holds the API key.</param>
     /// <param name="clock">Time source (injectable for tests).</param>
     /// <param name="log">Diagnostics sink.</param>
-    public GearSyncService(IGearSource gearSource, IApiClient api, ITokenStore tokens, IClock clock, ILog? log = null)
+    /// <param name="directory">Optional registry that learns this character's server id from the push response.</param>
+    public GearSyncService(IGearSource gearSource, IApiClient api, ITokenStore tokens, IClock clock, ILog? log = null, CharacterDirectory? directory = null)
     {
         _gearSource = gearSource;
         _api = api;
         _tokens = tokens;
         _clock = clock;
         _log = log ?? NullLog.Instance;
+        _directory = directory;
     }
 
     /// <summary>Raised after each push attempt completes (on a background thread).</summary>
@@ -263,15 +266,19 @@ public sealed class GearSyncService : IDisposable
         }
 
         var result = await _api.PushGearAsync(_tokens.ApiKey!, payload, ct).ConfigureAwait(false);
-        return HandleResult(result, hash);
+        return HandleResult(result, hash, payload.Character.CidHash);
     }
 
-    private PushReport HandleResult(ApiResult<GearPushResult> result, string hash)
+    private PushReport HandleResult(ApiResult<GearPushResult> result, string hash, string cidHash)
     {
         if (result.IsSuccess)
         {
             _lastPushUtc = _clock.UtcNow;
             _lastSentHash = hash;
+
+            // Learn the server's numeric character id so per-character paths (weekly, …) can resolve it.
+            _directory?.Record(cidHash, result.Value!.CharacterId);
+
             var count = result.Value!.Gearsets;
             _log.Info($"Push OK: {count} gearset(s).");
             return new PushReport(PushOutcome.Sent, GearsetCount: count);

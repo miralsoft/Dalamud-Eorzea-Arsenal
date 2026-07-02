@@ -227,6 +227,12 @@ public sealed class GearSyncServiceTests
         public Task<ApiResult<BisResponse>> GetBisAsync(string apiKey, string? cidHash, CancellationToken ct) =>
             throw new NotSupportedException();
 
+        public Task<ApiResult<WeeklyResponse>> GetWeeklyAsync(string apiKey, string characterId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<WeeklyPushResult>> PutWeeklyAsync(string apiKey, string characterId, WeeklyPayload payload, CancellationToken ct) =>
+            throw new NotSupportedException();
+
         public Task<ApiResult<InventoryPushResult>> PushInventoryAsync(string apiKey, InventoryPayload payload, CancellationToken ct) =>
             throw new NotSupportedException();
 

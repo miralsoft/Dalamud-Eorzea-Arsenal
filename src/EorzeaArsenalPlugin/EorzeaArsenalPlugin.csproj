@@ -7,7 +7,7 @@
     logic lives in EorzeaArsenal.Core behind interfaces (R8/R9, R10/R11).
   -->
   <PropertyGroup>
-    <Version>0.1.1</Version>
+    <Version>0.2.0</Version>
     <AssemblyName>EorzeaArsenalPlugin</AssemblyName>
     <RootNamespace>EorzeaArsenal.Plugin</RootNamespace>
     <Authors>Sanaka</Authors>

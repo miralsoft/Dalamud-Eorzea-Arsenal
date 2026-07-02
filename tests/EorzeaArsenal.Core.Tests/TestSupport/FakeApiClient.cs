@@ -94,6 +94,52 @@ public sealed class FakeApiClient : IApiClient
     /// <inheritdoc />
     public Task<ApiResult<BisResponse>> GetBisAsync(string apiKey, string? cidHash, CancellationToken ct) =>
         Task.FromResult(BisResult);
+
+    private readonly Queue<ApiResult<WeeklyResponse>> _weeklyGetResults = new();
+    private readonly Queue<ApiResult<WeeklyPushResult>> _weeklyPutResults = new();
+
+    /// <summary>Number of <see cref="GetWeeklyAsync"/> calls made.</summary>
+    public int WeeklyGetCalls { get; private set; }
+
+    /// <summary>Number of <see cref="PutWeeklyAsync"/> calls made.</summary>
+    public int WeeklyPutCalls { get; private set; }
+
+    /// <summary>The character ids passed to weekly calls, in order.</summary>
+    public List<string> WeeklyCharacterIds { get; } = [];
+
+    /// <summary>The payloads passed to <see cref="PutWeeklyAsync"/>, in order.</summary>
+    public List<WeeklyPayload> WeeklyPayloads { get; } = [];
+
+    /// <summary>Queues a weekly-GET result.</summary>
+    /// <param name="result">The result to return on the next GET.</param>
+    public void EnqueueWeeklyGet(ApiResult<WeeklyResponse> result) => _weeklyGetResults.Enqueue(result);
+
+    /// <summary>Queues a weekly-PUT result.</summary>
+    /// <param name="result">The result to return on the next PUT.</param>
+    public void EnqueueWeeklyPut(ApiResult<WeeklyPushResult> result) => _weeklyPutResults.Enqueue(result);
+
+    /// <inheritdoc />
+    public Task<ApiResult<WeeklyResponse>> GetWeeklyAsync(string apiKey, string characterId, CancellationToken ct)
+    {
+        WeeklyGetCalls++;
+        WeeklyCharacterIds.Add(characterId);
+        var result = _weeklyGetResults.Count > 0
+            ? _weeklyGetResults.Dequeue()
+            : ApiResult<WeeklyResponse>.Ok(new WeeklyResponse());
+        return Task.FromResult(result);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<WeeklyPushResult>> PutWeeklyAsync(string apiKey, string characterId, WeeklyPayload payload, CancellationToken ct)
+    {
+        WeeklyPutCalls++;
+        WeeklyCharacterIds.Add(characterId);
+        WeeklyPayloads.Add(payload);
+        var result = _weeklyPutResults.Count > 0
+            ? _weeklyPutResults.Dequeue()
+            : ApiResult<WeeklyPushResult>.Ok(new WeeklyPushResult { Status = "ok" });
+        return Task.FromResult(result);
+    }
 }
 
 /// <summary>Builders for common test data.</summary>

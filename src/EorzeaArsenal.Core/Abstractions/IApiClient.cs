@@ -53,4 +53,26 @@ public interface IApiClient
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The resolved BiS targets, or a classified error (401/403/404).</returns>
     Task<ApiResult<BisResponse>> GetBisAsync(string apiKey, string? cidHash, CancellationToken ct);
+
+    /// <summary>
+    /// Reads the server-stored weekly checklist for a character via
+    /// <c>GET /characters/{characterId}/weekly</c> (requires <c>gear:read</c>). Used to send only the
+    /// fields that actually changed, so manual web-app entries are never overwritten.
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>gear:read</c>).</param>
+    /// <param name="characterId">The server's numeric character id (from a push response).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The current weekly values, or a classified error (401/403/404).</returns>
+    Task<ApiResult<WeeklyResponse>> GetWeeklyAsync(string apiKey, string characterId, CancellationToken ct);
+
+    /// <summary>
+    /// Merges weekly-checklist fields via <c>PUT /characters/{characterId}/weekly</c> (requires
+    /// <c>characters:write</c>). Only the sent fields change; unsent fields keep their state.
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>characters:write</c>; never logged — R22).</param>
+    /// <param name="characterId">The server's numeric character id (from a push response).</param>
+    /// <param name="payload">The known fields to merge.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The merge result, or a classified error (401/403/404/422/429).</returns>
+    Task<ApiResult<WeeklyPushResult>> PutWeeklyAsync(string apiKey, string characterId, WeeklyPayload payload, CancellationToken ct);
 }

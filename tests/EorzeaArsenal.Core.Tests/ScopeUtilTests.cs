@@ -39,4 +39,21 @@ public sealed class ScopeUtilTests
         Assert.False(ScopeUtil.HasInventoryWrite(["gear:write"]));
         Assert.False(ScopeUtil.HasInventoryWrite(null));
     }
+
+    [Fact]
+    public void Detects_characters_write()
+    {
+        Assert.True(ScopeUtil.HasCharactersWrite(["gear:write", "characters:write"]));
+        Assert.True(ScopeUtil.HasCharactersWrite([" CHARACTERS:WRITE "]));
+        Assert.False(ScopeUtil.HasCharactersWrite(["gear:write"]));
+        Assert.False(ScopeUtil.HasCharactersWrite(null));
+    }
+
+    [Fact]
+    public void Detects_gear_read()
+    {
+        Assert.True(ScopeUtil.HasGearRead(["gear:write", "gear:read"]));
+        Assert.False(ScopeUtil.HasGearRead(["gear:write"]));
+        Assert.False(ScopeUtil.HasGearRead(null));
+    }
 }
