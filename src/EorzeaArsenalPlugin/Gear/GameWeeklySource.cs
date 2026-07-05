@@ -9,6 +9,7 @@ using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Component.GUI;
+using LuminaCfc = Lumina.Excel.Sheets.ContentFinderCondition;
 
 namespace EorzeaArsenal.Plugin.Gear;
 
@@ -21,20 +22,34 @@ namespace EorzeaArsenal.Plugin.Gear;
 /// used (<see cref="SatisfactionSupplyManager"/>); a "not done" is never sent, so an un-loaded state
 /// or a manual web-app entry is never clobbered (merge is one-directional here on purpose).</item>
 /// </list>
-/// Everything else (Savage floors, Unreal, Wondrous Tails) is intentionally left unset — its
-/// game-state semantics are not reliable enough to risk overwriting a manual entry. All game-memory
-/// access happens on the framework thread (P1) behind logged-in/null guards (P4); every read is
-/// wrapped so no exception ever reaches the game (P2).
+/// The remaining fields are read where the game exposes them reliably:
+/// <list type="bullet">
+/// <item><b>f1..f4</b> (Savage) — the Raid Finder's per-floor weekly-loot flag (live or via a hidden
+/// refresh).</item>
+/// <item><b>unreal</b> — the Faux Hollows timestamp vs the weekly reset (<see cref="PlayerState"/>,
+/// background-readable).</item>
+/// <item><b>wondrous</b> — a completed Wondrous Tails book whose expiry is beyond the next reset,
+/// i.e. a book bought this week (<see cref="PlayerState"/>, background-readable).</item>
+/// <item><b>normal</b>/<b>alliance</b> — the Duty Finder's weekly-reward count for the selected duty
+/// (only while it is open), classified via the duty's party size.</item>
+/// </list>
+/// Only confident values are set; "not done" is never sent for the soft flags, so a manual web-app
+/// entry is never clobbered. All game-memory access happens on the framework thread (P1) behind
+/// logged-in/null guards (P4); every read is wrapped so no exception ever reaches the game (P2).
 /// </summary>
 public sealed class GameWeeklySource : IWeeklySource
 {
     // Custom Deliveries grant 12 weekly allowances in total.
     private const int CustomWeeklyAllowances = 12;
 
+    // ContentType row id for "Raids" (normal/Savage/alliance all share it); stable game data.
+    private const uint RaidContentType = 5;
+
     private readonly IClientState _clientState;
     private readonly IPlayerState _playerState;
     private readonly IFramework _framework;
     private readonly IGameGui _gameGui;
+    private readonly IDataManager _data;
     private readonly ILog _log;
 
     /// <summary>Creates the game weekly source.</summary>
@@ -42,13 +57,15 @@ public sealed class GameWeeklySource : IWeeklySource
     /// <param name="playerState">Local character identity (name, world, ContentId).</param>
     /// <param name="framework">Framework thread marshaller.</param>
     /// <param name="gameGui">Addon lookup (for the temporary diagnostic probe).</param>
+    /// <param name="data">Excel data access (classifies a Duty Finder duty as normal vs alliance).</param>
     /// <param name="log">Diagnostics sink.</param>
-    public GameWeeklySource(IClientState clientState, IPlayerState playerState, IFramework framework, IGameGui gameGui, ILog log)
+    public GameWeeklySource(IClientState clientState, IPlayerState playerState, IFramework framework, IGameGui gameGui, IDataManager data, ILog log)
     {
         _clientState = clientState;
         _playerState = playerState;
         _framework = framework;
         _gameGui = gameGui;
+        _data = data;
         _log = log;
     }
 
@@ -70,6 +87,7 @@ public sealed class GameWeeklySource : IWeeklySource
             }
 
             var (f1, f2, f3, f4) = ReadSavageFloors();
+            var (normal, alliance) = ReadNormalAlliance();
             var values = new WeeklyValues
             {
                 TomesHave = ReadWeeklyTomes(),
@@ -78,6 +96,10 @@ public sealed class GameWeeklySource : IWeeklySource
                 F2 = f2,
                 F3 = f3,
                 F4 = f4,
+                Unreal = ReadUnreal(),
+                Wondrous = ReadWondrous(),
+                Normal = normal,
+                Alliance = alliance,
             };
 
             return new WeeklyData { Character = character, Values = values };
@@ -145,6 +167,167 @@ public sealed class GameWeeklySource : IWeeklySource
     }
 
     /// <summary>
+    /// Whether the Unreal trial was done this week, read from <c>PlayerState.FauxHollowsTimestamp</c>
+    /// (background-readable). Returns <see langword="true"/> only when confidently done; otherwise
+    /// <see langword="null"/> so a manual web-app entry is never overwritten.
+    /// </summary>
+    private unsafe bool? ReadUnreal()
+    {
+        var ps = PlayerState.Instance();
+        if (ps == null)
+        {
+            return null;
+        }
+
+        return WeeklyDecode.IsUnrealDone(ps->FauxHollowsTimestamp, DateTimeOffset.UtcNow) ? true : null;
+    }
+
+    /// <summary>
+    /// Whether a Wondrous Tails book bought this week is complete, read from <see cref="PlayerState"/>
+    /// (background-readable). A completed book alone is ambiguous (the count stays stale after a
+    /// hand-in and a book is valid two weeks), so <see cref="WeeklyDecode.IsWondrousDone"/> anchors on
+    /// the book's expiry to isolate a this-week book. <see langword="true"/> or <see langword="null"/>.
+    /// </summary>
+    private unsafe bool? ReadWondrous()
+    {
+        var ps = PlayerState.Instance();
+        if (ps == null)
+        {
+            return null;
+        }
+
+        var complete = WeeklyDecode.IsWondrousDone(
+            ps->WeeklyBingoNumPlacedStickers,
+            ps->GetWeeklyBingoExpireUnixTimestamp(),
+            DateTimeOffset.UtcNow);
+        return complete ? true : null;
+    }
+
+    /// <summary>
+    /// The normal-raid and alliance-raid weekly-reward state, read from the Duty Finder's selected
+    /// duty while it is open. The finder only exposes the received/max reward count for the
+    /// <i>selected</i> duty, so this reports only when the user has such a duty selected (an
+    /// opportunistic, non-intrusive read — it never opens or drives the window). A weekly-locked duty
+    /// (max &gt; 0) whose reward is received is classed as normal (8-player) or alliance (24-player)
+    /// by party size. Only <see langword="true"/> is ever produced — never a "not done".
+    /// </summary>
+    private (bool? Normal, bool? Alliance) ReadNormalAlliance()
+    {
+        // Live read of the currently-selected duty (when the user has the finder open) plus, as a
+        // fallback, the fresh values a hidden refresh gathered moments ago (≤ 2 min — still server-
+        // fresh; no reward can change outside a duty). Prefer any confident "true" from either source.
+        var (normal, alliance) = ReadNormalAllianceLive();
+        if (_freshNormalAllianceTicks != 0 && Environment.TickCount64 - _freshNormalAllianceTicks < 120_000)
+        {
+            normal ??= _freshNormal;
+            alliance ??= _freshAlliance;
+        }
+
+        return (normal, alliance);
+    }
+
+    /// <summary>
+    /// Reads the weekly reward of the Duty Finder's currently-selected duty (only while it is open),
+    /// classified normal/alliance. One of the two at most (whatever is selected); <see langword="null"/>
+    /// when the finder is closed or the selection is not a done normal/alliance raid.
+    /// </summary>
+    private unsafe (bool? Normal, bool? Alliance) ReadNormalAllianceLive()
+    {
+        var agent = AgentContentsFinder.Instance();
+        if (agent == null || !agent->IsAgentActive())
+        {
+            return (null, null);
+        }
+
+        var dutyId = agent->InterfaceSub.SelectedDutyId;
+        if (dutyId <= 0)
+        {
+            return (null, null);
+        }
+
+        var max = agent->InterfaceSub.GetMaxReceivedRewardCount();
+        var received = agent->InterfaceSub.GetReceivedRewardCount();
+        if (max <= 0 || received < max)
+        {
+            return (null, null); // not weekly-locked, or not yet fully rewarded this week
+        }
+
+        return ClassifyRaidDuty((uint)dutyId) switch
+        {
+            RaidDutyKind.Normal => (true, null),
+            RaidDutyKind.Alliance => (null, true),
+            _ => (null, null),
+        };
+    }
+
+    /// <summary>How a Duty Finder raid maps to the weekly checklist.</summary>
+    private enum RaidDutyKind
+    {
+        /// <summary>Not a normal/alliance raid we track (Savage, a trial, a dungeon, …).</summary>
+        Other,
+
+        /// <summary>An 8-player normal raid → the <c>normal</c> field.</summary>
+        Normal,
+
+        /// <summary>A 24-player alliance raid → the <c>alliance</c> field.</summary>
+        Alliance,
+    }
+
+    /// <summary>Cached <c>InstanceContentId → kind</c> map for normal/alliance raids (built once from Excel).</summary>
+    private Dictionary<uint, RaidDutyKind>? _raidDutyKinds;
+
+    /// <summary>
+    /// Classifies a Duty Finder duty (by its InstanceContent id) as a normal or alliance raid using
+    /// the ContentFinderCondition sheet: a "Raids" duty that is not high-end (Savage) is normal when
+    /// its party is 8-player and alliance when it is 24-player. Built lazily and cached.
+    /// </summary>
+    private RaidDutyKind ClassifyRaidDuty(uint instanceContentId)
+    {
+        _raidDutyKinds ??= BuildRaidDutyKinds();
+        return _raidDutyKinds.GetValueOrDefault(instanceContentId, RaidDutyKind.Other);
+    }
+
+    private Dictionary<uint, RaidDutyKind> BuildRaidDutyKinds()
+    {
+        var map = new Dictionary<uint, RaidDutyKind>();
+        try
+        {
+            var sheet = _data.GetExcelSheet<LuminaCfc>();
+            if (sheet is null)
+            {
+                return map;
+            }
+
+            foreach (var row in sheet)
+            {
+                var contentId = row.Content.RowId;
+                if (contentId == 0 || row.ContentType.RowId != RaidContentType)
+                {
+                    continue;
+                }
+
+                var member = row.ContentMemberType.ValueNullable;
+                // 24-player alliance content registers three parties; normal light-party raids one.
+                var isAlliance = member is { } m && (m.AlliancePartyCount >= 2 || m.PartyCount >= 3);
+                if (isAlliance)
+                {
+                    map[contentId] = RaidDutyKind.Alliance;
+                }
+                else if (!row.HighEndDuty)
+                {
+                    map[contentId] = RaidDutyKind.Normal; // 8-player, non-Savage → normal raid
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Weekly raid classification failed: {ex.GetType().Name}.");
+        }
+
+        return map;
+    }
+
+    /// <summary>
     /// Whether the Savage floor state is fully readable right now — the Raid Finder is open <i>and</i>
     /// its Raids tab is populated with the four current-tier floors. Guards the opportunistic trigger
     /// so it does not fire a frame too early (agent active but the list not yet filled).
@@ -161,6 +344,39 @@ public sealed class GameWeeklySource : IWeeklySource
 
             var tabs = agent->Tabs;
             return tabs.Length > 0 && tabs[0].EntryCount == 4 && tabs[0].Entries[0].InstanceContentId != 0;
+        }
+    }
+
+    /// <summary>
+    /// The InstanceContent id of the Duty Finder's currently-selected duty when it is a normal/alliance
+    /// raid whose weekly reward is already received (i.e. a value <see cref="ReadNormalAlliance"/>
+    /// would report), else <c>0</c>. Lets the plugin edge-trigger a sync when the user selects such a
+    /// duty, without ever opening or driving the window.
+    /// </summary>
+    public unsafe uint SelectedDoneRaidDutyId
+    {
+        get
+        {
+            var agent = AgentContentsFinder.Instance();
+            if (agent == null || !agent->IsAgentActive())
+            {
+                return 0;
+            }
+
+            var dutyId = agent->InterfaceSub.SelectedDutyId;
+            if (dutyId <= 0)
+            {
+                return 0;
+            }
+
+            var max = agent->InterfaceSub.GetMaxReceivedRewardCount();
+            var received = agent->InterfaceSub.GetReceivedRewardCount();
+            if (max <= 0 || received < max)
+            {
+                return 0;
+            }
+
+            return ClassifyRaidDuty((uint)dutyId) is RaidDutyKind.Normal or RaidDutyKind.Alliance ? (uint)dutyId : 0u;
         }
     }
 
@@ -271,7 +487,8 @@ public sealed class GameWeeklySource : IWeeklySource
                 ? "PlayerState null"
                 : $"fauxState={ps->FauxHollowsState} fauxTs={ps->FauxHollowsTimestamp} " +
                   $"bingoJournal={ps->HasWeeklyBingoJournal} bingoStickers={ps->WeeklyBingoNumPlacedStickers} " +
-                  $"bingoSecondChance={ps->WeeklyBingoNumSecondChancePoints}";
+                  $"bingoSecondChance={ps->WeeklyBingoNumSecondChancePoints} " +
+                  $"bingoExpireTs={ps->GetWeeklyBingoExpireUnixTimestamp()} bingoExpired={ps->IsWeeklyBingoExpired()}";
         });
 
         Section(sb, "visibleAddons", () =>
@@ -502,7 +719,9 @@ public sealed class GameWeeklySource : IWeeklySource
             inner.Append($"numCollectedRewards={agent->NumCollectedRewards} ");
             inner.Append($"selDutyId={agent->InterfaceSub.SelectedDutyId} ");
             inner.Append($"recvReward={agent->InterfaceSub.GetReceivedRewardCount()} ");
-            inner.Append($"maxReward={agent->InterfaceSub.GetMaxReceivedRewardCount()}");
+            inner.Append($"maxReward={agent->InterfaceSub.GetMaxReceivedRewardCount()} ");
+            var selForKind = agent->InterfaceSub.SelectedDutyId;
+            inner.Append($"kind={(selForKind > 0 ? ClassifyRaidDuty((uint)selForKind) : RaidDutyKind.Other)}");
 
             var rewardVals = agent->InterfaceSub.UnkMaxReceivedRewardValues;
             inner.Append(" unkRewardVals=[");
@@ -774,6 +993,321 @@ public sealed class GameWeeklySource : IWeeklySource
         {
             _log.Error($"weekopen2 pump failed: {ex.GetType().Name}.");
             _hiddenRefreshStartTicks = 0;
+        }
+    }
+
+    // --- Hidden ContentsFinder refresh (normal / alliance) ----------------------------------------
+    private long _cfRefreshStartTicks; // 0 = idle
+    private long _cfStepTicks;
+    private int _cfStep; // 0 = open normal, 1 = read normal → open alliance, 2 = read alliance → close
+    private uint _cfNormalCfc, _cfNormalIc, _cfAllianceCfc, _cfAllianceIc;
+    private bool _raidTargetsBuilt;
+
+    // Fresh normal/alliance from a hidden refresh (or a live open), trusted ≤ 2 min — see ReadNormalAlliance.
+    private bool? _freshNormal, _freshAlliance;
+    private long _freshNormalAllianceTicks;
+
+    /// <summary>Raised (framework thread) when a hidden ContentsFinder refresh gathered fresh normal/alliance data.</summary>
+    public event Action? ContentsRefreshCompleted;
+
+    /// <summary>Whether any hidden refresh (Savage or normal/alliance) is currently in progress.</summary>
+    public bool IsHiddenBusy => _hiddenRefreshStartTicks != 0 || _cfRefreshStartTicks != 0;
+
+    /// <summary>
+    /// Resolves (once, cached) the current tier's normal and alliance raid — the highest CFC row of
+    /// each kind, i.e. the newest content — so the hidden refresh knows which two duties to load.
+    /// </summary>
+    private void EnsureRaidTargets()
+    {
+        if (_raidTargetsBuilt)
+        {
+            return;
+        }
+
+        _raidTargetsBuilt = true;
+        try
+        {
+            var sheet = _data.GetExcelSheet<LuminaCfc>();
+            if (sheet is null)
+            {
+                return;
+            }
+
+            foreach (var row in sheet)
+            {
+                if (row.Content.RowId == 0 || row.ContentType.RowId != RaidContentType)
+                {
+                    continue;
+                }
+
+                var member = row.ContentMemberType.ValueNullable;
+                var isAlliance = member is { } m && (m.AlliancePartyCount >= 2 || m.PartyCount >= 3);
+                if (isAlliance)
+                {
+                    if (row.RowId > _cfAllianceCfc)
+                    {
+                        (_cfAllianceCfc, _cfAllianceIc) = (row.RowId, row.Content.RowId);
+                    }
+                }
+                else if (!row.HighEndDuty && row.RowId > _cfNormalCfc)
+                {
+                    (_cfNormalCfc, _cfNormalIc) = (row.RowId, row.Content.RowId);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Weekly raid-target resolve failed: {ex.GetType().Name}.");
+        }
+    }
+
+    /// <summary>
+    /// Starts a hidden ContentsFinder refresh: opens the Duty Finder to the current normal and alliance
+    /// raids one after another (suppressing the window), reads each weekly reward, and closes it —
+    /// exposing <c>normal</c>/<c>alliance</c> without the user ever opening the finder. No-op if the
+    /// finder is already open (never hijacks the user), unavailable, or has no targets. Driven per-tick
+    /// by <see cref="PumpContentsFinderRefresh"/>.
+    /// </summary>
+    public unsafe void BeginContentsFinderRefresh()
+    {
+        try
+        {
+            if (!IsAvailable || _cfRefreshStartTicks != 0)
+            {
+                return;
+            }
+
+            var agent = AgentContentsFinder.Instance();
+            if (agent == null || agent->IsAgentActive())
+            {
+                return; // finder already open — the live read covers it; don't take it over
+            }
+
+            EnsureRaidTargets();
+            if (_cfNormalCfc == 0 && _cfAllianceCfc == 0)
+            {
+                return;
+            }
+
+            _freshNormal = null;
+            _freshAlliance = null;
+            _cfStep = 0;
+            _cfRefreshStartTicks = Environment.TickCount64;
+            _cfStepTicks = _cfRefreshStartTicks;
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Contents refresh begin failed: {ex.GetType().Name}.");
+            _cfRefreshStartTicks = 0;
+        }
+    }
+
+    /// <summary>
+    /// Framework-tick pump for <see cref="BeginContentsFinderRefresh"/>: keeps the window suppressed,
+    /// loads normal then alliance via <c>OpenRegularDuty</c>, reads each once it has settled, then
+    /// closes the finder and raises <see cref="ContentsRefreshCompleted"/>. No-op while idle; never
+    /// throws (P2).
+    /// </summary>
+    public unsafe void PumpContentsFinderRefresh()
+    {
+        if (_cfRefreshStartTicks == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var agent = AgentContentsFinder.Instance();
+            if (agent == null)
+            {
+                _cfRefreshStartTicks = 0;
+                return;
+            }
+
+            // Keep the window invisible whenever it exists (it may try to render for a frame or two).
+            var addr = _gameGui.GetAddonByName("ContentsFinder").Address;
+            if (addr != nint.Zero)
+            {
+                ((AtkUnitBase*)addr)->IsVisible = false;
+            }
+
+            var sub = &agent->InterfaceSub;
+            var now = Environment.TickCount64;
+            var stepElapsed = now - _cfStepTicks;
+
+            switch (_cfStep)
+            {
+                case 0: // kick off: load the normal raid (or skip straight to alliance)
+                    if (_cfNormalCfc != 0)
+                    {
+                        agent->OpenRegularDuty(_cfNormalCfc, false);
+                        Advance(1, now);
+                    }
+                    else
+                    {
+                        agent->OpenRegularDuty(_cfAllianceCfc, false);
+                        Advance(2, now);
+                    }
+
+                    break;
+
+                case 1: // normal loading → read it, then load the alliance raid
+                    if ((sub->SelectedDutyId == (int)_cfNormalIc && stepElapsed >= 150) || stepElapsed > 1500)
+                    {
+                        _freshNormal = RewardDone(sub, _cfNormalIc);
+                        if (_cfAllianceCfc != 0)
+                        {
+                            agent->OpenRegularDuty(_cfAllianceCfc, false);
+                            Advance(2, now);
+                        }
+                        else
+                        {
+                            FinishContentsRefresh(agent);
+                        }
+                    }
+
+                    break;
+
+                case 2: // alliance loading → read it, then close
+                    if ((sub->SelectedDutyId == (int)_cfAllianceIc && stepElapsed >= 150) || stepElapsed > 1500)
+                    {
+                        _freshAlliance = RewardDone(sub, _cfAllianceIc);
+                        FinishContentsRefresh(agent);
+                    }
+
+                    break;
+            }
+
+            if (_cfRefreshStartTicks != 0 && now - _cfRefreshStartTicks > 6_000)
+            {
+                _log.Info("Weekly refresh: ContentsFinder timeout — closing.");
+                FinishContentsRefresh(agent);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Contents refresh pump failed: {ex.GetType().Name}.");
+            _cfRefreshStartTicks = 0;
+        }
+    }
+
+    private void Advance(int step, long now)
+    {
+        _cfStep = step;
+        _cfStepTicks = now;
+    }
+
+    /// <summary>Reads whether the just-loaded duty's weekly reward is received (only <c>true</c>/<c>null</c>).</summary>
+    private static unsafe bool? RewardDone(AgentContentsFinderInterface* sub, uint expectedIc)
+    {
+        if (sub->SelectedDutyId != (int)expectedIc)
+        {
+            return null; // never settled — don't trust a mismatched selection
+        }
+
+        var max = sub->GetMaxReceivedRewardCount();
+        return max > 0 && sub->GetReceivedRewardCount() >= max ? true : null;
+    }
+
+    private unsafe void FinishContentsRefresh(AgentContentsFinder* agent)
+    {
+        _freshNormalAllianceTicks = Environment.TickCount64;
+        agent->Hide();
+        _cfRefreshStartTicks = 0;
+        _log.Info($"Weekly refresh: ContentsFinder read (normal={_freshNormal} alliance={_freshAlliance}).");
+        try
+        {
+            ContentsRefreshCompleted?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"ContentsRefreshCompleted handler threw: {ex.GetType().Name}.");
+        }
+    }
+
+    /// <summary>
+    /// Diagnostic experiment for the normal/alliance background read: without opening the Duty Finder
+    /// window, ask its interface to <b>load</b> a specific duty (<c>LoadInstanceContent</c>) and read
+    /// back the weekly received/max reward count. If this returns the right counts with the window
+    /// closed, a fully-automatic background read (analogous to the hidden Savage refresh, but without
+    /// even a window) is possible. Probes the known current-tier ids plus every classified
+    /// normal/alliance raid. Read-only w.r.t. game data; only mutates the finder's selected-duty
+    /// preview state. Never throws (P2).
+    /// </summary>
+    /// <returns>A multi-line status dump for chat/log.</returns>
+    public unsafe string ProbeContentsFinderLoad()
+    {
+        try
+        {
+            if (!IsAvailable)
+            {
+                return "dutyprobe: not logged in.";
+            }
+
+            var agent = AgentContentsFinder.Instance();
+            if (agent == null)
+            {
+                return "dutyprobe: AgentContentsFinder null.";
+            }
+
+            var sub = &agent->InterfaceSub;
+            var sb = new StringBuilder();
+            sb.Append($"dutyprobe: agentActive={agent->IsAgentActive()} addonShown={agent->IsAddonShown()} " +
+                      $"(load a duty into the closed finder, then read its weekly reward)");
+
+            var sheet = _data.GetExcelSheet<LuminaCfc>();
+            if (sheet is null)
+            {
+                return "dutyprobe: no ContentFinderCondition sheet.";
+            }
+
+            // Collect normal + alliance raids, newest first (highest CFC RowId = current tier on top).
+            var raids = new List<(uint Cfc, uint Ic, RaidDutyKind Kind, string Name)>();
+            foreach (var row in sheet)
+            {
+                if (row.Content.RowId == 0 || row.ContentType.RowId != RaidContentType)
+                {
+                    continue;
+                }
+
+                var member = row.ContentMemberType.ValueNullable;
+                var isAlliance = member is { } m && (m.AlliancePartyCount >= 2 || m.PartyCount >= 3);
+                if (isAlliance)
+                {
+                    raids.Add((row.RowId, row.Content.RowId, RaidDutyKind.Alliance, row.Name.ExtractText()));
+                }
+                else if (!row.HighEndDuty)
+                {
+                    raids.Add((row.RowId, row.Content.RowId, RaidDutyKind.Normal, row.Name.ExtractText()));
+                }
+            }
+
+            var ordered = raids.OrderByDescending(r => r.Cfc).ToList();
+            var newestNormal = ordered.FirstOrDefault(r => r.Kind == RaidDutyKind.Normal);
+            var newestAlliance = ordered.FirstOrDefault(r => r.Kind == RaidDutyKind.Alliance);
+
+            foreach (var r in new[] { newestNormal, newestAlliance })
+            {
+                if (r.Cfc == 0)
+                {
+                    continue;
+                }
+
+                // OpenRegularDuty selects the duty (and loads its detail/reward). We read the reward
+                // synchronously right after; a follow-up weekdump ~1s later shows the settled value if
+                // it turns out to load asynchronously.
+                agent->OpenRegularDuty(r.Cfc, false);
+                sb.Append($"\n  OpenRegularDuty(cfc {r.Cfc} ic {r.Ic} {r.Kind} '{r.Name}') → " +
+                          $"sel={sub->SelectedDutyId} recv={sub->GetReceivedRewardCount()} max={sub->GetMaxReceivedRewardCount()}");
+            }
+
+            sb.Append("\n  (if the window popped open, note it; run /bisexport weekdump ~1s later to read the settled reward + kind)");
+            return sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"dutyprobe failed: {ex.GetType().Name}.");
+            return "dutyprobe: failed (see log).";
         }
     }
 

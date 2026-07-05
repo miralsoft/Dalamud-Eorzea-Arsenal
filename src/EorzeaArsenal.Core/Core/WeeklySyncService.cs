@@ -239,10 +239,14 @@ public sealed class WeeklySyncService : IDisposable
 
         Dictionary<string, JsonElement>? serverData;
         var savageLockout = false;
+        var allianceLockout = false;
+        var normalLockout = false;
         if (getResult.IsSuccess)
         {
             serverData = AsObjectMap(getResult.Value!.Data);
             savageLockout = getResult.Value!.SavageLockout;
+            allianceLockout = getResult.Value!.AllianceLockout;
+            normalLockout = getResult.Value!.NormalLockout;
         }
         else if (getResult.Error!.Kind == ApiErrorKind.NotFound)
         {
@@ -256,9 +260,11 @@ public sealed class WeeklySyncService : IDisposable
         var send = new Dictionary<string, object>(StringComparer.Ordinal);
         foreach (var (key, value) in data.Values.Present())
         {
-            // Savage floors (f1..f4) are only tracked when the account opted in — never send them
-            // unless the server confirms savage_lockout, so we don't clobber a disabled section.
-            if (WeeklyProtocol.IsSavageField(key) && !savageLockout)
+            // Lockout-gated fields are only tracked when the account opted in — never send them
+            // unless the server confirms the matching lockout, so we don't clobber a disabled section.
+            if ((WeeklyProtocol.IsSavageField(key) && !savageLockout)
+                || (key == WeeklyProtocol.FieldAlliance && !allianceLockout)
+                || (key == WeeklyProtocol.FieldNormal && !normalLockout))
             {
                 continue;
             }

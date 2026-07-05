@@ -6,6 +6,34 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-05
+
+### Added
+- **Weekly checklist — four more fields.** Building on 0.2.0, the weekly auto-fill now also covers:
+  - **Unreal trial** (`unreal`) — done-this-week, decoded from the Faux Hollows timestamp vs the
+    weekly reset. Background-readable, so it syncs on login/hourly without opening anything.
+  - **Wondrous Tails** (`wondrous`) — a completed book (9/9) that was **bought this week**. Because a
+    book is valid for two weeks and its sticker count stays put after a hand-in, the plugin anchors on
+    the book's own expiry (a this-week book expires beyond the next reset) — so a stale completed book
+    can never be mis-reported the following week. Background-readable, no client-side state.
+  - **Normal raid** (`normal`) and **Alliance raid** (`alliance`) — read from the Duty Finder's
+    weekly-reward count (the game only exposes it for the selected duty), classified as 8-player normal
+    vs 24-player alliance from the duty's party size. Fetched via a **hidden Duty-Finder refresh** — the
+    plugin loads the current tier's normal and alliance raids into the finder with the window suppressed,
+    reads each reward, then closes it (analogous to the Savage refresh) — at login, hourly, on the
+    manual sync, and opportunistically while you have the finder open. Gated on the account's
+    `alliance_lockout` / `normal_lockout`. As with every weekly field, only a confident **done** is
+    ever sent, so a manual web-app entry is never overwritten.
+
+  All four decodes were validated in-game against before/after captures.
+
+### Changed
+- The manual **Sync weekly** action now also kicks off the hidden Savage + Duty-Finder refreshes, so a
+  button press picks up the `f1`–`f4` / `normal` / `alliance` fields too.
+- The `/bisexport weekdump` diagnostic now also reports the Wondrous Tails expiry/expired flags and
+  the classified kind (normal/alliance) of the selected Duty Finder duty. New `/bisexport dutyrefresh`
+  triggers the hidden Duty-Finder refresh on demand; `dutyprobe` is a raw control test.
+
 ## [0.2.0] - 2026-07-02
 
 ### Added

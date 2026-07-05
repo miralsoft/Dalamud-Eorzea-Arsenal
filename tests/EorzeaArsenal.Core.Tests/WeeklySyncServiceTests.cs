@@ -24,14 +24,16 @@ public sealed class WeeklySyncServiceTests
     private static WeeklyData SnapshotWithSavage() => new()
     {
         Character = new CharacterDto { Name = "Sanaka Sundream", World = "Twintania", CidHash = TestData.ExampleHash },
-        Values = new WeeklyValues { TomesHave = 60, F1 = true, F2 = true, F3 = false, F4 = false },
+        Values = new WeeklyValues { TomesHave = 60, F1 = true, F2 = true, F3 = false, F4 = false, Alliance = true, Normal = true },
     };
 
-    private static ApiResult<WeeklyResponse> EmptyServer(bool savageLockout) =>
+    private static ApiResult<WeeklyResponse> EmptyServer(bool savageLockout, bool allianceLockout = false, bool normalLockout = false) =>
         ApiResult<WeeklyResponse>.Ok(new WeeklyResponse
         {
             Data = JsonSerializer.SerializeToElement(new Dictionary<string, object>()),
             SavageLockout = savageLockout,
+            AllianceLockout = allianceLockout,
+            NormalLockout = normalLockout,
         });
 
     private static (WeeklySyncService svc, FakeWeeklySource src, FakeApiClient api, CharacterDirectory dir)
@@ -213,6 +215,42 @@ public sealed class WeeklySyncServiceTests
         Assert.False(items.ContainsKey("f1"));
         Assert.False(items.ContainsKey("f4"));
         Assert.True(items.ContainsKey("tomesHave"));
+    }
+
+    [Fact]
+    public async Task Alliance_and_normal_gated_by_their_lockouts()
+    {
+        var (svc, _, api, _) = Make(snapshot: SnapshotWithSavage());
+        // Only the alliance lockout is on; savage + normal are off.
+        api.EnqueueWeeklyGet(EmptyServer(savageLockout: false, allianceLockout: true, normalLockout: false));
+
+        var report = await Wait(svc, () => svc.RequestSync(WeeklyTrigger.RaidFinder));
+
+        Assert.Equal(WeeklyOutcome.Sent, report.Outcome);
+        var items = api.WeeklyPayloads[0].Items;
+        Assert.True(items.ContainsKey("alliance"));   // its lockout is on
+        Assert.False(items.ContainsKey("normal"));    // its lockout is off
+        Assert.False(items.ContainsKey("f1"));        // savage lockout off
+    }
+
+    [Fact]
+    public async Task Unreal_and_wondrous_are_sent_ungated()
+    {
+        // unreal/wondrous carry no server lockout — they must send even when every lockout is off.
+        var snapshot = new WeeklyData
+        {
+            Character = new CharacterDto { Name = "Sanaka Sundream", World = "Twintania", CidHash = TestData.ExampleHash },
+            Values = new WeeklyValues { Unreal = true, Wondrous = true },
+        };
+        var (svc, _, api, _) = Make(snapshot: snapshot);
+        api.EnqueueWeeklyGet(EmptyServer(savageLockout: false, allianceLockout: false, normalLockout: false));
+
+        var report = await Wait(svc, () => svc.RequestSync(WeeklyTrigger.RaidFinder));
+
+        Assert.Equal(WeeklyOutcome.Sent, report.Outcome);
+        var items = api.WeeklyPayloads[0].Items;
+        Assert.True((bool)items["unreal"]);
+        Assert.True((bool)items["wondrous"]);
     }
 
     [Fact]
