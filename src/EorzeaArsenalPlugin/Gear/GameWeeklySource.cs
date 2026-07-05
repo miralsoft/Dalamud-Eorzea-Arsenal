@@ -9,6 +9,7 @@ using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Component.GUI;
+using LuminaCfc = Lumina.Excel.Sheets.ContentFinderCondition;
 
 namespace EorzeaArsenal.Plugin.Gear;
 
@@ -21,20 +22,34 @@ namespace EorzeaArsenal.Plugin.Gear;
 /// used (<see cref="SatisfactionSupplyManager"/>); a "not done" is never sent, so an un-loaded state
 /// or a manual web-app entry is never clobbered (merge is one-directional here on purpose).</item>
 /// </list>
-/// Everything else (Savage floors, Unreal, Wondrous Tails) is intentionally left unset — its
-/// game-state semantics are not reliable enough to risk overwriting a manual entry. All game-memory
-/// access happens on the framework thread (P1) behind logged-in/null guards (P4); every read is
-/// wrapped so no exception ever reaches the game (P2).
+/// The remaining fields are read where the game exposes them reliably:
+/// <list type="bullet">
+/// <item><b>f1..f4</b> (Savage) — the Raid Finder's per-floor weekly-loot flag (live or via a hidden
+/// refresh).</item>
+/// <item><b>unreal</b> — the Faux Hollows timestamp vs the weekly reset (<see cref="PlayerState"/>,
+/// background-readable).</item>
+/// <item><b>wondrous</b> — a completed Wondrous Tails book whose expiry is beyond the next reset,
+/// i.e. a book bought this week (<see cref="PlayerState"/>, background-readable).</item>
+/// <item><b>normal</b>/<b>alliance</b> — the Duty Finder's weekly-reward count for the selected duty
+/// (only while it is open), classified via the duty's party size.</item>
+/// </list>
+/// Only confident values are set; "not done" is never sent for the soft flags, so a manual web-app
+/// entry is never clobbered. All game-memory access happens on the framework thread (P1) behind
+/// logged-in/null guards (P4); every read is wrapped so no exception ever reaches the game (P2).
 /// </summary>
 public sealed class GameWeeklySource : IWeeklySource
 {
     // Custom Deliveries grant 12 weekly allowances in total.
     private const int CustomWeeklyAllowances = 12;
 
+    // ContentType row id for "Raids" (normal/Savage/alliance all share it); stable game data.
+    private const uint RaidContentType = 5;
+
     private readonly IClientState _clientState;
     private readonly IPlayerState _playerState;
     private readonly IFramework _framework;
     private readonly IGameGui _gameGui;
+    private readonly IDataManager _data;
     private readonly ILog _log;
 
     /// <summary>Creates the game weekly source.</summary>
@@ -42,13 +57,15 @@ public sealed class GameWeeklySource : IWeeklySource
     /// <param name="playerState">Local character identity (name, world, ContentId).</param>
     /// <param name="framework">Framework thread marshaller.</param>
     /// <param name="gameGui">Addon lookup (for the temporary diagnostic probe).</param>
+    /// <param name="data">Excel data access (classifies a Duty Finder duty as normal vs alliance).</param>
     /// <param name="log">Diagnostics sink.</param>
-    public GameWeeklySource(IClientState clientState, IPlayerState playerState, IFramework framework, IGameGui gameGui, ILog log)
+    public GameWeeklySource(IClientState clientState, IPlayerState playerState, IFramework framework, IGameGui gameGui, IDataManager data, ILog log)
     {
         _clientState = clientState;
         _playerState = playerState;
         _framework = framework;
         _gameGui = gameGui;
+        _data = data;
         _log = log;
     }
 
@@ -70,6 +87,7 @@ public sealed class GameWeeklySource : IWeeklySource
             }
 
             var (f1, f2, f3, f4) = ReadSavageFloors();
+            var (normal, alliance) = ReadNormalAlliance();
             var values = new WeeklyValues
             {
                 TomesHave = ReadWeeklyTomes(),
@@ -78,6 +96,10 @@ public sealed class GameWeeklySource : IWeeklySource
                 F2 = f2,
                 F3 = f3,
                 F4 = f4,
+                Unreal = ReadUnreal(),
+                Wondrous = ReadWondrous(),
+                Normal = normal,
+                Alliance = alliance,
             };
 
             return new WeeklyData { Character = character, Values = values };
@@ -145,6 +167,147 @@ public sealed class GameWeeklySource : IWeeklySource
     }
 
     /// <summary>
+    /// Whether the Unreal trial was done this week, read from <c>PlayerState.FauxHollowsTimestamp</c>
+    /// (background-readable). Returns <see langword="true"/> only when confidently done; otherwise
+    /// <see langword="null"/> so a manual web-app entry is never overwritten.
+    /// </summary>
+    private unsafe bool? ReadUnreal()
+    {
+        var ps = PlayerState.Instance();
+        if (ps == null)
+        {
+            return null;
+        }
+
+        return WeeklyDecode.IsUnrealDone(ps->FauxHollowsTimestamp, DateTimeOffset.UtcNow) ? true : null;
+    }
+
+    /// <summary>
+    /// Whether a Wondrous Tails book bought this week is complete, read from <see cref="PlayerState"/>
+    /// (background-readable). A completed book alone is ambiguous (the count stays stale after a
+    /// hand-in and a book is valid two weeks), so <see cref="WeeklyDecode.IsWondrousDone"/> anchors on
+    /// the book's expiry to isolate a this-week book. <see langword="true"/> or <see langword="null"/>.
+    /// </summary>
+    private unsafe bool? ReadWondrous()
+    {
+        var ps = PlayerState.Instance();
+        if (ps == null)
+        {
+            return null;
+        }
+
+        var complete = WeeklyDecode.IsWondrousDone(
+            ps->WeeklyBingoNumPlacedStickers,
+            ps->GetWeeklyBingoExpireUnixTimestamp(),
+            DateTimeOffset.UtcNow);
+        return complete ? true : null;
+    }
+
+    /// <summary>
+    /// The normal-raid and alliance-raid weekly-reward state, read from the Duty Finder's selected
+    /// duty while it is open. The finder only exposes the received/max reward count for the
+    /// <i>selected</i> duty, so this reports only when the user has such a duty selected (an
+    /// opportunistic, non-intrusive read — it never opens or drives the window). A weekly-locked duty
+    /// (max &gt; 0) whose reward is received is classed as normal (8-player) or alliance (24-player)
+    /// by party size. Only <see langword="true"/> is ever produced — never a "not done".
+    /// </summary>
+    private unsafe (bool? Normal, bool? Alliance) ReadNormalAlliance()
+    {
+        var agent = AgentContentsFinder.Instance();
+        if (agent == null || !agent->IsAgentActive())
+        {
+            return (null, null);
+        }
+
+        var dutyId = agent->InterfaceSub.SelectedDutyId;
+        if (dutyId <= 0)
+        {
+            return (null, null);
+        }
+
+        var max = agent->InterfaceSub.GetMaxReceivedRewardCount();
+        var received = agent->InterfaceSub.GetReceivedRewardCount();
+        if (max <= 0 || received < max)
+        {
+            return (null, null); // not weekly-locked, or not yet fully rewarded this week
+        }
+
+        return ClassifyRaidDuty((uint)dutyId) switch
+        {
+            RaidDutyKind.Normal => (true, null),
+            RaidDutyKind.Alliance => (null, true),
+            _ => (null, null),
+        };
+    }
+
+    /// <summary>How a Duty Finder raid maps to the weekly checklist.</summary>
+    private enum RaidDutyKind
+    {
+        /// <summary>Not a normal/alliance raid we track (Savage, a trial, a dungeon, …).</summary>
+        Other,
+
+        /// <summary>An 8-player normal raid → the <c>normal</c> field.</summary>
+        Normal,
+
+        /// <summary>A 24-player alliance raid → the <c>alliance</c> field.</summary>
+        Alliance,
+    }
+
+    /// <summary>Cached <c>InstanceContentId → kind</c> map for normal/alliance raids (built once from Excel).</summary>
+    private Dictionary<uint, RaidDutyKind>? _raidDutyKinds;
+
+    /// <summary>
+    /// Classifies a Duty Finder duty (by its InstanceContent id) as a normal or alliance raid using
+    /// the ContentFinderCondition sheet: a "Raids" duty that is not high-end (Savage) is normal when
+    /// its party is 8-player and alliance when it is 24-player. Built lazily and cached.
+    /// </summary>
+    private RaidDutyKind ClassifyRaidDuty(uint instanceContentId)
+    {
+        _raidDutyKinds ??= BuildRaidDutyKinds();
+        return _raidDutyKinds.GetValueOrDefault(instanceContentId, RaidDutyKind.Other);
+    }
+
+    private Dictionary<uint, RaidDutyKind> BuildRaidDutyKinds()
+    {
+        var map = new Dictionary<uint, RaidDutyKind>();
+        try
+        {
+            var sheet = _data.GetExcelSheet<LuminaCfc>();
+            if (sheet is null)
+            {
+                return map;
+            }
+
+            foreach (var row in sheet)
+            {
+                var contentId = row.Content.RowId;
+                if (contentId == 0 || row.ContentType.RowId != RaidContentType)
+                {
+                    continue;
+                }
+
+                var member = row.ContentMemberType.ValueNullable;
+                // 24-player alliance content registers three parties; normal light-party raids one.
+                var isAlliance = member is { } m && (m.AlliancePartyCount >= 2 || m.PartyCount >= 3);
+                if (isAlliance)
+                {
+                    map[contentId] = RaidDutyKind.Alliance;
+                }
+                else if (!row.HighEndDuty)
+                {
+                    map[contentId] = RaidDutyKind.Normal; // 8-player, non-Savage → normal raid
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Weekly raid classification failed: {ex.GetType().Name}.");
+        }
+
+        return map;
+    }
+
+    /// <summary>
     /// Whether the Savage floor state is fully readable right now — the Raid Finder is open <i>and</i>
     /// its Raids tab is populated with the four current-tier floors. Guards the opportunistic trigger
     /// so it does not fire a frame too early (agent active but the list not yet filled).
@@ -161,6 +324,39 @@ public sealed class GameWeeklySource : IWeeklySource
 
             var tabs = agent->Tabs;
             return tabs.Length > 0 && tabs[0].EntryCount == 4 && tabs[0].Entries[0].InstanceContentId != 0;
+        }
+    }
+
+    /// <summary>
+    /// The InstanceContent id of the Duty Finder's currently-selected duty when it is a normal/alliance
+    /// raid whose weekly reward is already received (i.e. a value <see cref="ReadNormalAlliance"/>
+    /// would report), else <c>0</c>. Lets the plugin edge-trigger a sync when the user selects such a
+    /// duty, without ever opening or driving the window.
+    /// </summary>
+    public unsafe uint SelectedDoneRaidDutyId
+    {
+        get
+        {
+            var agent = AgentContentsFinder.Instance();
+            if (agent == null || !agent->IsAgentActive())
+            {
+                return 0;
+            }
+
+            var dutyId = agent->InterfaceSub.SelectedDutyId;
+            if (dutyId <= 0)
+            {
+                return 0;
+            }
+
+            var max = agent->InterfaceSub.GetMaxReceivedRewardCount();
+            var received = agent->InterfaceSub.GetReceivedRewardCount();
+            if (max <= 0 || received < max)
+            {
+                return 0;
+            }
+
+            return ClassifyRaidDuty((uint)dutyId) is RaidDutyKind.Normal or RaidDutyKind.Alliance ? (uint)dutyId : 0u;
         }
     }
 
@@ -271,7 +467,8 @@ public sealed class GameWeeklySource : IWeeklySource
                 ? "PlayerState null"
                 : $"fauxState={ps->FauxHollowsState} fauxTs={ps->FauxHollowsTimestamp} " +
                   $"bingoJournal={ps->HasWeeklyBingoJournal} bingoStickers={ps->WeeklyBingoNumPlacedStickers} " +
-                  $"bingoSecondChance={ps->WeeklyBingoNumSecondChancePoints}";
+                  $"bingoSecondChance={ps->WeeklyBingoNumSecondChancePoints} " +
+                  $"bingoExpireTs={ps->GetWeeklyBingoExpireUnixTimestamp()} bingoExpired={ps->IsWeeklyBingoExpired()}";
         });
 
         Section(sb, "visibleAddons", () =>
@@ -502,7 +699,9 @@ public sealed class GameWeeklySource : IWeeklySource
             inner.Append($"numCollectedRewards={agent->NumCollectedRewards} ");
             inner.Append($"selDutyId={agent->InterfaceSub.SelectedDutyId} ");
             inner.Append($"recvReward={agent->InterfaceSub.GetReceivedRewardCount()} ");
-            inner.Append($"maxReward={agent->InterfaceSub.GetMaxReceivedRewardCount()}");
+            inner.Append($"maxReward={agent->InterfaceSub.GetMaxReceivedRewardCount()} ");
+            var selForKind = agent->InterfaceSub.SelectedDutyId;
+            inner.Append($"kind={(selForKind > 0 ? ClassifyRaidDuty((uint)selForKind) : RaidDutyKind.Other)}");
 
             var rewardVals = agent->InterfaceSub.UnkMaxReceivedRewardValues;
             inner.Append(" unkRewardVals=[");

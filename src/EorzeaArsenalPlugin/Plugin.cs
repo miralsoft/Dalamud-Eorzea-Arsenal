@@ -71,6 +71,7 @@ public sealed class Plugin : IDalamudPlugin
     private long _nextWeeklyAutoTicks;
     private long _nextRaidFinderCheckTicks;
     private bool _raidFinderWasOpen;
+    private uint _lastContentsFinderDutyId;
     private long _hiddenRefreshDueTicks; // 0 = none scheduled
     private long _nextHiddenRefreshTryTicks;
     private string? _lastRetainerScope;
@@ -136,7 +137,7 @@ public sealed class Plugin : IDalamudPlugin
         var api = new ApiClient(_httpClient, _store);
         _gearSource = new GameGearSource(clientState, playerState, framework, dataManager, _log);
         _inventorySource = new GameInventorySource(clientState, playerState, framework, dataManager, _log);
-        _weeklySource = new GameWeeklySource(clientState, playerState, framework, gameGui, _log);
+        _weeklySource = new GameWeeklySource(clientState, playerState, framework, gameGui, dataManager, _log);
         _connection = new ConnectionService(api, _store, new RealDelay(), _log);
 
         // Learns cid_hash → server character_id from push responses (persisted); the weekly sync needs
@@ -514,6 +515,17 @@ public sealed class Plugin : IDalamudPlugin
             }
 
             _raidFinderWasOpen = raidFinderOpen;
+
+            // Same idea for normal/alliance raids: the Duty Finder only exposes the weekly-reward count
+            // for the selected duty, so sync each time the user selects a different done normal/alliance
+            // raid (diff-based; a stale/unchanged selection or a closed finder writes nothing).
+            var dutyId = _weeklySource.SelectedDoneRaidDutyId;
+            if (dutyId != 0 && dutyId != _lastContentsFinderDutyId)
+            {
+                _weeklySync.RequestSync(WeeklyTrigger.RaidFinder);
+            }
+
+            _lastContentsFinderDutyId = dutyId;
         }
 
         if (_config.PushOnGearsetChange)

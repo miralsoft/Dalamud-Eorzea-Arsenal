@@ -28,9 +28,24 @@ public sealed class WeeklyValues
     /// <summary>Savage floor 4 weekly loot obtained this week, or <see langword="null"/> if unknown.</summary>
     public bool? F4 { get; init; }
 
+    /// <summary>Alliance-raid weekly reward obtained this week, or <see langword="null"/> if unknown.</summary>
+    public bool? Alliance { get; init; }
+
+    /// <summary>Normal-raid weekly clear done this week, or <see langword="null"/> if unknown.</summary>
+    public bool? Normal { get; init; }
+
+    /// <summary>Unreal trial done this week, or <see langword="null"/> if unknown.</summary>
+    public bool? Unreal { get; init; }
+
+    /// <summary>Wondrous Tails completed this week, or <see langword="null"/> if unknown.</summary>
+    public bool? Wondrous { get; init; }
+
     /// <summary>Whether no field could be determined (nothing to send).</summary>
     public bool IsEmpty =>
-        TomesHave is null && Custom is null && F1 is null && F2 is null && F3 is null && F4 is null;
+        TomesHave is null && Custom is null &&
+        F1 is null && F2 is null && F3 is null && F4 is null &&
+        Alliance is null && Normal is null &&
+        Unreal is null && Wondrous is null;
 
     /// <summary>
     /// Enumerates the fields that are known, as <c>(wireKey, boxedValue)</c> pairs using the literal
@@ -67,6 +82,26 @@ public sealed class WeeklyValues
         if (F4 is bool f4)
         {
             yield return new KeyValuePair<string, object>(WeeklyProtocol.FieldF4, f4);
+        }
+
+        if (Alliance is bool alliance)
+        {
+            yield return new KeyValuePair<string, object>(WeeklyProtocol.FieldAlliance, alliance);
+        }
+
+        if (Normal is bool normal)
+        {
+            yield return new KeyValuePair<string, object>(WeeklyProtocol.FieldNormal, normal);
+        }
+
+        if (Unreal is bool unreal)
+        {
+            yield return new KeyValuePair<string, object>(WeeklyProtocol.FieldUnreal, unreal);
+        }
+
+        if (Wondrous is bool wondrous)
+        {
+            yield return new KeyValuePair<string, object>(WeeklyProtocol.FieldWondrous, wondrous);
         }
     }
 }
@@ -110,6 +145,12 @@ public sealed class WeeklyResponse
 
     /// <summary>Whether Savage-floor fields (<c>f1</c>..<c>f4</c>) are tracked for this account.</summary>
     public bool SavageLockout { get; init; }
+
+    /// <summary>Whether the alliance-raid field (<c>alliance</c>) is tracked for this account.</summary>
+    public bool AllianceLockout { get; init; }
+
+    /// <summary>Whether the normal-raid field (<c>normal</c>) is tracked for this account.</summary>
+    public bool NormalLockout { get; init; }
 }
 
 /// <summary>Success body of <c>PUT …/weekly</c>: <c>{ "status":"ok", "week":"…", "data":{ …merged… } }</c>.</summary>
@@ -151,6 +192,18 @@ public static class WeeklyProtocol
 
     /// <summary>Item key: Savage floor 4 weekly loot obtained.</summary>
     public const string FieldF4 = "f4";
+
+    /// <summary>Item key: alliance-raid weekly reward obtained.</summary>
+    public const string FieldAlliance = "alliance";
+
+    /// <summary>Item key: normal-raid weekly clear done.</summary>
+    public const string FieldNormal = "normal";
+
+    /// <summary>Item key: Unreal trial done this week.</summary>
+    public const string FieldUnreal = "unreal";
+
+    /// <summary>Item key: Wondrous Tails completed this week.</summary>
+    public const string FieldWondrous = "wondrous";
 
     /// <summary>Upper bound for <see cref="FieldTomesHave"/> (the weekly tomestone cap).</summary>
     public const int MaxTomes = 450;

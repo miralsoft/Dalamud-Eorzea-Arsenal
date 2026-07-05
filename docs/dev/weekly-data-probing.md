@@ -17,8 +17,40 @@ re-derive this from scratch.
 | `tomesHave` | `InventoryManager.GetWeeklyAcquiredTomestoneCount()` (+ `GetLimitedTomestoneWeeklyLimit()`) | Solid, public API. |
 | `custom` | `SatisfactionSupplyManager.GetUsedAllowances()` / `GetRemainingAllowances()` | `custom=true` only when `used+remaining==12 && remaining==0`. Only ever sends `true`. |
 | `f1`–`f4` (Savage) | `AgentRaidFinder.Instance()->Tabs[0]` (the "Raids" tab) → `TabEntryData[i]` → **`UnkFlags1` (struct offset 16) bit 2 (`& 0x04`)** | `bit 2 = weekly reward obtained this week`. **Internal/undocumented flag** — the highest patch-risk item. |
-| `unreal` | *(not yet implemented)* likely `AgentRaidFinder.Tabs[1]` (Trials) entry with `icId 64013`, same `UnkFlags1 & 0x04` | Awaiting an in-game Unreal clear to confirm the bit flips. |
-| `wondrous` | *(not decoded)* | `PlayerState.WeeklyBingo*` fields readable, "handed in this week" semantics undecoded. |
+| `unreal` | `PlayerState.FauxHollowsTimestamp` ≥ most-recent weekly reset (`WeeklyDecode.IsUnrealDone`) | Background-readable. **Not** the Raid-Finder LOOT bit — the Unreal trial entry (`tab1` `icId 64013`) stays `LOOT=False` even when done (its reward is the Faux Hollows board, not the trial drop). |
+| `wondrous` | `PlayerState.WeeklyBingoNumPlacedStickers == 9` **and** `GetWeeklyBingoExpireUnixTimestamp()` > next weekly reset (`WeeklyDecode.IsWondrousDone`) | Background-readable, stateless. See §1.1. |
+| `normal` / `alliance` | `AgentContentsFinder.InterfaceSub` `GetReceivedRewardCount() >= GetMaxReceivedRewardCount()` for the **selected** duty; classified normal (8-player) vs alliance (24-player) via `ContentFinderCondition` | Duty Finder only exposes the selected duty, so read opportunistically while it is open. Gated on `normal_lockout` / `alliance_lockout`. |
+
+### 1.1 The `wondrous` two-week-book subtlety (validated 2026-07-05)
+A Wondrous Tails journal is valid for **two weeks** (`expiry = the reset of its purchase week + 14
+days`), and the sticker count **stays stale at 9 after a hand-in** until a new book is picked up. So
+`stickers == 9` alone is ambiguous: read at the start of the following week it would falsely report
+"done". The fix is stateless and needs no client persistence — anchor on the book's own expiry:
+
+- A book bought **this** week expires `> next reset` (this week's reset + 14 d = next reset + 7 d).
+- A carried-over book bought **last** week expires **at** the next reset — excluded by `> next reset`.
+
+Hence `wondrous = (stickers == 9) && (expireTs > nextWeeklyReset)`. Confirmed against a live capture:
+completed book, `bingoExpireTs = 1784016000` (Tue 2026-07-14 08:00), next reset 2026-07-07 → done;
+the same stale value read the following week no longer satisfies `> next reset`. `bingoExpired` /
+`HasWeeklyBingoJournal` are **not** used (both mislead: expiry stays in the future after a hand-in,
+and the journal flag is false both before buying and after handing in).
+
+### `unreal` — the Faux Hollows timestamp (validated 2026-07-05)
+`PlayerState.FauxHollowsTimestamp` jumps to a within-current-week value when the Unreal is engaged and
+stays put through the whole run, so `fauxTs >= mostRecentReset` means "done this week". The Raid-Finder
+LOOT bit is a red herring here — `tab1 icId 64013` reads `LOOT=False` even when fully done.
+
+### `normal` / `alliance` — the Duty Finder reward count (validated 2026-07-05)
+`AgentContentsFinder.InterfaceSub.GetReceivedRewardCount()` for the **selected** duty went `0 → 1`
+(normal R4, max 1) and `0 → 3` (alliance Windurst, max 3) on clearing — one clear fills the duty to
+its max, so `received >= max` is the uniform "done" test. The finder only exposes the *selected* duty
+(no per-list reward), so this is read opportunistically while the window is open (edge-triggered on the
+selected duty changing to a done normal/alliance raid). Classification is by party size from
+`ContentFinderCondition` (`ContentType == Raids`, `ContentMemberType.AlliancePartyCount` /
+`PartyCount` ⇒ 24-player alliance vs 8-player normal; `HighEndDuty` excludes Savage). Fully-automatic
+background reading would require driving the Duty Finder to select each duty — deliberately **not**
+done (too intrusive); a safe hidden-refresh for it is possible future work.
 
 ### The Savage "background" trick (the important one)
 The Savage per-floor loot state is **not** stored persistently on the client. The Raid-Finder agent
@@ -55,9 +87,10 @@ cutscene) and by the server GET's `savage_lockout`.
 All are subcommands of `/bisexport`, log to the diagnostics window (`/bisexport log`), and touch no
 sync state:
 
-- **`/bisexport weekdump`** — one big read-only dump: tomes, custom, unreal/wondrous fields, all
-  visible addon names, the Raid-Finder tabs with per-entry `LOOT=<bit2>`/`f1`/raw bytes, plus
-  experimental memory regions (`icHeap`, `icDiff` self-diff, `weeklyLockout`, `uiStateRegions`).
+- **`/bisexport weekdump`** — one big read-only dump: tomes, custom, unreal/wondrous fields (incl.
+  `bingoExpireTs`/`bingoExpired`), all visible addon names, the Duty Finder's selected-duty reward
+  counts and classified `kind=`, the Raid-Finder tabs with per-entry `LOOT=<bit2>`/`f1`/raw bytes,
+  plus experimental memory regions (`icHeap`, `icDiff` self-diff, `weeklyLockout`, `uiStateRegions`).
 - **`/bisexport weekopen`** — `Show()` + instant `Hide()` (proved insufficient — kept as a negative
   control).
 - **`/bisexport weekshow`** — `Show()` visibly (manual control test).

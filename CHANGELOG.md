@@ -6,6 +6,29 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-05
+
+### Added
+- **Weekly checklist — four more fields.** Building on 0.2.0, the weekly auto-fill now also covers:
+  - **Unreal trial** (`unreal`) — done-this-week, decoded from the Faux Hollows timestamp vs the
+    weekly reset. Background-readable, so it syncs on login/hourly without opening anything.
+  - **Wondrous Tails** (`wondrous`) — a completed book (9/9) that was **bought this week**. Because a
+    book is valid for two weeks and its sticker count stays put after a hand-in, the plugin anchors on
+    the book's own expiry (a this-week book expires beyond the next reset) — so a stale completed book
+    can never be mis-reported the following week. Background-readable, no client-side state.
+  - **Normal raid** (`normal`) and **Alliance raid** (`alliance`) — read from the Duty Finder's
+    weekly-reward count for the **selected** duty (the game only exposes it there), classified as
+    8-player normal vs 24-player alliance from the duty's party size. Read opportunistically while the
+    Duty Finder is open — never opened or driven by the plugin — and gated on the account's
+    `alliance_lockout` / `normal_lockout`. As with every weekly field, only a confident **done** is
+    ever sent, so a manual web-app entry is never overwritten.
+
+  All four decodes were validated in-game against before/after captures.
+
+### Changed
+- The `/bisexport weekdump` diagnostic now also reports the Wondrous Tails expiry/expired flags and
+  the classified kind (normal/alliance) of the selected Duty Finder duty, for patch re-verification.
+
 ## [0.2.0] - 2026-07-02
 
 ### Added

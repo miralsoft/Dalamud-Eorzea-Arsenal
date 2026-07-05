@@ -31,10 +31,11 @@ manual web-app markings are never touched. Both opt-ins are **off by default** a
 `inventory:write` key (reconnect if an upload reports a 403).
 
 It can **optionally** also fill your **weekly checklist** automatically: weekly tomestones, Custom
-Deliveries and per-floor **Savage loot** are read from the game and merged into the web app so you
-never have to tick them by hand. It only ever sends values it can read with certainty and only what
-changed, so your manual entries are never overwritten. This opt-in is **off by default** and needs a
-key with `characters:write` + `gear:read`.
+Deliveries, per-floor **Savage loot**, the **Unreal** trial, **Wondrous Tails**, and the **normal**
+and **alliance** raid clears are read from the game and merged into the web app so you never have to
+tick them by hand. It only ever sends values it can read with certainty and only what changed, so
+your manual entries are never overwritten. This opt-in is **off by default** and needs a key with
+`characters:write` + `gear:read`.
 
 ## Install (custom plugin repository)
 
