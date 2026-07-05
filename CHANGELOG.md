@@ -17,17 +17,22 @@ All notable changes to this project are documented here. The format is based on
     the book's own expiry (a this-week book expires beyond the next reset) — so a stale completed book
     can never be mis-reported the following week. Background-readable, no client-side state.
   - **Normal raid** (`normal`) and **Alliance raid** (`alliance`) — read from the Duty Finder's
-    weekly-reward count for the **selected** duty (the game only exposes it there), classified as
-    8-player normal vs 24-player alliance from the duty's party size. Read opportunistically while the
-    Duty Finder is open — never opened or driven by the plugin — and gated on the account's
+    weekly-reward count (the game only exposes it for the selected duty), classified as 8-player normal
+    vs 24-player alliance from the duty's party size. Fetched via a **hidden Duty-Finder refresh** — the
+    plugin loads the current tier's normal and alliance raids into the finder with the window suppressed,
+    reads each reward, then closes it (analogous to the Savage refresh) — at login, hourly, on the
+    manual sync, and opportunistically while you have the finder open. Gated on the account's
     `alliance_lockout` / `normal_lockout`. As with every weekly field, only a confident **done** is
     ever sent, so a manual web-app entry is never overwritten.
 
   All four decodes were validated in-game against before/after captures.
 
 ### Changed
+- The manual **Sync weekly** action now also kicks off the hidden Savage + Duty-Finder refreshes, so a
+  button press picks up the `f1`–`f4` / `normal` / `alliance` fields too.
 - The `/bisexport weekdump` diagnostic now also reports the Wondrous Tails expiry/expired flags and
-  the classified kind (normal/alliance) of the selected Duty Finder duty, for patch re-verification.
+  the classified kind (normal/alliance) of the selected Duty Finder duty. New `/bisexport dutyrefresh`
+  triggers the hidden Duty-Finder refresh on demand; `dutyprobe` is a raw control test.
 
 ## [0.2.0] - 2026-07-02
 

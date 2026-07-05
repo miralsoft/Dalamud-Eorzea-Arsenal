@@ -74,6 +74,8 @@ public sealed class Plugin : IDalamudPlugin
     private uint _lastContentsFinderDutyId;
     private long _hiddenRefreshDueTicks; // 0 = none scheduled
     private long _nextHiddenRefreshTryTicks;
+    private long _contentsRefreshDueTicks; // 0 = none scheduled
+    private long _nextContentsRefreshTryTicks;
     private string? _lastRetainerScope;
     private bool _bisLoadPending;
     private ulong _lastStoredSig;
@@ -155,6 +157,7 @@ public sealed class Plugin : IDalamudPlugin
         _weeklySync = new WeeklySyncService(_weeklySource, api, _store, _characterDirectory, new SystemClock(), _log);
         _weeklySync.SyncCompleted += OnWeeklyCompleted;
         _weeklySource.HiddenRefreshCompleted += OnHiddenRefreshCompleted;
+        _weeklySource.ContentsRefreshCompleted += OnHiddenRefreshCompleted;
         _bisService = new BisService(api, _gearSource, _store, _log);
 
         _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, Save, LinkItemInChat);
@@ -202,6 +205,7 @@ public sealed class Plugin : IDalamudPlugin
         _inventorySync.SyncCompleted -= OnInventoryCompleted;
         _inventorySync.Dispose();
         _weeklySource.HiddenRefreshCompleted -= OnHiddenRefreshCompleted;
+        _weeklySource.ContentsRefreshCompleted -= OnHiddenRefreshCompleted;
         _weeklySync.SyncCompleted -= OnWeeklyCompleted;
         _weeklySync.Dispose();
         _characterDirectory.Changed -= OnCharacterDirectoryChanged;
@@ -273,6 +277,25 @@ public sealed class Plugin : IDalamudPlugin
             case "weekshow":
                 // Control variant: same trigger but visibly (close manually).
                 _ = _framework.RunOnFrameworkThread(() => Chat(_weeklySource.TriggerRaidFinderLoad(keepVisible: true)));
+                break;
+            case "dutyprobe":
+                // Raw probe: load the current normal/alliance raids and read their reward (leaves the
+                // window open — kept as a control test).
+                _ = _framework.RunOnFrameworkThread(() =>
+                {
+                    var dump = _weeklySource.ProbeContentsFinderLoad();
+                    _log.Info(dump);
+                    Chat("Duty-load probe written to the log (/bisexport log).");
+                });
+                break;
+            case "dutyrefresh":
+                // The real thing: the hidden Duty-Finder refresh — suppress the window, read normal +
+                // alliance, close it. Watch the log for "ContentsFinder read (normal=… alliance=…)".
+                _ = _framework.RunOnFrameworkThread(() =>
+                {
+                    _weeklySource.BeginContentsFinderRefresh();
+                    Chat("Hidden Duty-Finder refresh started — watch the log (/bisexport log).");
+                });
                 break;
             default:
                 RequestManualPush();
@@ -374,6 +397,12 @@ public sealed class Plugin : IDalamudPlugin
 
         Chat(_localizer.Get(LocKeys.WeeklyStarted));
         _weeklySync.RequestSync(WeeklyTrigger.Manual);
+
+        // The manual sync reads the current state immediately (tomes/custom/unreal/wondrous), but the
+        // Savage and normal/alliance fields live only in the finders — kick off both hidden refreshes
+        // too so a button press picks them up as well (their completion fires a follow-up diff-sync).
+        _hiddenRefreshDueTicks = Environment.TickCount64;
+        _contentsRefreshDueTicks = Environment.TickCount64;
     }
 
     private void OnLogin()
@@ -405,8 +434,10 @@ public sealed class Plugin : IDalamudPlugin
             _weeklySync.RequestSync(WeeklyTrigger.Login);
 
             // Also fetch the Savage floor state via the invisible Raid-Finder refresh, once the
-            // session has settled (the tick performs it when the character is out of combat/duty).
+            // session has settled (the tick performs it when the character is out of combat/duty), then
+            // the normal/alliance state via the invisible Duty-Finder refresh (staggered after it).
             _hiddenRefreshDueTicks = Environment.TickCount64 + 10_000;
+            _contentsRefreshDueTicks = Environment.TickCount64 + 12_000;
         }
 
         // Auto-load BiS for the new session so the window/overlay have current data without a manual
@@ -428,8 +459,10 @@ public sealed class Plugin : IDalamudPlugin
     {
         var now = Environment.TickCount64;
 
-        // Temporary experiment driver (no-op while idle): the hidden Raid-Finder refresh probe.
+        // Hidden-refresh drivers (no-op while idle): the Raid-Finder (Savage) and Duty-Finder
+        // (normal/alliance) background reads.
         _weeklySource.PumpHiddenRefresh();
+        _weeklySource.PumpContentsFinderRefresh();
 
         if (now >= _nextDtrUpdateTicks)
         {
@@ -487,6 +520,7 @@ public sealed class Plugin : IDalamudPlugin
             // Raid-Finder request); its completion triggers a follow-up diff-sync with fresh floors.
             _nextWeeklyAutoTicks = now + 3_600_000;
             _hiddenRefreshDueTicks = now;
+            _contentsRefreshDueTicks = now;
             _weeklySync.RequestSync(WeeklyTrigger.Auto);
         }
 
@@ -499,6 +533,18 @@ public sealed class Plugin : IDalamudPlugin
             {
                 _hiddenRefreshDueTicks = 0;
                 _weeklySource.BeginHiddenRefresh();
+            }
+        }
+
+        // Same for the normal/alliance Duty-Finder refresh; the IsHiddenBusy guard sequences it after
+        // the Savage refresh so the two never drive a window at once.
+        if (_config.SyncWeekly && _contentsRefreshDueTicks != 0 && now >= _contentsRefreshDueTicks && now >= _nextContentsRefreshTryTicks)
+        {
+            _nextContentsRefreshTryTicks = now + 5_000;
+            if (CanHiddenRefresh() && !_weeklySource.IsHiddenBusy)
+            {
+                _contentsRefreshDueTicks = 0;
+                _weeklySource.BeginContentsFinderRefresh();
             }
         }
 
@@ -708,7 +754,7 @@ public sealed class Plugin : IDalamudPlugin
         && !_condition[ConditionFlag.OccupiedInCutSceneEvent]
         && !_condition[ConditionFlag.WatchingCutscene];
 
-    /// <summary>A hidden refresh just delivered fresh Savage data — sync it (diff-based, quiet).</summary>
+    /// <summary>A hidden refresh (Savage or normal/alliance) delivered fresh data — sync it (diff-based, quiet).</summary>
     private void OnHiddenRefreshCompleted()
     {
         if (_config is { Enabled: true, TosAccepted: true, SyncWeekly: true } && _store.HasKey && CurrentCharacterAllowed())

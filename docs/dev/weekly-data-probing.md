@@ -45,12 +45,21 @@ LOOT bit is a red herring here — `tab1 icId 64013` reads `LOOT=False` even whe
 `AgentContentsFinder.InterfaceSub.GetReceivedRewardCount()` for the **selected** duty went `0 → 1`
 (normal R4, max 1) and `0 → 3` (alliance Windurst, max 3) on clearing — one clear fills the duty to
 its max, so `received >= max` is the uniform "done" test. The finder only exposes the *selected* duty
-(no per-list reward), so this is read opportunistically while the window is open (edge-triggered on the
-selected duty changing to a done normal/alliance raid). Classification is by party size from
-`ContentFinderCondition` (`ContentType == Raids`, `ContentMemberType.AlliancePartyCount` /
-`PartyCount` ⇒ 24-player alliance vs 8-player normal; `HighEndDuty` excludes Savage). Fully-automatic
-background reading would require driving the Duty Finder to select each duty — deliberately **not**
-done (too intrusive); a safe hidden-refresh for it is possible future work.
+(no per-list reward). Classification is by party size from `ContentFinderCondition` (`ContentType ==
+Raids`, `ContentMemberType.AlliancePartyCount` / `PartyCount` ⇒ 24-player alliance vs 8-player normal;
+`HighEndDuty` excludes Savage; the current tier's = the highest CFC RowId of each kind).
+
+**Hidden Duty-Finder refresh** (`BeginContentsFinderRefresh` / `PumpContentsFinderRefresh`): since the
+reward is per-selected-duty, the plugin drives the finder itself — `AgentContentsFinder.OpenRegularDuty(cfcId,
+hideIfShown: false)` selects a duty (loading its reward **synchronously** — no queueing) — for the
+current normal raid, then the current alliance raid, with the `ContentsFinder` addon's `IsVisible`
+suppressed each tick, then `Hide()`s the agent. The two reads land in a 2-minute fresh cache and raise
+`ContentsRefreshCompleted` → sync. Runs at login (+12 s, staggered after the Savage refresh), hourly,
+on the manual sync, and it also live-reads the selected duty while you have the finder open. The
+`IsHiddenBusy` guard keeps the Savage and Duty-Finder refreshes from driving a window at once. (Note:
+`InterfaceSub.LoadInstanceContent`/`LoadContentFinderCondition` take a **byte list index**, not an id —
+`OpenRegularDuty(uint)` is the id-addressable entry point.) Minor side effect: the finder's remembered
+selection becomes the last-loaded duty.
 
 ### The Savage "background" trick (the important one)
 The Savage per-floor loot state is **not** stored persistently on the client. The Raid-Finder agent
@@ -94,8 +103,13 @@ sync state:
 - **`/bisexport weekopen`** — `Show()` + instant `Hide()` (proved insufficient — kept as a negative
   control).
 - **`/bisexport weekshow`** — `Show()` visibly (manual control test).
-- **`/bisexport weekopen2`** — the **working** hidden refresh: show, suppress the window, wait, log
-  `Weekly refresh: Savage data arrived after Xms (f1=… …)`.
+- **`/bisexport weekopen2`** — the **working** hidden Savage refresh: show, suppress the window, wait,
+  log `Weekly refresh: Savage data arrived after Xms (f1=… …)`.
+- **`/bisexport dutyrefresh`** — the **working** hidden normal/alliance refresh: loads the current
+  normal + alliance raids into the suppressed Duty Finder, logs
+  `Weekly refresh: ContentsFinder read (normal=… alliance=…)`, closes it.
+- **`/bisexport dutyprobe`** — raw control test: `OpenRegularDuty` the current normal/alliance raids
+  and dump their reward (leaves the window open).
 
 `icDiff` remembers the previous run's buffers and prints only changed bytes — the fastest way to find
 "which byte moved when I looted a floor" without eyeballing kilobytes of hex.
