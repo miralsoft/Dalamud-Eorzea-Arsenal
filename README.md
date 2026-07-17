@@ -20,7 +20,7 @@ then push gear**.
 - Shows an in-game **"Gear vs BiS"** comparison window and a hover overlay, plus a compact status
   entry in the **server-info bar** (DTR) — time since last push, click to open the status window
   (toggleable).
-- A **diagnostics log window** (`/bisexport log`) with copy/clear for support.
+- A **diagnostics log window** (`/xivarsenal log`) with copy/clear for support.
 - Bilingual UI (**Deutsch / English**).
 
 It can **optionally** also upload which **owned, equippable items** you have — equipped, armoury,
@@ -37,7 +37,7 @@ tick them by hand. It only ever sends values it can read with certainty and only
 your manual entries are never overwritten. This opt-in is **off by default** and needs a key with
 `characters:write` + `gear:read`.
 
-It also offers an optional **Teams companion** (`/bisexport teams` or the hub button): your teams'
+It also offers an optional **Teams companion** (`/xivarsenal teams` or the hub button): your teams'
 **calendar** with in-game **RSVP**, **mit cheat sheets**, a **content hub** (images shown inline,
 links/PDFs open in the browser), the **farm** overview (who needs what), **FFLogs**, and your own
 **absence** management — plus in-game **toasts** (with sound and a clickable link) for new loot, event
@@ -78,8 +78,8 @@ The issued key is **write-only (`gear:write`)** — it can do nothing except pus
 
 ## Usage
 
-- Run **`/bisexport`** to push all your gearsets. `/bisexport status` opens the status window,
-  `/bisexport config` the settings.
+- Run **`/xivarsenal`** to push all your gearsets. `/xivarsenal status` opens the status window,
+  `/xivarsenal config` the settings.
 - The **status window** (Main UI button) shows the last push, its result, a rate-limit countdown,
   and quick actions: **push now**, **preview what will be sent**, **open web app**.
 - Optionally enable **Push on login**, **Push automatically** and **Push on gearset change**

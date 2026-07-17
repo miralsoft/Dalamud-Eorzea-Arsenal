@@ -13,7 +13,7 @@ public static class LocKeys
     /// <summary>Config window title.</summary>
     public const string ConfigWindowTitle = "window.config.title";
 
-    /// <summary>Help text for the /bisexport command.</summary>
+    /// <summary>Help text for the /xivarsenal command.</summary>
     public const string CommandHelp = "command.help";
 
     /// <summary>"Language" label.</summary>

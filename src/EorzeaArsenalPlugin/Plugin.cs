@@ -27,7 +27,7 @@ namespace EorzeaArsenal.Plugin;
 /// </summary>
 public sealed class Plugin : IDalamudPlugin
 {
-    private const string CommandName = "/bisexport";
+    private const string CommandName = "/xivarsenal";
     private const string ChatPrefix = "[Eorzea Arsenal] ";
 
     private readonly IDalamudPluginInterface _pluginInterface;
@@ -314,7 +314,7 @@ public sealed class Plugin : IDalamudPlugin
                 {
                     var dump = _weeklySource.ProbeContentsFinderLoad();
                     _log.Info(dump);
-                    Chat("Duty-load probe written to the log (/bisexport log).");
+                    Chat("Duty-load probe written to the log (/xivarsenal log).");
                 });
                 break;
             case "dutyrefresh":
@@ -323,7 +323,7 @@ public sealed class Plugin : IDalamudPlugin
                 _ = _framework.RunOnFrameworkThread(() =>
                 {
                     _weeklySource.BeginContentsFinderRefresh();
-                    Chat("Hidden Duty-Finder refresh started — watch the log (/bisexport log).");
+                    Chat("Hidden Duty-Finder refresh started — watch the log (/xivarsenal log).");
                 });
                 break;
             default:
@@ -391,13 +391,13 @@ public sealed class Plugin : IDalamudPlugin
     /// <summary>
     /// Developer probe: reads the candidate weekly values via the game's own APIs on the framework
     /// thread and writes them to the diagnostics log so their meaning can be confirmed / re-verified
-    /// after a game patch. Triggered by <c>/bisexport weekdump</c> (see docs/dev/weekly-data-probing.md).
+    /// after a game patch. Triggered by <c>/xivarsenal weekdump</c> (see docs/dev/weekly-data-probing.md).
     /// </summary>
     private void RunWeeklyProbe() => _ = _framework.RunOnFrameworkThread(() =>
     {
         var dump = _weeklySource.ReadRawWeeklyDiagnostics();
         _log.Info(dump);
-        Chat("Weekly probe written to the log (open it via the log button / /bisexport log).");
+        Chat("Weekly probe written to the log (open it via the log button / /xivarsenal log).");
     });
 
     /// <summary>Triggers a manual weekly-checklist sync, gated like the gear push.</summary>

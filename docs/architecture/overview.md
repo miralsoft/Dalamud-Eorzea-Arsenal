@@ -44,7 +44,7 @@ hold no domain logic (R10/R11).
 ## Data flow (push)
 
 ```
-/bisexport | login | change | timer
+/xivarsenal | login | change | timer
         │
         ▼
 GearSyncService.RequestPush(trigger)      ── coalesces into a single background loop (P11)

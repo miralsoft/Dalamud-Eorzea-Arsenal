@@ -9,7 +9,7 @@ All notable changes to this project are documented here. The format is based on
 ## [0.4.0] - 2026-07-17
 
 ### Added
-- **Teams companion (opt-in).** A new in-game window (hub button, `/bisexport teams`) that mirrors your
+- **Teams companion (opt-in).** A new in-game window (hub button, `/xivarsenal teams`) that mirrors your
   teams from the web app — read-only rendering; the server owns all logic. Off by default; needs a key
   with **`teams:read`** (+ **`teams:write`** for the two writes). Existing keys auto-upgrade on the next
   call. Covers:
@@ -30,6 +30,11 @@ All notable changes to this project are documented here. The format is based on
 - Polls the calendar + notifications at most every ~5 minutes; the content hub, farm and FFLogs load on
   demand. Never writes anything but your own RSVP and your own absence; a server `403`/`404` is shown,
   never worked around.
+
+### Changed
+- **The chat command is now `/xivarsenal`** (was `/bisexport`) — the plugin long outgrew a pure BiS
+  export. All subcommands are unchanged (`/xivarsenal status | config | teams | log | …`). The old
+  `/bisexport` command has been removed.
 
 ## [0.3.0] - 2026-07-05
 
@@ -55,8 +60,8 @@ All notable changes to this project are documented here. The format is based on
 ### Changed
 - The manual **Sync weekly** action now also kicks off the hidden Savage + Duty-Finder refreshes, so a
   button press picks up the `f1`–`f4` / `normal` / `alliance` fields too.
-- The `/bisexport weekdump` diagnostic now also reports the Wondrous Tails expiry/expired flags and
-  the classified kind (normal/alliance) of the selected Duty Finder duty. New `/bisexport dutyrefresh`
+- The `/xivarsenal weekdump` diagnostic now also reports the Wondrous Tails expiry/expired flags and
+  the classified kind (normal/alliance) of the selected Duty Finder duty. New `/xivarsenal dutyrefresh`
   triggers the hidden Duty-Finder refresh on demand; `dutyprobe` is a raw control test.
 
 ## [0.2.0] - 2026-07-02
@@ -145,14 +150,14 @@ First public release.
   *off* when not set up. Hover for the full time; click to open the status window. Toggleable.
 - **Diagnostics log window.** Lists recent plugin messages (status codes, `request_id`s, the failing
   request method+URL, errors — never secrets/bodies, R22) with **Copy**/**Clear**, opened via the
-  log icon or `/bisexport log`. The log is per-session (cleared on login; in memory only).
+  log icon or `/xivarsenal log`. The log is per-session (cleared on login; in memory only).
 - **Status window** — last push time, outcome + `request_id`, rate-limit countdown, and quick
   actions: push now, preview what will be sent, open web app, open settings.
 - **Connect via OAuth 2.0 device flow and paste-key fallback**, with in-plugin **Disconnect**. The
   device flow opens the pre-filled approval page (`verification_uri_complete`, RFC 8628) and copies
   the `user_code`; approval stays the user's explicit click (the plugin never approves
   programmatically). A scope check after the connection test warns if the key lacks `gear:write`.
-- **`PUT /gear` push** of all gearsets across all jobs, triggered by `/bisexport`, login, a
+- **`PUT /gear` push** of all gearsets across all jobs, triggered by `/xivarsenal`, login, a
   debounced gearset-change detector, or a throttled auto-push. Stable `cid_hash` (SHA-256 of the
   decimal ContentId), locked by a test vector. Per-character push opt-in, single in-flight push with
   coalescing, client-side validation, and proactive 429 back-off (30 uploads/hour).

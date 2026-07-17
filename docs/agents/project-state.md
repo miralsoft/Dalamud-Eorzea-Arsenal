@@ -19,7 +19,7 @@ _Last updated: 2026-06-12._
   (`RaptureGearsetModule` via `IPlayerState`/`IClientState`/`IFramework`/`IDataManager`),
   `PluginConfig` (versioned + migrated), `ConfigStore` (`ITokenStore`/`IApiSettings`),
   `PluginLogAdapter`, `ConfigWindow` (ToS opt-in, language, base URL + test, connect/paste/
-  disconnect, push options). Triggers wired: `/bisexport` (manual), login (`PushOnLogin`), and a
+  disconnect, push options). Triggers wired: `/xivarsenal` (manual), login (`PushOnLogin`), and a
   throttled auto-push driven by `IFramework.Update` (requests at most once/min; the service then
   enforces the min interval + unchanged-skip). A dedicated gearset-change event is **not** hooked —
   the periodic auto-push + unchanged-skip covers "push when something changed".
@@ -39,7 +39,7 @@ _Last updated: 2026-06-12._
 - **Scope check** after Test connection (`ScopeUtil.HasGearWrite` over `/version` scopes).
 - **Toasts** (`IToastGui`), **log verbosity** (`PluginLogAdapter` + `LogVerbosity`), **web app URL**.
 - `GearSyncService` now exposes `LastReport` / `LastSuccessfulPushUtc` / `IsRateLimited` for the UI.
-- In-game verified so far: connect (device-flow/paste) + `/version` test + `/bisexport` push.
+- In-game verified so far: connect (device-flow/paste) + `/version` test + `/xivarsenal` push.
 
 ### Gear vs BiS (Feature A) — implemented (API contract published 2026-06-13)
 - Keys now carry `gear:write gear:read`. New read path `GET /gear/bis` (optional `?cid_hash=`).
@@ -63,7 +63,7 @@ _Last updated: 2026-06-12._
 - **Feature B (inventory) stays deferred** to `protocol_version: 2` (see agent memory).
 
 ### Next / open
-- **In-game verification (operator):** load the dev build, run `/bisexport`, confirm gearsets,
+- **In-game verification (operator):** load the dev build, run `/xivarsenal`, confirm gearsets,
   materia ids, world name and `cid_hash` are correct. The `GameGearSource` mapping
   (materia resolution via the `Materia` Excel sheet, HQ-offset stripping) is **best-effort and
   not yet validated in-game** — most likely place for adjustments.

@@ -10,7 +10,7 @@ namespace EorzeaArsenal.Core;
 /// <summary>What caused a push to be requested.</summary>
 public enum PushTrigger
 {
-    /// <summary>The user ran <c>/bisexport</c>. Bypasses the unchanged/throttle guards (but not back-off).</summary>
+    /// <summary>The user ran <c>/xivarsenal</c>. Bypasses the unchanged/throttle guards (but not back-off).</summary>
     Manual,
 
     /// <summary>The character logged in.</summary>

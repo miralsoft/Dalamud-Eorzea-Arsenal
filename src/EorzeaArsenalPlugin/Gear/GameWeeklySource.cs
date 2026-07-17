@@ -866,7 +866,7 @@ public sealed class GameWeeklySource : IWeeklySource
             if (!keepVisible)
             {
                 agent->Hide();
-                return "weekopen: show+hide sent — wait ~3s, then run /bisexport weekdump.";
+                return "weekopen: show+hide sent — wait ~3s, then run /xivarsenal weekdump.";
             }
 
             return "weekopen: shown visibly (control test) — close it manually.";
@@ -1301,7 +1301,7 @@ public sealed class GameWeeklySource : IWeeklySource
                           $"sel={sub->SelectedDutyId} recv={sub->GetReceivedRewardCount()} max={sub->GetMaxReceivedRewardCount()}");
             }
 
-            sb.Append("\n  (if the window popped open, note it; run /bisexport weekdump ~1s later to read the settled reward + kind)");
+            sb.Append("\n  (if the window popped open, note it; run /xivarsenal weekdump ~1s later to read the settled reward + kind)");
             return sb.ToString();
         }
         catch (Exception ex)

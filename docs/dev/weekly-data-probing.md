@@ -5,7 +5,7 @@ reverse-engineered**, and — most importantly — the **routine to re-verify th
 patch** or when the weekly sync stops working. Keep this in sync with `GameWeeklySource`.
 
 The diagnostic tooling described here is intentionally **kept in the codebase** (behind hidden
-`/bisexport …` commands, no UI). It is not wired into the sync path; it exists so we never have to
+`/xivarsenal …` commands, no UI). It is not wired into the sync path; it exists so we never have to
 re-derive this from scratch.
 
 ---
@@ -93,22 +93,22 @@ cutscene) and by the server GET's `savage_lockout`.
 
 ## 2. The diagnostic commands (kept for re-testing)
 
-All are subcommands of `/bisexport`, log to the diagnostics window (`/bisexport log`), and touch no
+All are subcommands of `/xivarsenal`, log to the diagnostics window (`/xivarsenal log`), and touch no
 sync state:
 
-- **`/bisexport weekdump`** — one big read-only dump: tomes, custom, unreal/wondrous fields (incl.
+- **`/xivarsenal weekdump`** — one big read-only dump: tomes, custom, unreal/wondrous fields (incl.
   `bingoExpireTs`/`bingoExpired`), all visible addon names, the Duty Finder's selected-duty reward
   counts and classified `kind=`, the Raid-Finder tabs with per-entry `LOOT=<bit2>`/`f1`/raw bytes,
   plus experimental memory regions (`icHeap`, `icDiff` self-diff, `weeklyLockout`, `uiStateRegions`).
-- **`/bisexport weekopen`** — `Show()` + instant `Hide()` (proved insufficient — kept as a negative
+- **`/xivarsenal weekopen`** — `Show()` + instant `Hide()` (proved insufficient — kept as a negative
   control).
-- **`/bisexport weekshow`** — `Show()` visibly (manual control test).
-- **`/bisexport weekopen2`** — the **working** hidden Savage refresh: show, suppress the window, wait,
+- **`/xivarsenal weekshow`** — `Show()` visibly (manual control test).
+- **`/xivarsenal weekopen2`** — the **working** hidden Savage refresh: show, suppress the window, wait,
   log `Weekly refresh: Savage data arrived after Xms (f1=… …)`.
-- **`/bisexport dutyrefresh`** — the **working** hidden normal/alliance refresh: loads the current
+- **`/xivarsenal dutyrefresh`** — the **working** hidden normal/alliance refresh: loads the current
   normal + alliance raids into the suppressed Duty Finder, logs
   `Weekly refresh: ContentsFinder read (normal=… alliance=…)`, closes it.
-- **`/bisexport dutyprobe`** — raw control test: `OpenRegularDuty` the current normal/alliance raids
+- **`/xivarsenal dutyprobe`** — raw control test: `OpenRegularDuty` the current normal/alliance raids
   and dump their reward (leaves the window open).
 
 `icDiff` remembers the previous run's buffers and prints only changed bytes — the fastest way to find
@@ -130,7 +130,7 @@ This is the general approach that cracked Savage; reuse it for `unreal`, `wondro
 
    (Windows PowerShell 5.1 can't reflect the .NET-9 DLL directly — use the metadata reader from a
    net10 console app.)
-2. **Probe in-game.** Add a read-only dump behind a `/bisexport` command (framework thread, null +
+2. **Probe in-game.** Add a read-only dump behind a `/xivarsenal` command (framework thread, null +
    bounds guards, everything in `try/catch`). Print the candidate values.
 3. **Diff across a known state change.** Snapshot → change one thing in-game (loot a floor, do the
    content, cross the weekly reset) → snapshot again → compare. A field that flips exactly with the
@@ -153,10 +153,10 @@ Sources that turned out to be **dead ends** for Savage (don't re-chase them): `G
 Run this when a game or Dalamud/ClientStructs update lands, or if Savage stops syncing.
 
 **A. Cheap sanity check (2 min).**
-1. `/bisexport weekopen2`, then check the log for
+1. `/xivarsenal weekopen2`, then check the log for
    `Weekly refresh: Savage data arrived after Xms (…)`.
    - No line / timeout → the hidden-refresh path broke (see B/C).
-2. `/bisexport weekdump`, look at `raidfinder: tab0 'Raids'` — confirm 4 entries with the current
+2. `/xivarsenal weekdump`, look at `raidfinder: tab0 'Raids'` — confirm 4 entries with the current
    tier's `icId`s and that `LOOT=True` matches the floors you actually looted this week.
 
 **B. If offsets/struct shifted (ClientStructs update).**
@@ -167,7 +167,7 @@ Run this when a game or Dalamud/ClientStructs update lands, or if Savage stops s
    and that `TabData.EntryCount`/`Entries` are unchanged.
 
 **C. If the flag meaning changed (rare, but `UnkFlags1` is undocumented).**
-1. With a floor looted this week and one not, run `/bisexport weekdump` and read the `f1=` values.
+1. With a floor looted this week and one not, run `/xivarsenal weekdump` and read the `f1=` values.
 2. Re-derive which bit differs between looted and un-looted floors (it was `& 0x04`). If it changed,
    update the mask in `ReadSavageFloorsLive` and this doc.
 3. Ideally confirm across two loot states as in §3.4.
