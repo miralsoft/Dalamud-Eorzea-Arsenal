@@ -36,6 +36,7 @@ public sealed class StatusWindow : Window
     private readonly Action _openBis;
     private readonly Action _openLog;
     private readonly Action _openTeams;
+    private readonly Action _openCalendar;
     private readonly Action _openPreview;
 
     /// <summary>Creates the status window.</summary>
@@ -52,6 +53,7 @@ public sealed class StatusWindow : Window
     /// <param name="openBis">Callback to open the BiS comparison window.</param>
     /// <param name="openLog">Callback to open the diagnostics log window.</param>
     /// <param name="openTeams">Callback to open the Teams companion window.</param>
+    /// <param name="openCalendar">Callback to open the calendar window.</param>
     /// <param name="openPreview">Callback to open the preview window.</param>
     public StatusWindow(
         PluginConfig config,
@@ -67,6 +69,7 @@ public sealed class StatusWindow : Window
         Action openBis,
         Action openLog,
         Action openTeams,
+        Action openCalendar,
         Action openPreview)
         : base("Eorzea Arsenal###EorzeaArsenalStatus")
     {
@@ -83,6 +86,7 @@ public sealed class StatusWindow : Window
         _openBis = openBis;
         _openLog = openLog;
         _openTeams = openTeams;
+        _openCalendar = openCalendar;
         _openPreview = openPreview;
 
         SizeConstraints = new WindowSizeConstraints
@@ -150,6 +154,11 @@ public sealed class StatusWindow : Window
         if (_config.SyncTeams && MenuButton(FontAwesomeIcon.Users, T(LocKeys.TeamsOpen)))
         {
             _openTeams();
+        }
+
+        if (_config.SyncTeams && MenuButton(FontAwesomeIcon.CalendarAlt, T(LocKeys.TeamsCalendarOpen)))
+        {
+            _openCalendar();
         }
 
         if (MenuButton(FontAwesomeIcon.BalanceScale, T(LocKeys.BisOpen)))

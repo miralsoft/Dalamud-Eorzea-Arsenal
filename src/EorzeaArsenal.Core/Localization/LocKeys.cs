@@ -596,4 +596,97 @@ public static class LocKeys
 
     /// <summary>Network error.</summary>
     public const string TeamsErrorNetwork = "teams.error.network";
+
+    /// <summary>Calendar hub entry / window.</summary>
+    public const string TeamsCalendarOpen = "teams.calendar.open";
+
+    /// <summary>Calendar: open in web.</summary>
+    public const string TeamsCalendarOpenWeb = "teams.calendar.openweb";
+
+    /// <summary>Calendar: pick a day hint.</summary>
+    public const string TeamsCalendarPickDay = "teams.calendar.pickday";
+
+    /// <summary>Open the team in the web app.</summary>
+    public const string TeamsOpenWeb = "teams.openweb";
+
+    /// <summary>Mit sheet: phases label.</summary>
+    public const string TeamsPhasesLabel = "teams.phases";
+
+    /// <summary>Mit sheet: mechanic filter label.</summary>
+    public const string TeamsFilterLabel = "teams.filter";
+
+    /// <summary>Tag: raidwide.</summary>
+    public const string TeamsTagRaidwide = "teams.tag.raidwide";
+
+    /// <summary>Tag: tankbuster.</summary>
+    public const string TeamsTagTankbuster = "teams.tag.tankbuster";
+
+    /// <summary>Tag: other.</summary>
+    public const string TeamsTagOther = "teams.tag.other";
+
+    /// <summary>Timeline column: time.</summary>
+    public const string TeamsColTime = "teams.col.time";
+
+    /// <summary>Timeline column: mechanic.</summary>
+    public const string TeamsColMechanic = "teams.col.mechanic";
+
+    /// <summary>Cooldown tooltip: recast.</summary>
+    public const string TeamsRecast = "teams.recast";
+
+    /// <summary>Cooldown tooltip: duration.</summary>
+    public const string TeamsDuration = "teams.duration";
+
+    /// <summary>Resource type: link.</summary>
+    public const string TeamsResLink = "teams.res.link";
+
+    /// <summary>Resource type: video.</summary>
+    public const string TeamsResVideo = "teams.res.video";
+
+    /// <summary>Resource type: plan.</summary>
+    public const string TeamsResPlan = "teams.res.plan";
+
+    /// <summary>Resource type: note.</summary>
+    public const string TeamsResNote = "teams.res.note";
+
+    /// <summary>Resource type: image.</summary>
+    public const string TeamsResImage = "teams.res.image";
+
+    /// <summary>Resource type: pdf.</summary>
+    public const string TeamsResPdf = "teams.res.pdf";
+
+    /// <summary>Resource type: file.</summary>
+    public const string TeamsResFile = "teams.res.file";
+
+    /// <summary>FFLogs: open this report.</summary>
+    public const string TeamsFflogsReport = "teams.fflogs.report";
+
+    /// <summary>Config tab: teams.</summary>
+    public const string TabTeams = "config.tab.teams";
+
+    /// <summary>Display mode: icon + text.</summary>
+    public const string TeamsDispIconText = "teams.disp.icontext";
+
+    /// <summary>Display mode: icon only.</summary>
+    public const string TeamsDispIcon = "teams.disp.icon";
+
+    /// <summary>Display mode: text only.</summary>
+    public const string TeamsDispText = "teams.disp.text";
+
+    /// <summary>Config: mit cooldown display.</summary>
+    public const string TeamsMitDisplayLabel = "teams.mitdisplay";
+
+    /// <summary>Config: mit cooldown display hint.</summary>
+    public const string TeamsMitDisplayHint = "teams.mitdisplay.hint";
+
+    /// <summary>Config: resource label display.</summary>
+    public const string TeamsResourceDisplayLabel = "teams.resdisplay";
+
+    /// <summary>Config: resource label display hint.</summary>
+    public const string TeamsResourceDisplayHint = "teams.resdisplay.hint";
+
+    /// <summary>Config: show note bodies.</summary>
+    public const string TeamsShowNotes = "teams.shownotes";
+
+    /// <summary>Config: show note bodies hint.</summary>
+    public const string TeamsShowNotesHint = "teams.shownotes.hint";
 }

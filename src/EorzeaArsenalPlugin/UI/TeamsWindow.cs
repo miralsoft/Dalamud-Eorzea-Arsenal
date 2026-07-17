@@ -1,8 +1,8 @@
+using System.Globalization;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Textures;
-using Dalamud.Interface.Textures.TextureWraps;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
@@ -17,12 +17,12 @@ using LuminaAction = Lumina.Excel.Sheets.Action;
 namespace EorzeaArsenal.Plugin.UI;
 
 /// <summary>
-/// The Teams companion window: a personal calendar (with in-game RSVP), mit cheat sheets, the content
-/// hub (inline images), the who-needs-what farm, FFLogs, and own-absence management. Purely renders
-/// server-authoritative data via <see cref="TeamsService"/> (R8/R9) and never computes recurrence,
-/// timezones, membership or BiS. All strings via the localizer (R6); links open in the browser.
+/// The Teams companion window: per-team mit cheat sheets (a time-axis timeline), the content hub, the
+/// who-needs-what farm, FFLogs and own-absence management. The calendar lives in its own cross-team
+/// window. Purely renders server-authoritative data via <see cref="TeamsService"/> (R8/R9); links open
+/// in the browser and large images open in a dedicated window.
 /// </summary>
-public sealed class TeamsWindow : Window, IDisposable
+public sealed class TeamsWindow : Window
 {
     private static readonly Vector4 Green = new(0.4f, 0.8f, 0.4f, 1f);
     private static readonly Vector4 Red = new(0.9f, 0.4f, 0.4f, 1f);
@@ -39,6 +39,7 @@ public sealed class TeamsWindow : Window, IDisposable
     private readonly ILog _log;
     private readonly Action _save;
     private readonly Action _openConfig;
+    private readonly Action<long, long, string?> _openImage;
 
     private readonly Slot<TeamsResponse> _teamsSlot = new();
     private readonly Slot<MitSheetResponse> _mitSlot = new();
@@ -50,26 +51,29 @@ public sealed class TeamsWindow : Window, IDisposable
     private int _teamIndex;
     private int _planIndex;
     private string? _selectedJob;
+    private string _mitPlanKey = string.Empty;
+    private bool[] _phaseChecked = [];
+    private bool _tagRaidwide = true;
+    private bool _tagTankbuster = true;
+    private bool _tagOther = true;
+
     private string _absFrom = DateTime.UtcNow.ToString("yyyy-MM-dd");
     private string _absTo = DateTime.UtcNow.ToString("yyyy-MM-dd");
     private string _absNote = string.Empty;
     private volatile string? _actionMessage;
-
-    private readonly Lock _imageLock = new();
-    private readonly Dictionary<long, IDalamudTextureWrap?> _images = new();
-    private readonly HashSet<long> _imageLoading = [];
 
     /// <summary>Creates the Teams window.</summary>
     /// <param name="config">Live config.</param>
     /// <param name="store">Token/base-URL store.</param>
     /// <param name="localizer">UI string resolver.</param>
     /// <param name="teams">The teams service (reads + writes; holds the key).</param>
-    /// <param name="textures">Texture provider (content-hub images, skill icons).</param>
+    /// <param name="textures">Texture provider (skill icons).</param>
     /// <param name="data">Excel data (resolves skill icons from action ids).</param>
     /// <param name="playerState">Local player (current job for the mit-sheet preselection).</param>
     /// <param name="log">Diagnostics sink.</param>
-    /// <param name="save">Persists config (remembered team/job).</param>
-    /// <param name="openConfig">Opens the settings window (reconnect hint).</param>
+    /// <param name="save">Persists config (remembered team/job/filters).</param>
+    /// <param name="openConfig">Opens the settings window.</param>
+    /// <param name="openImage">Opens a content-hub image in the image window (teamId, resourceId, title).</param>
     public TeamsWindow(
         PluginConfig config,
         ConfigStore store,
@@ -80,7 +84,8 @@ public sealed class TeamsWindow : Window, IDisposable
         IPlayerState playerState,
         ILog log,
         Action save,
-        Action openConfig)
+        Action openConfig,
+        Action<long, long, string?> openImage)
         : base("Eorzea Arsenal — Teams###EorzeaArsenalTeams")
     {
         _config = config;
@@ -93,15 +98,18 @@ public sealed class TeamsWindow : Window, IDisposable
         _log = log;
         _save = save;
         _openConfig = openConfig;
+        _openImage = openImage;
 
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(560, 420),
-            MaximumSize = new Vector2(1400, 1200),
+            MinimumSize = new Vector2(620, 460),
+            MaximumSize = new Vector2(1600, 1300),
         };
     }
 
     private string T(string key) => _localizer.Get(key);
+
+    private bool German => _localizer.Language == Localizer.German;
 
     /// <inheritdoc />
     public override void Draw()
@@ -136,7 +144,6 @@ public sealed class TeamsWindow : Window, IDisposable
             return;
         }
 
-        Tab(LocKeys.TeamsTabCalendar, DrawCalendar);
         Tab(LocKeys.TeamsTabMit, DrawMit);
         Tab(LocKeys.TeamsTabContent, DrawContent);
         Tab(LocKeys.TeamsTabFarm, DrawFarm);
@@ -157,7 +164,7 @@ public sealed class TeamsWindow : Window, IDisposable
         ImGui.Spacing();
     }
 
-    // --- Header: team picker + refresh + help -----------------------------------------------------
+    // --- Header: team picker + refresh + help + open-in-web ---------------------------------------
 
     private void DrawHeader()
     {
@@ -170,19 +177,18 @@ public sealed class TeamsWindow : Window, IDisposable
                 _teamIndex = 0;
             }
 
-            // Restore the last-used team once the list is available.
             if (_config.TeamsLastTeamId != 0)
             {
                 var idx = teams.FindIndex(t => t.Id == _config.TeamsLastTeamId);
                 if (idx >= 0)
                 {
                     _teamIndex = idx;
-                    _config.TeamsLastTeamId = 0; // one-shot restore
+                    _config.TeamsLastTeamId = 0;
                 }
             }
 
             var names = teams.Select(t => t.Name ?? $"#{t.Id}").ToArray();
-            ImGui.SetNextItemWidth(260f);
+            ImGui.SetNextItemWidth(240f);
             var idxRef = _teamIndex;
             if (ImGui.Combo(T(LocKeys.TeamsTeamLabel), ref idxRef, names, names.Length))
             {
@@ -213,6 +219,12 @@ public sealed class TeamsWindow : Window, IDisposable
         }
 
         ImGui.SameLine();
+        if (CurrentTeam() is { } team && ImGui.Button(T(LocKeys.TeamsOpenWeb)))
+        {
+            OpenApp($"/teams/{team.Id}");
+        }
+
+        ImGui.SameLine();
         if (ImGui.Button(T(LocKeys.TeamsHelp)))
         {
             OpenApp("/hilfe/plugin-sync");
@@ -232,87 +244,7 @@ public sealed class TeamsWindow : Window, IDisposable
         return teams is { Count: > 0 } && _teamIndex < teams.Count ? teams[_teamIndex] : null;
     }
 
-    // --- Calendar (cross-team) + RSVP -------------------------------------------------------------
-
-    private void DrawCalendar()
-    {
-        var occurrences = _teams.Calendar;
-        if (occurrences.Count == 0)
-        {
-            ImGui.TextDisabled(T(LocKeys.TeamsNoEvents));
-            return;
-        }
-
-        using var child = ImRaii.Child("##cal", new Vector2(0, 0), false);
-        foreach (var occ in occurrences)
-        {
-            using var id = ImRaii.PushId($"occ_{occ.EventId}_{occ.Date}");
-
-            var header = $"{occ.Date}  {occ.Time}" + (string.IsNullOrEmpty(occ.EndTime) ? string.Empty : $"–{occ.EndTime}");
-            ImGui.TextColored(Yellow, header);
-            if (!string.IsNullOrEmpty(occ.Timezone))
-            {
-                ImGui.SameLine();
-                ImGui.TextDisabled($"({occ.Timezone})");
-            }
-
-            ImGui.TextUnformatted($"{occ.TeamName}  ·  {occ.Title}");
-
-            var contents = occ.Contents is { Count: > 0 }
-                ? string.Join(", ", occ.Contents.Select(c => c.Name))
-                : occ.ContentName;
-            if (!string.IsNullOrEmpty(contents))
-            {
-                ImGui.TextDisabled($"{T(LocKeys.TeamsContentsLabel)}: {contents}");
-            }
-
-            ImGui.TextUnformatted(_localizer.Get(LocKeys.TeamsAttendCounts, occ.Yes, occ.Maybe, occ.No, occ.Total));
-
-            RsvpButton(occ, "yes", LocKeys.TeamsRsvpYes, Green);
-            ImGui.SameLine();
-            RsvpButton(occ, "maybe", LocKeys.TeamsRsvpMaybe, Yellow);
-            ImGui.SameLine();
-            RsvpButton(occ, "no", LocKeys.TeamsRsvpNo, Red);
-
-            ImGui.Separator();
-        }
-    }
-
-    private void RsvpButton(CalendarOccurrence occ, string status, string labelKey, Vector4 activeColor)
-    {
-        var isOwn = string.Equals(occ.OwnStatus, status, StringComparison.OrdinalIgnoreCase);
-        using var color = ImRaii.PushColor(ImGuiCol.Text, activeColor, isOwn);
-        var label = (isOwn ? "● " : string.Empty) + T(labelKey);
-        if (ImGui.Button($"{label}##rsvp_{status}") && occ.Date is { } date)
-        {
-            SetRsvp(occ.TeamId, occ.EventId, date, status);
-        }
-    }
-
-    private void SetRsvp(long teamId, long eventId, string date, string status)
-    {
-        _actionMessage = T(LocKeys.TeamsWorking);
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                var req = new AttendanceRequest { OccurrenceDate = date, Status = status };
-                var res = await _teams.SetAttendanceAsync(teamId, eventId, req, CancellationToken.None).ConfigureAwait(false);
-                _actionMessage = res.IsSuccess ? T(LocKeys.TeamsSaved) : Describe(res.Error);
-                if (res.IsSuccess)
-                {
-                    _teams.RequestPoll(force: true); // re-poll for authoritative counters (no local math)
-                }
-            }
-            catch (Exception ex)
-            {
-                _log.Error($"RSVP failed: {ex.GetType().Name}.");
-                _actionMessage = T(LocKeys.TeamsErrorGeneric);
-            }
-        });
-    }
-
-    // --- Mit cheat sheet --------------------------------------------------------------------------
+    // --- Mit cheat sheet (time-axis timeline) -----------------------------------------------------
 
     private void DrawMit()
     {
@@ -335,8 +267,9 @@ public sealed class TeamsWindow : Window, IDisposable
             _planIndex = 0;
         }
 
-        var planNames = plans.Select(p => p.Name ?? $"#{p.Id}").ToArray();
-        ImGui.SetNextItemWidth(220f);
+        // Plan picker — show a real name (name -> boss -> #id).
+        var planNames = plans.Select(PlanLabel).ToArray();
+        ImGui.SetNextItemWidth(240f);
         var planRef = _planIndex;
         if (ImGui.Combo(T(LocKeys.TeamsPlanLabel), ref planRef, planNames, planNames.Length))
         {
@@ -366,18 +299,11 @@ public sealed class TeamsWindow : Window, IDisposable
             return;
         }
 
-        var jobs = (sheet.Plan.Jobs ?? string.Empty)
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToArray();
-        if (jobs.Length == 0 && sheet.Placements is { } pls)
-        {
-            jobs = pls.Where(p => p.Job is not null).Select(p => p.Job!).Distinct().ToArray();
-        }
-
-        // Preselect the current job only when the plan actually contains it; otherwise keep the last
-        // remembered choice (or the first job). Always freely switchable.
+        var jobs = PlanJobs(sheet);
         _selectedJob ??= ResolveJob(plan.Id, jobs);
+        SyncPhaseState($"{team.Id}:{plan.Id}", sheet);
 
+        // Controls: job, phase checkboxes, tag filter.
         var showAll = _config.TeamsShowAllJobs;
         if (ImGui.Checkbox(T(LocKeys.TeamsAllJobs), ref showAll))
         {
@@ -399,131 +325,178 @@ public sealed class TeamsWindow : Window, IDisposable
             }
         }
 
+        DrawPhaseChecks(sheet);
+        DrawTagFilter();
         ImGui.Separator();
-        DrawMitTimeline(sheet, showAll ? null : _selectedJob);
+
+        var activeJobs = showAll ? jobs : (string.IsNullOrEmpty(_selectedJob) ? [] : [_selectedJob]);
+        DrawMitTimeline(sheet, activeJobs);
     }
 
-    private string ResolveJob(long planId, string[] jobs)
+    private void DrawPhaseChecks(MitSheet sheet)
     {
-        if (jobs.Length == 0)
+        var phases = sheet.Plan?.Phases ?? [];
+        if (_phaseChecked.Length <= 1)
         {
-            return string.Empty;
+            return; // single/none — nothing to filter
         }
 
-        var current = CurrentJob();
-        if (current is not null && jobs.Contains(current, StringComparer.OrdinalIgnoreCase))
+        ImGui.TextUnformatted(T(LocKeys.TeamsPhasesLabel));
+        for (var p = 0; p < _phaseChecked.Length; p++)
         {
-            return jobs.First(j => j.Equals(current, StringComparison.OrdinalIgnoreCase));
+            ImGui.SameLine();
+            var on = _phaseChecked[p];
+            if (ImGui.Checkbox(PhaseName(phases, p) + $"##phase{p}", ref on))
+            {
+                _phaseChecked[p] = on;
+            }
         }
-
-        if (_config.TeamsPlanJob.TryGetValue(planId.ToString(), out var remembered) && jobs.Contains(remembered))
-        {
-            return remembered;
-        }
-
-        return jobs[0];
     }
 
-    private void DrawMitTimeline(MitSheet sheet, string? jobFilter)
+    private void DrawTagFilter()
+    {
+        ImGui.TextUnformatted(T(LocKeys.TeamsFilterLabel));
+        ImGui.SameLine();
+        ImGui.Checkbox(T(LocKeys.TeamsTagRaidwide) + "##tRw", ref _tagRaidwide);
+        ImGui.SameLine();
+        ImGui.Checkbox(T(LocKeys.TeamsTagTankbuster) + "##tTb", ref _tagTankbuster);
+        ImGui.SameLine();
+        ImGui.Checkbox(T(LocKeys.TeamsTagOther) + "##tOt", ref _tagOther);
+    }
+
+    private void DrawMitTimeline(MitSheet sheet, string[] jobs)
     {
         var cooldowns = (sheet.Cooldowns ?? []).ToDictionary(c => c.Id, c => c);
-        var placements = (sheet.Placements ?? [])
-            .Where(p => jobFilter is null || string.Equals(p.Job, jobFilter, StringComparison.OrdinalIgnoreCase))
-            .OrderBy(p => p.TimeS)
-            .ToList();
-        var rows = (sheet.Rows ?? []).OrderBy(r => r.TimeS).ToList();
+        var rows = sheet.Rows ?? [];
+        var placements = sheet.Placements ?? [];
         var phases = sheet.Plan?.Phases ?? [];
+        var phaseCount = Math.Max(1, _phaseChecked.Length);
 
         using var child = ImRaii.Child("##mit", new Vector2(0, 0), false);
 
-        // Timeline mechanics (rows).
-        if (rows.Count > 0)
+        var anyDrawn = false;
+        for (var p = 0; p < phaseCount; p++)
         {
-            ImGui.TextColored(Dim, T(LocKeys.TeamsMechanics));
-            foreach (var row in rows)
+            if (p < _phaseChecked.Length && !_phaseChecked[p])
             {
-                ImGui.TextUnformatted($"{FormatTime(row.TimeS)}  {row.Label}");
-                if (!string.IsNullOrEmpty(row.Tag))
-                {
-                    ImGui.SameLine();
-                    ImGui.TextDisabled($"[{row.Tag}]");
-                }
-
-                var phaseName = PhaseLabel(phases, row.Phase);
-                if (phaseName is not null)
-                {
-                    ImGui.SameLine();
-                    ImGui.TextDisabled(phaseName);
-                }
+                continue;
             }
 
+            var mechs = rows.Where(r => r.Phase == p && TagVisible(r.Tag)).ToList();
+            var places = placements.Where(pl => pl.Phase == p && jobs.Contains(pl.Job, StringComparer.OrdinalIgnoreCase)).ToList();
+            if (mechs.Count == 0 && places.Count == 0)
+            {
+                continue;
+            }
+
+            anyDrawn = true;
+            if (phaseCount > 1)
+            {
+                ImGui.TextColored(Yellow, "— " + PhaseName(phases, p) + " —");
+            }
+
+            DrawPhaseTable(p, jobs, mechs, places, cooldowns);
             ImGui.Spacing();
         }
 
-        ImGui.TextColored(Dim, T(LocKeys.TeamsCooldowns));
-        if (placements.Count == 0)
+        if (!anyDrawn)
         {
             ImGui.TextDisabled(T(LocKeys.TeamsNoPlacements));
+        }
+    }
+
+    private unsafe void DrawPhaseTable(int phase, string[] jobs, List<MitRow> mechs, List<MitPlacement> places, Dictionary<long, MitCooldown> cooldowns)
+    {
+        var times = mechs.Select(m => m.TimeS).Concat(places.Select(pl => pl.TimeS)).Distinct().OrderBy(t => t).ToList();
+        var columns = 2 + jobs.Length;
+        if (!ImGui.BeginTable($"##mitT{phase}", columns, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.ScrollX))
+        {
             return;
         }
 
-        foreach (var pl in placements)
+        ImGui.TableSetupColumn(T(LocKeys.TeamsColTime), ImGuiTableColumnFlags.WidthFixed, 52f);
+        ImGui.TableSetupColumn(T(LocKeys.TeamsColMechanic), ImGuiTableColumnFlags.WidthStretch, 1f);
+        foreach (var job in jobs)
         {
-            ImGui.TextUnformatted(FormatTime(pl.TimeS));
-            ImGui.SameLine();
-            if (cooldowns.TryGetValue(pl.CatalogId, out var cd))
+            ImGui.TableSetupColumn(job, ImGuiTableColumnFlags.WidthFixed, 78f);
+        }
+
+        ImGui.TableHeadersRow();
+
+        foreach (var t in times)
+        {
+            ImGui.TableNextRow();
+            ImGui.TableNextColumn();
+            ImGui.TextUnformatted(FormatTime(t));
+
+            ImGui.TableNextColumn();
+            foreach (var m in mechs.Where(m => m.TimeS == t))
             {
-                DrawActionIcon(cd.ActionId, 22f);
-                ImGui.SameLine();
-                var name = _localizer.Language == Localizer.German && !string.IsNullOrEmpty(cd.NameDe) ? cd.NameDe : cd.Name;
-                ImGui.TextUnformatted($"{pl.Job}: {name}");
+                var color = ParseColor(m.Color) ?? Yellow;
+                ImGui.TextColored(color, m.Label ?? string.Empty);
+                if (!string.IsNullOrEmpty(m.Tag))
+                {
+                    ImGui.SameLine();
+                    ImGui.TextDisabled($"[{m.Tag}]");
+                }
+            }
+
+            foreach (var job in jobs)
+            {
+                ImGui.TableNextColumn();
+                var first = true;
+                foreach (var pl in places.Where(pl => pl.TimeS == t && string.Equals(pl.Job, job, StringComparison.OrdinalIgnoreCase)))
+                {
+                    if (!first && _config.TeamsMitDisplay != 2)
+                    {
+                        ImGui.SameLine();
+                    }
+
+                    first = false;
+                    cooldowns.TryGetValue(pl.CatalogId, out var cd);
+                    DrawCooldown(cd, pl.CatalogId);
+                }
+            }
+        }
+
+        ImGui.EndTable();
+    }
+
+    private void DrawCooldown(MitCooldown? cd, long catalogId)
+    {
+        var name = cd is null ? $"#{catalogId}" : (German && !string.IsNullOrEmpty(cd.NameDe) ? cd.NameDe : cd.Name) ?? $"#{catalogId}";
+        var mode = _config.TeamsMitDisplay; // 0 = icon + name, 1 = icon only, 2 = name only
+
+        if (mode != 2 && cd is not null)
+        {
+            var iconId = ActionIcon(cd.ActionId);
+            if (iconId != 0)
+            {
+                var wrap = _textures.GetFromGameIcon(new GameIconLookup(iconId)).GetWrapOrEmpty();
+                ImGui.Image(wrap.Handle, new Vector2(24f, 24f));
             }
             else
             {
-                ImGui.TextUnformatted($"{pl.Job}: #{pl.CatalogId}");
+                ImGui.Dummy(new Vector2(24f, 24f));
+            }
+
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.BeginTooltip();
+                ImGui.TextUnformatted(name);
+                ImGui.TextDisabled($"{T(LocKeys.TeamsRecast)}: {cd.RecastS}s · {T(LocKeys.TeamsDuration)}: {cd.DurationS}s");
+                ImGui.EndTooltip();
+            }
+
+            if (mode == 0)
+            {
+                ImGui.SameLine();
+                ImGui.TextUnformatted(name);
             }
         }
-    }
-
-    private static string? PhaseLabel(List<PhaseName> phases, int index)
-    {
-        if (index < 0 || index >= phases.Count)
+        else
         {
-            return index > 0 ? $"P{index + 1}" : null;
-        }
-
-        var phase = phases[index];
-        return string.IsNullOrEmpty(phase.En) && string.IsNullOrEmpty(phase.De) ? null : (phase.De ?? phase.En);
-    }
-
-    private void DrawActionIcon(uint actionId, float size)
-    {
-        var iconId = ActionIcon(actionId);
-        if (iconId == 0)
-        {
-            ImGui.Dummy(new Vector2(size, size));
-            return;
-        }
-
-        var wrap = _textures.GetFromGameIcon(new GameIconLookup(iconId)).GetWrapOrEmpty();
-        ImGui.Image(wrap.Handle, new Vector2(size, size));
-    }
-
-    private uint ActionIcon(uint actionId)
-    {
-        if (actionId == 0)
-        {
-            return 0;
-        }
-
-        try
-        {
-            var sheet = _data.GetExcelSheet<LuminaAction>();
-            return sheet?.GetRowOrDefault(actionId)?.Icon ?? 0u;
-        }
-        catch
-        {
-            return 0;
+            ImGui.TextUnformatted(name);
         }
     }
 
@@ -603,66 +576,86 @@ public sealed class TeamsWindow : Window, IDisposable
         }
 
         ImGui.TextColored(Dim, T(LocKeys.TeamsResources));
-        foreach (var res in resources)
+        foreach (var res in resources.OrderBy(r => r.Sort))
         {
             using var id = ImRaii.PushId($"res_{res.Id}");
-            if (res.IsImage)
+            DrawResourceTag(res);
+            ImGui.SameLine();
+
+            if (res.Kind == "note")
             {
-                DrawInlineImage(teamId, res);
-            }
-            else if (res.Kind == "note")
-            {
-                ImGui.TextUnformatted($"• {res.Title}");
-                if (!string.IsNullOrEmpty(res.Text))
+                ImGui.TextUnformatted(res.Title ?? string.Empty);
+                if (_config.TeamsShowNotes && !string.IsNullOrEmpty(res.Body))
                 {
                     using (ImRaii.PushColor(ImGuiCol.Text, Dim))
                     {
-                        ImGui.TextWrapped(res.Text);
+                        ImGui.TextWrapped(res.Body);
                     }
                 }
             }
-            else if (!string.IsNullOrEmpty(res.Url))
+            else if (res.IsImage)
             {
-                if (ImGui.Button($"{ResourceIcon(res.Kind)} {res.Title}"))
+                if (ImGui.Button($"{res.Title}##img{res.Id}"))
                 {
-                    OpenExternal(res.Url);
+                    _openImage(teamId, res.Id, res.Title);
                 }
             }
             else if (res.Kind == "file")
             {
-                // A non-image file (e.g. PDF): open it in the browser.
-                if (ImGui.Button($" {res.Title}"))
+                if (ImGui.Button($"{res.Title ?? res.FileName}##file{res.Id}"))
                 {
                     OpenApp($"/api/v1/teams/{teamId}/resources/{res.Id}/file");
                 }
             }
+            else if (!string.IsNullOrEmpty(res.Url))
+            {
+                if (ImGui.Button($"{res.Title}##link{res.Id}"))
+                {
+                    OpenExternal(res.Url);
+                }
+            }
+            else
+            {
+                ImGui.TextUnformatted(res.Title ?? string.Empty);
+            }
         }
     }
 
-    private static string ResourceIcon(string? kind) => kind switch
+    /// <summary>Renders a resource's type as an icon and/or text label, per the display setting.</summary>
+    private void DrawResourceTag(ResourceEntry res)
     {
-        "video" => "",
-        "plan" => "",
-        _ => "",
+        var (icon, labelKey) = ResourceKind(res);
+        var mode = _config.TeamsResourceDisplay; // 0 = icon + text, 1 = icon only, 2 = text only
+        if (mode != 2)
+        {
+            ImGui.PushFont(UiBuilder.IconFont);
+            ImGui.TextUnformatted(icon.ToIconString());
+            ImGui.PopFont();
+        }
+
+        if (mode != 1)
+        {
+            if (mode != 2)
+            {
+                ImGui.SameLine();
+            }
+
+            ImGui.TextDisabled($"[{T(labelKey)}]");
+        }
+    }
+
+    private static (FontAwesomeIcon Icon, string LabelKey) ResourceKind(ResourceEntry res) => res.Kind switch
+    {
+        "link" => (FontAwesomeIcon.Link, LocKeys.TeamsResLink),
+        "video" => (FontAwesomeIcon.Video, LocKeys.TeamsResVideo),
+        "plan" => (FontAwesomeIcon.ProjectDiagram, LocKeys.TeamsResPlan),
+        "note" => (FontAwesomeIcon.StickyNote, LocKeys.TeamsResNote),
+        "file" when res.IsImage => (FontAwesomeIcon.Image, LocKeys.TeamsResImage),
+        "file" when res.Mime == "application/pdf" => (FontAwesomeIcon.FilePdf, LocKeys.TeamsResPdf),
+        _ => (FontAwesomeIcon.File, LocKeys.TeamsResFile),
     };
 
-    private void DrawInlineImage(long teamId, ResourceEntry res)
-    {
-        ImGui.TextUnformatted($" {res.Title}");
-        var wrap = GetImage(teamId, res.Id);
-        if (wrap is null)
-        {
-            ImGui.TextDisabled(T(LocKeys.TeamsLoading));
-            return;
-        }
-
-        var avail = ImGui.GetContentRegionAvail().X;
-        var max = Math.Min(avail, 460f);
-        var scale = wrap.Width > 0 ? Math.Min(1f, max / wrap.Width) : 1f;
-        ImGui.Image(wrap.Handle, new Vector2(wrap.Width * scale, wrap.Height * scale));
-    }
-
-    // --- Farm (who needs what) --------------------------------------------------------------------
+    // --- Farm -------------------------------------------------------------------------------------
 
     private void DrawFarm()
     {
@@ -762,7 +755,7 @@ public sealed class TeamsWindow : Window, IDisposable
             return;
         }
 
-        if (ImGui.Button($" {connection.Label ?? "FFLogs"}") && !string.IsNullOrEmpty(connection.Url))
+        if (ImGui.Button($"{connection.Label ?? "FFLogs"}##conn") && !string.IsNullOrEmpty(connection.Url))
         {
             OpenExternal(connection.Url);
         }
@@ -781,7 +774,15 @@ public sealed class TeamsWindow : Window, IDisposable
             using var id = ImRaii.PushId($"rep_{report.Code}");
             ImGui.TextColored(Yellow, report.Title ?? report.Zone ?? report.Code ?? "?");
             ImGui.SameLine();
-            ImGui.TextDisabled(_localizer.Get(LocKeys.TeamsKillsWipes, report.Kills, report.Wipes));
+            ImGui.TextDisabled(UnixDate(report.StartTime));
+
+            ImGui.TextUnformatted(_localizer.Get(LocKeys.TeamsKillsWipes, report.Kills, report.Wipes));
+            ImGui.SameLine();
+            if (ImGui.SmallButton($"{T(LocKeys.TeamsFflogsReport)}##r{report.Code}") && !string.IsNullOrEmpty(report.Code))
+            {
+                OpenExternal($"https://www.fflogs.com/reports/{report.Code}");
+            }
+
             if (report.Bosses is { Count: > 0 })
             {
                 foreach (var boss in report.Bosses)
@@ -807,12 +808,15 @@ public sealed class TeamsWindow : Window, IDisposable
 
         Ensure(_absenceSlot, team.Id.ToString(), ct => _teams.GetAbsencesAsync(team.Id, ct));
 
-        // Add form.
-        ImGui.SetNextItemWidth(120f);
-        ImGui.InputText(T(LocKeys.TeamsAbsenceFrom), ref _absFrom, 10);
+        // Add form with date pickers.
+        ImGui.TextUnformatted(T(LocKeys.TeamsAbsenceFrom));
         ImGui.SameLine();
-        ImGui.SetNextItemWidth(120f);
-        ImGui.InputText(T(LocKeys.TeamsAbsenceTo), ref _absTo, 10);
+        DrawDatePicker("from", ref _absFrom);
+        ImGui.SameLine();
+        ImGui.TextUnformatted(T(LocKeys.TeamsAbsenceTo));
+        ImGui.SameLine();
+        DrawDatePicker("to", ref _absTo);
+
         ImGui.SetNextItemWidth(260f);
         ImGui.InputText(T(LocKeys.TeamsAbsenceNote), ref _absNote, 200);
         if (ImGui.Button(T(LocKeys.TeamsAbsenceAdd)))
@@ -844,7 +848,7 @@ public sealed class TeamsWindow : Window, IDisposable
         foreach (var absence in absences)
         {
             using var id = ImRaii.PushId($"abs_{absence.Id}");
-            ImGui.TextUnformatted($"{absence.FromDate}  →  {absence.ToDate}");
+            ImGui.TextUnformatted($"{LocalDate(absence.FromDate)}  →  {LocalDate(absence.ToDate)}");
             if (!string.IsNullOrEmpty(absence.Note))
             {
                 ImGui.SameLine();
@@ -858,6 +862,92 @@ public sealed class TeamsWindow : Window, IDisposable
             }
         }
     }
+
+    /// <summary>A button showing the localized date; clicking opens a mini month-grid picker.</summary>
+    private void DrawDatePicker(string id, ref string isoValue)
+    {
+        var display = LocalDate(isoValue);
+        if (ImGui.Button($"{display}##dp{id}"))
+        {
+            ImGui.OpenPopup($"##datepop{id}");
+        }
+
+        if (!ImGui.BeginPopup($"##datepop{id}"))
+        {
+            return;
+        }
+
+        var current = DateOnly.TryParseExact(isoValue, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)
+            ? parsed
+            : DateOnly.FromDateTime(DateTime.Now);
+        var picked = DrawMiniCalendar(id, current);
+        if (picked is { } p)
+        {
+            isoValue = p.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            ImGui.CloseCurrentPopup();
+        }
+
+        ImGui.EndPopup();
+    }
+
+    private DateOnly? DrawMiniCalendar(string id, DateOnly current)
+    {
+        // Month state is kept in the popup via a static-ish field keyed by id.
+        _pickerMonth.TryGetValue(id, out var month);
+        if (month == default)
+        {
+            month = new DateOnly(current.Year, current.Month, 1);
+        }
+
+        if (ImGui.SmallButton($"<##pm{id}"))
+        {
+            month = month.AddMonths(-1);
+        }
+
+        ImGui.SameLine();
+        ImGui.TextUnformatted(month.ToDateTime(TimeOnly.MinValue).ToString("MMMM yyyy", Culture()));
+        ImGui.SameLine();
+        if (ImGui.SmallButton($">##pm{id}"))
+        {
+            month = month.AddMonths(1);
+        }
+
+        _pickerMonth[id] = month;
+
+        DateOnly? result = null;
+        var daysInMonth = DateTime.DaysInMonth(month.Year, month.Month);
+        var firstWeekday = ((int)month.DayOfWeek + 6) % 7;
+        var day = 1;
+        for (var week = 0; week < 6 && day <= daysInMonth; week++)
+        {
+            for (var slot = 0; slot < 7; slot++)
+            {
+                if ((week == 0 && slot < firstWeekday) || day > daysInMonth)
+                {
+                    ImGui.Dummy(new Vector2(26f, 24f));
+                }
+                else
+                {
+                    var d = new DateOnly(month.Year, month.Month, day);
+                    if (ImGui.Button($"{day}##d{id}{day}", new Vector2(26f, 24f)))
+                    {
+                        result = d;
+                    }
+
+                    day++;
+                }
+
+                if (slot < 6)
+                {
+                    ImGui.SameLine();
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private readonly Dictionary<string, DateOnly> _pickerMonth = new(StringComparer.Ordinal);
 
     private void AddAbsence(long teamId)
     {
@@ -911,10 +1001,164 @@ public sealed class TeamsWindow : Window, IDisposable
         });
     }
 
-    private static bool IsIsoDate(string value) =>
-        DateTime.TryParseExact(value, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out _);
+    // --- Helpers ----------------------------------------------------------------------------------
 
-    // --- Loading / helpers ------------------------------------------------------------------------
+    private static string PlanLabel(MitPlanRef plan) =>
+        !string.IsNullOrWhiteSpace(plan.Name) ? plan.Name! : !string.IsNullOrWhiteSpace(plan.Boss) ? plan.Boss! : $"#{plan.Id}";
+
+    private static string[] PlanJobs(MitSheet sheet)
+    {
+        var jobs = (sheet.Plan?.Jobs ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToArray();
+        if (jobs.Length == 0 && sheet.Placements is { } pls)
+        {
+            jobs = pls.Where(p => p.Job is not null).Select(p => p.Job!).Distinct().ToArray();
+        }
+
+        return jobs;
+    }
+
+    private void SyncPhaseState(string planKey, MitSheet sheet)
+    {
+        var maxPhase = 0;
+        foreach (var r in sheet.Rows ?? [])
+        {
+            maxPhase = Math.Max(maxPhase, r.Phase);
+        }
+
+        foreach (var p in sheet.Placements ?? [])
+        {
+            maxPhase = Math.Max(maxPhase, p.Phase);
+        }
+
+        var count = maxPhase + 1;
+        if (planKey != _mitPlanKey || _phaseChecked.Length != count)
+        {
+            _mitPlanKey = planKey;
+            _phaseChecked = Enumerable.Repeat(true, count).ToArray();
+        }
+    }
+
+    private static string PhaseName(List<PhaseName> phases, int index)
+    {
+        if (index >= 0 && index < phases.Count)
+        {
+            var phase = phases[index];
+            if (!string.IsNullOrEmpty(phase.De) || !string.IsNullOrEmpty(phase.En))
+            {
+                return phase.De ?? phase.En!;
+            }
+        }
+
+        return $"P{index + 1}";
+    }
+
+    private bool TagVisible(string? tag)
+    {
+        var t = tag?.ToLowerInvariant() ?? string.Empty;
+        if (t.Contains("raid"))
+        {
+            return _tagRaidwide;
+        }
+
+        return t.Contains("tank") ? _tagTankbuster : _tagOther;
+    }
+
+    private string ResolveJob(long planId, string[] jobs)
+    {
+        if (jobs.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var current = CurrentJob();
+        if (current is not null && jobs.Contains(current, StringComparer.OrdinalIgnoreCase))
+        {
+            return jobs.First(j => j.Equals(current, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (_config.TeamsPlanJob.TryGetValue(planId.ToString(), out var remembered) && jobs.Contains(remembered))
+        {
+            return remembered;
+        }
+
+        return jobs[0];
+    }
+
+    private uint ActionIcon(uint actionId)
+    {
+        if (actionId == 0)
+        {
+            return 0;
+        }
+
+        try
+        {
+            var sheet = _data.GetExcelSheet<LuminaAction>();
+            return sheet?.GetRowOrDefault(actionId)?.Icon ?? 0u;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    private string? CurrentJob()
+    {
+        try
+        {
+            return _playerState.IsLoaded ? _playerState.ClassJob.ValueNullable?.Abbreviation.ExtractText()?.ToUpperInvariant() : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private CultureInfo Culture() => German ? new CultureInfo("de-DE") : CultureInfo.InvariantCulture;
+
+    private string LocalDate(string? iso) =>
+        DateOnly.TryParseExact(iso, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)
+            ? d.ToDateTime(TimeOnly.MinValue).ToString(German ? "dd.MM.yyyy" : "MM/dd/yyyy", CultureInfo.InvariantCulture)
+            : iso ?? string.Empty;
+
+    private string UnixDate(long unixSeconds)
+    {
+        if (unixSeconds <= 0)
+        {
+            return string.Empty;
+        }
+
+        var dt = DateTimeOffset.FromUnixTimeSeconds(unixSeconds).LocalDateTime;
+        return dt.ToString(German ? "dd.MM.yyyy" : "MM/dd/yyyy", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatTime(int seconds)
+    {
+        var sign = seconds < 0 ? "-" : string.Empty;
+        var s = Math.Abs(seconds);
+        return $"{sign}{s / 60}:{s % 60:00}";
+    }
+
+    private static Vector4? ParseColor(string? hex)
+    {
+        if (string.IsNullOrEmpty(hex))
+        {
+            return null;
+        }
+
+        var h = hex.TrimStart('#');
+        if (h.Length != 6 || !int.TryParse(h, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var rgb))
+        {
+            return null;
+        }
+
+        return new Vector4(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f, 1f);
+    }
+
+    private static bool IsIsoDate(string value) =>
+        DateTime.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
 
     private void EnsureTeams()
     {
@@ -932,17 +1176,6 @@ public sealed class TeamsWindow : Window, IDisposable
         _farmSlot.Reset();
         _logsSlot.Reset();
         _absenceSlot.Reset();
-        lock (_imageLock)
-        {
-            foreach (var wrap in _images.Values)
-            {
-                wrap?.Dispose();
-            }
-
-            _images.Clear();
-            _imageLoading.Clear();
-        }
-
         _teams.RequestPoll(force: true);
     }
 
@@ -986,73 +1219,6 @@ public sealed class TeamsWindow : Window, IDisposable
         });
     }
 
-    private IDalamudTextureWrap? GetImage(long teamId, long resourceId)
-    {
-        lock (_imageLock)
-        {
-            if (_images.TryGetValue(resourceId, out var wrap))
-            {
-                return wrap;
-            }
-
-            if (!_imageLoading.Add(resourceId))
-            {
-                return null;
-            }
-        }
-
-        _ = Task.Run(async () =>
-        {
-            IDalamudTextureWrap? result = null;
-            try
-            {
-                var res = await _teams.GetResourceFileAsync(teamId, resourceId, CancellationToken.None).ConfigureAwait(false);
-                if (res.IsSuccess && res.Value is { Bytes.Length: > 0 } file)
-                {
-                    result = await _textures.CreateFromImageAsync(file.Bytes).ConfigureAwait(false);
-                }
-            }
-            catch (Exception ex)
-            {
-                _log.Error($"Resource image load failed: {ex.GetType().Name}.");
-            }
-            finally
-            {
-                lock (_imageLock)
-                {
-                    _images[resourceId] = result;
-                    _imageLoading.Remove(resourceId);
-                }
-            }
-        });
-
-        return null;
-    }
-
-    private string? CurrentJob()
-    {
-        try
-        {
-            if (!_playerState.IsLoaded)
-            {
-                return null;
-            }
-
-            return _playerState.ClassJob.ValueNullable?.Abbreviation.ExtractText()?.ToUpperInvariant();
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static string FormatTime(int seconds)
-    {
-        var sign = seconds < 0 ? "-" : string.Empty;
-        var s = Math.Abs(seconds);
-        return $"{sign}{s / 60}:{s % 60:00}";
-    }
-
     private string Describe(ApiError? error)
     {
         if (error is null)
@@ -1067,17 +1233,12 @@ public sealed class TeamsWindow : Window, IDisposable
             ApiErrorKind.NotFound => T(LocKeys.TeamsNotMember),
             ApiErrorKind.Unauthorized => T(LocKeys.TeamsDisabledHint),
             ApiErrorKind.Network => T(LocKeys.TeamsErrorNetwork),
-            // Surface the concrete detail (HTTP status or "could not parse") so the cause is visible.
-            _ => error.StatusCode is { } sc
-                ? $"{T(LocKeys.TeamsErrorGeneric)} (HTTP {sc})"
-                : $"{T(LocKeys.TeamsErrorGeneric)} ({error.Message})",
+            _ => error.StatusCode is { } sc ? $"{T(LocKeys.TeamsErrorGeneric)} (HTTP {sc})" : $"{T(LocKeys.TeamsErrorGeneric)} ({error.Message})",
         };
     }
 
-    /// <summary>Opens an app-relative path in the browser (prefixes the web-app URL).</summary>
     private void OpenApp(string relativePath) => OpenExternal(AppUrl() + relativePath);
 
-    /// <summary>Opens an absolute http(s) URL in the browser; ignores anything else (P8).</summary>
     private void OpenExternal(string url)
     {
         if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
@@ -1097,20 +1258,6 @@ public sealed class TeamsWindow : Window, IDisposable
         var baseUrl = _store.BaseUrl;
         var idx = baseUrl.IndexOf("/api/", StringComparison.OrdinalIgnoreCase);
         return idx > 0 ? baseUrl[..idx] : baseUrl.TrimEnd('/');
-    }
-
-    /// <summary>Disposes cached image textures on unload (P3).</summary>
-    public void Dispose()
-    {
-        lock (_imageLock)
-        {
-            foreach (var wrap in _images.Values)
-            {
-                wrap?.Dispose();
-            }
-
-            _images.Clear();
-        }
     }
 
     /// <summary>A lazily-loaded, keyed data slot read on the UI thread and filled off-thread.</summary>

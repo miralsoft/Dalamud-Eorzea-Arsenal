@@ -99,6 +99,15 @@ public sealed class PluginConfig : IPluginConfiguration
     /// <summary>Remembered mit-sheet job per plan, keyed by <c>planId</c> (as a string).</summary>
     public Dictionary<string, string> TeamsPlanJob { get; set; } = new();
 
+    /// <summary>Mit-sheet cooldown display: 0 = icon + name, 1 = icon only (name on hover), 2 = name only.</summary>
+    public int TeamsMitDisplay { get; set; }
+
+    /// <summary>Content-hub resource label: 0 = icon + text, 1 = icon only, 2 = text only.</summary>
+    public int TeamsResourceDisplay { get; set; }
+
+    /// <summary>Content hub: show note bodies inline (<see langword="true"/>) or just the title.</summary>
+    public bool TeamsShowNotes { get; set; } = true;
+
     /// <summary>BiS window: show all gearsets (<see langword="true"/>) or only the current one.</summary>
     public bool BisShowAllSets { get; set; }
 

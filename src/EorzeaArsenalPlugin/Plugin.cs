@@ -61,6 +61,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ConfigWindow _configWindow;
     private readonly StatusWindow _statusWindow;
     private readonly TeamsWindow _teamsWindow;
+    private readonly CalendarWindow _calendarWindow;
+    private readonly ImageWindow _imageWindow;
     private readonly BisWindow _bisWindow;
     private readonly LogWindow _logWindow;
     private readonly PreviewWindow _previewWindow;
@@ -175,12 +177,16 @@ public sealed class Plugin : IDalamudPlugin
         _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, Save, LinkItemInChat);
         _logWindow = new LogWindow(_logBuffer, _localizer);
         _previewWindow = new PreviewWindow(_gearSource, _localizer, _log);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenLog, OpenTeams, OpenPreview);
-        _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _log, Save, OpenConfig);
+        _imageWindow = new ImageWindow(_teamsService, textureProvider, _localizer, _log);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenLog, OpenTeams, OpenCalendar, OpenPreview);
+        _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _log, Save, OpenConfig, OpenImage);
+        _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save);
         _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _log);
         _windowSystem.AddWindow(_previewWindow);
+        _windowSystem.AddWindow(_imageWindow);
         _windowSystem.AddWindow(_teamsWindow);
+        _windowSystem.AddWindow(_calendarWindow);
         _windowSystem.AddWindow(_bisWindow);
         _windowSystem.AddWindow(_logWindow);
         _windowSystem.AddWindow(_statusWindow);
@@ -226,7 +232,7 @@ public sealed class Plugin : IDalamudPlugin
         _weeklySync.Dispose();
         _teamsService.Toast -= OnTeamToast;
         _teamsService.Dispose();
-        _teamsWindow.Dispose();
+        _imageWindow.Dispose();
         _chatGui.RemoveChatLinkHandler();
         _characterDirectory.Changed -= OnCharacterDirectoryChanged;
         _configWindow.Dispose();
@@ -244,6 +250,13 @@ public sealed class Plugin : IDalamudPlugin
     private void OpenLog() => _logWindow.IsOpen = true;
 
     private void OpenPreview() => _previewWindow.Open();
+
+    private void OpenImage(long teamId, long resourceId, string? title) => _imageWindow.Open(teamId, resourceId, title);
+
+    private void OpenCalendar()
+    {
+        _calendarWindow.Open();
+    }
 
     private void OpenTeams()
     {
@@ -293,6 +306,9 @@ public sealed class Plugin : IDalamudPlugin
                 break;
             case "teams":
                 OpenTeams();
+                break;
+            case "calendar":
+                OpenCalendar();
                 break;
             case "log":
                 OpenLog();

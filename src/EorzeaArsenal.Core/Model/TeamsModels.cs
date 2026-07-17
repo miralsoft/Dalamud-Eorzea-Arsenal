@@ -354,11 +354,14 @@ public sealed class DropEntry
     public string? Value { get; init; }
 }
 
-/// <summary>A team resource: a plan/video/link (url), a note (text), or an uploaded file (mime + path).</summary>
+/// <summary>A team resource: a plan/video/link (<c>url</c>), a note (<c>body</c>), or an uploaded file.</summary>
 public sealed class ResourceEntry
 {
-    /// <summary>Resource id.</summary>
+    /// <summary>Resource id (used to build the file download URL).</summary>
     public long Id { get; init; }
+
+    /// <summary>The content this resource belongs to.</summary>
+    public long ContentId { get; init; }
 
     /// <summary>Kind: <c>link | video | note | plan | file</c>.</summary>
     public string? Kind { get; init; }
@@ -366,19 +369,25 @@ public sealed class ResourceEntry
     /// <summary>Title.</summary>
     public string? Title { get; init; }
 
-    /// <summary>External url for <c>link|video|plan</c>.</summary>
+    /// <summary>External url for <c>link|video|plan</c> (<see langword="null"/> for note/file).</summary>
     public string? Url { get; init; }
 
-    /// <summary>Note body text for <c>note</c>.</summary>
-    public string? Text { get; init; }
+    /// <summary>Note body text for <c>note</c> (plain text; <see langword="null"/> otherwise).</summary>
+    public string? Body { get; init; }
+
+    /// <summary>Sort order.</summary>
+    public int Sort { get; init; }
+
+    /// <summary>Original file name for <c>file</c>.</summary>
+    public string? FileName { get; init; }
 
     /// <summary>MIME type for <c>file</c> (e.g. <c>image/png</c>, <c>application/pdf</c>).</summary>
     public string? Mime { get; init; }
 
-    /// <summary>Server-relative streaming path for <c>file</c> (see the file endpoint).</summary>
-    public string? File { get; init; }
+    /// <summary>File size in bytes for <c>file</c>.</summary>
+    public long? SizeBytes { get; init; }
 
-    /// <summary>Whether this resource is an inline-renderable image.</summary>
+    /// <summary>Whether this resource is an inline-renderable image (a <c>file</c> with an image MIME).</summary>
     [JsonIgnore]
     public bool IsImage => Kind == "file" && Mime is { } m && m.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
 }

@@ -128,8 +128,55 @@ public sealed class ConfigWindow : Window, IDisposable
 
         Tab(LocKeys.TabSync, DrawSyncTab);
         Tab(LocKeys.TabDisplay, DrawDisplayTab);
+        Tab(LocKeys.TabTeams, DrawTeamsTab);
         Tab(LocKeys.TabCharacters, DrawCharacters);
         Tab(LocKeys.TabConnection, DrawConnectionTab);
+    }
+
+    private void DrawTeamsTab()
+    {
+        var enabled = _config.SyncTeams;
+        if (ImGui.Checkbox(T(LocKeys.SyncTeams), ref enabled))
+        {
+            _config.SyncTeams = enabled;
+            _save();
+        }
+
+        Hint(T(LocKeys.SyncTeamsHint));
+        GroupGap();
+
+        var displayLabels = new[] { T(LocKeys.TeamsDispIconText), T(LocKeys.TeamsDispIcon), T(LocKeys.TeamsDispText) };
+
+        var mit = _config.TeamsMitDisplay;
+        ImGui.SetNextItemWidth(240f);
+        if (ImGui.Combo(T(LocKeys.TeamsMitDisplayLabel), ref mit, displayLabels, displayLabels.Length))
+        {
+            _config.TeamsMitDisplay = mit;
+            _save();
+        }
+
+        Hint(T(LocKeys.TeamsMitDisplayHint));
+        GroupGap();
+
+        var res = _config.TeamsResourceDisplay;
+        ImGui.SetNextItemWidth(240f);
+        if (ImGui.Combo(T(LocKeys.TeamsResourceDisplayLabel), ref res, displayLabels, displayLabels.Length))
+        {
+            _config.TeamsResourceDisplay = res;
+            _save();
+        }
+
+        Hint(T(LocKeys.TeamsResourceDisplayHint));
+        GroupGap();
+
+        var notes = _config.TeamsShowNotes;
+        if (ImGui.Checkbox(T(LocKeys.TeamsShowNotes), ref notes))
+        {
+            _config.TeamsShowNotes = notes;
+            _save();
+        }
+
+        Hint(T(LocKeys.TeamsShowNotesHint));
     }
 
     private void Tab(string key, Action body)
