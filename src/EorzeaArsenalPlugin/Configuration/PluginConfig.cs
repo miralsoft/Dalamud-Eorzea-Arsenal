@@ -108,6 +108,15 @@ public sealed class PluginConfig : IPluginConfiguration
     /// <summary>Content hub: show note bodies inline (<see langword="true"/>) or just the title.</summary>
     public bool TeamsShowNotes { get; set; } = true;
 
+    /// <summary>Mit-sheet default: show all jobs (<see langword="true"/>) or just the current/first job.</summary>
+    public bool TeamsDefaultAllJobs { get; set; }
+
+    /// <summary>Mit-sheet default: include the "other" mechanic tag (off by default = hide clutter).</summary>
+    public bool TeamsDefaultShowOther { get; set; }
+
+    /// <summary>Termine list: show already-elapsed occurrences too.</summary>
+    public bool TeamsShowPastEvents { get; set; }
+
     /// <summary>BiS window: show all gearsets (<see langword="true"/>) or only the current one.</summary>
     public bool BisShowAllSets { get; set; }
 

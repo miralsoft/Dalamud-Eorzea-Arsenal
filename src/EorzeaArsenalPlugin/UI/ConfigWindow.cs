@@ -177,6 +177,25 @@ public sealed class ConfigWindow : Window, IDisposable
         }
 
         Hint(T(LocKeys.TeamsShowNotesHint));
+        GroupGap();
+
+        var jobDefault = _config.TeamsDefaultAllJobs ? 1 : 0;
+        var jobLabels = new[] { T(LocKeys.TeamsDefaultCurrentJob), T(LocKeys.TeamsDefaultAllJobsOpt) };
+        ImGui.SetNextItemWidth(240f);
+        if (ImGui.Combo(T(LocKeys.TeamsDefaultJobLabel), ref jobDefault, jobLabels, jobLabels.Length))
+        {
+            _config.TeamsDefaultAllJobs = jobDefault == 1;
+            _save();
+        }
+
+        var showOther = _config.TeamsDefaultShowOther;
+        if (ImGui.Checkbox(T(LocKeys.TeamsDefaultShowOther), ref showOther))
+        {
+            _config.TeamsDefaultShowOther = showOther;
+            _save();
+        }
+
+        Hint(T(LocKeys.TeamsDefaultShowOtherHint));
     }
 
     private void Tab(string key, Action body)

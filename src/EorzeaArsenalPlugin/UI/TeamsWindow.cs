@@ -55,12 +55,16 @@ public sealed class TeamsWindow : Window
     private bool[] _phaseChecked = [];
     private bool _tagRaidwide = true;
     private bool _tagTankbuster = true;
-    private bool _tagOther = true;
+    private bool _tagOther;
+    private bool _showAllJobs;
+    private string _activeTab = "mit";
 
     private string _absFrom = DateTime.UtcNow.ToString("yyyy-MM-dd");
     private string _absTo = DateTime.UtcNow.ToString("yyyy-MM-dd");
     private string _absNote = string.Empty;
+    private long _editingAbsenceId;
     private volatile string? _actionMessage;
+    private string? _absenceError;
 
     /// <summary>Creates the Teams window.</summary>
     /// <param name="config">Live config.</param>
@@ -100,6 +104,9 @@ public sealed class TeamsWindow : Window
         _openConfig = openConfig;
         _openImage = openImage;
 
+        // The tabs manage their own scroll (mit = table, others = child), so the window itself never
+        // shows a second scrollbar.
+        Flags = ImGuiWindowFlags.NoScrollbar;
         SizeConstraints = new WindowSizeConstraints
         {
             MinimumSize = new Vector2(620, 460),
@@ -144,14 +151,15 @@ public sealed class TeamsWindow : Window
             return;
         }
 
-        Tab(LocKeys.TeamsTabMit, DrawMit);
-        Tab(LocKeys.TeamsTabContent, DrawContent);
-        Tab(LocKeys.TeamsTabFarm, DrawFarm);
-        Tab(LocKeys.TeamsTabLogs, DrawLogs);
-        Tab(LocKeys.TeamsTabAbsence, DrawAbsence);
+        Tab(LocKeys.TeamsTabEvents, "termine", DrawEvents);
+        Tab(LocKeys.TeamsTabMit, "mitigation", DrawMit);
+        Tab(LocKeys.TeamsTabContent, "inhalte", DrawContent);
+        Tab(LocKeys.TeamsTabFarm, "gruppen-farm", DrawFarm);
+        Tab(LocKeys.TeamsTabLogs, "logs", DrawLogs);
+        Tab(LocKeys.TeamsTabAbsence, "termine", DrawAbsence);
     }
 
-    private void Tab(string key, Action body)
+    private void Tab(string key, string slug, Action body)
     {
         using var tab = ImRaii.TabItem(T(key));
         if (!tab)
@@ -159,6 +167,7 @@ public sealed class TeamsWindow : Window
             return;
         }
 
+        _activeTab = slug;
         ImGui.Spacing();
         body();
         ImGui.Spacing();
@@ -221,7 +230,8 @@ public sealed class TeamsWindow : Window
         ImGui.SameLine();
         if (CurrentTeam() is { } team && ImGui.Button(T(LocKeys.TeamsOpenWeb)))
         {
-            OpenApp($"/teams/{team.Id}");
+            // Open the page matching the active tab (not just the team overview).
+            OpenApp($"/teams/{team.Id}/{_activeTab}");
         }
 
         ImGui.SameLine();
@@ -243,6 +253,155 @@ public sealed class TeamsWindow : Window
         var teams = _teamsSlot.Value?.Data;
         return teams is { Count: > 0 } && _teamIndex < teams.Count ? teams[_teamIndex] : null;
     }
+
+    // --- Termine (per-team event list) ------------------------------------------------------------
+
+    private void DrawEvents()
+    {
+        var team = CurrentTeam();
+        if (team is null)
+        {
+            ImGui.TextDisabled(T(LocKeys.TeamsNoTeams));
+            return;
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var all = _teams.Calendar.Where(o => o.TeamId == team.Id).ToList();
+        if (all.Count == 0)
+        {
+            ImGui.TextDisabled(T(LocKeys.TeamsNoEvents));
+            return;
+        }
+
+        var pastCount = all.Count(o => IsPast(o.Date, today));
+        if (pastCount > 0)
+        {
+            var showPast = _config.TeamsShowPastEvents;
+            if (ImGui.Checkbox(_localizer.Get(LocKeys.TeamsShowPast, pastCount), ref showPast))
+            {
+                _config.TeamsShowPastEvents = showPast;
+                _save();
+            }
+        }
+
+        ImGui.Separator();
+
+        using var child = ImRaii.Child("##events", new Vector2(0, 0), false);
+        foreach (var group in all.GroupBy(o => o.EventId).OrderBy(g => g.Min(o => o.Date)))
+        {
+            var first = group.First();
+            var occs = group
+                .Where(o => _config.TeamsShowPastEvents || !IsPast(o.Date, today))
+                .OrderBy(o => o.Date)
+                .ThenBy(o => o.Time)
+                .ToList();
+            if (occs.Count == 0)
+            {
+                continue;
+            }
+
+            using var eid = ImRaii.PushId($"evgrp_{first.EventId}");
+            var kind = string.Equals(first.Kind, "recurring", StringComparison.OrdinalIgnoreCase) ? T(LocKeys.TeamsRecurring) : T(LocKeys.TeamsSingle);
+            var content = first.Contents is { Count: > 0 } ? string.Join(", ", first.Contents.Select(c => c.Name)) : first.ContentName;
+            ImGui.TextColored(Yellow, first.Title ?? string.Empty);
+            ImGui.SameLine();
+            ImGui.TextDisabled($"· {kind}" + (string.IsNullOrEmpty(content) ? string.Empty : $" · {content}"));
+
+            foreach (var occ in occs)
+            {
+                using var id = ImRaii.PushId($"occ_{occ.Date}");
+                DrawOccurrenceRow(occ, IsPast(occ.Date, today));
+            }
+
+            ImGui.Separator();
+        }
+    }
+
+    private void DrawOccurrenceRow(CalendarOccurrence occ, bool past)
+    {
+        var (status, _) = EventStatus(occ);
+        ImGui.ColorButton("##st", status, ImGuiColorEditFlags.NoTooltip | ImGuiColorEditFlags.NoInputs, new Vector2(11f, 11f));
+        ImGui.SameLine();
+
+        var time = $"{occ.Time}" + (string.IsNullOrEmpty(occ.EndTime) ? string.Empty : $"–{occ.EndTime}");
+        var signedOff = string.Equals(occ.OwnStatus, "no", StringComparison.OrdinalIgnoreCase);
+        using (ImRaii.PushColor(ImGuiCol.Text, Dim, past || signedOff))
+        {
+            ImGui.TextUnformatted($"{LocalDate(occ.Date)}  {time}");
+            if (signedOff)
+            {
+                var min = ImGui.GetItemRectMin();
+                var max = ImGui.GetItemRectMax();
+                var midY = (min.Y + max.Y) / 2f;
+                ImGui.GetWindowDrawList().AddLine(new Vector2(min.X, midY), new Vector2(max.X, midY), ImGui.GetColorU32(ImGuiCol.Text));
+            }
+        }
+
+        ImGui.SameLine();
+        ImGui.TextDisabled(_localizer.Get(LocKeys.TeamsAttendCounts, occ.Yes, occ.Maybe, occ.No, occ.Total));
+
+        using (ImRaii.Disabled(past))
+        {
+            ImGui.SameLine();
+            Rsvp(occ, "yes", LocKeys.TeamsRsvpYes, Green);
+            ImGui.SameLine();
+            Rsvp(occ, "maybe", LocKeys.TeamsRsvpMaybe, Yellow);
+            ImGui.SameLine();
+            Rsvp(occ, "no", LocKeys.TeamsRsvpNo, Red);
+        }
+    }
+
+    private void Rsvp(CalendarOccurrence occ, string status, string labelKey, Vector4 activeColor)
+    {
+        var isOwn = string.Equals(occ.OwnStatus, status, StringComparison.OrdinalIgnoreCase);
+        using var color = ImRaii.PushColor(ImGuiCol.Text, activeColor, isOwn);
+        var label = (isOwn ? "● " : string.Empty) + T(labelKey);
+        if (ImGui.SmallButton($"{label}##rsvp_{status}") && occ.Date is { } date)
+        {
+            SetRsvp(occ.TeamId, occ.EventId, date, status);
+        }
+    }
+
+    private void SetRsvp(long teamId, long eventId, string date, string status)
+    {
+        _actionMessage = T(LocKeys.TeamsWorking);
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var req = new AttendanceRequest { OccurrenceDate = date, Status = status };
+                var res = await _teams.SetAttendanceAsync(teamId, eventId, req, CancellationToken.None).ConfigureAwait(false);
+                _actionMessage = res.IsSuccess ? T(LocKeys.TeamsSaved) : Describe(res.Error);
+                if (res.IsSuccess)
+                {
+                    _teams.RequestPoll(force: true);
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"RSVP failed: {ex.GetType().Name}.");
+                _actionMessage = T(LocKeys.TeamsErrorGeneric);
+            }
+        });
+    }
+
+    private static (Vector4 Color, int Kind) EventStatus(CalendarOccurrence o)
+    {
+        if (o.No > 0)
+        {
+            return (new Vector4(0.9f, 0.4f, 0.4f, 1f), 2);
+        }
+
+        if (o.Total > 0 && o.Yes >= o.Total)
+        {
+            return (new Vector4(0.4f, 0.8f, 0.4f, 1f), 0);
+        }
+
+        return (new Vector4(0.9f, 0.8f, 0.3f, 1f), 1);
+    }
+
+    private static bool IsPast(string? isoDate, DateOnly today) =>
+        DateOnly.TryParseExact(isoDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) && d < today;
 
     // --- Mit cheat sheet (time-axis timeline) -----------------------------------------------------
 
@@ -303,13 +462,10 @@ public sealed class TeamsWindow : Window
         _selectedJob ??= ResolveJob(plan.Id, jobs);
         SyncPhaseState($"{team.Id}:{plan.Id}", sheet);
 
-        // Controls: job, phase checkboxes, tag filter.
-        var showAll = _config.TeamsShowAllJobs;
-        if (ImGui.Checkbox(T(LocKeys.TeamsAllJobs), ref showAll))
-        {
-            _config.TeamsShowAllJobs = showAll;
-            _save();
-        }
+        // Controls: job, phase checkboxes, tag filter. The runtime state seeds from the config defaults
+        // on each plan change (see SyncPhaseState).
+        ImGui.Checkbox(T(LocKeys.TeamsAllJobs), ref _showAllJobs);
+        var showAll = _showAllJobs;
 
         if (!showAll && jobs.Length > 0)
         {
@@ -867,7 +1023,9 @@ public sealed class TeamsWindow : Window
 
         Ensure(_absenceSlot, team.Id.ToString(), ct => _teams.GetAbsencesAsync(team.Id, ct));
 
-        // Add form with date pickers.
+        // Add / edit form.
+        ImGui.TextColored(Yellow, _editingAbsenceId != 0 ? T(LocKeys.TeamsAbsenceEditing) : T(LocKeys.TeamsAbsenceNew));
+        ImGui.Spacing();
         ImGui.TextUnformatted(T(LocKeys.TeamsAbsenceFrom));
         ImGui.SameLine();
         DrawDatePicker("from", ref _absFrom);
@@ -876,14 +1034,30 @@ public sealed class TeamsWindow : Window
         ImGui.SameLine();
         DrawDatePicker("to", ref _absTo);
 
-        ImGui.SetNextItemWidth(260f);
+        ImGui.SetNextItemWidth(280f);
         ImGui.InputText(T(LocKeys.TeamsAbsenceNote), ref _absNote, 200);
-        if (ImGui.Button(T(LocKeys.TeamsAbsenceAdd)))
+
+        if (ImGui.Button(_editingAbsenceId != 0 ? T(LocKeys.TeamsAbsenceUpdate) : T(LocKeys.TeamsAbsenceAdd)))
         {
-            AddAbsence(team.Id);
+            SubmitAbsence(team.Id);
+        }
+
+        if (_editingAbsenceId != 0)
+        {
+            ImGui.SameLine();
+            if (ImGui.Button(T(LocKeys.TeamsAbsenceCancel)))
+            {
+                ResetAbsenceForm();
+            }
+        }
+
+        if (_absenceError is { } inputError)
+        {
+            ImGui.TextColored(Red, inputError);
         }
 
         ImGui.Separator();
+        ImGui.Spacing();
 
         if (_absenceSlot.Loading)
         {
@@ -904,9 +1078,14 @@ public sealed class TeamsWindow : Window
             return;
         }
 
-        foreach (var absence in absences)
+        ImGui.TextColored(Dim, T(LocKeys.TeamsAbsenceCurrent));
+        ImGui.Spacing();
+
+        using var child = ImRaii.Child("##absList", new Vector2(0, 0), false);
+        foreach (var absence in absences.OrderBy(a => a.FromDate, StringComparer.Ordinal))
         {
             using var id = ImRaii.PushId($"abs_{absence.Id}");
+            ImGui.AlignTextToFramePadding();
             ImGui.TextUnformatted($"{LocalDate(absence.FromDate)}  →  {LocalDate(absence.ToDate)}");
             if (!string.IsNullOrEmpty(absence.Note))
             {
@@ -915,11 +1094,30 @@ public sealed class TeamsWindow : Window
             }
 
             ImGui.SameLine();
+            if (ImGui.SmallButton(T(LocKeys.TeamsAbsenceEdit)))
+            {
+                _editingAbsenceId = absence.Id;
+                _absFrom = absence.FromDate ?? _absFrom;
+                _absTo = absence.ToDate ?? _absTo;
+                _absNote = absence.Note ?? string.Empty;
+                _absenceError = null;
+            }
+
+            ImGui.SameLine();
             if (ImGui.SmallButton(T(LocKeys.TeamsAbsenceDelete)))
             {
                 DeleteAbsence(team.Id, absence.Id);
             }
+
+            ImGui.Spacing();
         }
+    }
+
+    private void ResetAbsenceForm()
+    {
+        _editingAbsenceId = 0;
+        _absNote = string.Empty;
+        _absenceError = null;
     }
 
     /// <summary>A button showing the localized date; clicking opens a mini month-grid picker.</summary>
@@ -1008,33 +1206,49 @@ public sealed class TeamsWindow : Window
 
     private readonly Dictionary<string, DateOnly> _pickerMonth = new(StringComparer.Ordinal);
 
-    private void AddAbsence(long teamId)
+    private void SubmitAbsence(long teamId)
     {
         if (!DateOnly.TryParseExact(_absFrom, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var from) ||
-            !DateOnly.TryParseExact(_absTo, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var to) ||
-            to < from)
+            !DateOnly.TryParseExact(_absTo, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var to))
         {
-            _actionMessage = T(LocKeys.TeamsAbsenceInvalid);
+            _absenceError = T(LocKeys.TeamsAbsenceInvalid);
             return;
         }
 
+        if (to < from)
+        {
+            _absenceError = T(LocKeys.TeamsAbsenceRangeInvalid);
+            return;
+        }
+
+        _absenceError = null;
         _actionMessage = T(LocKeys.TeamsWorking);
+        var oldId = _editingAbsenceId;
         var req = new AbsenceCreateRequest { FromDate = _absFrom, ToDate = _absTo, Note = string.IsNullOrWhiteSpace(_absNote) ? null : _absNote };
         _ = Task.Run(async () =>
         {
             try
             {
                 var res = await _teams.CreateAbsenceAsync(teamId, req, CancellationToken.None).ConfigureAwait(false);
-                _actionMessage = res.IsSuccess ? T(LocKeys.TeamsSaved) : Describe(res.Error);
-                if (res.IsSuccess)
+                if (!res.IsSuccess)
                 {
-                    _absNote = string.Empty;
-                    _absenceSlot.Reset();
+                    _actionMessage = Describe(res.Error);
+                    return;
                 }
+
+                // "Edit" = create the new range, then remove the old one (there is no update endpoint).
+                if (oldId != 0)
+                {
+                    await _teams.DeleteAbsenceAsync(teamId, oldId, CancellationToken.None).ConfigureAwait(false);
+                }
+
+                _actionMessage = T(LocKeys.TeamsSaved);
+                ResetAbsenceForm();
+                _absenceSlot.Reset();
             }
             catch (Exception ex)
             {
-                _log.Error($"Absence create failed: {ex.GetType().Name}.");
+                _log.Error($"Absence submit failed: {ex.GetType().Name}.");
                 _actionMessage = T(LocKeys.TeamsErrorGeneric);
             }
         });
@@ -1105,6 +1319,15 @@ public sealed class TeamsWindow : Window
         var count = maxPhase + 1;
         if (planKey != _mitPlanKey || _phaseChecked.Length != count)
         {
+            if (planKey != _mitPlanKey)
+            {
+                // A new plan: seed the filters from the configured defaults.
+                _showAllJobs = _config.TeamsDefaultAllJobs;
+                _tagRaidwide = true;
+                _tagTankbuster = true;
+                _tagOther = _config.TeamsDefaultShowOther;
+            }
+
             _mitPlanKey = planKey;
             _phaseChecked = Enumerable.Repeat(true, count).ToArray();
         }

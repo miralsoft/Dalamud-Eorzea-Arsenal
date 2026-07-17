@@ -716,4 +716,46 @@ public static class LocKeys
 
     /// <summary>Event kind: single.</summary>
     public const string TeamsSingle = "teams.single";
+
+    /// <summary>Tab: events (per-team list).</summary>
+    public const string TeamsTabEvents = "teams.tab.events";
+
+    /// <summary>Termine: show past occurrences ({0} = count).</summary>
+    public const string TeamsShowPast = "teams.showpast";
+
+    /// <summary>Config: default job view.</summary>
+    public const string TeamsDefaultJobLabel = "teams.defaultjob";
+
+    /// <summary>Config: default = current job.</summary>
+    public const string TeamsDefaultCurrentJob = "teams.defaultjob.current";
+
+    /// <summary>Config: default = all jobs.</summary>
+    public const string TeamsDefaultAllJobsOpt = "teams.defaultjob.all";
+
+    /// <summary>Config: default show the "other" tag.</summary>
+    public const string TeamsDefaultShowOther = "teams.defaultshowother";
+
+    /// <summary>Config: default show-other hint.</summary>
+    public const string TeamsDefaultShowOtherHint = "teams.defaultshowother.hint";
+
+    /// <summary>Absence: new-entry heading.</summary>
+    public const string TeamsAbsenceNew = "teams.absence.new";
+
+    /// <summary>Absence: editing heading.</summary>
+    public const string TeamsAbsenceEditing = "teams.absence.editing";
+
+    /// <summary>Absence: update button.</summary>
+    public const string TeamsAbsenceUpdate = "teams.absence.update";
+
+    /// <summary>Absence: cancel edit.</summary>
+    public const string TeamsAbsenceCancel = "teams.absence.cancel";
+
+    /// <summary>Absence: current-list heading.</summary>
+    public const string TeamsAbsenceCurrent = "teams.absence.current";
+
+    /// <summary>Absence: edit button.</summary>
+    public const string TeamsAbsenceEdit = "teams.absence.edit";
+
+    /// <summary>Absence: end-before-start error.</summary>
+    public const string TeamsAbsenceRangeInvalid = "teams.absence.rangeinvalid";
 }
