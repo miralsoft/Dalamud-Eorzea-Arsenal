@@ -62,8 +62,8 @@ public sealed class MitPlanRef
     /// <summary>Boss label.</summary>
     public string? Boss { get; init; }
 
-    /// <summary>The content this plan belongs to.</summary>
-    public long ContentId { get; init; }
+    /// <summary>The content this plan belongs to, or <see langword="null"/> if it isn't linked to one.</summary>
+    public long? ContentId { get; init; }
 }
 
 // --- GET /me/calendar ------------------------------------------------------------------------------
