@@ -2,9 +2,12 @@ using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Command;
 using Dalamud.Game.Gui.Dtr;
 using Dalamud.Game.Text.SeStringHandling;
+using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
+using Dalamud.Utility;
+using FFXIVClientStructs.FFXIV.Client.UI;
 using EorzeaArsenal.Abstractions;
 using EorzeaArsenal.Api;
 using EorzeaArsenal.Core;
@@ -50,11 +53,14 @@ public sealed class Plugin : IDalamudPlugin
     private readonly GearSyncService _sync;
     private readonly InventorySyncService _inventorySync;
     private readonly WeeklySyncService _weeklySync;
+    private readonly TeamsService _teamsService;
+    private readonly TeamsSeenStore _teamsSeenStore;
     private readonly BisService _bisService;
 
     private readonly WindowSystem _windowSystem = new("EorzeaArsenal");
     private readonly ConfigWindow _configWindow;
     private readonly StatusWindow _statusWindow;
+    private readonly TeamsWindow _teamsWindow;
     private readonly BisWindow _bisWindow;
     private readonly LogWindow _logWindow;
     private readonly BisTooltip _bisTooltip;
@@ -72,6 +78,8 @@ public sealed class Plugin : IDalamudPlugin
     private long _nextRaidFinderCheckTicks;
     private bool _raidFinderWasOpen;
     private uint _lastContentsFinderDutyId;
+    private long _nextTeamsPollTicks;
+    private uint _nextTeamsLinkId = 1;
     private long _hiddenRefreshDueTicks; // 0 = none scheduled
     private long _nextHiddenRefreshTryTicks;
     private long _contentsRefreshDueTicks; // 0 = none scheduled
@@ -158,13 +166,18 @@ public sealed class Plugin : IDalamudPlugin
         _weeklySync.SyncCompleted += OnWeeklyCompleted;
         _weeklySource.HiddenRefreshCompleted += OnHiddenRefreshCompleted;
         _weeklySource.ContentsRefreshCompleted += OnHiddenRefreshCompleted;
+        _teamsSeenStore = new TeamsSeenStore(_config, Save);
+        _teamsService = new TeamsService(api, _store, _teamsSeenStore, new SystemClock(), _log);
+        _teamsService.Toast += OnTeamToast;
         _bisService = new BisService(api, _gearSource, _store, _log);
 
         _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, Save, LinkItemInChat);
         _logWindow = new LogWindow(_logBuffer, _localizer);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, _gearSource, _log, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenLog);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, _gearSource, _log, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenLog, OpenTeams);
+        _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _log, Save, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save);
         _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _log);
+        _windowSystem.AddWindow(_teamsWindow);
         _windowSystem.AddWindow(_bisWindow);
         _windowSystem.AddWindow(_logWindow);
         _windowSystem.AddWindow(_statusWindow);
@@ -208,6 +221,10 @@ public sealed class Plugin : IDalamudPlugin
         _weeklySource.ContentsRefreshCompleted -= OnHiddenRefreshCompleted;
         _weeklySync.SyncCompleted -= OnWeeklyCompleted;
         _weeklySync.Dispose();
+        _teamsService.Toast -= OnTeamToast;
+        _teamsService.Dispose();
+        _teamsWindow.Dispose();
+        _chatGui.RemoveChatLinkHandler();
         _characterDirectory.Changed -= OnCharacterDirectoryChanged;
         _configWindow.Dispose();
         _httpClient.Dispose();
@@ -222,6 +239,15 @@ public sealed class Plugin : IDalamudPlugin
     private void OpenBis() => _bisWindow.IsOpen = true;
 
     private void OpenLog() => _logWindow.IsOpen = true;
+
+    private void OpenTeams()
+    {
+        _teamsWindow.IsOpen = true;
+        if (_config is { Enabled: true, TosAccepted: true, SyncTeams: true } && _store.HasKey)
+        {
+            _teamsService.RequestPoll();
+        }
+    }
 
     private void Chat(string message) => _chatGui.Print(ChatPrefix + message);
 
@@ -259,6 +285,9 @@ public sealed class Plugin : IDalamudPlugin
                 break;
             case "status":
                 OpenStatus();
+                break;
+            case "teams":
+                OpenTeams();
                 break;
             case "log":
                 OpenLog();
@@ -440,6 +469,12 @@ public sealed class Plugin : IDalamudPlugin
             _contentsRefreshDueTicks = Environment.TickCount64 + 12_000;
         }
 
+        // Poll the Teams companion once the session settles (soon after login).
+        if (_config is { Enabled: true, TosAccepted: true, SyncTeams: true } && _store.HasKey)
+        {
+            _nextTeamsPollTicks = Environment.TickCount64 + 8_000;
+        }
+
         // Auto-load BiS for the new session so the window/overlay have current data without a manual
         // refresh. The framework tick performs it once the character is fully loaded and gear-readable.
         if (_store.HasKey)
@@ -474,6 +509,14 @@ public sealed class Plugin : IDalamudPlugin
         {
             _nextCharRecordTicks = now + 30_000;
             RecordCurrentCharacter();
+        }
+
+        // Teams companion polls the calendar + notifications on an account level (independent of the
+        // per-character push opt-in). The service itself throttles to ≥ 5 min and backs off on errors.
+        if (_config is { Enabled: true, TosAccepted: true, SyncTeams: true } && _store.HasKey && now >= _nextTeamsPollTicks)
+        {
+            _nextTeamsPollTicks = now + 300_000;
+            _teamsService.RequestPoll();
         }
 
         if (_config is not { Enabled: true, TosAccepted: true } || !_store.HasKey || !CurrentCharacterAllowed())
@@ -799,6 +842,90 @@ public sealed class Plugin : IDalamudPlugin
         ApiErrorKind.Network => _localizer.Get(LocKeys.ErrorNetwork),
         _ => _localizer.Get(LocKeys.ErrorUnexpected),
     };
+
+    /// <summary>
+    /// A new team notification arrived (loot / reminder / planned event). Shows a game toast with a
+    /// sound and prints a clickable chat line that opens the deep link in the browser. Marshals to the
+    /// framework thread (game calls); fires only for genuinely-new items (deduped in the service).
+    /// </summary>
+    private void OnTeamToast(TeamToast toast) => _ = _framework.RunOnFrameworkThread(() => ShowTeamToast(toast));
+
+    private unsafe void ShowTeamToast(TeamToast toast)
+    {
+        try
+        {
+            var text = string.IsNullOrEmpty(toast.Body) ? toast.Title : $"{toast.Title}: {toast.Body}";
+            if (_config.UseToasts)
+            {
+                _toastGui.ShowNormal(text);
+            }
+
+            try
+            {
+                UIGlobals.PlaySoundEffect(6); // a soft in-game chime so the toast is noticed
+            }
+            catch (Exception ex)
+            {
+                _log.Warning($"Toast sound failed: {ex.GetType().Name}.");
+            }
+
+            var url = TeamLinkUrl(toast.Link);
+            if (string.IsNullOrEmpty(url))
+            {
+                Chat(text);
+                return;
+            }
+
+            // A clickable chat line that opens the deep link (Dalamud toasts themselves aren't clickable).
+            var id = _nextTeamsLinkId++;
+            var payload = _chatGui.AddChatLinkHandler(id, (_, _) => OpenExternalLink(url));
+            var message = new SeStringBuilder()
+                .AddText($"{ChatPrefix}{text}  ")
+                .Add(payload)
+                .AddText($"[{_localizer.Get(LocKeys.OpenWebApp)}]")
+                .Add(RawPayload.LinkTerminator)
+                .Build();
+            _chatGui.Print(message);
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Team toast failed: {ex.GetType().Name}.");
+        }
+    }
+
+    /// <summary>Turns a relative notification link (<c>/teams/…</c>) into an absolute web-app URL.</summary>
+    private string? TeamLinkUrl(string? relative)
+    {
+        if (string.IsNullOrEmpty(relative))
+        {
+            return null;
+        }
+
+        var baseUrl = WebAppBase();
+        return relative.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? relative : baseUrl + relative;
+    }
+
+    private string WebAppBase()
+    {
+        if (!string.IsNullOrWhiteSpace(_config.WebAppUrl))
+        {
+            return _config.WebAppUrl.Trim().TrimEnd('/');
+        }
+
+        var baseUrl = _store.BaseUrl;
+        var idx = baseUrl.IndexOf("/api/", StringComparison.OrdinalIgnoreCase);
+        return idx > 0 ? baseUrl[..idx] : baseUrl.TrimEnd('/');
+    }
+
+    /// <summary>Opens an absolute http(s) URL in the browser; ignores any other scheme (P8).</summary>
+    private void OpenExternalLink(string url)
+    {
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            Util.OpenLink(url);
+        }
+    }
 
     /// <summary>Persists the learned <c>cid_hash → character_id</c> map (best-effort; runs off-thread).</summary>
     private void OnCharacterDirectoryChanged()

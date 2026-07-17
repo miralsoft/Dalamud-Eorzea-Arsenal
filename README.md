@@ -37,6 +37,13 @@ tick them by hand. It only ever sends values it can read with certainty and only
 your manual entries are never overwritten. This opt-in is **off by default** and needs a key with
 `characters:write` + `gear:read`.
 
+It also offers an optional **Teams companion** (`/bisexport teams` or the hub button): your teams'
+**calendar** with in-game **RSVP**, **mit cheat sheets**, a **content hub** (images shown inline,
+links/PDFs open in the browser), the **farm** overview (who needs what), **FFLogs**, and your own
+**absence** management — plus in-game **toasts** (with sound and a clickable link) for new loot, event
+reminders and newly planned events. It only reads and renders what the server sends and only writes your
+own RSVP/absence. This opt-in is **off by default** and needs a key with `teams:read` + `teams:write`.
+
 ## Install (custom plugin repository)
 
 This plugin is distributed through a **custom Dalamud repository**, not the official plugin list.

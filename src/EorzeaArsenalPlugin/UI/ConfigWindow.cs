@@ -385,6 +385,16 @@ public sealed class ConfigWindow : Window, IDisposable
         }
 
         Hint(T(LocKeys.SyncWeeklyHint));
+        GroupGap();
+
+        var syncTeams = _config.SyncTeams;
+        if (ImGui.Checkbox(T(LocKeys.SyncTeams), ref syncTeams))
+        {
+            _config.SyncTeams = syncTeams;
+            _save();
+        }
+
+        Hint(T(LocKeys.SyncTeamsHint));
     }
 
     private void DrawDisplayTab()

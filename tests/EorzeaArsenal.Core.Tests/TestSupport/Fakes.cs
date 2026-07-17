@@ -101,6 +101,19 @@ public sealed class FakeInventorySource : IInventorySource
     }
 }
 
+/// <summary>An in-memory <see cref="ITeamsSeenStore"/> that tracks how often it was persisted.</summary>
+public sealed class InMemoryTeamsSeenStore : ITeamsSeenStore
+{
+    /// <inheritdoc />
+    public long LastNotificationId { get; set; }
+
+    /// <summary>Number of <see cref="Save"/> calls.</summary>
+    public int Saves { get; private set; }
+
+    /// <inheritdoc />
+    public void Save() => Saves++;
+}
+
 /// <summary>A programmable <see cref="IWeeklySource"/>.</summary>
 public sealed class FakeWeeklySource : IWeeklySource
 {

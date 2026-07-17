@@ -236,6 +236,42 @@ public sealed class GearSyncServiceTests
         public Task<ApiResult<InventoryPushResult>> PushInventoryAsync(string apiKey, InventoryPayload payload, CancellationToken ct) =>
             throw new NotSupportedException();
 
+        public Task<ApiResult<TeamsResponse>> GetTeamsAsync(string apiKey, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<CalendarResponse>> GetCalendarAsync(string apiKey, string? from, string? to, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<MitSheetResponse>> GetMitSheetAsync(string apiKey, long teamId, long planId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<ContentSheetResponse>> GetContentSheetAsync(string apiKey, long teamId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<ResourceFile>> GetResourceFileAsync(string apiKey, long teamId, long resourceId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<FarmResponse>> GetFarmAsync(string apiKey, long teamId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<LogsResponse>> GetLogsAsync(string apiKey, long teamId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<StatusAck>> PostAttendanceAsync(string apiKey, long teamId, long eventId, AttendanceRequest request, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<AbsencesResponse>> GetAbsencesAsync(string apiKey, long teamId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<AbsenceCreateResponse>> PostAbsenceAsync(string apiKey, long teamId, AbsenceCreateRequest request, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<bool>> DeleteAbsenceAsync(string apiKey, long teamId, long absenceId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<NotificationsResponse>> GetNotificationsAsync(string apiKey, CancellationToken ct) =>
+            throw new NotSupportedException();
+
         public Task<ApiResult<GearPushResult>> PushGearAsync(string apiKey, GearPayload payload, CancellationToken ct)
         {
             var now = Interlocked.Increment(ref _concurrent);

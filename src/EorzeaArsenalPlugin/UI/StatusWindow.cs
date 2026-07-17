@@ -40,6 +40,7 @@ public sealed class StatusWindow : Window
     private readonly Action _openConfig;
     private readonly Action _openBis;
     private readonly Action _openLog;
+    private readonly Action _openTeams;
 
     private volatile string[] _previewLines = [];
     private volatile bool _previewRan;
@@ -59,6 +60,7 @@ public sealed class StatusWindow : Window
     /// <param name="openConfig">Callback to open the settings window.</param>
     /// <param name="openBis">Callback to open the BiS comparison window.</param>
     /// <param name="openLog">Callback to open the diagnostics log window.</param>
+    /// <param name="openTeams">Callback to open the Teams companion window.</param>
     public StatusWindow(
         PluginConfig config,
         ConfigStore store,
@@ -73,7 +75,8 @@ public sealed class StatusWindow : Window
         Action requestWeeklySync,
         Action openConfig,
         Action openBis,
-        Action openLog)
+        Action openLog,
+        Action openTeams)
         : base("Eorzea Arsenal###EorzeaArsenalStatus")
     {
         _config = config;
@@ -90,6 +93,7 @@ public sealed class StatusWindow : Window
         _openConfig = openConfig;
         _openBis = openBis;
         _openLog = openLog;
+        _openTeams = openTeams;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -153,6 +157,11 @@ public sealed class StatusWindow : Window
         }
 
         Section(T(LocKeys.SectionView));
+        if (_config.SyncTeams && MenuButton(FontAwesomeIcon.Users, T(LocKeys.TeamsOpen)))
+        {
+            _openTeams();
+        }
+
         if (MenuButton(FontAwesomeIcon.BalanceScale, T(LocKeys.BisOpen)))
         {
             _openBis();

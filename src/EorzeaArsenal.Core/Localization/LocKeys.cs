@@ -433,4 +433,167 @@ public static class LocKeys
 
     /// <summary>Empty-log placeholder.</summary>
     public const string LogEmpty = "log.empty";
+
+    // Teams companion
+    /// <summary>Teams window: enable/connect hint.</summary>
+    public const string TeamsDisabledHint = "teams.disabledhint";
+
+    /// <summary>Teams window: reconnect-for-scope hint.</summary>
+    public const string TeamsScopeHint = "teams.scopehint";
+
+    /// <summary>Teams status-window entry / window title.</summary>
+    public const string TeamsOpen = "teams.open";
+
+    /// <summary>Config: enable the Teams companion.</summary>
+    public const string SyncTeams = "config.syncteams";
+
+    /// <summary>Config: Teams companion hint.</summary>
+    public const string SyncTeamsHint = "config.syncteams.hint";
+
+    /// <summary>Tab: calendar.</summary>
+    public const string TeamsTabCalendar = "teams.tab.calendar";
+
+    /// <summary>Tab: mit cheat sheet.</summary>
+    public const string TeamsTabMit = "teams.tab.mit";
+
+    /// <summary>Tab: content hub.</summary>
+    public const string TeamsTabContent = "teams.tab.content";
+
+    /// <summary>Tab: farm.</summary>
+    public const string TeamsTabFarm = "teams.tab.farm";
+
+    /// <summary>Tab: FFLogs.</summary>
+    public const string TeamsTabLogs = "teams.tab.logs";
+
+    /// <summary>Tab: absence.</summary>
+    public const string TeamsTabAbsence = "teams.tab.absence";
+
+    /// <summary>Team picker label.</summary>
+    public const string TeamsTeamLabel = "teams.teamlabel";
+
+    /// <summary>Loading placeholder.</summary>
+    public const string TeamsLoading = "teams.loading";
+
+    /// <summary>No teams placeholder.</summary>
+    public const string TeamsNoTeams = "teams.noteams";
+
+    /// <summary>Refresh button.</summary>
+    public const string TeamsRefresh = "teams.refresh";
+
+    /// <summary>Help button.</summary>
+    public const string TeamsHelp = "teams.help";
+
+    /// <summary>Working/saving placeholder.</summary>
+    public const string TeamsWorking = "teams.working";
+
+    /// <summary>Saved acknowledgement.</summary>
+    public const string TeamsSaved = "teams.saved";
+
+    /// <summary>No events placeholder.</summary>
+    public const string TeamsNoEvents = "teams.noevents";
+
+    /// <summary>Linked-content label.</summary>
+    public const string TeamsContentsLabel = "teams.contentslabel";
+
+    /// <summary>Attendance counts format: yes {0}, maybe {1}, no {2}, total {3}.</summary>
+    public const string TeamsAttendCounts = "teams.attendcounts";
+
+    /// <summary>RSVP yes.</summary>
+    public const string TeamsRsvpYes = "teams.rsvp.yes";
+
+    /// <summary>RSVP maybe.</summary>
+    public const string TeamsRsvpMaybe = "teams.rsvp.maybe";
+
+    /// <summary>RSVP no.</summary>
+    public const string TeamsRsvpNo = "teams.rsvp.no";
+
+    /// <summary>Plan picker label.</summary>
+    public const string TeamsPlanLabel = "teams.planlabel";
+
+    /// <summary>Job picker label.</summary>
+    public const string TeamsJobLabel = "teams.joblabel";
+
+    /// <summary>Show all jobs checkbox.</summary>
+    public const string TeamsAllJobs = "teams.alljobs";
+
+    /// <summary>No plan placeholder.</summary>
+    public const string TeamsNoPlan = "teams.noplan";
+
+    /// <summary>Mechanics header.</summary>
+    public const string TeamsMechanics = "teams.mechanics";
+
+    /// <summary>Cooldowns header.</summary>
+    public const string TeamsCooldowns = "teams.cooldowns";
+
+    /// <summary>No placements placeholder.</summary>
+    public const string TeamsNoPlacements = "teams.noplacements";
+
+    /// <summary>Bosses header.</summary>
+    public const string TeamsBosses = "teams.bosses";
+
+    /// <summary>Resources header.</summary>
+    public const string TeamsResources = "teams.resources";
+
+    /// <summary>No content placeholder.</summary>
+    public const string TeamsNoContent = "teams.nocontent";
+
+    /// <summary>No farm data placeholder.</summary>
+    public const string TeamsNoFarm = "teams.nofarm";
+
+    /// <summary>Core (Stamm) tag.</summary>
+    public const string TeamsCore = "teams.core";
+
+    /// <summary>Substitute (Ersatz) tag.</summary>
+    public const string TeamsSubstitute = "teams.substitute";
+
+    /// <summary>No BiS target placeholder.</summary>
+    public const string TeamsTargetNone = "teams.targetnone";
+
+    /// <summary>All BiS complete.</summary>
+    public const string TeamsComplete = "teams.complete";
+
+    /// <summary>Still-missing label.</summary>
+    public const string TeamsMissing = "teams.missing";
+
+    /// <summary>FFLogs not connected placeholder.</summary>
+    public const string TeamsLogsNotConnected = "teams.logs.notconnected";
+
+    /// <summary>No reports placeholder.</summary>
+    public const string TeamsNoReports = "teams.noreports";
+
+    /// <summary>Kills/wipes format: {0} kills, {1} wipes.</summary>
+    public const string TeamsKillsWipes = "teams.killswipes";
+
+    /// <summary>Absence: from date.</summary>
+    public const string TeamsAbsenceFrom = "teams.absence.from";
+
+    /// <summary>Absence: to date.</summary>
+    public const string TeamsAbsenceTo = "teams.absence.to";
+
+    /// <summary>Absence: note.</summary>
+    public const string TeamsAbsenceNote = "teams.absence.note";
+
+    /// <summary>Absence: add button.</summary>
+    public const string TeamsAbsenceAdd = "teams.absence.add";
+
+    /// <summary>Absence: delete button.</summary>
+    public const string TeamsAbsenceDelete = "teams.absence.delete";
+
+    /// <summary>Absence: invalid date message.</summary>
+    public const string TeamsAbsenceInvalid = "teams.absence.invalid";
+
+    /// <summary>No absences placeholder.</summary>
+    public const string TeamsNoAbsences = "teams.noabsences";
+
+    /// <summary>Generic teams error.</summary>
+    public const string TeamsErrorGeneric = "teams.error.generic";
+
+    /// <summary>Forbidden (capability) error.</summary>
+    public const string TeamsErrorForbidden = "teams.error.forbidden";
+
+    /// <summary>Not a member (404) error.</summary>
+    public const string TeamsNotMember = "teams.error.notmember";
+
+    /// <summary>Network error.</summary>
+    public const string TeamsErrorNetwork = "teams.error.network";
 }

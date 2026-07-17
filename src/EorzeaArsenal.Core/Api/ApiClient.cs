@@ -124,6 +124,171 @@ public sealed class ApiClient : IApiClient
     private static string WeeklyPath(string characterId) =>
         $"/characters/{Uri.EscapeDataString(characterId)}/weekly";
 
+    // --- Teams companion --------------------------------------------------------------------------
+
+    /// <inheritdoc />
+    public Task<ApiResult<TeamsResponse>> GetTeamsAsync(string apiKey, CancellationToken ct) =>
+        GetAsync<TeamsResponse>("/me/teams", apiKey, ct);
+
+    /// <inheritdoc />
+    public Task<ApiResult<CalendarResponse>> GetCalendarAsync(string apiKey, string? from, string? to, CancellationToken ct)
+    {
+        var query = new List<string>();
+        if (!string.IsNullOrEmpty(from))
+        {
+            query.Add("from=" + Uri.EscapeDataString(from));
+        }
+
+        if (!string.IsNullOrEmpty(to))
+        {
+            query.Add("to=" + Uri.EscapeDataString(to));
+        }
+
+        var path = query.Count > 0 ? "/me/calendar?" + string.Join('&', query) : "/me/calendar";
+        return GetAsync<CalendarResponse>(path, apiKey, ct);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<MitSheetResponse>> GetMitSheetAsync(string apiKey, long teamId, long planId, CancellationToken ct) =>
+        GetAsync<MitSheetResponse>($"/teams/{teamId}/mit/{planId}/sheet", apiKey, ct);
+
+    /// <inheritdoc />
+    public Task<ApiResult<ContentSheetResponse>> GetContentSheetAsync(string apiKey, long teamId, CancellationToken ct) =>
+        GetAsync<ContentSheetResponse>($"/teams/{teamId}/content/sheet", apiKey, ct);
+
+    /// <inheritdoc />
+    public async Task<ApiResult<ResourceFile>> GetResourceFileAsync(string apiKey, long teamId, long resourceId, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, Url($"/teams/{teamId}/resources/{resourceId}/file"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendBytesAsync(request, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<FarmResponse>> GetFarmAsync(string apiKey, long teamId, CancellationToken ct) =>
+        GetAsync<FarmResponse>($"/teams/{teamId}/farm", apiKey, ct);
+
+    /// <inheritdoc />
+    public Task<ApiResult<LogsResponse>> GetLogsAsync(string apiKey, long teamId, CancellationToken ct) =>
+        GetAsync<LogsResponse>($"/teams/{teamId}/logs", apiKey, ct);
+
+    /// <inheritdoc />
+    public async Task<ApiResult<StatusAck>> PostAttendanceAsync(string apiKey, long teamId, long eventId, AttendanceRequest request, CancellationToken ct)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Post, Url($"/teams/{teamId}/events/{eventId}/attendance"))
+        {
+            Content = JsonBody(request),
+        };
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<StatusAck>(message, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<AbsencesResponse>> GetAbsencesAsync(string apiKey, long teamId, CancellationToken ct) =>
+        GetAsync<AbsencesResponse>($"/teams/{teamId}/absences", apiKey, ct);
+
+    /// <inheritdoc />
+    public async Task<ApiResult<AbsenceCreateResponse>> PostAbsenceAsync(string apiKey, long teamId, AbsenceCreateRequest request, CancellationToken ct)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Post, Url($"/teams/{teamId}/absences"))
+        {
+            Content = JsonBody(request),
+        };
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<AbsenceCreateResponse>(message, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiResult<bool>> DeleteAbsenceAsync(string apiKey, long teamId, long absenceId, CancellationToken ct)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Delete, Url($"/teams/{teamId}/absences/{absenceId}"));
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendVoidAsync(message, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<NotificationsResponse>> GetNotificationsAsync(string apiKey, CancellationToken ct) =>
+        GetAsync<NotificationsResponse>("/notifications", apiKey, ct);
+
+    private async Task<ApiResult<T>> GetAsync<T>(string path, string apiKey, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, Url(path));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<T>(request, ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Sends a request expecting raw bytes (a streamed file) rather than JSON.</summary>
+    private async Task<ApiResult<ResourceFile>> SendBytesAsync(HttpRequestMessage request, CancellationToken ct)
+    {
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(_requestTimeout);
+        var endpoint = $"{request.Method} {request.RequestUri}";
+
+        try
+        {
+            using var response = await _http
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeoutCts.Token)
+                .ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(timeoutCts.Token).ConfigureAwait(false);
+                return ApiResult<ResourceFile>.Fail(MapError(response, body, endpoint));
+            }
+
+            var bytes = await response.Content.ReadAsByteArrayAsync(timeoutCts.Token).ConfigureAwait(false);
+            var mime = response.Content.Headers.ContentType?.MediaType;
+            return ApiResult<ResourceFile>.Ok(new ResourceFile { Bytes = bytes, Mime = mime });
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            return ApiResult<ResourceFile>.Fail(new ApiError { Kind = ApiErrorKind.Network, Message = "The request timed out.", Endpoint = endpoint });
+        }
+        catch (HttpRequestException ex)
+        {
+            return ApiResult<ResourceFile>.Fail(new ApiError { Kind = ApiErrorKind.Network, Message = ex.Message, Endpoint = endpoint });
+        }
+    }
+
+    /// <summary>Sends a request whose success carries no body (e.g. a DELETE); 2xx → <c>true</c>.</summary>
+    private async Task<ApiResult<bool>> SendVoidAsync(HttpRequestMessage request, CancellationToken ct)
+    {
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(_requestTimeout);
+        var endpoint = $"{request.Method} {request.RequestUri}";
+
+        try
+        {
+            using var response = await _http
+                .SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeoutCts.Token)
+                .ConfigureAwait(false);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return ApiResult<bool>.Ok(true);
+            }
+
+            var body = await response.Content.ReadAsStringAsync(timeoutCts.Token).ConfigureAwait(false);
+            return ApiResult<bool>.Fail(MapError(response, body, endpoint));
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            return ApiResult<bool>.Fail(new ApiError { Kind = ApiErrorKind.Network, Message = "The request timed out.", Endpoint = endpoint });
+        }
+        catch (HttpRequestException ex)
+        {
+            return ApiResult<bool>.Fail(new ApiError { Kind = ApiErrorKind.Network, Message = ex.Message, Endpoint = endpoint });
+        }
+    }
+
     private async Task<ApiResult<T>> SendAsync<T>(
         HttpRequestMessage request,
         CancellationToken ct,

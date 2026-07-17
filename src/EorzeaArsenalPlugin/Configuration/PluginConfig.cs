@@ -80,6 +80,25 @@ public sealed class PluginConfig : IPluginConfiguration
     /// </summary>
     public bool SyncWeekly { get; set; }
 
+    /// <summary>
+    /// Opt-in: enable the read-only <b>Teams companion</b> (calendar, mit cheat sheets, content hub,
+    /// farm, FFLogs) plus the two own-record writes (RSVP, absence) and in-game team notifications.
+    /// Independent of the gear push; off by default. Needs a key with <c>teams:read</c>/<c>teams:write</c>.
+    /// </summary>
+    public bool SyncTeams { get; set; }
+
+    /// <summary>The highest team-notification id already toasted (dedup watermark; persisted).</summary>
+    public long TeamsLastNotificationId { get; set; }
+
+    /// <summary>The team last selected in the Teams window (id), so it reopens where the user left off.</summary>
+    public long TeamsLastTeamId { get; set; }
+
+    /// <summary>Mit-sheet: show every job at once (<see langword="true"/>) instead of a single job.</summary>
+    public bool TeamsShowAllJobs { get; set; }
+
+    /// <summary>Remembered mit-sheet job per plan, keyed by <c>planId</c> (as a string).</summary>
+    public Dictionary<string, string> TeamsPlanJob { get; set; } = new();
+
     /// <summary>BiS window: show all gearsets (<see langword="true"/>) or only the current one.</summary>
     public bool BisShowAllSets { get; set; }
 

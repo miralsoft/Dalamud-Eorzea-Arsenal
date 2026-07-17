@@ -75,4 +75,95 @@ public interface IApiClient
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The merge result, or a classified error (401/403/404/422/429).</returns>
     Task<ApiResult<WeeklyPushResult>> PutWeeklyAsync(string apiKey, string characterId, WeeklyPayload payload, CancellationToken ct);
+
+    // --- Teams companion (Phase C + D): teams:read reads + teams:write own-record writes -----------
+
+    /// <summary>Reads the player's teams + active mit plans via <c>GET /me/teams</c> (<c>teams:read</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The teams, or a classified error.</returns>
+    Task<ApiResult<TeamsResponse>> GetTeamsAsync(string apiKey, CancellationToken ct);
+
+    /// <summary>Reads the expanded calendar via <c>GET /me/calendar</c> (<c>teams:read</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="from">Optional window start <c>YYYY-MM-DD</c>.</param>
+    /// <param name="to">Optional window end <c>YYYY-MM-DD</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The occurrences, or a classified error.</returns>
+    Task<ApiResult<CalendarResponse>> GetCalendarAsync(string apiKey, string? from, string? to, CancellationToken ct);
+
+    /// <summary>Reads a mit cheat sheet via <c>GET /teams/{id}/mit/{planId}/sheet</c> (<c>teams:read</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="planId">The plan id.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The sheet, or a classified error (404 if not a member).</returns>
+    Task<ApiResult<MitSheetResponse>> GetMitSheetAsync(string apiKey, long teamId, long planId, CancellationToken ct);
+
+    /// <summary>Reads the content hub via <c>GET /teams/{id}/content/sheet</c> (<c>teams:read</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The hub, or a classified error (404 if not a member).</returns>
+    Task<ApiResult<ContentSheetResponse>> GetContentSheetAsync(string apiKey, long teamId, CancellationToken ct);
+
+    /// <summary>Streams a resource file via <c>GET /teams/{id}/resources/{resourceId}/file</c> (<c>teams:read</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="resourceId">The resource id.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The bytes + MIME, or a classified error.</returns>
+    Task<ApiResult<ResourceFile>> GetResourceFileAsync(string apiKey, long teamId, long resourceId, CancellationToken ct);
+
+    /// <summary>Reads the who-needs-what farm overview via <c>GET /teams/{id}/farm</c> (<c>teams:read</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The farm entries, or a classified error.</returns>
+    Task<ApiResult<FarmResponse>> GetFarmAsync(string apiKey, long teamId, CancellationToken ct);
+
+    /// <summary>Reads the FFLogs mirror via <c>GET /teams/{id}/logs</c> (<c>teams:read</c>; best-effort).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The logs (possibly a disconnected/empty state), or a classified error.</returns>
+    Task<ApiResult<LogsResponse>> GetLogsAsync(string apiKey, long teamId, CancellationToken ct);
+
+    /// <summary>Sets your own RSVP via <c>POST /teams/{id}/events/{eventId}/attendance</c> (<c>teams:write</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:write</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="eventId">The event id.</param>
+    /// <param name="request">The occurrence date + new status.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>An ack, or a classified error (403 capability / 404 not a member).</returns>
+    Task<ApiResult<StatusAck>> PostAttendanceAsync(string apiKey, long teamId, long eventId, AttendanceRequest request, CancellationToken ct);
+
+    /// <summary>Reads absence ranges via <c>GET /teams/{id}/absences</c> (<c>teams:read</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Your own ranges (plus others' if you hold the right), or a classified error.</returns>
+    Task<ApiResult<AbsencesResponse>> GetAbsencesAsync(string apiKey, long teamId, CancellationToken ct);
+
+    /// <summary>Reports your own absence via <c>POST /teams/{id}/absences</c> (<c>teams:write</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:write</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="request">The date range + optional note.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The created id, or a classified error.</returns>
+    Task<ApiResult<AbsenceCreateResponse>> PostAbsenceAsync(string apiKey, long teamId, AbsenceCreateRequest request, CancellationToken ct);
+
+    /// <summary>Deletes your own absence via <c>DELETE /teams/{id}/absences/{absenceId}</c> (<c>teams:write</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:write</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="absenceId">The absence id (must be yours).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Success (2xx), or a classified error (403/404).</returns>
+    Task<ApiResult<bool>> DeleteAbsenceAsync(string apiKey, long teamId, long absenceId, CancellationToken ct);
+
+    /// <summary>Reads the notification feed via <c>GET /notifications</c> (bearer).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The feed (newest first), or a classified error.</returns>
+    Task<ApiResult<NotificationsResponse>> GetNotificationsAsync(string apiKey, CancellationToken ct);
 }

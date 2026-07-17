@@ -6,6 +6,31 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-17
+
+### Added
+- **Teams companion (opt-in).** A new in-game window (hub button, `/bisexport teams`) that mirrors your
+  teams from the web app — read-only rendering; the server owns all logic. Off by default; needs a key
+  with **`teams:read`** (+ **`teams:write`** for the two writes). Existing keys auto-upgrade on the next
+  call. Covers:
+  - **Calendar** — upcoming events across all your teams (shown verbatim in the team timezone), with
+    **in-game RSVP** (yes/maybe/no; optimistic, then re-polled for authoritative counts).
+  - **Mit cheat sheets** — the timeline mechanics and cooldown placements for a chosen plan, with skill
+    icons. The current job is preselected **only when the plan contains it**; otherwise a free job
+    picker (single-job focus by default, with an optional all-jobs view). The choice is remembered per
+    plan.
+  - **Content hub** — every fight with its bosses/drops and resources; **images render inline in-game**,
+    PDFs and links open in the browser.
+  - **Farm** — who-needs-what across the team (equipped vs BiS target, still-missing per member).
+  - **FFLogs** — recent kills/wipes (best-effort; a not-connected/empty state never crashes).
+  - **Absence** — report/cancel your own vacation ranges.
+  - **In-game notifications** — a toast **with a sound** and a **clickable chat link** for new loot,
+    event reminders (each of your 1-day / 3-hour / 1-hour warnings fires once) and newly planned events.
+    Deduped by notification id and persisted, so a relog never re-toasts the backlog.
+- Polls the calendar + notifications at most every ~5 minutes; the content hub, farm and FFLogs load on
+  demand. Never writes anything but your own RSVP and your own absence; a server `403`/`404` is shown,
+  never worked around.
+
 ## [0.3.0] - 2026-07-05
 
 ### Added
