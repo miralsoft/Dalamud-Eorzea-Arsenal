@@ -357,12 +357,14 @@ public sealed class ApiClient : IApiClient
 
             return ApiResult<T>.Ok(value);
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
+            // The exception message carries the JSON path + expected type (no values), which is
+            // exactly what is needed to fix a shape mismatch and is safe to surface (R22).
             return ApiResult<T>.Fail(new ApiError
             {
                 Kind = ApiErrorKind.Unexpected,
-                Message = "Could not parse the server response.",
+                Message = $"Could not parse the server response. {ex.Message}",
                 Endpoint = endpoint,
             });
         }

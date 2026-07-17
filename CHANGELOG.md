@@ -33,8 +33,11 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 - **The chat command is now `/xivarsenal`** (was `/bisexport`) — the plugin long outgrew a pure BiS
-  export. All subcommands are unchanged (`/xivarsenal status | config | teams | log | …`). The old
-  `/bisexport` command has been removed.
+  export. The old `/bisexport` command has been removed.
+- The hub is now the **menu** window (`/xivarsenal menu`, was `/xivarsenal status`) and is purely
+  actionable; the **"what will be sent" preview** moved into its own window instead of expanding inline.
+- A failed team/parse response now surfaces the concrete cause (HTTP status or the JSON path of a
+  shape mismatch) instead of a generic "could not load", to make diagnosis quick.
 
 ## [0.3.0] - 2026-07-05
 

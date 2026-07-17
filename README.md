@@ -18,7 +18,7 @@ then push gear**.
   ContentId — the raw ContentId is **never** sent).
 - Pushes the gearsets to the API with a single `PUT /gear`. Re-pushes update in place.
 - Shows an in-game **"Gear vs BiS"** comparison window and a hover overlay, plus a compact status
-  entry in the **server-info bar** (DTR) — time since last push, click to open the status window
+  entry in the **server-info bar** (DTR) — time since last push, click to open the menu window
   (toggleable).
 - A **diagnostics log window** (`/xivarsenal log`) with copy/clear for support.
 - Bilingual UI (**Deutsch / English**).
@@ -78,16 +78,16 @@ The issued key is **write-only (`gear:write`)** — it can do nothing except pus
 
 ## Usage
 
-- Run **`/xivarsenal`** to push all your gearsets. `/xivarsenal status` opens the status window,
+- Run **`/xivarsenal`** to push all your gearsets. `/xivarsenal menu` opens the menu window,
   `/xivarsenal config` the settings.
-- The **status window** (Main UI button) shows the last push, its result, a rate-limit countdown,
+- The **menu window** (Main UI button) shows the last push, its result, a rate-limit countdown,
   and quick actions: **push now**, **preview what will be sent**, **open web app**.
 - Optionally enable **Push on login**, **Push automatically** and **Push on gearset change**
   (all throttled — at most one push every few minutes, only when something changed, to respect the
   API's 30 uploads/hour limit).
 - **Per-character opt-in**, **toast notifications**, **log verbosity** and a **web app URL** are
   configurable in the settings window.
-- **Gear vs BiS:** the status window's *Gear vs BiS* button reads your pinned BiS targets
+- **Gear vs BiS:** the menu window's *Gear vs BiS* button reads your pinned BiS targets
   (`GET /gear/bis`, needs the `gear:read` scope your key now carries) and shows a per-slot diff of
   your current gear against BiS. If you connected before this existed, **reconnect** to get read
   access. No BiS shown? Pin one for your gearsets in the web app.

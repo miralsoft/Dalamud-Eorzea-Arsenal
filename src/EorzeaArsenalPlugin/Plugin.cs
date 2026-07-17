@@ -63,6 +63,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly TeamsWindow _teamsWindow;
     private readonly BisWindow _bisWindow;
     private readonly LogWindow _logWindow;
+    private readonly PreviewWindow _previewWindow;
     private readonly BisTooltip _bisTooltip;
     private readonly IDtrBarEntry _dtrEntry;
 
@@ -173,10 +174,12 @@ public sealed class Plugin : IDalamudPlugin
 
         _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, Save, LinkItemInChat);
         _logWindow = new LogWindow(_logBuffer, _localizer);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, _gearSource, _log, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenLog, OpenTeams);
+        _previewWindow = new PreviewWindow(_gearSource, _localizer, _log);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenLog, OpenTeams, OpenPreview);
         _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _log, Save, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save);
         _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _log);
+        _windowSystem.AddWindow(_previewWindow);
         _windowSystem.AddWindow(_teamsWindow);
         _windowSystem.AddWindow(_bisWindow);
         _windowSystem.AddWindow(_logWindow);
@@ -240,6 +243,8 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OpenLog() => _logWindow.IsOpen = true;
 
+    private void OpenPreview() => _previewWindow.Open();
+
     private void OpenTeams()
     {
         _teamsWindow.IsOpen = true;
@@ -283,7 +288,7 @@ public sealed class Plugin : IDalamudPlugin
             case "config":
                 OpenConfig();
                 break;
-            case "status":
+            case "menu":
                 OpenStatus();
                 break;
             case "teams":

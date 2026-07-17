@@ -250,8 +250,11 @@ public sealed class TeamsWindow : Window, IDisposable
 
             var header = $"{occ.Date}  {occ.Time}" + (string.IsNullOrEmpty(occ.EndTime) ? string.Empty : $"–{occ.EndTime}");
             ImGui.TextColored(Yellow, header);
-            ImGui.SameLine();
-            ImGui.TextDisabled($"({occ.Timezone})");
+            if (!string.IsNullOrEmpty(occ.Timezone))
+            {
+                ImGui.SameLine();
+                ImGui.TextDisabled($"({occ.Timezone})");
+            }
 
             ImGui.TextUnformatted($"{occ.TeamName}  ·  {occ.Title}");
 
@@ -967,6 +970,7 @@ public sealed class TeamsWindow : Window, IDisposable
                 }
                 else
                 {
+                    _log.Warning($"Teams load '{key}' failed: {res.Error?.Kind} (HTTP {res.Error?.StatusCode}) {res.Error?.Endpoint} req={res.Error?.RequestId} — {res.Error?.Message}");
                     slot.Error = Describe(res.Error);
                 }
             }
@@ -1063,7 +1067,10 @@ public sealed class TeamsWindow : Window, IDisposable
             ApiErrorKind.NotFound => T(LocKeys.TeamsNotMember),
             ApiErrorKind.Unauthorized => T(LocKeys.TeamsDisabledHint),
             ApiErrorKind.Network => T(LocKeys.TeamsErrorNetwork),
-            _ => T(LocKeys.TeamsErrorGeneric),
+            // Surface the concrete detail (HTTP status or "could not parse") so the cause is visible.
+            _ => error.StatusCode is { } sc
+                ? $"{T(LocKeys.TeamsErrorGeneric)} (HTTP {sc})"
+                : $"{T(LocKeys.TeamsErrorGeneric)} ({error.Message})",
         };
     }
 
