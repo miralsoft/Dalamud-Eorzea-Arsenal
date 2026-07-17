@@ -289,6 +289,15 @@ public sealed class Localizer : ILocalizer
         [LocKeys.TeamsResourceDisplayHint] = "How a content resource's type (link/note/file…) is labelled.",
         [LocKeys.TeamsShowNotes] = "Show note text",
         [LocKeys.TeamsShowNotesHint] = "Show the full text of note resources inline (off shows only the title).",
+        [LocKeys.TeamsRange] = "Range",
+        [LocKeys.TeamsRadius] = "Radius",
+        [LocKeys.TeamsCast] = "Cast",
+        [LocKeys.TeamsInstant] = "Instant",
+        [LocKeys.TeamsCalAllPresent] = "all present",
+        [LocKeys.TeamsCalUnclear] = "unclear",
+        [LocKeys.TeamsCalMissing] = "someone missing",
+        [LocKeys.TeamsRecurring] = "recurring",
+        [LocKeys.TeamsSingle] = "one-off",
     };
 
     private static readonly IReadOnlyDictionary<string, string> De = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -565,6 +574,15 @@ public sealed class Localizer : ILocalizer
         [LocKeys.TeamsResourceDisplayHint] = "Wie der Typ einer Inhalts-Ressource (Link/Notiz/Datei…) beschriftet wird.",
         [LocKeys.TeamsShowNotes] = "Notiztext anzeigen",
         [LocKeys.TeamsShowNotesHint] = "Zeigt den vollen Text von Notiz-Ressourcen inline (aus = nur der Titel).",
+        [LocKeys.TeamsRange] = "Reichweite",
+        [LocKeys.TeamsRadius] = "Radius",
+        [LocKeys.TeamsCast] = "Aktivieren",
+        [LocKeys.TeamsInstant] = "Sofort",
+        [LocKeys.TeamsCalAllPresent] = "alle da",
+        [LocKeys.TeamsCalUnclear] = "unklar",
+        [LocKeys.TeamsCalMissing] = "jemand fehlt",
+        [LocKeys.TeamsRecurring] = "wiederkehrend",
+        [LocKeys.TeamsSingle] = "einmalig",
     };
 
     private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Languages =

@@ -90,16 +90,16 @@ public sealed class ImageWindow : Window, IDisposable
             return;
         }
 
-        if (_wrap is not { Width: > 0 } wrap)
+        if (_wrap is not { Width: > 0, Height: > 0 } wrap)
         {
             return;
         }
 
-        // Fit the image to the current window width (scales up/down as the user resizes); the window
-        // scrolls vertically if the scaled image is taller than the viewport.
-        var width = Math.Max(32f, ImGui.GetContentRegionAvail().X);
-        var scale = width / wrap.Width;
-        ImGui.Image(wrap.Handle, new Vector2(width, wrap.Height * scale));
+        // Fit the image inside the available region on BOTH axes so it always fits — no scrollbar,
+        // whether the window is wide or tall. Scales up and down as the user resizes.
+        var avail = ImGui.GetContentRegionAvail();
+        var scale = Math.Min(Math.Max(32f, avail.X) / wrap.Width, Math.Max(32f, avail.Y) / wrap.Height);
+        ImGui.Image(wrap.Handle, new Vector2(wrap.Width * scale, wrap.Height * scale));
     }
 
     private void Load()

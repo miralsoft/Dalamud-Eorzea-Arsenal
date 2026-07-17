@@ -372,9 +372,9 @@ public sealed class TeamsWindow : Window
         var phases = sheet.Plan?.Phases ?? [];
         var phaseCount = Math.Max(1, _phaseChecked.Length);
 
-        using var child = ImRaii.Child("##mit", new Vector2(0, 0), false);
-
-        var anyDrawn = false;
+        // Collect the visible phases up front so we can render one table (one scrollbar) and show an
+        // empty state when nothing matches the phase/tag/job filters.
+        var visible = new List<(int Phase, List<MitRow> Mechs, List<MitPlacement> Places)>();
         for (var p = 0; p < phaseCount; p++)
         {
             if (p < _phaseChecked.Length && !_phaseChecked[p])
@@ -384,77 +384,80 @@ public sealed class TeamsWindow : Window
 
             var mechs = rows.Where(r => r.Phase == p && TagVisible(r.Tag)).ToList();
             var places = placements.Where(pl => pl.Phase == p && jobs.Contains(pl.Job, StringComparer.OrdinalIgnoreCase)).ToList();
-            if (mechs.Count == 0 && places.Count == 0)
+            if (mechs.Count > 0 || places.Count > 0)
             {
-                continue;
+                visible.Add((p, mechs, places));
             }
-
-            anyDrawn = true;
-            if (phaseCount > 1)
-            {
-                ImGui.TextColored(Yellow, "— " + PhaseName(phases, p) + " —");
-            }
-
-            DrawPhaseTable(p, jobs, mechs, places, cooldowns);
-            ImGui.Spacing();
         }
 
-        if (!anyDrawn)
+        if (visible.Count == 0)
         {
             ImGui.TextDisabled(T(LocKeys.TeamsNoPlacements));
+            return;
         }
-    }
 
-    private unsafe void DrawPhaseTable(int phase, string[] jobs, List<MitRow> mechs, List<MitPlacement> places, Dictionary<long, MitCooldown> cooldowns)
-    {
-        var times = mechs.Select(m => m.TimeS).Concat(places.Select(pl => pl.TimeS)).Distinct().OrderBy(t => t).ToList();
-        var columns = 2 + jobs.Length;
-        if (!ImGui.BeginTable($"##mitT{phase}", columns, ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.ScrollX))
+        var iconOnly = _config.TeamsMitDisplay == 1;
+        var jobColW = iconOnly ? 46f : 120f;
+        var flags = ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollX | ImGuiTableFlags.ScrollY;
+        if (!ImGui.BeginTable("##mitAll", 2 + jobs.Length, flags, new Vector2(0, -1)))
         {
             return;
         }
 
-        ImGui.TableSetupColumn(T(LocKeys.TeamsColTime), ImGuiTableColumnFlags.WidthFixed, 52f);
-        ImGui.TableSetupColumn(T(LocKeys.TeamsColMechanic), ImGuiTableColumnFlags.WidthStretch, 1f);
+        ImGui.TableSetupColumn(T(LocKeys.TeamsColTime), ImGuiTableColumnFlags.WidthFixed, 50f);
+        ImGui.TableSetupColumn(T(LocKeys.TeamsColMechanic), ImGuiTableColumnFlags.WidthFixed, 210f);
         foreach (var job in jobs)
         {
-            ImGui.TableSetupColumn(job, ImGuiTableColumnFlags.WidthFixed, 78f);
+            ImGui.TableSetupColumn(job, ImGuiTableColumnFlags.WidthFixed, jobColW);
         }
 
+        ImGui.TableSetupScrollFreeze(2, 1); // keep time + mechanic (and the header) pinned while scrolling jobs
         ImGui.TableHeadersRow();
 
-        foreach (var t in times)
+        var showPhaseHeaders = phaseCount > 1;
+        foreach (var (phase, mechs, places) in visible)
         {
-            ImGui.TableNextRow();
-            ImGui.TableNextColumn();
-            ImGui.TextUnformatted(FormatTime(t));
-
-            ImGui.TableNextColumn();
-            foreach (var m in mechs.Where(m => m.TimeS == t))
+            if (showPhaseHeaders)
             {
-                var color = ParseColor(m.Color) ?? Yellow;
-                ImGui.TextColored(color, m.Label ?? string.Empty);
-                if (!string.IsNullOrEmpty(m.Tag))
-                {
-                    ImGui.SameLine();
-                    ImGui.TextDisabled($"[{m.Tag}]");
-                }
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                ImGui.TableNextColumn();
+                ImGui.TextColored(Yellow, "— " + PhaseName(phases, phase) + " —");
             }
 
-            foreach (var job in jobs)
+            var times = mechs.Select(m => m.TimeS).Concat(places.Select(pl => pl.TimeS)).Distinct().OrderBy(t => t).ToList();
+            foreach (var t in times)
             {
+                ImGui.TableNextRow();
                 ImGui.TableNextColumn();
-                var first = true;
-                foreach (var pl in places.Where(pl => pl.TimeS == t && string.Equals(pl.Job, job, StringComparison.OrdinalIgnoreCase)))
+                ImGui.TextUnformatted(FormatTime(t));
+
+                ImGui.TableNextColumn();
+                foreach (var m in mechs.Where(m => m.TimeS == t))
                 {
-                    if (!first && _config.TeamsMitDisplay != 2)
+                    var color = ParseColor(m.Color) ?? Yellow;
+                    ImGui.TextColored(color, m.Label ?? string.Empty);
+                    if (!string.IsNullOrEmpty(m.Tag))
                     {
                         ImGui.SameLine();
+                        ImGui.TextDisabled($"[{m.Tag}]");
                     }
+                }
 
-                    first = false;
-                    cooldowns.TryGetValue(pl.CatalogId, out var cd);
-                    DrawCooldown(cd, pl.CatalogId);
+                foreach (var job in jobs)
+                {
+                    ImGui.TableNextColumn();
+                    var cell = places.Where(pl => pl.TimeS == t && string.Equals(pl.Job, job, StringComparison.OrdinalIgnoreCase)).ToList();
+                    for (var i = 0; i < cell.Count; i++)
+                    {
+                        if (i > 0 && iconOnly)
+                        {
+                            ImGui.SameLine();
+                        }
+
+                        cooldowns.TryGetValue(cell[i].CatalogId, out var cd);
+                        DrawCooldown(cd, cell[i].CatalogId, jobColW);
+                    }
                 }
             }
         }
@@ -462,7 +465,7 @@ public sealed class TeamsWindow : Window
         ImGui.EndTable();
     }
 
-    private void DrawCooldown(MitCooldown? cd, long catalogId)
+    private void DrawCooldown(MitCooldown? cd, long catalogId, float colWidth)
     {
         var name = cd is null ? $"#{catalogId}" : (German && !string.IsNullOrEmpty(cd.NameDe) ? cd.NameDe : cd.Name) ?? $"#{catalogId}";
         var mode = _config.TeamsMitDisplay; // 0 = icon + name, 1 = icon only, 2 = name only
@@ -473,31 +476,87 @@ public sealed class TeamsWindow : Window
             if (iconId != 0)
             {
                 var wrap = _textures.GetFromGameIcon(new GameIconLookup(iconId)).GetWrapOrEmpty();
-                ImGui.Image(wrap.Handle, new Vector2(24f, 24f));
+                ImGui.Image(wrap.Handle, new Vector2(22f, 22f));
             }
             else
             {
-                ImGui.Dummy(new Vector2(24f, 24f));
+                ImGui.Dummy(new Vector2(22f, 22f));
             }
 
             if (ImGui.IsItemHovered())
             {
-                ImGui.BeginTooltip();
-                ImGui.TextUnformatted(name);
-                ImGui.TextDisabled($"{T(LocKeys.TeamsRecast)}: {cd.RecastS}s · {T(LocKeys.TeamsDuration)}: {cd.DurationS}s");
-                ImGui.EndTooltip();
+                DrawActionTooltip(cd, name);
             }
 
             if (mode == 0)
             {
                 ImGui.SameLine();
-                ImGui.TextUnformatted(name);
+                ImGui.TextUnformatted(Truncate(name, colWidth - 30f));
             }
         }
         else
         {
-            ImGui.TextUnformatted(name);
+            ImGui.TextUnformatted(Truncate(name, colWidth - 6f));
         }
+    }
+
+    /// <summary>Renders a game-like action tooltip (name, category, range/radius, cast/recast, description).</summary>
+    private void DrawActionTooltip(MitCooldown cd, string name)
+    {
+        ImGui.BeginTooltip();
+        ImGui.PushTextWrapPos(340f);
+        ImGui.TextUnformatted($"{cd.Job}: {name}");
+
+        try
+        {
+            var action = _data.GetExcelSheet<LuminaAction>()?.GetRowOrDefault(cd.ActionId);
+            if (action is { } a)
+            {
+                var category = a.ActionCategory.ValueNullable?.Name.ExtractText();
+                if (!string.IsNullOrEmpty(category))
+                {
+                    ImGui.TextDisabled(category);
+                }
+
+                ImGui.TextDisabled($"{T(LocKeys.TeamsRange)}: {(a.Range < 0 ? "—" : a.Range + "y")}   {T(LocKeys.TeamsRadius)}: {a.EffectRange}y");
+                var cast = a.Cast100ms / 10.0;
+                var recast = a.Recast100ms / 10.0;
+                ImGui.TextDisabled($"{T(LocKeys.TeamsCast)}: {(cast <= 0 ? T(LocKeys.TeamsInstant) : cast.ToString("0.#", CultureInfo.InvariantCulture) + "s")}   {T(LocKeys.TeamsRecast)}: {recast.ToString("0.#", CultureInfo.InvariantCulture)}s");
+
+                var desc = _data.GetExcelSheet<Lumina.Excel.Sheets.ActionTransient>()?.GetRowOrDefault(cd.ActionId)?.Description.ExtractText();
+                if (!string.IsNullOrEmpty(desc))
+                {
+                    ImGui.Separator();
+                    ImGui.TextUnformatted(desc);
+                }
+            }
+        }
+        catch
+        {
+            // Fall back to just the name if the game data can't be read.
+        }
+
+        ImGui.PopTextWrapPos();
+        ImGui.EndTooltip();
+    }
+
+    private static string Truncate(string text, float maxWidth)
+    {
+        if (maxWidth <= 0 || ImGui.CalcTextSize(text).X <= maxWidth)
+        {
+            return text;
+        }
+
+        for (var len = text.Length - 1; len > 1; len--)
+        {
+            var candidate = text[..len] + "…";
+            if (ImGui.CalcTextSize(candidate).X <= maxWidth)
+            {
+                return candidate;
+            }
+        }
+
+        return text;
     }
 
     // --- Content hub ------------------------------------------------------------------------------
@@ -704,7 +763,7 @@ public sealed class TeamsWindow : Window
 
             var missing = target
                 .Where(kv => kv.Value.Id != 0 && (entry.Equipped is null || !entry.Equipped.TryGetValue(kv.Key, out var eq) || eq.Id != kv.Value.Id))
-                .Select(kv => kv.Key)
+                .Select(kv => SlotName(kv.Key))
                 .ToList();
 
             if (missing.Count == 0)
@@ -951,7 +1010,9 @@ public sealed class TeamsWindow : Window
 
     private void AddAbsence(long teamId)
     {
-        if (!IsIsoDate(_absFrom) || !IsIsoDate(_absTo))
+        if (!DateOnly.TryParseExact(_absFrom, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var from) ||
+            !DateOnly.TryParseExact(_absTo, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var to) ||
+            to < from)
         {
             _actionMessage = T(LocKeys.TeamsAbsenceInvalid);
             return;
@@ -1002,6 +1063,15 @@ public sealed class TeamsWindow : Window
     }
 
     // --- Helpers ----------------------------------------------------------------------------------
+
+    private static readonly Dictionary<string, string> SlotDe = new(StringComparer.Ordinal)
+    {
+        ["Weapon"] = "Waffe", ["OffHand"] = "Nebenhand", ["Head"] = "Kopf", ["Body"] = "Rumpf",
+        ["Hands"] = "Hände", ["Legs"] = "Beine", ["Feet"] = "Füße", ["Ears"] = "Ohrringe",
+        ["Neck"] = "Halskette", ["Wrists"] = "Armreif", ["RingLeft"] = "Ring links", ["RingRight"] = "Ring rechts",
+    };
+
+    private string SlotName(string key) => German && SlotDe.TryGetValue(key, out var de) ? de : key;
 
     private static string PlanLabel(MitPlanRef plan) =>
         !string.IsNullOrWhiteSpace(plan.Name) ? plan.Name! : !string.IsNullOrWhiteSpace(plan.Boss) ? plan.Boss! : $"#{plan.Id}";
@@ -1156,9 +1226,6 @@ public sealed class TeamsWindow : Window
 
         return new Vector4(((rgb >> 16) & 0xFF) / 255f, ((rgb >> 8) & 0xFF) / 255f, (rgb & 0xFF) / 255f, 1f);
     }
-
-    private static bool IsIsoDate(string value) =>
-        DateTime.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
 
     private void EnsureTeams()
     {

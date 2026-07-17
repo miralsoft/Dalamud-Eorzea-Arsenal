@@ -25,14 +25,6 @@ public sealed class CalendarWindow : Window
     private static readonly Vector4 Yellow = new(0.9f, 0.8f, 0.3f, 1f);
     private static readonly Vector4 Red = new(0.9f, 0.4f, 0.4f, 1f);
 
-    // A small, visually distinct palette; teams are mapped by id so a team keeps its colour.
-    private static readonly Vector4[] Palette =
-    [
-        new(0.36f, 0.66f, 0.94f, 1f), new(0.44f, 0.80f, 0.46f, 1f), new(0.93f, 0.62f, 0.34f, 1f),
-        new(0.78f, 0.52f, 0.93f, 1f), new(0.93f, 0.45f, 0.55f, 1f), new(0.40f, 0.82f, 0.80f, 1f),
-        new(0.86f, 0.80f, 0.38f, 1f), new(0.60f, 0.70f, 0.90f, 1f),
-    ];
-
     private readonly TeamsService _teams;
     private readonly PluginConfig _config;
     private readonly ConfigStore _store;
@@ -218,16 +210,23 @@ public sealed class CalendarWindow : Window
 
         var hovered = ImGui.IsItemHovered();
         var isSelected = _selected == date;
-        var bgCol = isSelected ? ImGuiCol.Header : hovered ? ImGuiCol.HeaderHovered : ImGuiCol.FrameBg;
-        var bg = ImGui.GetColorU32(bgCol);
+        var past = date < today;
+
+        var bg = ImGui.GetColorU32(hovered ? ImGuiCol.HeaderHovered : ImGuiCol.FrameBg);
         draw.AddRectFilled(origin, origin + size, bg, 3f);
-        if (date == today)
+        if (isSelected)
+        {
+            // Strong selection: a filled tint + a thick accent border.
+            draw.AddRectFilled(origin, origin + size, ImGui.GetColorU32(new Vector4(0.30f, 0.55f, 0.95f, 0.25f)), 3f);
+            draw.AddRect(origin, origin + size, ImGui.GetColorU32(new Vector4(0.40f, 0.65f, 1f, 1f)), 3f, ImDrawFlags.None, 3f);
+        }
+        else if (date == today)
         {
             draw.AddRect(origin, origin + size, ImGui.GetColorU32(Yellow), 3f, ImDrawFlags.None, 2f);
         }
 
-        var numColor = date == today ? ImGui.GetColorU32(Yellow) : ImGui.GetColorU32(ImGuiCol.Text);
-        draw.AddText(origin + new Vector2(5f, 3f), numColor, date.Day.ToString(CultureInfo.InvariantCulture));
+        var numColor = date == today ? ImGui.GetColorU32(Yellow) : past ? ImGui.GetColorU32(Dim) : ImGui.GetColorU32(ImGuiCol.Text);
+        draw.AddText(origin + new Vector2(6f, 3f), numColor, date.Day.ToString(CultureInfo.InvariantCulture));
 
         if (events is null)
         {
@@ -240,16 +239,44 @@ public sealed class CalendarWindow : Window
         {
             if (shown >= 3)
             {
-                draw.AddText(origin + new Vector2(5f, y), ImGui.GetColorU32(Dim), $"+{events.Count - shown}");
+                draw.AddText(origin + new Vector2(6f, y), ImGui.GetColorU32(Dim), $"+{events.Count - shown}");
                 break;
             }
 
-            var color = ImGui.GetColorU32(TeamColor(occ.TeamId));
-            var text = Truncate($"{occ.Time} {occ.Title}", size.X - 10f);
-            draw.AddText(origin + new Vector2(5f, y), color, text);
+            var (dotColor, _) = EventStatus(occ);
+            var alpha = past ? 0.45f : 1f;
+            var dot = dotColor with { W = alpha };
+            var textCol = new Vector4(0.86f, 0.86f, 0.86f, alpha);
+
+            draw.AddCircleFilled(origin + new Vector2(11f, y + 6f), 3.5f, ImGui.GetColorU32(dot));
+            var text = Truncate($"{occ.Time} {occ.Title}", size.X - 24f);
+            var textPos = origin + new Vector2(20f, y);
+            draw.AddText(textPos, ImGui.GetColorU32(textCol), text);
+            if (string.Equals(occ.OwnStatus, "no", StringComparison.OrdinalIgnoreCase))
+            {
+                var w = ImGui.CalcTextSize(text).X;
+                draw.AddLine(textPos + new Vector2(0f, 7f), textPos + new Vector2(w, 7f), ImGui.GetColorU32(textCol));
+            }
+
             y += 15f;
             shown++;
         }
+    }
+
+    /// <summary>Aggregate attendance status: green (all present), yellow (unclear), red (someone missing).</summary>
+    private static (Vector4 Color, int Kind) EventStatus(CalendarOccurrence o)
+    {
+        if (o.No > 0)
+        {
+            return (new Vector4(0.9f, 0.4f, 0.4f, 1f), 2);
+        }
+
+        if (o.Total > 0 && o.Yes >= o.Total)
+        {
+            return (new Vector4(0.4f, 0.8f, 0.4f, 1f), 0);
+        }
+
+        return (new Vector4(0.9f, 0.8f, 0.3f, 1f), 1);
     }
 
     private void DrawSelectedDay()
@@ -261,6 +288,7 @@ public sealed class CalendarWindow : Window
             return;
         }
 
+        var today = DateOnly.FromDateTime(DateTime.Now);
         var key = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         ImGui.TextColored(Yellow, date.ToDateTime(TimeOnly.MinValue).ToString("D", Culture));
 
@@ -271,27 +299,44 @@ public sealed class CalendarWindow : Window
             return;
         }
 
+        var past = date < today;
         using var child = ImRaii.Child("##dayEvents", new Vector2(0, 0), false);
         foreach (var occ in events)
         {
             using var id = ImRaii.PushId($"ev_{occ.EventId}_{occ.Date}");
-            ImGui.ColorButton($"##col{occ.EventId}", TeamColor(occ.TeamId), ImGuiColorEditFlags.NoTooltip | ImGuiColorEditFlags.NoInputs, new Vector2(12f, 12f));
+            var (status, _) = EventStatus(occ);
+            ImGui.ColorButton($"##col{occ.EventId}", status, ImGuiColorEditFlags.NoTooltip | ImGuiColorEditFlags.NoInputs, new Vector2(12f, 12f));
             ImGui.SameLine();
+
             var time = $"{occ.Time}" + (string.IsNullOrEmpty(occ.EndTime) ? string.Empty : $"–{occ.EndTime}");
-            ImGui.TextUnformatted($"{time}  {occ.TeamName}  ·  {occ.Title}");
-            if (!string.IsNullOrEmpty(occ.Timezone))
+            var signedOff = string.Equals(occ.OwnStatus, "no", StringComparison.OrdinalIgnoreCase);
+            using (ImRaii.PushColor(ImGuiCol.Text, Dim, past || signedOff))
             {
-                ImGui.SameLine();
-                ImGui.TextDisabled($"({occ.Timezone})");
+                ImGui.TextUnformatted($"{time}  {occ.TeamName}  ·  {occ.Title}");
+                if (signedOff)
+                {
+                    var min = ImGui.GetItemRectMin();
+                    var max = ImGui.GetItemRectMax();
+                    var midY = (min.Y + max.Y) / 2f;
+                    ImGui.GetWindowDrawList().AddLine(new Vector2(min.X, midY), new Vector2(max.X, midY), ImGui.GetColorU32(ImGuiCol.Text));
+                }
             }
+
+            ImGui.SameLine();
+            var kind = string.Equals(occ.Kind, "recurring", StringComparison.OrdinalIgnoreCase) ? LocKeys.TeamsRecurring : LocKeys.TeamsSingle;
+            ImGui.TextDisabled($"({T(kind)})");
 
             ImGui.TextUnformatted(_localizer.Get(LocKeys.TeamsAttendCounts, occ.Yes, occ.Maybe, occ.No, occ.Total));
 
-            Rsvp(occ, "yes", LocKeys.TeamsRsvpYes, Green);
-            ImGui.SameLine();
-            Rsvp(occ, "maybe", LocKeys.TeamsRsvpMaybe, Yellow);
-            ImGui.SameLine();
-            Rsvp(occ, "no", LocKeys.TeamsRsvpNo, Red);
+            using (ImRaii.Disabled(past))
+            {
+                Rsvp(occ, "yes", LocKeys.TeamsRsvpYes, Green);
+                ImGui.SameLine();
+                Rsvp(occ, "maybe", LocKeys.TeamsRsvpMaybe, Yellow);
+                ImGui.SameLine();
+                Rsvp(occ, "no", LocKeys.TeamsRsvpNo, Red);
+            }
+
             ImGui.SameLine();
             if (ImGui.SmallButton(T(LocKeys.TeamsCalendarOpenWeb)))
             {
@@ -304,22 +349,19 @@ public sealed class CalendarWindow : Window
 
     private void DrawLegend()
     {
-        var teams = _teams.Calendar
-            .GroupBy(o => o.TeamId)
-            .Select(g => (Id: g.Key, Name: g.First().TeamName ?? $"#{g.Key}"))
-            .ToList();
-        if (teams.Count == 0)
-        {
-            return;
-        }
-
         ImGui.Spacing();
-        foreach (var (teamId, name) in teams)
-        {
-            ImGui.ColorButton($"##leg{teamId}", TeamColor(teamId), ImGuiColorEditFlags.NoTooltip | ImGuiColorEditFlags.NoInputs, new Vector2(12f, 12f));
-            ImGui.SameLine();
-            ImGui.TextUnformatted(name);
-        }
+        LegendDot(Green, T(LocKeys.TeamsCalAllPresent));
+        ImGui.SameLine();
+        LegendDot(Yellow, T(LocKeys.TeamsCalUnclear));
+        ImGui.SameLine();
+        LegendDot(Red, T(LocKeys.TeamsCalMissing));
+    }
+
+    private static void LegendDot(Vector4 color, string label)
+    {
+        ImGui.ColorButton($"##leg{label}", color, ImGuiColorEditFlags.NoTooltip | ImGuiColorEditFlags.NoInputs, new Vector2(12f, 12f));
+        ImGui.SameLine();
+        ImGui.TextUnformatted(label);
     }
 
     private void Rsvp(CalendarOccurrence occ, string status, string labelKey, Vector4 activeColor)
@@ -355,8 +397,6 @@ public sealed class CalendarWindow : Window
             }
         });
     }
-
-    private static Vector4 TeamColor(long teamId) => Palette[(int)((ulong)teamId % (ulong)Palette.Length)];
 
     private static string Truncate(string text, float maxWidth)
     {

@@ -689,4 +689,31 @@ public static class LocKeys
 
     /// <summary>Config: show note bodies hint.</summary>
     public const string TeamsShowNotesHint = "teams.shownotes.hint";
+
+    /// <summary>Action tooltip: range.</summary>
+    public const string TeamsRange = "teams.range";
+
+    /// <summary>Action tooltip: radius.</summary>
+    public const string TeamsRadius = "teams.radius";
+
+    /// <summary>Action tooltip: cast.</summary>
+    public const string TeamsCast = "teams.cast";
+
+    /// <summary>Action tooltip: instant.</summary>
+    public const string TeamsInstant = "teams.instant";
+
+    /// <summary>Calendar legend: everyone present.</summary>
+    public const string TeamsCalAllPresent = "teams.cal.allpresent";
+
+    /// <summary>Calendar legend: unclear.</summary>
+    public const string TeamsCalUnclear = "teams.cal.unclear";
+
+    /// <summary>Calendar legend: someone missing.</summary>
+    public const string TeamsCalMissing = "teams.cal.missing";
+
+    /// <summary>Event kind: recurring.</summary>
+    public const string TeamsRecurring = "teams.recurring";
+
+    /// <summary>Event kind: single.</summary>
+    public const string TeamsSingle = "teams.single";
 }

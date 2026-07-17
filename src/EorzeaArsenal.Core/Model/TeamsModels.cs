@@ -501,7 +501,8 @@ public sealed class LogReport
     /// <summary>Report title.</summary>
     public string? Title { get; init; }
 
-    /// <summary>Start time (unix seconds).</summary>
+    /// <summary>Start time (unix seconds). The JSON key is camelCase (<c>startTime</c>), unlike the rest.</summary>
+    [JsonPropertyName("startTime")]
     public long StartTime { get; init; }
 
     /// <summary>Zone name.</summary>
