@@ -1329,9 +1329,18 @@ public sealed class TeamsWindow : Window
 
     private static readonly Dictionary<string, string> SlotDe = new(StringComparer.Ordinal)
     {
-        ["Weapon"] = "Waffe", ["OffHand"] = "Nebenhand", ["Head"] = "Kopf", ["Body"] = "Rumpf",
-        ["Hands"] = "Hände", ["Legs"] = "Beine", ["Feet"] = "Füße", ["Ears"] = "Ohrringe",
-        ["Neck"] = "Halskette", ["Wrists"] = "Armreif", ["RingLeft"] = "Ring links", ["RingRight"] = "Ring rechts",
+        ["Weapon"] = "Waffe",
+        ["OffHand"] = "Nebenhand",
+        ["Head"] = "Kopf",
+        ["Body"] = "Rumpf",
+        ["Hands"] = "Hände",
+        ["Legs"] = "Beine",
+        ["Feet"] = "Füße",
+        ["Ears"] = "Ohrringe",
+        ["Neck"] = "Halskette",
+        ["Wrists"] = "Armreif",
+        ["RingLeft"] = "Ring links",
+        ["RingRight"] = "Ring rechts",
     };
 
     private string SlotName(string key) => German && SlotDe.TryGetValue(key, out var de) ? de : key;

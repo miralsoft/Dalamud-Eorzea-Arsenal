@@ -7,7 +7,6 @@ using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using Dalamud.Utility;
-using FFXIVClientStructs.FFXIV.Client.UI;
 using EorzeaArsenal.Abstractions;
 using EorzeaArsenal.Api;
 using EorzeaArsenal.Core;
@@ -18,6 +17,7 @@ using EorzeaArsenal.Plugin.Configuration;
 using EorzeaArsenal.Plugin.Gear;
 using EorzeaArsenal.Plugin.Services;
 using EorzeaArsenal.Plugin.UI;
+using FFXIVClientStructs.FFXIV.Client.UI;
 
 namespace EorzeaArsenal.Plugin;
 
