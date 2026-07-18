@@ -758,4 +758,22 @@ public static class LocKeys
 
     /// <summary>Absence: end-before-start error.</summary>
     public const string TeamsAbsenceRangeInvalid = "teams.absence.rangeinvalid";
+
+    /// <summary>Config: default phase selection.</summary>
+    public const string TeamsDefaultPhasesLabel = "teams.defaultphases";
+
+    /// <summary>Config: default = all phases.</summary>
+    public const string TeamsDefaultPhasesAll = "teams.defaultphases.all";
+
+    /// <summary>Config: default = first phase only.</summary>
+    public const string TeamsDefaultPhasesFirst = "teams.defaultphases.first";
+
+    /// <summary>Config: default phase hint.</summary>
+    public const string TeamsDefaultPhasesHint = "teams.defaultphases.hint";
+
+    /// <summary>Config: Termine text size.</summary>
+    public const string TeamsEventScale = "teams.eventscale";
+
+    /// <summary>Config: Termine text size hint.</summary>
+    public const string TeamsEventScaleHint = "teams.eventscale.hint";
 }

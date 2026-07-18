@@ -117,6 +117,12 @@ public sealed class PluginConfig : IPluginConfiguration
     /// <summary>Termine list: show already-elapsed occurrences too.</summary>
     public bool TeamsShowPastEvents { get; set; }
 
+    /// <summary>Mit-sheet default: tick every phase (<see langword="true"/>) or just the first one.</summary>
+    public bool TeamsDefaultAllPhases { get; set; } = true;
+
+    /// <summary>Termine list: text scale (1.0 - 1.6).</summary>
+    public float TeamsEventTextScale { get; set; } = 1.15f;
+
     /// <summary>BiS window: show all gearsets (<see langword="true"/>) or only the current one.</summary>
     public bool BisShowAllSets { get; set; }
 

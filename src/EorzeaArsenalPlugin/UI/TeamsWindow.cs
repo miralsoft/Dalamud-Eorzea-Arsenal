@@ -152,9 +152,9 @@ public sealed class TeamsWindow : Window
         }
 
         Tab(LocKeys.TeamsTabEvents, "termine", DrawEvents);
-        Tab(LocKeys.TeamsTabMit, "mitigation", DrawMit);
+        Tab(LocKeys.TeamsTabMit, "mit", DrawMit);
         Tab(LocKeys.TeamsTabContent, "inhalte", DrawContent);
-        Tab(LocKeys.TeamsTabFarm, "gruppen-farm", DrawFarm);
+        Tab(LocKeys.TeamsTabFarm, "farm", DrawFarm);
         Tab(LocKeys.TeamsTabLogs, "logs", DrawLogs);
         Tab(LocKeys.TeamsTabAbsence, "termine", DrawAbsence);
     }
@@ -287,47 +287,95 @@ public sealed class TeamsWindow : Window
         ImGui.Separator();
 
         using var child = ImRaii.Child("##events", new Vector2(0, 0), false);
-        foreach (var group in all.GroupBy(o => o.EventId).OrderBy(g => g.Min(o => o.Date)))
+        if (!child)
         {
-            var first = group.First();
-            var occs = group
-                .Where(o => _config.TeamsShowPastEvents || !IsPast(o.Date, today))
-                .OrderBy(o => o.Date)
-                .ThenBy(o => o.Time)
-                .ToList();
-            if (occs.Count == 0)
+            return;
+        }
+
+        // The list gets long, so it is drawn at a configurable scale with zebra striping (R31).
+        var scale = Math.Clamp(_config.TeamsEventTextScale, 1f, 1.6f);
+        ImGui.SetWindowFontScale(scale);
+        try
+        {
+            foreach (var group in all.GroupBy(o => o.EventId).OrderBy(g => g.Min(o => o.Date)))
             {
-                continue;
+                DrawEventGroup(group.ToList(), today, scale);
             }
-
-            using var eid = ImRaii.PushId($"evgrp_{first.EventId}");
-            var kind = string.Equals(first.Kind, "recurring", StringComparison.OrdinalIgnoreCase) ? T(LocKeys.TeamsRecurring) : T(LocKeys.TeamsSingle);
-            var content = first.Contents is { Count: > 0 } ? string.Join(", ", first.Contents.Select(c => c.Name)) : first.ContentName;
-            ImGui.TextColored(Yellow, first.Title ?? string.Empty);
-            ImGui.SameLine();
-            ImGui.TextDisabled($"· {kind}" + (string.IsNullOrEmpty(content) ? string.Empty : $" · {content}"));
-
-            foreach (var occ in occs)
-            {
-                using var id = ImRaii.PushId($"occ_{occ.Date}");
-                DrawOccurrenceRow(occ, IsPast(occ.Date, today));
-            }
-
-            ImGui.Separator();
+        }
+        finally
+        {
+            ImGui.SetWindowFontScale(1f);
         }
     }
 
-    private void DrawOccurrenceRow(CalendarOccurrence occ, bool past)
+    private void DrawEventGroup(List<CalendarOccurrence> group, DateOnly today, float scale)
     {
-        var (status, _) = EventStatus(occ);
-        ImGui.ColorButton("##st", status, ImGuiColorEditFlags.NoTooltip | ImGuiColorEditFlags.NoInputs, new Vector2(11f, 11f));
-        ImGui.SameLine();
+        var occs = group
+            .Where(o => _config.TeamsShowPastEvents || !IsPast(o.Date, today))
+            .OrderBy(o => o.Date)
+            .ThenBy(o => o.Time)
+            .ToList();
+        if (occs.Count == 0)
+        {
+            return;
+        }
 
+        var first = group[0];
+        using var eid = ImRaii.PushId($"evgrp_{first.EventId}");
+        var kind = string.Equals(first.Kind, "recurring", StringComparison.OrdinalIgnoreCase) ? T(LocKeys.TeamsRecurring) : T(LocKeys.TeamsSingle);
+        var content = first.Contents is { Count: > 0 } ? string.Join(", ", first.Contents.Select(c => c.Name)) : first.ContentName;
+        ImGui.TextColored(Yellow, first.Title ?? string.Empty);
+        ImGui.SameLine();
+        ImGui.TextDisabled($"· {kind}" + (string.IsNullOrEmpty(content) ? string.Empty : $" · {content}"));
+
+        using var pad = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(6f, 4f) * scale);
+        if (!ImGui.BeginTable("##occ", 4, ImGuiTableFlags.NoSavedSettings))
+        {
+            return;
+        }
+
+        try
+        {
+            ImGui.TableSetupColumn("##st", ImGuiTableColumnFlags.WidthFixed, 14f * scale);
+            ImGui.TableSetupColumn("##when", ImGuiTableColumnFlags.WidthFixed, ImGui.CalcTextSize("Mo., 00.00.0000    00:00-00:00").X);
+            ImGui.TableSetupColumn("##cnt", ImGuiTableColumnFlags.WidthFixed, ImGui.CalcTextSize(_localizer.Get(LocKeys.TeamsAttendCounts, 88, 88, 88, 88)).X);
+            ImGui.TableSetupColumn("##rsvp", ImGuiTableColumnFlags.WidthStretch);
+
+            for (var i = 0; i < occs.Count; i++)
+            {
+                var occ = occs[i];
+                using var id = ImRaii.PushId($"occ_{occ.Date}");
+                DrawOccurrenceRow(occ, IsPast(occ.Date, today), scale, i % 2 == 1);
+            }
+        }
+        finally
+        {
+            ImGui.EndTable();
+        }
+
+        ImGui.Spacing();
+    }
+
+    private void DrawOccurrenceRow(CalendarOccurrence occ, bool past, float scale, bool oddRow)
+    {
+        ImGui.TableNextRow();
+        if (oddRow)
+        {
+            ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 0.055f)));
+        }
+
+        ImGui.TableNextColumn();
+        var (status, _) = EventStatus(occ);
+        var dot = 11f * scale;
+        ImGui.ColorButton("##st", status, ImGuiColorEditFlags.NoTooltip | ImGuiColorEditFlags.NoInputs, new Vector2(dot, dot));
+
+        ImGui.TableNextColumn();
+        ImGui.AlignTextToFramePadding();
         var time = $"{occ.Time}" + (string.IsNullOrEmpty(occ.EndTime) ? string.Empty : $"–{occ.EndTime}");
         var signedOff = string.Equals(occ.OwnStatus, "no", StringComparison.OrdinalIgnoreCase);
         using (ImRaii.PushColor(ImGuiCol.Text, Dim, past || signedOff))
         {
-            ImGui.TextUnformatted($"{LocalDate(occ.Date)}  {time}");
+            ImGui.TextUnformatted($"{LocalDate(occ.Date)}    {time}");
             if (signedOff)
             {
                 var min = ImGui.GetItemRectMin();
@@ -337,12 +385,13 @@ public sealed class TeamsWindow : Window
             }
         }
 
-        ImGui.SameLine();
+        ImGui.TableNextColumn();
+        ImGui.AlignTextToFramePadding();
         ImGui.TextDisabled(_localizer.Get(LocKeys.TeamsAttendCounts, occ.Yes, occ.Maybe, occ.No, occ.Total));
 
+        ImGui.TableNextColumn();
         using (ImRaii.Disabled(past))
         {
-            ImGui.SameLine();
             Rsvp(occ, "yes", LocKeys.TeamsRsvpYes, Green);
             ImGui.SameLine();
             Rsvp(occ, "maybe", LocKeys.TeamsRsvpMaybe, Yellow);
@@ -1329,7 +1378,8 @@ public sealed class TeamsWindow : Window
             }
 
             _mitPlanKey = planKey;
-            _phaseChecked = Enumerable.Repeat(true, count).ToArray();
+            var allPhases = _config.TeamsDefaultAllPhases || count <= 1;
+            _phaseChecked = Enumerable.Range(0, count).Select(i => allPhases || i == 0).ToArray();
         }
     }
 

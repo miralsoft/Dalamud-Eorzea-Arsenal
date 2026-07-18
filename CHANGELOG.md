@@ -29,8 +29,11 @@ All notable changes to this project are documented here. The format is based on
     (best-effort; a not-connected/empty state never crashes).
   - **Absence** — report/cancel your own vacation ranges, with a **date picker** and localized date
     display (DE/EN).
-  - A **Teams settings tab** (icon/text display for cooldowns and resource labels, note visibility) and
-    **"open in web" deep links** from the team, calendar and reports.
+  - **Events** — the per-team list of upcoming (and optionally past) dates, grouped by event, with
+    **zebra-striped rows** and a **configurable text size** so long lists stay readable at a glance.
+  - A **Teams settings tab** (icon/text display for cooldowns and resource labels, note visibility,
+    default job/tag/phase selection for mit plans, event text size) and **"open in web" deep links**
+    from the team, calendar and reports — each tab opens its matching page on the site.
   - **In-game notifications** — a toast **with a sound** and a **clickable chat link** for new loot,
     event reminders (each of your 1-day / 3-hour / 1-hour warnings fires once) and newly planned events.
     Deduped by notification id and persisted, so a relog never re-toasts the backlog.

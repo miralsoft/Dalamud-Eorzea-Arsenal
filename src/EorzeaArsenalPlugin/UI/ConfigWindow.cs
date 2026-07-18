@@ -196,6 +196,29 @@ public sealed class ConfigWindow : Window, IDisposable
         }
 
         Hint(T(LocKeys.TeamsDefaultShowOtherHint));
+        GroupGap();
+
+        var phaseDefault = _config.TeamsDefaultAllPhases ? 0 : 1;
+        var phaseLabels = new[] { T(LocKeys.TeamsDefaultPhasesAll), T(LocKeys.TeamsDefaultPhasesFirst) };
+        ImGui.SetNextItemWidth(240f);
+        if (ImGui.Combo(T(LocKeys.TeamsDefaultPhasesLabel), ref phaseDefault, phaseLabels, phaseLabels.Length))
+        {
+            _config.TeamsDefaultAllPhases = phaseDefault == 0;
+            _save();
+        }
+
+        Hint(T(LocKeys.TeamsDefaultPhasesHint));
+        GroupGap();
+
+        var eventScale = _config.TeamsEventTextScale;
+        ImGui.SetNextItemWidth(240f);
+        if (ImGui.SliderFloat(T(LocKeys.TeamsEventScale), ref eventScale, 1f, 1.6f, "%.2fx"))
+        {
+            _config.TeamsEventTextScale = Math.Clamp(eventScale, 1f, 1.6f);
+            _save();
+        }
+
+        Hint(T(LocKeys.TeamsEventScaleHint));
     }
 
     private void Tab(string key, Action body)
