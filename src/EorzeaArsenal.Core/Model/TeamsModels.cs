@@ -447,11 +447,76 @@ public sealed class FarmEntry
     public string? StatusEn { get; init; }
 }
 
-/// <summary>An item reference inside an equipped/target slot map.</summary>
+/// <summary>
+/// An item reference inside an equipped/target slot map. Target slots are additionally annotated by the
+/// server with where the piece comes from and what it costs; every sourcing field is absent for gear the
+/// admin-curated tier config does not know (older gear, crafted pieces, an unconfigured tier).
+/// </summary>
 public sealed class FarmSlot
 {
     /// <summary>Item id (a game item id; may be 0/absent).</summary>
     public long Id { get; init; }
+
+    /// <summary>Acquisition kind: <c>tome</c>, <c>tomeplus</c> or <c>savage</c>; <see langword="null"/> when unknown.</summary>
+    public string? Source { get; init; }
+
+    /// <summary>What the piece costs (tome books, or savage tokens).</summary>
+    public FarmCost? Cost { get; init; }
+
+    /// <summary>The upgrade material an augmented (tome+) piece additionally needs.</summary>
+    public FarmUpgrade? Upgrade { get; init; }
+
+    /// <summary>The vendor that sells it.</summary>
+    public FarmVendor? Vendor { get; init; }
+
+    /// <summary>Raid floor that drops it (savage only).</summary>
+    public int? Floor { get; init; }
+
+    /// <summary>Raid zone that drops it (savage only).</summary>
+    public string? Zone { get; init; }
+}
+
+/// <summary>What a farm target costs: a count plus the currency or token it is paid in.</summary>
+public sealed class FarmCost
+{
+    /// <summary>Count — tome books for a tome piece, tokens for a savage piece.</summary>
+    public int Books { get; init; }
+
+    /// <summary>Tome currency name (tome/tome+ pieces).</summary>
+    public string? Currency { get; init; }
+
+    /// <summary>Token name (savage pieces).</summary>
+    public string? Token { get; init; }
+}
+
+/// <summary>The upgrade material an augmented piece needs on top of its base piece.</summary>
+public sealed class FarmUpgrade
+{
+    /// <summary>Material name.</summary>
+    public string? Item { get; init; }
+
+    /// <summary>How many are needed.</summary>
+    public int Count { get; init; }
+}
+
+/// <summary>A vendor NPC.</summary>
+public sealed class FarmVendor
+{
+    /// <summary>NPC name.</summary>
+    public string? Name { get; init; }
+
+    /// <summary>Map coordinates.</summary>
+    public FarmCoords? Coords { get; init; }
+}
+
+/// <summary>Map coordinates of a vendor.</summary>
+public sealed class FarmCoords
+{
+    /// <summary>X coordinate.</summary>
+    public float X { get; init; }
+
+    /// <summary>Y coordinate.</summary>
+    public float Y { get; init; }
 }
 
 // --- GET /teams/{id}/logs (FFLogs) -----------------------------------------------------------------

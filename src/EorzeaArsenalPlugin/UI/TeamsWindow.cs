@@ -58,6 +58,7 @@ public sealed class TeamsWindow : Window
     private bool _tagOther;
     private bool _showAllJobs;
     private string _activeTab = "mit";
+    private string _activeQuery = string.Empty;
 
     private string _absFrom = DateTime.UtcNow.ToString("yyyy-MM-dd");
     private string _absTo = DateTime.UtcNow.ToString("yyyy-MM-dd");
@@ -168,6 +169,8 @@ public sealed class TeamsWindow : Window
         }
 
         _activeTab = slug;
+        // Tabs that can preselect something on the web page set this while drawing.
+        _activeQuery = string.Empty;
         ImGui.Spacing();
         body();
         ImGui.Spacing();
@@ -230,8 +233,8 @@ public sealed class TeamsWindow : Window
         ImGui.SameLine();
         if (CurrentTeam() is { } team && ImGui.Button(T(LocKeys.TeamsOpenWeb)))
         {
-            // Open the page matching the active tab (not just the team overview).
-            OpenApp($"/teams/{team.Id}/{_activeTab}");
+            // Open the page matching the active tab, preselecting whatever the tab currently shows.
+            OpenApp($"/teams/{team.Id}/{_activeTab}{_activeQuery}");
         }
 
         ImGui.SameLine();
@@ -398,6 +401,13 @@ public sealed class TeamsWindow : Window
             ImGui.SameLine();
             Rsvp(occ, "no", LocKeys.TeamsRsvpNo, Red);
         }
+
+        // Past occurrences stay linkable — the web page reveals them for a direct link.
+        ImGui.SameLine();
+        if (ImGui.SmallButton(T(LocKeys.TeamsOpenWeb)) && occ.Date is { } date)
+        {
+            OpenApp($"/teams/{occ.TeamId}/termine?event={occ.EventId}&date={date}");
+        }
     }
 
     private void Rsvp(CalendarOccurrence occ, string status, string labelKey, Vector4 activeColor)
@@ -486,6 +496,13 @@ public sealed class TeamsWindow : Window
         }
 
         var plan = plans[_planIndex];
+        _activeQuery = $"?plan={plan.Id}";
+        ImGui.SameLine();
+        if (ImGui.SmallButton(T(LocKeys.TeamsOpenWeb)))
+        {
+            OpenApp($"/teams/{team.Id}/mit?plan={plan.Id}");
+        }
+
         Ensure(_mitSlot, $"{team.Id}:{plan.Id}", ct => _teams.GetMitSheetAsync(team.Id, plan.Id, ct));
 
         if (_mitSlot.Loading)
@@ -804,6 +821,12 @@ public sealed class TeamsWindow : Window
                 continue;
             }
 
+            _activeQuery = $"?content={content.Id}";
+            if (ImGui.SmallButton($"{T(LocKeys.TeamsOpenWeb)}##web{content.Id}"))
+            {
+                OpenApp($"/teams/{team.Id}/inhalte?content={content.Id}");
+            }
+
             DrawBosses(content.Bosses);
             DrawResources(team.Id, content.Resources);
         }
@@ -968,24 +991,134 @@ public sealed class TeamsWindow : Window
 
             var missing = target
                 .Where(kv => kv.Value.Id != 0 && (entry.Equipped is null || !entry.Equipped.TryGetValue(kv.Key, out var eq) || eq.Id != kv.Value.Id))
-                .Select(kv => SlotName(kv.Key))
+                .OrderBy(kv => SourceRank(kv.Value.Source))
+                .ThenBy(kv => SlotName(kv.Key), StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
 
             if (missing.Count == 0)
             {
                 ImGui.TextColored(Green, T(LocKeys.TeamsComplete));
-            }
-            else
-            {
-                using (ImRaii.PushColor(ImGuiCol.Text, Yellow))
-                {
-                    ImGui.TextWrapped($"{T(LocKeys.TeamsMissing)}: {string.Join(", ", missing)}");
-                }
+                ImGui.Separator();
+                continue;
             }
 
+            DrawFarmMissing(missing);
             ImGui.Separator();
         }
     }
+
+    /// <summary>Renders the still-missing pieces with the server's sourcing annotation (R8: display only).</summary>
+    private void DrawFarmMissing(List<KeyValuePair<string, FarmSlot>> missing)
+    {
+        using (ImRaii.PushColor(ImGuiCol.Text, Yellow))
+        {
+            ImGui.TextUnformatted($"{T(LocKeys.TeamsMissing)}: {missing.Count}");
+        }
+
+        // A target without any sourcing (unconfigured tier) still renders — just without the extra columns.
+        if (!ImGui.BeginTable("##farmMissing", 4, ImGuiTableFlags.NoSavedSettings | ImGuiTableFlags.BordersInnerV))
+        {
+            return;
+        }
+
+        try
+        {
+            ImGui.TableSetupColumn(T(LocKeys.TeamsFarmColSlot), ImGuiTableColumnFlags.WidthFixed, 150f);
+            ImGui.TableSetupColumn(T(LocKeys.TeamsFarmColSource), ImGuiTableColumnFlags.WidthFixed, 80f);
+            ImGui.TableSetupColumn(T(LocKeys.TeamsFarmColCost), ImGuiTableColumnFlags.WidthFixed, 200f);
+            ImGui.TableSetupColumn(T(LocKeys.TeamsFarmColWhere), ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableHeadersRow();
+
+            foreach (var (slot, item) in missing)
+            {
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted(SlotName(slot));
+
+                ImGui.TableNextColumn();
+                var (label, color) = SourceBadge(item.Source);
+                ImGui.TextColored(color, label);
+
+                ImGui.TableNextColumn();
+                var cost = CostText(item);
+                if (cost is null)
+                {
+                    ImGui.TextDisabled("—");
+                }
+                else
+                {
+                    ImGui.TextUnformatted(cost);
+                }
+
+                ImGui.TableNextColumn();
+                DrawFarmWhere(item);
+            }
+        }
+        finally
+        {
+            ImGui.EndTable();
+        }
+    }
+
+    private void DrawFarmWhere(FarmSlot item)
+    {
+        // Savage pieces drop; everything else is bought, so the vendor is the useful destination.
+        if (item.Floor is { } floor)
+        {
+            var zone = string.IsNullOrEmpty(item.Zone) ? string.Empty : $" · {item.Zone}";
+            ImGui.TextUnformatted(_localizer.Get(LocKeys.TeamsFarmFloor, floor) + zone);
+            return;
+        }
+
+        if (item.Vendor?.Name is { Length: > 0 } vendor)
+        {
+            ImGui.TextUnformatted(vendor);
+            if (item.Vendor.Coords is { } c && ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip($"{T(LocKeys.TeamsFarmVendor)}: {vendor} (X: {c.X.ToString("0.#", CultureInfo.InvariantCulture)}, Y: {c.Y.ToString("0.#", CultureInfo.InvariantCulture)})");
+            }
+
+            return;
+        }
+
+        ImGui.TextDisabled("—");
+    }
+
+    /// <summary>The cost line: tome books, or savage tokens; <see langword="null"/> when the tier is unconfigured.</summary>
+    private string? CostText(FarmSlot item)
+    {
+        var parts = new List<string>(2);
+        if (item.Cost is { } cost && cost.Books > 0)
+        {
+            var unit = cost.Token ?? cost.Currency
+                ?? T(string.Equals(item.Source, "savage", StringComparison.Ordinal) ? LocKeys.TeamsFarmTokens : LocKeys.TeamsFarmBooks);
+            parts.Add($"{cost.Books}× {unit}");
+        }
+
+        if (item.Upgrade is { } up && up.Count > 0)
+        {
+            parts.Add($"+ {up.Count}× {up.Item ?? T(LocKeys.TeamsFarmUpgrade)}");
+        }
+
+        return parts.Count == 0 ? null : string.Join("  ", parts);
+    }
+
+    private (string Label, Vector4 Color) SourceBadge(string? source) => source switch
+    {
+        "savage" => ("Savage", Red),
+        "tomeplus" => ("Tome+", new Vector4(0.55f, 0.75f, 1f, 1f)),
+        "tome" => ("Tome", Green),
+        _ => (T(LocKeys.TeamsFarmUnknownSource), Dim),
+    };
+
+    /// <summary>Groups the missing list by how hard a piece is to get: savage first, then tome+, tome, unknown.</summary>
+    private static int SourceRank(string? source) => source switch
+    {
+        "savage" => 0,
+        "tomeplus" => 1,
+        "tome" => 2,
+        _ => 3,
+    };
 
     // --- FFLogs -----------------------------------------------------------------------------------
 

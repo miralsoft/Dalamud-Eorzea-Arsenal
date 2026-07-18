@@ -776,4 +776,34 @@ public static class LocKeys
 
     /// <summary>Config: Termine text size hint.</summary>
     public const string TeamsEventScaleHint = "teams.eventscale.hint";
+
+    /// <summary>Farm column: slot.</summary>
+    public const string TeamsFarmColSlot = "teams.farm.col.slot";
+
+    /// <summary>Farm column: source.</summary>
+    public const string TeamsFarmColSource = "teams.farm.col.source";
+
+    /// <summary>Farm column: cost.</summary>
+    public const string TeamsFarmColCost = "teams.farm.col.cost";
+
+    /// <summary>Farm column: where it comes from.</summary>
+    public const string TeamsFarmColWhere = "teams.farm.col.where";
+
+    /// <summary>Farm: generic tome currency fallback.</summary>
+    public const string TeamsFarmBooks = "teams.farm.books";
+
+    /// <summary>Farm: generic savage token fallback.</summary>
+    public const string TeamsFarmTokens = "teams.farm.tokens";
+
+    /// <summary>Farm: raid floor ({0} = floor number).</summary>
+    public const string TeamsFarmFloor = "teams.farm.floor";
+
+    /// <summary>Farm: vendor tooltip heading.</summary>
+    public const string TeamsFarmVendor = "teams.farm.vendor";
+
+    /// <summary>Farm: upgrade material heading.</summary>
+    public const string TeamsFarmUpgrade = "teams.farm.upgrade";
+
+    /// <summary>Farm: unknown source placeholder.</summary>
+    public const string TeamsFarmUnknownSource = "teams.farm.unknownsource";
 }

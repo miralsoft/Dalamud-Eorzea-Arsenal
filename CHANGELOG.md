@@ -24,7 +24,10 @@ All notable changes to this project are documented here. The format is based on
   - **Content hub** — every fight with its bosses/drops and resources, each **labelled by type**
     (link / video / plan / note / image / pdf / file); **note text** shown inline; **images open in a
     dedicated window** scaled to size; PDFs and links open in the browser.
-  - **Farm** — who-needs-what across the team (equipped vs BiS target, still-missing per member).
+  - **Farm** — who-needs-what across the team (equipped vs BiS target, still-missing per member), each
+    missing piece listed with **where it comes from** (savage / Tome+ / Tome), what it costs (books or
+    tokens, plus the upgrade material), and where to get it (raid floor + zone, or the vendor with its
+    map coordinates on hover) — hardest-to-get first. All server-provided; the plugin never guesses.
   - **FFLogs** — recent kills/wipes with each report's **date** and a **direct link** to it
     (best-effort; a not-connected/empty state never crashes).
   - **Absence** — report/cancel your own vacation ranges, with a **date picker** and localized date
@@ -33,7 +36,8 @@ All notable changes to this project are documented here. The format is based on
     **zebra-striped rows** and a **configurable text size** so long lists stay readable at a glance.
   - A **Teams settings tab** (icon/text display for cooldowns and resource labels, note visibility,
     default job/tag/phase selection for mit plans, event text size) and **"open in web" deep links**
-    from the team, calendar and reports — each tab opens its matching page on the site.
+    that land on the exact thing you were looking at — the selected mit plan, that one event
+    occurrence, that content — not just the tab.
   - **In-game notifications** — a toast **with a sound** and a **clickable chat link** for new loot,
     event reminders (each of your 1-day / 3-hour / 1-hour warnings fires once) and newly planned events.
     Deduped by notification id and persisted, so a relog never re-toasts the backlog.

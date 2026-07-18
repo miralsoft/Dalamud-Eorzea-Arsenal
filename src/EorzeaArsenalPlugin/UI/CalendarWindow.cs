@@ -144,9 +144,14 @@ public sealed class CalendarWindow : Window
         }
 
         ImGui.SameLine();
-        if (ImGui.Button(T(LocKeys.TeamsCalendarOpenWeb)))
+        var webTeam = WebTeamId();
+        using (ImRaii.Disabled(webTeam is null))
         {
-            OpenWeb("/termine");
+            if (ImGui.Button(T(LocKeys.TeamsCalendarOpenWeb)) && webTeam is { } teamId)
+            {
+                var date = (_selected ?? DateOnly.FromDateTime(DateTime.Now)).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                OpenWeb($"/teams/{teamId}/kalender?date={date}");
+            }
         }
 
         if (_actionMessage is { } msg)
@@ -355,7 +360,7 @@ public sealed class CalendarWindow : Window
                 ImGui.SameLine();
                 if (ImGui.SmallButton(T(LocKeys.TeamsCalendarOpenWeb)))
                 {
-                    OpenWeb($"/teams/{occ.TeamId}/termine");
+                    OpenWeb($"/teams/{occ.TeamId}/termine?event={occ.EventId}&date={key}");
                 }
             }
 
@@ -450,6 +455,25 @@ public sealed class CalendarWindow : Window
         }
 
         return text;
+    }
+
+    /// <summary>
+    /// This calendar spans every team, but the web calendar is per team — so the header link uses the
+    /// team of the selected day, falling back to any team that has an occurrence at all.
+    /// </summary>
+    private long? WebTeamId()
+    {
+        if (_selected is { } day)
+        {
+            var key = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            var hit = _teams.Calendar.FirstOrDefault(o => o.Date == key);
+            if (hit is not null)
+            {
+                return hit.TeamId;
+            }
+        }
+
+        return _teams.Calendar.Select(o => (long?)o.TeamId).FirstOrDefault();
     }
 
     private void OpenWeb(string relativePath)
