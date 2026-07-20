@@ -1003,6 +1003,13 @@ public sealed class GameWeeklySource : IWeeklySource
     private uint _cfNormalCfc, _cfNormalIc, _cfAllianceCfc, _cfAllianceIc;
     private bool _raidTargetsBuilt;
 
+    // What the Duty Finder had selected before we hijacked it, so it can be handed back untouched.
+    private uint _cfPrevIc, _cfPrevCfc;
+
+    // InstanceContent id -> ContentFinderCondition row, to turn a read-back selection into something
+    // OpenRegularDuty accepts. Built alongside the raid targets.
+    private readonly Dictionary<uint, uint> _cfcByInstanceContent = [];
+
     // Fresh normal/alliance from a hidden refresh (or a live open), trusted ≤ 2 min — see ReadNormalAlliance.
     private bool? _freshNormal, _freshAlliance;
     private long _freshNormalAllianceTicks;
@@ -1035,7 +1042,15 @@ public sealed class GameWeeklySource : IWeeklySource
 
             foreach (var row in sheet)
             {
-                if (row.Content.RowId == 0 || row.ContentType.RowId != RaidContentType)
+                if (row.Content.RowId == 0)
+                {
+                    continue;
+                }
+
+                // Every duty, not just raids — whatever was selected before has to be restorable.
+                _cfcByInstanceContent[row.Content.RowId] = row.RowId;
+
+                if (row.ContentType.RowId != RaidContentType)
                 {
                     continue;
                 }
@@ -1088,6 +1103,13 @@ public sealed class GameWeeklySource : IWeeklySource
             {
                 return;
             }
+
+            // Remember what the user had selected: loading our raids overwrites it, and the finder
+            // keeps that selection while closed — so without this they reopen it somewhere else.
+            var selected = agent->InterfaceSub.SelectedDutyId;
+            _cfPrevIc = selected > 0 ? (uint)selected : 0u;
+            _cfPrevCfc = _cfPrevIc != 0 && _cfcByInstanceContent.TryGetValue(_cfPrevIc, out var prevCfc) ? prevCfc : 0u;
+            _log.Info($"Weekly refresh: ContentsFinder selection before = ic {_cfPrevIc} (cfc {_cfPrevCfc}).");
 
             _freshNormal = null;
             _freshAlliance = null;
@@ -1168,17 +1190,33 @@ public sealed class GameWeeklySource : IWeeklySource
 
                     break;
 
-                case 2: // alliance loading → read it, then close
+                case 2: // alliance loading → read it, then hand the finder back
                     if ((sub->SelectedDutyId == (int)_cfAllianceIc && stepElapsed >= 150) || stepElapsed > 1500)
                     {
                         _freshAlliance = RewardDone(sub, _cfAllianceIc);
+                        if (_cfPrevCfc != 0)
+                        {
+                            agent->OpenRegularDuty(_cfPrevCfc, false);
+                            Advance(3, now);
+                        }
+                        else
+                        {
+                            FinishContentsRefresh(agent);
+                        }
+                    }
+
+                    break;
+
+                case 3: // restoring the user's own selection → close once it took
+                    if ((sub->SelectedDutyId == (int)_cfPrevIc && stepElapsed >= 150) || stepElapsed > 1500)
+                    {
                         FinishContentsRefresh(agent);
                     }
 
                     break;
             }
 
-            if (_cfRefreshStartTicks != 0 && now - _cfRefreshStartTicks > 6_000)
+            if (_cfRefreshStartTicks != 0 && now - _cfRefreshStartTicks > 8_000)
             {
                 _log.Info("Weekly refresh: ContentsFinder timeout — closing.");
                 FinishContentsRefresh(agent);
@@ -1212,9 +1250,12 @@ public sealed class GameWeeklySource : IWeeklySource
     private unsafe void FinishContentsRefresh(AgentContentsFinder* agent)
     {
         _freshNormalAllianceTicks = Environment.TickCount64;
+        var restored = _cfPrevCfc == 0
+            ? (_cfPrevIc == 0 ? "nothing was selected" : $"ic {_cfPrevIc} is not a regular duty")
+            : $"ic {agent->InterfaceSub.SelectedDutyId} (wanted {_cfPrevIc})";
         agent->Hide();
         _cfRefreshStartTicks = 0;
-        _log.Info($"Weekly refresh: ContentsFinder read (normal={_freshNormal} alliance={_freshAlliance}).");
+        _log.Info($"Weekly refresh: ContentsFinder read (normal={_freshNormal} alliance={_freshAlliance}); selection restored: {restored}.");
         try
         {
             ContentsRefreshCompleted?.Invoke();
