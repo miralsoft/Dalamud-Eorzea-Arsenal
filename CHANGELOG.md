@@ -9,8 +9,9 @@ All notable changes to this project are documented here. The format is based on
 ### Fixed
 - The hidden Duty-Finder refresh (the `normal`/`alliance` weekly read) no longer leaves the finder on
   the raid it loaded. It now remembers the duty you had selected and re-selects it before closing, so
-  reopening the Duty Finder puts you back where you were. If the previous selection was not a regular
-  duty (a roulette, or nothing selected), that is logged rather than guessed at.
+  reopening the Duty Finder puts you back where you were — including a **roulette** (Duty Roulette /
+  daily), which the game stores in the same field as a regular duty but restores through a different
+  call. Nothing selected beforehand means nothing is restored.
 
 ## [0.4.0] - 2026-07-17
 

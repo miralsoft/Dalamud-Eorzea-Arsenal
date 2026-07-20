@@ -10,6 +10,7 @@ using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using LuminaCfc = Lumina.Excel.Sheets.ContentFinderCondition;
+using LuminaRoulette = Lumina.Excel.Sheets.ContentRoulette;
 
 namespace EorzeaArsenal.Plugin.Gear;
 
@@ -1005,10 +1006,16 @@ public sealed class GameWeeklySource : IWeeklySource
 
     // What the Duty Finder had selected before we hijacked it, so it can be handed back untouched.
     private uint _cfPrevIc, _cfPrevCfc;
+    private bool _cfPrevIsRoulette;
 
     // InstanceContent id -> ContentFinderCondition row, to turn a read-back selection into something
     // OpenRegularDuty accepts. Built alongside the raid targets.
     private readonly Dictionary<uint, uint> _cfcByInstanceContent = [];
+
+    // Valid ContentRoulette rows. SelectedDutyId holds a roulette id when a roulette is picked and an
+    // InstanceContent id otherwise, with no flag to tell them apart — but roulette ids are a short,
+    // known list, so membership here is what distinguishes the two.
+    private readonly HashSet<uint> _rouletteIds = [];
 
     // Fresh normal/alliance from a hidden refresh (or a live open), trusted ≤ 2 min — see ReadNormalAlliance.
     private bool? _freshNormal, _freshAlliance;
@@ -1034,6 +1041,18 @@ public sealed class GameWeeklySource : IWeeklySource
         _raidTargetsBuilt = true;
         try
         {
+            var roulettes = _data.GetExcelSheet<LuminaRoulette>();
+            if (roulettes is not null)
+            {
+                foreach (var roulette in roulettes)
+                {
+                    if (roulette.RowId != 0 && !roulette.Name.IsEmpty)
+                    {
+                        _rouletteIds.Add(roulette.RowId);
+                    }
+                }
+            }
+
             var sheet = _data.GetExcelSheet<LuminaCfc>();
             if (sheet is null)
             {
@@ -1108,8 +1127,9 @@ public sealed class GameWeeklySource : IWeeklySource
             // keeps that selection while closed — so without this they reopen it somewhere else.
             var selected = agent->InterfaceSub.SelectedDutyId;
             _cfPrevIc = selected > 0 ? (uint)selected : 0u;
-            _cfPrevCfc = _cfPrevIc != 0 && _cfcByInstanceContent.TryGetValue(_cfPrevIc, out var prevCfc) ? prevCfc : 0u;
-            _log.Info($"Weekly refresh: ContentsFinder selection before = ic {_cfPrevIc} (cfc {_cfPrevCfc}).");
+            _cfPrevIsRoulette = _cfPrevIc != 0 && _rouletteIds.Contains(_cfPrevIc);
+            _cfPrevCfc = !_cfPrevIsRoulette && _cfPrevIc != 0 && _cfcByInstanceContent.TryGetValue(_cfPrevIc, out var prevCfc) ? prevCfc : 0u;
+            _log.Info($"Weekly refresh: ContentsFinder selection before = {_cfPrevIc} ({(_cfPrevIsRoulette ? "roulette" : $"duty, cfc {_cfPrevCfc}")}).");
 
             _freshNormal = null;
             _freshAlliance = null;
@@ -1194,9 +1214,17 @@ public sealed class GameWeeklySource : IWeeklySource
                     if ((sub->SelectedDutyId == (int)_cfAllianceIc && stepElapsed >= 150) || stepElapsed > 1500)
                     {
                         _freshAlliance = RewardDone(sub, _cfAllianceIc);
-                        if (_cfPrevCfc != 0)
+                        if (_cfPrevIsRoulette || _cfPrevCfc != 0)
                         {
-                            agent->OpenRegularDuty(_cfPrevCfc, false);
+                            if (_cfPrevIsRoulette)
+                            {
+                                agent->OpenRouletteDuty((byte)_cfPrevIc, false);
+                            }
+                            else
+                            {
+                                agent->OpenRegularDuty(_cfPrevCfc, false);
+                            }
+
                             Advance(3, now);
                         }
                         else
@@ -1250,9 +1278,11 @@ public sealed class GameWeeklySource : IWeeklySource
     private unsafe void FinishContentsRefresh(AgentContentsFinder* agent)
     {
         _freshNormalAllianceTicks = Environment.TickCount64;
-        var restored = _cfPrevCfc == 0
-            ? (_cfPrevIc == 0 ? "nothing was selected" : $"ic {_cfPrevIc} is not a regular duty")
-            : $"ic {agent->InterfaceSub.SelectedDutyId} (wanted {_cfPrevIc})";
+        var restored = _cfPrevIc == 0
+            ? "nothing was selected"
+            : !_cfPrevIsRoulette && _cfPrevCfc == 0
+                ? $"{_cfPrevIc} is neither a roulette nor a known duty"
+                : $"now {agent->InterfaceSub.SelectedDutyId}, wanted {_cfPrevIc} ({(_cfPrevIsRoulette ? "roulette" : "duty")})";
         agent->Hide();
         _cfRefreshStartTicks = 0;
         _log.Info($"Weekly refresh: ContentsFinder read (normal={_freshNormal} alliance={_freshAlliance}); selection restored: {restored}.");
