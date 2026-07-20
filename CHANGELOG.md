@@ -48,8 +48,10 @@ All notable changes to this project are documented here. The format is based on
   have read the notes for the version you are running). A short, plain-language digest of what each
   release changed — new / improved / fixed — as opposed to this changelog, which is written for
   contributors. It ships **inside the plugin**, so it works offline and can never disagree with the
-  build you are running; it opens once after an update (switchable off under *Display*) and links out
-  to the full changelog. A test pins the notes to the shipped version so a release cannot forget them.
+  build you are running. After an install or update it **opens once, on the first frame you are
+  actually in the world** — not at the title screen, and it works just as well when the update is
+  installed mid-session. Switchable off under *Display*; links out to the full changelog. A test pins
+  the notes to the shipped version so a release cannot forget them.
 
 ### Changed
 - **The chat command is now `/xivarsenal`** (was `/bisexport`) — the plugin long outgrew a pure BiS

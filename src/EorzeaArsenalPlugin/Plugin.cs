@@ -67,6 +67,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly LogWindow _logWindow;
     private readonly PreviewWindow _previewWindow;
     private readonly WhatsNewWindow _whatsNewWindow;
+    private bool _whatsNewPending;
     private readonly BisTooltip _bisTooltip;
     private readonly IDtrBarEntry _dtrEntry;
 
@@ -195,19 +196,11 @@ public sealed class Plugin : IDalamudPlugin
         _windowSystem.AddWindow(_configWindow);
         _windowSystem.AddWindow(_whatsNewWindow);
 
-        // After an update, show what changed once. On a fresh install there is no "since last time",
-        // so the notes are silently acknowledged instead.
-        if (ReleaseNotes.HasUnseen(_config.LastSeenReleaseNotes))
-        {
-            if (_store.HasKey && _config.ShowWhatsNewOnUpdate)
-            {
-                _whatsNewWindow.Open();
-            }
-            else if (!_store.HasKey)
-            {
-                _whatsNewWindow.MarkSeen();
-            }
-        }
+        // Show what changed once per new version. Deferred rather than opened here: a plugin usually
+        // loads at the title screen, where the window would be dismissed unseen. OnFrameworkUpdate
+        // opens it as soon as a character is actually in the world — which also covers installing the
+        // update mid-session, where no Login event follows.
+        _whatsNewPending = _config.ShowWhatsNewOnUpdate && ReleaseNotes.HasUnseen(_config.LastSeenReleaseNotes);
 
         _dtrEntry = dtrBar.Get("Eorzea Arsenal");
         _dtrEntry.OnClick = _ => OpenStatus();
@@ -536,6 +529,13 @@ public sealed class Plugin : IDalamudPlugin
     private void OnFrameworkUpdate(IFramework framework)
     {
         var now = Environment.TickCount64;
+
+        // First frame in the world after an install/update: show what changed, exactly once.
+        if (_whatsNewPending && _clientState.IsLoggedIn)
+        {
+            _whatsNewPending = false;
+            _whatsNewWindow.Open();
+        }
 
         // Hidden-refresh drivers (no-op while idle): the Raid-Finder (Savage) and Duty-Finder
         // (normal/alliance) background reads.

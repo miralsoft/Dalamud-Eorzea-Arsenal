@@ -56,11 +56,8 @@ public sealed class WhatsNewWindow : Window
         IsOpen = true;
     }
 
-    /// <summary>
-    /// Acknowledges the newest release without showing anything — used on a fresh install, where a
-    /// "what changed since last time" list would be meaningless.
-    /// </summary>
-    public void MarkSeen()
+    /// <summary>Acknowledges the newest release, which is what clears the menu highlight.</summary>
+    private void MarkSeen()
     {
         if (!ReleaseNotes.HasUnseen(_config.LastSeenReleaseNotes))
         {
