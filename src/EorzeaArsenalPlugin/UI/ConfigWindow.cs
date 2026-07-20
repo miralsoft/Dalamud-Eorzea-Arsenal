@@ -511,6 +511,15 @@ public sealed class ConfigWindow : Window, IDisposable
 
         Hint(T(LocKeys.ShowDtrBarHint));
 
+        var whatsNew = _config.ShowWhatsNewOnUpdate;
+        if (ImGui.Checkbox(T(LocKeys.WhatsNewOnUpdate), ref whatsNew))
+        {
+            _config.ShowWhatsNewOnUpdate = whatsNew;
+            _save();
+        }
+
+        Hint(T(LocKeys.WhatsNewOnUpdateHint));
+
         GroupGap();
 
         ImGui.SetNextItemWidth(-1);

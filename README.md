@@ -21,6 +21,8 @@ then push gear**.
   entry in the **server-info bar** (DTR) — time since last push, click to open the menu window
   (toggleable).
 - A **diagnostics log window** (`/xivarsenal log`) with copy/clear for support.
+- A **"what's new"** window (`/xivarsenal whatsnew`, or the highlighted menu entry) summarising what
+  each version changed in plain language; it opens once after an update.
 - Bilingual UI (**Deutsch / English**).
 
 It can **optionally** also upload which **owned, equippable items** you have — equipped, armoury,

@@ -806,4 +806,31 @@ public static class LocKeys
 
     /// <summary>Farm: unknown source placeholder.</summary>
     public const string TeamsFarmUnknownSource = "teams.farm.unknownsource";
+
+    /// <summary>Menu/command: open the what's-new window.</summary>
+    public const string WhatsNewOpen = "whatsnew.open";
+
+    /// <summary>What's new: window intro line.</summary>
+    public const string WhatsNewIntro = "whatsnew.intro";
+
+    /// <summary>What's new: badge for the installed version.</summary>
+    public const string WhatsNewInstalled = "whatsnew.installed";
+
+    /// <summary>What's new: "new" badge.</summary>
+    public const string WhatsNewKindAdded = "whatsnew.kind.added";
+
+    /// <summary>What's new: "improved" badge.</summary>
+    public const string WhatsNewKindImproved = "whatsnew.kind.improved";
+
+    /// <summary>What's new: "fixed" badge.</summary>
+    public const string WhatsNewKindFixed = "whatsnew.kind.fixed";
+
+    /// <summary>What's new: link to the full changelog.</summary>
+    public const string WhatsNewFullChangelog = "whatsnew.fullchangelog";
+
+    /// <summary>Config: auto-open the notes after an update.</summary>
+    public const string WhatsNewOnUpdate = "whatsnew.onupdate";
+
+    /// <summary>Config: auto-open hint.</summary>
+    public const string WhatsNewOnUpdateHint = "whatsnew.onupdate.hint";
 }

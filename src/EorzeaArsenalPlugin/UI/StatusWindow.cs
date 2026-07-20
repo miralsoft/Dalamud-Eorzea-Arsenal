@@ -38,6 +38,7 @@ public sealed class StatusWindow : Window
     private readonly Action _openTeams;
     private readonly Action _openCalendar;
     private readonly Action _openPreview;
+    private readonly Action _openWhatsNew;
 
     /// <summary>Creates the status window.</summary>
     /// <param name="config">Live config.</param>
@@ -55,6 +56,7 @@ public sealed class StatusWindow : Window
     /// <param name="openTeams">Callback to open the Teams companion window.</param>
     /// <param name="openCalendar">Callback to open the calendar window.</param>
     /// <param name="openPreview">Callback to open the preview window.</param>
+    /// <param name="openWhatsNew">Callback to open the what's-new window.</param>
     public StatusWindow(
         PluginConfig config,
         ConfigStore store,
@@ -70,7 +72,8 @@ public sealed class StatusWindow : Window
         Action openLog,
         Action openTeams,
         Action openCalendar,
-        Action openPreview)
+        Action openPreview,
+        Action openWhatsNew)
         : base("Eorzea Arsenal###EorzeaArsenalStatus")
     {
         _config = config;
@@ -88,6 +91,7 @@ public sealed class StatusWindow : Window
         _openTeams = openTeams;
         _openCalendar = openCalendar;
         _openPreview = openPreview;
+        _openWhatsNew = openWhatsNew;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -182,6 +186,14 @@ public sealed class StatusWindow : Window
             _openConfig();
         }
 
+        // Highlighted until the user has looked at the notes for the version they are running.
+        var unseen = ReleaseNotes.HasUnseen(_config.LastSeenReleaseNotes);
+        var whatsNew = unseen ? $"{T(LocKeys.WhatsNewOpen)}   ·   {ReleaseNotes.Latest.Version}" : T(LocKeys.WhatsNewOpen);
+        if (MenuButton(FontAwesomeIcon.Gift, whatsNew, accent: unseen ? Yellow : null))
+        {
+            _openWhatsNew();
+        }
+
         if (MenuButton(FontAwesomeIcon.ClipboardList, T(LocKeys.OpenLog)))
         {
             _openLog();
@@ -201,7 +213,7 @@ public sealed class StatusWindow : Window
     }
 
     /// <summary>A full-width "menu" button with a leading FontAwesome icon and a text label.</summary>
-    private bool MenuButton(FontAwesomeIcon icon, string label, bool enabled = true)
+    private bool MenuButton(FontAwesomeIcon icon, string label, bool enabled = true, Vector4? accent = null)
     {
         using var disabled = ImRaii.Disabled(!enabled);
 
@@ -211,7 +223,9 @@ public sealed class StatusWindow : Window
         var clicked = ImGui.Button($"##menu_{label}", new Vector2(width, height));
 
         var draw = ImGui.GetWindowDrawList();
-        var color = ImGui.GetColorU32(enabled ? ImGuiCol.Text : ImGuiCol.TextDisabled);
+        var color = enabled && accent is { } tint
+            ? ImGui.GetColorU32(tint)
+            : ImGui.GetColorU32(enabled ? ImGuiCol.Text : ImGuiCol.TextDisabled);
         var midY = origin.Y + (height / 2f);
 
         ImGui.PushFont(UiBuilder.IconFont);

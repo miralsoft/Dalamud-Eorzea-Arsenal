@@ -123,6 +123,12 @@ public sealed class PluginConfig : IPluginConfiguration
     /// <summary>Termine list: text scale (1.0 - 1.6).</summary>
     public float TeamsEventTextScale { get; set; } = 1.15f;
 
+    /// <summary>The release-notes version the user has acknowledged; empty on a fresh install.</summary>
+    public string LastSeenReleaseNotes { get; set; } = string.Empty;
+
+    /// <summary>Open the what's-new window once after the plugin updated.</summary>
+    public bool ShowWhatsNewOnUpdate { get; set; } = true;
+
     /// <summary>BiS window: show all gearsets (<see langword="true"/>) or only the current one.</summary>
     public bool BisShowAllSets { get; set; }
 

@@ -44,6 +44,12 @@ All notable changes to this project are documented here. The format is based on
 - Polls the calendar + notifications at most every ~5 minutes; the content hub, farm and FFLogs load on
   demand. Never writes anything but your own RSVP and your own absence; a server `403`/`404` is shown,
   never worked around.
+- **"What's new" window** (`/xivarsenal whatsnew`, or the menu entry, which stays highlighted until you
+  have read the notes for the version you are running). A short, plain-language digest of what each
+  release changed — new / improved / fixed — as opposed to this changelog, which is written for
+  contributors. It ships **inside the plugin**, so it works offline and can never disagree with the
+  build you are running; it opens once after an update (switchable off under *Display*) and links out
+  to the full changelog. A test pins the notes to the shipped version so a release cannot forget them.
 
 ### Changed
 - **The chat command is now `/xivarsenal`** (was `/bisexport`) — the plugin long outgrew a pure BiS

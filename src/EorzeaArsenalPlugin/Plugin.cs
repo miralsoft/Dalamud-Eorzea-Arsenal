@@ -66,6 +66,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly BisWindow _bisWindow;
     private readonly LogWindow _logWindow;
     private readonly PreviewWindow _previewWindow;
+    private readonly WhatsNewWindow _whatsNewWindow;
     private readonly BisTooltip _bisTooltip;
     private readonly IDtrBarEntry _dtrEntry;
 
@@ -178,7 +179,8 @@ public sealed class Plugin : IDalamudPlugin
         _logWindow = new LogWindow(_logBuffer, _localizer);
         _previewWindow = new PreviewWindow(_gearSource, _localizer, _log);
         _imageWindow = new ImageWindow(_teamsService, textureProvider, _localizer, _log);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenLog, OpenTeams, OpenCalendar, OpenPreview);
+        _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenLog, OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew);
         _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _log, Save, OpenConfig, OpenImage);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save);
@@ -191,6 +193,21 @@ public sealed class Plugin : IDalamudPlugin
         _windowSystem.AddWindow(_logWindow);
         _windowSystem.AddWindow(_statusWindow);
         _windowSystem.AddWindow(_configWindow);
+        _windowSystem.AddWindow(_whatsNewWindow);
+
+        // After an update, show what changed once. On a fresh install there is no "since last time",
+        // so the notes are silently acknowledged instead.
+        if (ReleaseNotes.HasUnseen(_config.LastSeenReleaseNotes))
+        {
+            if (_store.HasKey && _config.ShowWhatsNewOnUpdate)
+            {
+                _whatsNewWindow.Open();
+            }
+            else if (!_store.HasKey)
+            {
+                _whatsNewWindow.MarkSeen();
+            }
+        }
 
         _dtrEntry = dtrBar.Get("Eorzea Arsenal");
         _dtrEntry.OnClick = _ => OpenStatus();
@@ -250,6 +267,8 @@ public sealed class Plugin : IDalamudPlugin
     private void OpenLog() => _logWindow.IsOpen = true;
 
     private void OpenPreview() => _previewWindow.Open();
+
+    private void OpenWhatsNew() => _whatsNewWindow.Open();
 
     private void OpenImage(long teamId, long resourceId, string? title) => _imageWindow.Open(teamId, resourceId, title);
 
@@ -312,6 +331,9 @@ public sealed class Plugin : IDalamudPlugin
                 break;
             case "log":
                 OpenLog();
+                break;
+            case "whatsnew":
+                OpenWhatsNew();
                 break;
             case "weekdump":
                 RunWeeklyProbe();
