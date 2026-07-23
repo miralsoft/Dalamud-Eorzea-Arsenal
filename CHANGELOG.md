@@ -15,10 +15,11 @@ All notable changes to this project are documented here. The format is based on
   shared with the farm tab, so the two never describe a piece differently.
 - The sourcing detail is now shown as **numbered steps**, and is actionable and complete in both the
   BiS window and the team farm:
-  - **Every step, in order.** A piece reads as the concrete things to do — *Fight …*, *Buy …*,
-    *Upgrade …* — so an augmented (Tome+) piece shows **get the base first, then augment it** rather
-    than assuming the base is already in hand. The farm pulls the full chain from `GET /gear/obtain`,
-    which its own response omits.
+  - **Every way in, and every step of it.** A piece lists all of its acquisition routes as
+    alternatives — a savage piece drops in the fight **or** can be traded for books — and each route is
+    broken into the concrete things to do (*Fight …*, *Buy …*, *Upgrade …*), so an augmented (Tome+)
+    piece reads **get the base first, then augment it** rather than assuming the base is in hand. The
+    farm pulls the full chain from `GET /gear/obtain`, which its own response omits.
   - **"Do I have it?" per step.** Each purchasable cost (tomes, tokens, materials) carries a
     **have / need** count from your inventory — bags, equipped, armoury, the currency crystal and the
     **saddlebag** — green once you own enough. (Retainer stock cannot be read unless the retainer is

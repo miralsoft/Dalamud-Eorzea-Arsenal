@@ -840,6 +840,9 @@ public static class LocKeys
     /// <summary>Sourcing: the base piece is already owned (equipped), so only the upgrade remains.</summary>
     public const string SourceBaseOwned = "source.baseowned";
 
+    /// <summary>Sourcing: separates alternative acquisition ways ("or").</summary>
+    public const string SourceOr = "source.or";
+
     /// <summary>Menu/command: open the what's-new window.</summary>
     public const string WhatsNewOpen = "whatsnew.open";
 

@@ -97,18 +97,20 @@ internal sealed class SourcingView
     // --- Public rendering -------------------------------------------------------------------------
 
     /// <summary>
-    /// A compact one-line summary for a table cell: the steps joined by "→", each coloured by whether
-    /// you already have what it needs. Wraps to the cell width. Empty renders a dim dash.
+    /// A compact one-line summary for a table cell: the primary way's steps joined by "→", each coloured
+    /// by whether you already have what it needs, plus an "or …" hint when other ways exist (the hover
+    /// lists them all). Empty renders a dim dash.
     /// </summary>
     public void DrawCompact(string? source, List<FarmRoute>? routes, long equippedItemId = 0)
     {
-        var steps = BuildSteps(source, routes, equippedItemId);
-        if (steps.Count == 0)
+        var methods = BuildMethods(source, routes, equippedItemId);
+        if (methods.Count == 0)
         {
             ImGui.TextDisabled("—");
             return;
         }
 
+        var steps = methods[0];
         for (var i = 0; i < steps.Count; i++)
         {
             if (i > 0)
@@ -126,6 +128,14 @@ internal sealed class SourcingView
 
             var (ready, _) = StepStatus(steps[i]);
             ImGui.TextColored(StepColor(steps[i], ready), CompactStep(steps[i]));
+        }
+
+        // There is another way in (e.g. a savage piece can also be traded for books) — name it briefly
+        // so the row does not read as if the drop were the only option.
+        if (methods.Count > 1 && methods[1].Count > 0)
+        {
+            ImGui.SameLine(0f, 6f);
+            ImGui.TextDisabled($"{T(LocKeys.SourceOr)} {StepVerb(methods[1][^1])}");
         }
     }
 
@@ -165,27 +175,41 @@ internal sealed class SourcingView
 
     private void DrawStepList(string? source, List<FarmRoute>? routes, bool heading, bool inline, long equippedItemId)
     {
-        var steps = BuildSteps(source, routes, equippedItemId);
+        var methods = BuildMethods(source, routes, equippedItemId);
 
         if (heading)
         {
             ImGui.TextColored(Yellow, T(LocKeys.TeamsFarmWaysHeading));
         }
 
-        if (steps.Count == 0)
+        if (methods.Count == 0)
         {
             ImGui.TextDisabled(T(LocKeys.SourceNoInfo));
             return;
         }
 
-        for (var i = 0; i < steps.Count; i++)
+        // Each method is an alternative ("drop OR trade"); the steps inside one are sequential and only
+        // then numbered. A separator (block) or an "or" label (inline) keeps the alternatives apart.
+        for (var m = 0; m < methods.Count; m++)
         {
+            var steps = methods[m];
             if (!inline)
             {
                 ImGui.Spacing();
+                if (m > 0)
+                {
+                    ImGui.Separator();
+                }
+            }
+            else if (m > 0)
+            {
+                ImGui.TextColored(Dim, T(LocKeys.SourceOr));
             }
 
-            DrawStepRow(i + 1, steps[i], inline);
+            for (var i = 0; i < steps.Count; i++)
+            {
+                DrawStepRow(steps.Count > 1 ? i + 1 : 0, steps[i], inline);
+            }
         }
     }
 
@@ -201,23 +225,65 @@ internal sealed class SourcingView
         string? HandInSlot);
 
     /// <summary>
-    /// Flattens a piece's primary route into ordered steps. A handed-in base piece is expanded from its
-    /// own <c>chain</c> first (so the base acquisition becomes step 1), then the augment/purchase step.
-    /// Depth-capped so a self-referential price cannot recurse forever.
+    /// Every way to get a piece, best/normal first — each an independent alternative (drop <i>or</i>
+    /// trade <i>or</i> craft), and each already flattened into its own sequential steps (a Tome+ trade
+    /// becomes "get the base, then augment"). This is what the detail view lists in full.
     /// </summary>
-    private List<SourceStep> BuildSteps(string? source, List<FarmRoute>? routes, long equippedItemId, int depth = 0)
+    private List<List<SourceStep>> BuildMethods(string? source, List<FarmRoute>? routes, long equippedItemId)
+    {
+        var methods = new List<List<SourceStep>>();
+        foreach (var route in OrderedRoutes(source, routes))
+        {
+            var steps = FlattenRoute(route, equippedItemId, 0);
+            if (steps.Count > 0)
+            {
+                methods.Add(steps);
+            }
+        }
+
+        return methods;
+    }
+
+    /// <summary>The routes, the source's primary one first, then the rest in their given order.</summary>
+    private static IEnumerable<FarmRoute> OrderedRoutes(string? source, List<FarmRoute>? routes)
+    {
+        if (routes is not { Count: > 0 })
+        {
+            yield break;
+        }
+
+        var primary = PrimaryRoute(source, routes);
+        if (primary is not null)
+        {
+            yield return primary;
+        }
+
+        foreach (var route in routes)
+        {
+            if (!ReferenceEquals(route, primary))
+            {
+                yield return route;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Flattens ONE route into its sequential steps. A drop/retired is a single step; a trade expands a
+    /// handed-in base from its own (primary) chain first — unless the base is already equipped — then the
+    /// augment/purchase. Depth-capped so a self-referential price cannot recurse forever.
+    /// </summary>
+    private List<SourceStep> FlattenRoute(FarmRoute? route, long equippedItemId, int depth)
     {
         var steps = new List<SourceStep>();
-        var primary = PrimaryRoute(source, routes);
-        if (primary is null || depth > 2)
+        if (route is null || depth > 2)
         {
             return steps;
         }
 
-        switch (primary.Kind)
+        switch (route.Kind)
         {
             case "drop":
-                steps.Add(new SourceStep(StepKind.Fight, [], primary.Npc?.FirstOrDefault(), null, primary.Via?.Name, primary.Duties ?? [], null));
+                steps.Add(new SourceStep(StepKind.Fight, [], route.Npc?.FirstOrDefault(), null, route.Via?.Name, route.Duties ?? [], null));
                 break;
 
             case "retired":
@@ -225,11 +291,9 @@ internal sealed class SourcingView
                 break;
 
             default:
-                var pieces = (primary.Cost ?? []).Where(c => string.Equals(c.Role, "piece", StringComparison.Ordinal)).ToList();
-                var effort = (primary.Cost ?? []).Where(c => !string.Equals(c.Role, "piece", StringComparison.Ordinal)).ToList();
+                var pieces = (route.Cost ?? []).Where(c => string.Equals(c.Role, "piece", StringComparison.Ordinal)).ToList();
+                var effort = (route.Cost ?? []).Where(c => !string.Equals(c.Role, "piece", StringComparison.Ordinal)).ToList();
 
-                // The base you hand in has to be acquired first — unless you already have it equipped
-                // (recognised as a tome piece of the same slot), in which case only the upgrade remains.
                 foreach (var piece in pieces)
                 {
                     if (IsEquippedBase(equippedItemId, piece.Slot))
@@ -238,7 +302,7 @@ internal sealed class SourcingView
                     }
                     else if (piece.Chain is { Count: > 0 })
                     {
-                        steps.AddRange(BuildSteps(AcqToSource(piece.Acq), piece.Chain, 0, depth + 1));
+                        steps.AddRange(FlattenRoute(PrimaryRoute(AcqToSource(piece.Acq), piece.Chain), 0, depth + 1));
                     }
                     else
                     {
@@ -246,13 +310,13 @@ internal sealed class SourcingView
                     }
                 }
 
-                var kind = primary.Kind switch
+                var kind = route.Kind switch
                 {
                     "craft" => StepKind.Craft,
                     "market" => StepKind.Market,
                     _ => pieces.Count > 0 ? StepKind.Augment : StepKind.Buy,
                 };
-                steps.Add(new SourceStep(kind, effort, primary.Npc?.FirstOrDefault(), primary.Shops, null, [], pieces.FirstOrDefault()?.Slot));
+                steps.Add(new SourceStep(kind, effort, route.Npc?.FirstOrDefault(), route.Shops, null, [], pieces.FirstOrDefault()?.Slot));
                 break;
         }
 
@@ -300,8 +364,8 @@ internal sealed class SourcingView
     {
         var (ready, _) = StepStatus(step);
 
-        // Line 1: "N.  Verb" with the handed-in base as a light note after it.
-        ImGui.TextColored(Dim, $"{number}.");
+        // Line 1: a step number when the method has several, else a plain bullet, then the verb.
+        ImGui.TextColored(Dim, number > 0 ? $"{number}." : "●");
         ImGui.SameLine(0f, 6f);
         ImGui.TextColored(StepColor(step, ready), StepVerb(step));
         if (step.HandInSlot is { } handIn)
