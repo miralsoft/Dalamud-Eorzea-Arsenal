@@ -132,13 +132,13 @@ public sealed class BisWindow : Window
         }
     }
 
-    /// <summary>Renders the obtain routes for an item inside an already-open tooltip, if enabled and cached.</summary>
+    /// <summary>Renders the obtain steps for an item inside an already-open tooltip, if enabled and cached.</summary>
     private void DrawSourcingInTooltip(int itemId)
     {
         if (_config.BisShowSourcing && _obtain.TryGet(itemId, out var info) && info?.Routes is { Count: > 0 } routes)
         {
             ImGui.Separator();
-            _sourcing.DrawRoutesBody(routes);
+            _sourcing.DrawBody(info.Source, routes);
             ImGui.Spacing();
         }
     }

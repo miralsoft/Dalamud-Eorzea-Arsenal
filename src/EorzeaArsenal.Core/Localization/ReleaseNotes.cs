@@ -68,8 +68,12 @@ public static class ReleaseNotes
                 "In the BiS window, hovering a piece now also shows 'how to get it' — where it comes from and what it costs, just like the group farm."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
-                "Beim Bezug siehst du jetzt die ganze Kette (auch die Basis, die du zuerst brauchst), ob du schon genug hast (z.B. Bücher), und per Rechtsklick 'NPC auf Karte anzeigen'.",
-                "Sourcing now shows the whole chain (including the base you need first), whether you already have enough (e.g. tomes), and a right-click 'Show NPC on map'."),
+                "Der Bezug wird jetzt als nummerierte Schritte gezeigt (Erspielen / Kaufen / Aufwerten) — bei Tome+ also 'zuerst Basis, dann aufwerten' — mit 'hast du / brauchst du' pro Schritt und 'NPC auf Karte anzeigen' per Rechtsklick.",
+                "Sourcing is now shown as numbered steps (Fight / Buy / Upgrade) — so a Tome+ piece reads 'base first, then augment' — with a have/need count per step and a right-click 'Show NPC on map'."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "In der Gruppen-Farm steht neben jedem Mitglied, welche Materialien ihm insgesamt noch fehlen.",
+                "In the group farm, each member now has a one-line summary of the materials they still need in total."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "'Im Web öffnen' springt direkt auf den Plan, den Termin oder den Inhalt, den du gerade ansiehst.",

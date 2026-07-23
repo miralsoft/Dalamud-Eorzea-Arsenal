@@ -13,13 +13,21 @@ All notable changes to this project are documented here. The format is based on
   down the whole chain). Reads impersonal game data via `GET /gear/obtain` with your existing key,
   cached for the session and fetched in the background; toggle under *Display*. The route renderer is
   shared with the farm tab, so the two never describe a piece differently.
-- The sourcing detail is now **actionable and complete** in both the BiS window and the team farm:
-  - **The full chain is shown.** An augmented (Tome+) piece lists the base piece you hand in *and*,
-    indented beneath it, how to get that base first — so you see the whole path, not just the last step.
-  - **"Do I have it?"** Each purchasable cost (books, tokens, materials) shows a **have / need** count,
-    green once you own enough — so you can tell at a glance whether you can already buy the piece.
-  - **Show NPC on the map.** Right-click a piece → *Show NPC on map* opens the map and drops a flag on
-    the vendor (when the route has one with a known location).
+- The sourcing detail is now shown as **numbered steps**, and is actionable and complete in both the
+  BiS window and the team farm:
+  - **Every step, in order.** A piece reads as the concrete things to do — *Fight …*, *Buy …*,
+    *Upgrade …* — so an augmented (Tome+) piece shows **get the base first, then augment it** rather
+    than assuming the base is already in hand. The farm pulls the full chain from `GET /gear/obtain`,
+    which its own response omits.
+  - **"Do I have it?" per step.** Each purchasable cost (tomes, tokens, materials) carries a
+    **have / need** count from your inventory, green once you own enough.
+  - **What's still short, per character.** Next to each teammate in the farm, a one-line summary sums
+    the materials/tokens they still need across all their missing pieces, minus what they own — so you
+    see at a glance what to gather for them.
+  - **Show NPC on the map.** Right-click a piece (farm row or BiS item) → *Show NPC on map* opens the
+    map and drops a flag on the vendor. The location is resolved from the server's ids, or — when it
+    only sends a zone name — from the game's own place names, so it works without a server change.
+  - A larger, better-spaced tooltip for the whole checklist.
 
 ### Fixed
 - The hidden Duty-Finder refresh (the `normal`/`alliance` weekly read) no longer leaves the finder on

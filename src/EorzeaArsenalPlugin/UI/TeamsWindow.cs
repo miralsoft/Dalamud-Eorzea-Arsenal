@@ -34,6 +34,9 @@ public sealed class TeamsWindow : Window
     private readonly ConfigStore _store;
     private readonly Localizer _localizer;
     private readonly SourcingView _sourcing;
+    private readonly ObtainService _obtain;
+    private readonly IWorldActions _world;
+    private readonly HashSet<long> _farmObtainRequested = [];
     private readonly TeamsService _teams;
     private readonly ITextureProvider _textures;
     private readonly IDataManager _data;
@@ -81,6 +84,7 @@ public sealed class TeamsWindow : Window
     /// <param name="save">Persists config (remembered team/job/filters).</param>
     /// <param name="openConfig">Opens the settings window.</param>
     /// <param name="world">Game actions (owned counts, open the map at a vendor) for the farm sourcing.</param>
+    /// <param name="obtain">Chain-complete "how to get it" sourcing, to enrich the farm's own routes.</param>
     /// <param name="openImage">Opens a content-hub image in the image window (teamId, resourceId, title).</param>
     public TeamsWindow(
         PluginConfig config,
@@ -91,6 +95,7 @@ public sealed class TeamsWindow : Window
         IDataManager data,
         IPlayerState playerState,
         IWorldActions world,
+        ObtainService obtain,
         ILog log,
         Action save,
         Action openConfig,
@@ -101,6 +106,8 @@ public sealed class TeamsWindow : Window
         _store = store;
         _localizer = localizer;
         _sourcing = new SourcingView(localizer, world);
+        _obtain = obtain;
+        _world = world;
         _teams = teams;
         _textures = textures;
         _data = data;
@@ -978,6 +985,10 @@ public sealed class TeamsWindow : Window
             return;
         }
 
+        // Enrich the farm (routes are chain-less here) with /gear/obtain so a Tome+ piece shows the
+        // base step too. One prefetch per newly-seen target id; the service caches for the session.
+        PrefetchFarmObtain(entries);
+
         using var child = ImRaii.Child("##farm", new Vector2(0, 0), false);
         foreach (var entry in entries.OrderByDescending(e => e.IsCore))
         {
@@ -996,8 +1007,9 @@ public sealed class TeamsWindow : Window
 
             var missing = target
                 .Where(kv => kv.Value.Id != 0 && (entry.Equipped is null || !entry.Equipped.TryGetValue(kv.Key, out var eq) || eq.Id != kv.Value.Id))
-                .OrderBy(kv => SourcingView.SourceRank(kv.Value.Source))
-                .ThenBy(kv => _sourcing.SlotName(kv.Key), StringComparer.CurrentCultureIgnoreCase)
+                .Select(kv => (Slot: kv.Key, Item: kv.Value, Sourcing: EnrichedSourcing(kv.Value)))
+                .OrderBy(m => SourcingView.SourceRank(m.Sourcing.Source))
+                .ThenBy(m => _sourcing.SlotName(m.Slot), StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
 
             if (missing.Count == 0)
@@ -1007,50 +1019,135 @@ public sealed class TeamsWindow : Window
                 continue;
             }
 
+            DrawMemberNeeds(missing);
             DrawFarmMissing(missing);
             ImGui.Separator();
         }
     }
 
-    /// <summary>Renders the still-missing pieces with the server's sourcing routes (R8: display only).</summary>
-    private void DrawFarmMissing(List<KeyValuePair<string, FarmSlot>> missing)
+    /// <summary>The (source, routes) a farm piece renders from — the chain-complete obtain data when it
+    /// has loaded, else the farm's own chain-less routes as a fallback.</summary>
+    private (string? Source, List<FarmRoute>? Routes) EnrichedSourcing(FarmSlot item) =>
+        _obtain.TryGet(item.Id, out var info) && info?.Routes is { Count: > 0 }
+            ? (info.Source ?? item.Source, info.Routes)
+            : (item.Source, item.Routes);
+
+    private void PrefetchFarmObtain(List<FarmEntry> entries)
     {
+        var ids = new List<long>();
+        foreach (var entry in entries)
+        {
+            foreach (var kv in entry.Target ?? [])
+            {
+                if (kv.Value.Id > 0 && _farmObtainRequested.Add(kv.Value.Id))
+                {
+                    ids.Add(kv.Value.Id);
+                }
+            }
+        }
+
+        if (ids.Count > 0)
+        {
+            _ = _obtain.PrefetchAsync(ids, CancellationToken.None);
+        }
+    }
+
+    /// <summary>
+    /// A one-line "still short" summary next to the member: the farmable materials/tokens summed across
+    /// all their missing pieces, minus what they own — so you see at a glance what to gather for them.
+    /// </summary>
+    private void DrawMemberNeeds(List<(string Slot, FarmSlot Item, (string? Source, List<FarmRoute>? Routes) Sourcing)> missing)
+    {
+        // Sum the farmable cost items (materials + tokens, not the tier's tomestone) across every piece.
+        var needed = new Dictionary<long, (string Name, int Count)>();
+        foreach (var m in missing)
+        {
+            var primary = SourcingView.PrimaryRoute(m.Sourcing.Source, m.Sourcing.Routes);
+            CollectNeeds(primary, needed, depth: 0);
+        }
+
+        var shortItems = new List<string>();
+        foreach (var (itemId, entry) in needed)
+        {
+            var have = _world.OwnedCount((uint)itemId);
+            var shortBy = entry.Count - have;
+            if (shortBy > 0)
+            {
+                shortItems.Add($"{shortBy}× {entry.Name}");
+            }
+        }
+
         using (ImRaii.PushColor(ImGuiCol.Text, Yellow))
         {
             ImGui.TextUnformatted($"{T(LocKeys.TeamsMissing)}: {missing.Count}");
         }
 
-        // A target without any sourcing (unconfigured tier) still renders — just without the extra columns.
-        if (!ImGui.BeginTable("##farmMissing", 3, ImGuiTableFlags.NoSavedSettings | ImGuiTableFlags.BordersInnerV))
+        if (shortItems.Count > 0)
+        {
+            ImGui.SameLine();
+            ImGui.TextDisabled($"·  {string.Join(", ", shortItems)}");
+        }
+    }
+
+    private static void CollectNeeds(FarmRoute? route, Dictionary<long, (string Name, int Count)> into, int depth)
+    {
+        if (route is null || depth > 2)
+        {
+            return;
+        }
+
+        foreach (var cost in route.Cost ?? [])
+        {
+            if (string.Equals(cost.Role, "material", StringComparison.Ordinal) || string.Equals(cost.Role, "token", StringComparison.Ordinal))
+            {
+                if (cost.Id is { } id && id > 0)
+                {
+                    var name = cost.Name ?? $"#{id}";
+                    var prev = into.TryGetValue(id, out var e) ? e.Count : 0;
+                    into[id] = (name, prev + cost.Count);
+                }
+            }
+            else if (string.Equals(cost.Role, "piece", StringComparison.Ordinal) && cost.Chain is { Count: > 0 } chain)
+            {
+                CollectNeeds(SourcingView.PrimaryRoute(cost.Acq, chain), into, depth + 1);
+            }
+        }
+    }
+
+    /// <summary>Renders the still-missing pieces as a slot/source/steps table (R8: display only).</summary>
+    private void DrawFarmMissing(List<(string Slot, FarmSlot Item, (string? Source, List<FarmRoute>? Routes) Sourcing)> missing)
+    {
+        if (!ImGui.BeginTable("##farmMissing", 3, ImGuiTableFlags.NoSavedSettings | ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.RowBg))
         {
             return;
         }
 
         try
         {
-            ImGui.TableSetupColumn(T(LocKeys.TeamsFarmColSlot), ImGuiTableColumnFlags.WidthFixed, 150f);
-            ImGui.TableSetupColumn(T(LocKeys.TeamsFarmColSource), ImGuiTableColumnFlags.WidthFixed, 80f);
+            ImGui.TableSetupColumn(T(LocKeys.TeamsFarmColSlot), ImGuiTableColumnFlags.WidthFixed, 130f);
+            ImGui.TableSetupColumn(T(LocKeys.TeamsFarmColSource), ImGuiTableColumnFlags.WidthFixed, 70f);
             ImGui.TableSetupColumn(T(LocKeys.TeamsFarmColHow), ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableHeadersRow();
 
-            foreach (var (slot, item) in missing)
+            foreach (var (slot, _, sourcing) in missing)
             {
                 using var rowId = ImRaii.PushId(slot);
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn();
+                ImGui.AlignTextToFramePadding();
                 ImGui.TextUnformatted(_sourcing.SlotName(slot));
 
                 ImGui.TableNextColumn();
-                var (label, color) = _sourcing.SourceBadge(item.Source);
+                var (label, color) = _sourcing.SourceBadge(sourcing.Source);
                 ImGui.TextColored(color, label);
 
                 ImGui.TableNextColumn();
-                DrawFarmHow(item);
+                DrawFarmHow(sourcing.Source, sourcing.Routes);
 
                 // Right-click the piece → pin its vendor on the map (when the route has one).
-                if (_sourcing.HasMapTarget(item.Routes) && ImGui.BeginPopupContextItem("##farmctx"))
+                if (_sourcing.HasMapTarget(sourcing.Routes) && ImGui.BeginPopupContextItem("##farmctx"))
                 {
-                    _sourcing.DrawMapMenuItem(item.Routes);
+                    _sourcing.DrawMapMenuItem(sourcing.Routes);
                     ImGui.EndPopup();
                 }
             }
@@ -1061,20 +1158,16 @@ public sealed class TeamsWindow : Window
         }
     }
 
-    /// <summary>The "how to get it" cell: the primary route in one line, every route on hover.</summary>
-    private void DrawFarmHow(FarmSlot item)
+    /// <summary>The "how to get it" cell: the steps in one line, the full checklist on hover.</summary>
+    private void DrawFarmHow(string? source, List<FarmRoute>? routes)
     {
-        var primary = SourcingView.PrimaryRoute(item.Source, item.Routes);
-        if (primary is null)
-        {
-            ImGui.TextDisabled("—");
-            return;
-        }
+        ImGui.BeginGroup();
+        _sourcing.DrawCompact(source, routes);
+        ImGui.EndGroup();
 
-        ImGui.TextUnformatted(_sourcing.RouteSummary(primary));
-        if (item.Routes is { Count: > 0 } routes && ImGui.IsItemHovered())
+        if (routes is { Count: > 0 } && ImGui.IsItemHovered())
         {
-            _sourcing.DrawRoutesTooltip(routes);
+            _sourcing.DrawTooltip(source, routes);
         }
     }
 

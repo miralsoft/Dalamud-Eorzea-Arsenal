@@ -816,6 +816,27 @@ public static class LocKeys
     /// <summary>Context menu: pin the vendor NPC on the in-game map.</summary>
     public const string TeamsFarmShowOnMap = "teams.farm.showonmap";
 
+    /// <summary>Sourcing step: fight/earn it (a drop).</summary>
+    public const string SourceStepFight = "source.step.fight";
+
+    /// <summary>Sourcing step: buy it.</summary>
+    public const string SourceStepBuy = "source.step.buy";
+
+    /// <summary>Sourcing step: upgrade/augment it.</summary>
+    public const string SourceStepAugment = "source.step.augment";
+
+    /// <summary>Sourcing step: craft it.</summary>
+    public const string SourceStepCraft = "source.step.craft";
+
+    /// <summary>Sourcing step: get the base piece (fallback when the chain is unknown).</summary>
+    public const string SourceStepBase = "source.step.base";
+
+    /// <summary>Sourcing: no info available.</summary>
+    public const string SourceNoInfo = "source.noinfo";
+
+    /// <summary>Sourcing: you own enough of this cost.</summary>
+    public const string SourceHave = "source.have";
+
     /// <summary>Menu/command: open the what's-new window.</summary>
     public const string WhatsNewOpen = "whatsnew.open";
 

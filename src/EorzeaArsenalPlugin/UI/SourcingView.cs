@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Utility.Raii;
 using EorzeaArsenal.Localization;
 using EorzeaArsenal.Model;
 using EorzeaArsenal.Plugin.Services;
@@ -9,17 +10,22 @@ namespace EorzeaArsenal.Plugin.UI;
 
 /// <summary>
 /// Renders the server's <c>routes[]</c> sourcing — "how to get this piece" — shared by the Teams farm
-/// table and the BiS window/tooltip so the two never disagree. Purely presentational (R11): it turns
-/// a <see cref="FarmSlot"/>/<see cref="ObtainInfo"/>'s source + routes into a one-line summary and a
-/// game-like tooltip. The primary route follows the same rule as the web's
-/// <c>FarmPlanner::primaryRoute</c> (savage → the drop, else the trade).
+/// table and the BiS window/tooltip so the two never disagree. It turns the routes into an ordered list
+/// of concrete <b>steps</b> (fight it / buy it / upgrade it), each with its own "have / need" from the
+/// player's inventory, so a Tome+ piece reads as "first get the base, then augment" rather than
+/// assuming the base is already in hand. Purely presentational (R11); ownership + the map come through
+/// <see cref="IWorldActions"/>. The primary route follows the web's <c>FarmPlanner::primaryRoute</c>.
 /// </summary>
 internal sealed class SourcingView
 {
-    private static readonly Vector4 Green = new(0.4f, 0.8f, 0.4f, 1f);
-    private static readonly Vector4 Red = new(0.9f, 0.4f, 0.4f, 1f);
-    private static readonly Vector4 Yellow = new(0.9f, 0.8f, 0.3f, 1f);
-    private static readonly Vector4 Blue = new(0.55f, 0.75f, 1f, 1f);
+    private const float TooltipFontScale = 1.15f;
+
+    private static readonly Vector4 Green = new(0.45f, 0.82f, 0.45f, 1f);
+    private static readonly Vector4 Red = new(0.92f, 0.45f, 0.45f, 1f);
+    private static readonly Vector4 Yellow = new(0.95f, 0.83f, 0.35f, 1f);
+    private static readonly Vector4 Blue = new(0.55f, 0.78f, 1f, 1f);
+    private static readonly Vector4 Dim = new(0.62f, 0.62f, 0.62f, 1f);
+    private static readonly Vector4 Text = new(0.88f, 0.88f, 0.88f, 1f);
 
     private static readonly Dictionary<string, string> SlotDe = new(StringComparer.Ordinal)
     {
@@ -49,6 +55,16 @@ internal sealed class SourcingView
         _world = world;
     }
 
+    private enum StepKind
+    {
+        Fight,
+        Buy,
+        Augment,
+        Craft,
+        Market,
+        Retired,
+    }
+
     private string T(string key) => _localizer.Get(key);
 
     private bool German => _localizer.Language == Localizer.German;
@@ -62,7 +78,7 @@ internal sealed class SourcingView
         "savage" => ("Savage", Red),
         "tomeplus" => ("Tome+", Blue),
         "tome" => ("Tome", Green),
-        _ => (T(LocKeys.TeamsFarmUnknownSource), new Vector4(0.65f, 0.65f, 0.65f, 1f)),
+        _ => (T(LocKeys.TeamsFarmUnknownSource), Dim),
     };
 
     /// <summary>Sort rank by how hard a piece is to get: savage first, then tome+, tome, unknown.</summary>
@@ -73,6 +89,289 @@ internal sealed class SourcingView
         "tome" => 2,
         _ => 3,
     };
+
+    // --- Public rendering -------------------------------------------------------------------------
+
+    /// <summary>
+    /// A compact one-line summary for a table cell: the steps joined by "→", each coloured by whether
+    /// you already have what it needs. Wraps to the cell width. Empty renders a dim dash.
+    /// </summary>
+    public void DrawCompact(string? source, List<FarmRoute>? routes)
+    {
+        var steps = BuildSteps(source, routes);
+        if (steps.Count == 0)
+        {
+            ImGui.TextDisabled("—");
+            return;
+        }
+
+        for (var i = 0; i < steps.Count; i++)
+        {
+            if (i > 0)
+            {
+                ImGui.SameLine(0f, 4f);
+                ImGui.TextDisabled("→");
+                ImGui.SameLine(0f, 4f);
+            }
+            else
+            {
+                // Let the first chunk begin the wrap region at the cell's start.
+                ImGui.PushTextWrapPos(0f);
+                ImGui.PopTextWrapPos();
+            }
+
+            var (ready, _) = StepStatus(steps[i]);
+            ImGui.TextColored(StepColor(steps[i], ready), CompactStep(steps[i]));
+        }
+    }
+
+    /// <summary>A standalone tooltip with the full, numbered step-by-step path (larger, spaced).</summary>
+    public void DrawTooltip(string? source, List<FarmRoute>? routes)
+    {
+        ImGui.BeginTooltip();
+        DrawBody(source, routes);
+        ImGui.EndTooltip();
+    }
+
+    /// <summary>
+    /// The step-by-step body — a numbered checklist with a heading, costs and "have / need" — without
+    /// opening a tooltip of its own, so it can be embedded in an existing tooltip (the BiS tile). Drawn
+    /// at a slightly larger scale, since it is the detail view.
+    /// </summary>
+    public void DrawBody(string? source, List<FarmRoute>? routes)
+    {
+        var steps = BuildSteps(source, routes);
+
+        ImGui.SetWindowFontScale(TooltipFontScale);
+        try
+        {
+            ImGui.PushTextWrapPos(ImGui.GetFontSize() * 24f);
+            ImGui.TextColored(Yellow, T(LocKeys.TeamsFarmWaysHeading));
+
+            if (steps.Count == 0)
+            {
+                ImGui.TextDisabled(T(LocKeys.SourceNoInfo));
+            }
+
+            for (var i = 0; i < steps.Count; i++)
+            {
+                ImGui.Spacing();
+                DrawStepRow(i + 1, steps[i]);
+            }
+
+            ImGui.PopTextWrapPos();
+        }
+        finally
+        {
+            ImGui.SetWindowFontScale(1f);
+        }
+    }
+
+    // --- Step model -------------------------------------------------------------------------------
+
+    private sealed record SourceStep(
+        StepKind Kind,
+        IReadOnlyList<FarmCostPart> Costs,
+        FarmNpc? Npc,
+        IReadOnlyList<string>? Shops,
+        string? Coffer,
+        IReadOnlyList<string> Duties,
+        string? HandInSlot);
+
+    /// <summary>
+    /// Flattens a piece's primary route into ordered steps. A handed-in base piece is expanded from its
+    /// own <c>chain</c> first (so the base acquisition becomes step 1), then the augment/purchase step.
+    /// Depth-capped so a self-referential price cannot recurse forever.
+    /// </summary>
+    private List<SourceStep> BuildSteps(string? source, List<FarmRoute>? routes, int depth = 0)
+    {
+        var steps = new List<SourceStep>();
+        var primary = PrimaryRoute(source, routes);
+        if (primary is null || depth > 2)
+        {
+            return steps;
+        }
+
+        switch (primary.Kind)
+        {
+            case "drop":
+                steps.Add(new SourceStep(StepKind.Fight, [], primary.Npc?.FirstOrDefault(), null, primary.Via?.Name, primary.Duties ?? [], null));
+                break;
+
+            case "retired":
+                steps.Add(new SourceStep(StepKind.Retired, [], null, null, null, [], null));
+                break;
+
+            default:
+                var pieces = (primary.Cost ?? []).Where(c => string.Equals(c.Role, "piece", StringComparison.Ordinal)).ToList();
+                var effort = (primary.Cost ?? []).Where(c => !string.Equals(c.Role, "piece", StringComparison.Ordinal)).ToList();
+
+                // The base you hand in has to be acquired first — walk its chain, or note it plainly.
+                foreach (var piece in pieces)
+                {
+                    if (piece.Chain is { Count: > 0 })
+                    {
+                        steps.AddRange(BuildSteps(AcqToSource(piece.Acq), piece.Chain, depth + 1));
+                    }
+                    else
+                    {
+                        steps.Add(new SourceStep(StepKind.Buy, [], null, null, null, [], piece.Slot));
+                    }
+                }
+
+                var kind = primary.Kind switch
+                {
+                    "craft" => StepKind.Craft,
+                    "market" => StepKind.Market,
+                    _ => pieces.Count > 0 ? StepKind.Augment : StepKind.Buy,
+                };
+                steps.Add(new SourceStep(kind, effort, primary.Npc?.FirstOrDefault(), primary.Shops, null, [], pieces.FirstOrDefault()?.Slot));
+                break;
+        }
+
+        return steps;
+    }
+
+    private static string? AcqToSource(string? acq) => acq;
+
+    // --- Step rendering ---------------------------------------------------------------------------
+
+    private void DrawStepRow(int number, SourceStep step)
+    {
+        var (ready, _) = StepStatus(step);
+        var color = StepColor(step, ready);
+
+        ImGui.TextColored(Dim, $"{number}.");
+        ImGui.SameLine(0f, 6f);
+        ImGui.TextColored(color, StepVerb(step));
+
+        // The costs, each with a have/need count where it is a real item.
+        foreach (var cost in step.Costs)
+        {
+            ImGui.SameLine(0f, 8f);
+            DrawCost(cost);
+        }
+
+        if (step.HandInSlot is { } handIn)
+        {
+            ImGui.SameLine(0f, 8f);
+            ImGui.TextColored(Dim, $"[{T(LocKeys.TeamsFarmHandIn)}: {SlotName(handIn)}]");
+        }
+
+        // Where: the fight(s), or the vendor + zone + coordinates, indented under the step.
+        var where = StepWhere(step);
+        if (!string.IsNullOrEmpty(where))
+        {
+            ImGui.TextColored(Dim, $"    {where}");
+        }
+
+        if (step.Coffer is { Length: > 0 } coffer)
+        {
+            ImGui.TextColored(Dim, $"    {T(LocKeys.TeamsFarmCoffer)}: {coffer}");
+        }
+    }
+
+    private void DrawCost(FarmCostPart cost)
+    {
+        var name = cost.Name ?? (cost.Id is { } id ? $"#{id}" : T(LocKeys.TeamsFarmCoffer));
+        if (cost.Id is { } itemId && itemId > 0)
+        {
+            var have = _world.OwnedCount((uint)itemId);
+            var enough = have >= cost.Count;
+            ImGui.TextColored(enough ? Green : Text, $"{cost.Count}× {name}");
+            ImGui.SameLine(0f, 4f);
+            ImGui.TextColored(enough ? Green : Yellow, $"({have}/{cost.Count})");
+        }
+        else
+        {
+            ImGui.TextColored(Text, $"{cost.Count}× {name}");
+        }
+    }
+
+    /// <summary>Whether a step is satisfied by what the player owns, plus the total items still short.</summary>
+    private (bool Ready, int Short) StepStatus(SourceStep step)
+    {
+        if (step.Kind is StepKind.Fight or StepKind.Market)
+        {
+            return (true, 0); // an action, not something you stock up for
+        }
+
+        if (step.Kind == StepKind.Retired)
+        {
+            return (false, 0);
+        }
+
+        var shortBy = 0;
+        foreach (var cost in step.Costs)
+        {
+            if (cost.Id is { } id && id > 0)
+            {
+                shortBy += Math.Max(0, cost.Count - _world.OwnedCount((uint)id));
+            }
+        }
+
+        return (shortBy == 0, shortBy);
+    }
+
+    private Vector4 StepColor(SourceStep step, bool ready) => step.Kind switch
+    {
+        StepKind.Fight => Blue,
+        StepKind.Retired => Red,
+        _ => ready ? Green : Text,
+    };
+
+    private string StepVerb(SourceStep step) => step.Kind switch
+    {
+        StepKind.Fight => T(LocKeys.SourceStepFight),
+        StepKind.Augment => T(LocKeys.SourceStepAugment),
+        StepKind.Craft => T(LocKeys.SourceStepCraft),
+        StepKind.Market => T(LocKeys.TeamsFarmMarket),
+        StepKind.Retired => T(LocKeys.TeamsFarmRetired),
+        _ => step.HandInSlot is not null && step.Costs.Count == 0 ? T(LocKeys.SourceStepBase) : T(LocKeys.SourceStepBuy),
+    };
+
+    /// <summary>The compact chip for a step in the table cell: the verb plus its headline cost/where.</summary>
+    private string CompactStep(SourceStep step)
+    {
+        switch (step.Kind)
+        {
+            case StepKind.Fight:
+                return step.Duties is { Count: > 0 } d ? d[0] : T(LocKeys.SourceStepFight);
+            case StepKind.Retired:
+                return T(LocKeys.TeamsFarmRetired);
+            default:
+                var headline = step.Costs.FirstOrDefault();
+                var verb = StepVerb(step);
+                if (headline is null)
+                {
+                    return verb;
+                }
+
+                var name = headline.Name ?? T(LocKeys.TeamsFarmCoffer);
+                return $"{verb} {headline.Count}× {name}";
+        }
+    }
+
+    private string StepWhere(SourceStep step)
+    {
+        if (step.Kind == StepKind.Fight)
+        {
+            return step.Duties is { Count: > 0 } d ? string.Join(", ", d) : string.Empty;
+        }
+
+        if (step.Npc is { } npc && !string.IsNullOrEmpty(npc.Name))
+        {
+            var zone = string.IsNullOrEmpty(npc.Zone) ? string.Empty : $" · {npc.Zone}";
+            var coords = npc is { X: { } x, Y: { } y }
+                ? $" ({x.ToString("0.#", CultureInfo.InvariantCulture)}, {y.ToString("0.#", CultureInfo.InvariantCulture)})"
+                : string.Empty;
+            return $"{npc.Name}{zone}{coords}";
+        }
+
+        return step.Shops is { Count: > 0 } shops && !string.IsNullOrEmpty(shops[0]) ? shops[0] : string.Empty;
+    }
+
+    // --- Primary route + map ----------------------------------------------------------------------
 
     /// <summary>
     /// The route matching <paramref name="source"/> (savage → drop, else the trade), falling back to
@@ -97,126 +396,6 @@ internal sealed class SourcingView
         return routes.FirstOrDefault(r => string.Equals(r.Kind, "trade", StringComparison.Ordinal)) ?? routes[0];
     }
 
-    /// <summary>A one-line summary of a route, sized for a table cell.</summary>
-    public string RouteSummary(FarmRoute route) => route.Kind switch
-    {
-        "drop" => route.Duties is { Count: > 0 } d ? string.Join(", ", d) : route.Via?.Name ?? T(LocKeys.TeamsFarmCoffer),
-        "retired" => T(LocKeys.TeamsFarmRetired),
-        "market" => T(LocKeys.TeamsFarmMarket),
-        _ => TradeSummary(route),
-    };
-
-    /// <summary>A standalone game-like tooltip listing every way to get the piece.</summary>
-    public void DrawRoutesTooltip(List<FarmRoute> routes)
-    {
-        ImGui.BeginTooltip();
-        DrawRoutesBody(routes);
-        ImGui.EndTooltip();
-    }
-
-    /// <summary>
-    /// The routes content — heading, then every way with costs, vendors and coords — without opening a
-    /// tooltip of its own, so it can also be embedded in an existing tooltip (the BiS tile). A handed-in
-    /// piece expands its own <c>chain</c> one level deeper, so an augment reads "hand in the base — and
-    /// here is how you get that base", which is what you have to farm first.
-    /// </summary>
-    public void DrawRoutesBody(List<FarmRoute> routes)
-    {
-        ImGui.PushTextWrapPos(380f);
-        ImGui.TextColored(Yellow, T(LocKeys.TeamsFarmWaysHeading));
-
-        foreach (var route in routes)
-        {
-            ImGui.Separator();
-            DrawRoute(route, depth: 0);
-        }
-
-        ImGui.PopTextWrapPos();
-    }
-
-    private void DrawRoute(FarmRoute route, int depth)
-    {
-        var pad = new string(' ', depth * 3);
-        switch (route.Kind)
-        {
-            case "drop":
-                var where = route.Duties is { Count: > 0 } d ? string.Join(", ", d) : "?";
-                ImGui.TextUnformatted($"{pad}● {where}");
-                if (route.Via?.Name is { Length: > 0 } coffer)
-                {
-                    ImGui.TextDisabled($"{pad}   {T(LocKeys.TeamsFarmCoffer)}: {coffer}");
-                }
-
-                break;
-
-            case "retired":
-                ImGui.TextDisabled($"{pad}● {T(LocKeys.TeamsFarmRetired)}");
-                break;
-
-            default:
-                ImGui.TextUnformatted($"{pad}● {VendorHeader(route)}");
-                foreach (var part in route.Cost ?? [])
-                {
-                    DrawCostPart(part, depth);
-                }
-
-                break;
-        }
-    }
-
-    private void DrawCostPart(FarmCostPart part, int depth)
-    {
-        var pad = new string(' ', (depth * 3) + 3);
-
-        // A handed-in gear piece is not effort itself — but getting it is, so expand its chain.
-        if (string.Equals(part.Role, "piece", StringComparison.Ordinal))
-        {
-            ImGui.TextDisabled($"{pad}{T(LocKeys.TeamsFarmHandIn)}: {(part.Slot is { } s ? SlotName(s) : "?")}");
-            foreach (var sub in part.Chain ?? [])
-            {
-                DrawRoute(sub, depth + 1);
-            }
-
-            return;
-        }
-
-        var name = part.Name ?? (part.Id is { } id ? $"#{id}" : T(LocKeys.TeamsFarmCoffer));
-        var line = $"{pad}{part.Count}× {name}";
-
-        // "have / need" for a real item, coloured by whether the player already has enough.
-        if (part.Id is { } itemId && itemId > 0)
-        {
-            var have = _world.OwnedCount((uint)itemId);
-            var enough = have >= part.Count;
-            ImGui.TextColored(enough ? Green : new Vector4(0.85f, 0.85f, 0.85f, 1f), $"{line}  ({have}/{part.Count})");
-        }
-        else
-        {
-            ImGui.TextUnformatted(line);
-        }
-    }
-
-    /// <summary>The "where" of a trade/craft/market route: the vendor and zone, a shop, or the kind.</summary>
-    private string VendorHeader(FarmRoute route)
-    {
-        if (route.Npc is { Count: > 0 } npc && !string.IsNullOrEmpty(npc[0].Name))
-        {
-            var zone = string.IsNullOrEmpty(npc[0].Zone) ? string.Empty : $" · {npc[0].Zone}";
-            var coords = npc[0] is { X: { } x, Y: { } y }
-                ? $" ({x.ToString("0.#", CultureInfo.InvariantCulture)}, {y.ToString("0.#", CultureInfo.InvariantCulture)})"
-                : string.Empty;
-            return $"{npc[0].Name}{zone}{coords}";
-        }
-
-        if (route.Shops is { Count: > 0 } shops && !string.IsNullOrEmpty(shops[0]))
-        {
-            return shops[0];
-        }
-
-        return route.Kind == "craft" ? T(LocKeys.TeamsFarmCraft) : route.Kind == "market" ? T(LocKeys.TeamsFarmMarket) : "?";
-    }
-
-    /// <summary>The first vendor across the routes that can be pinned on the map (with its pin), or null.</summary>
     private (FarmNpc Npc, MapPin Pin)? MappableVendor(List<FarmRoute>? routes)
     {
         foreach (var route in routes ?? [])
@@ -253,27 +432,5 @@ internal sealed class SourcingView
         }
 
         return true;
-    }
-
-    /// <summary>A trade/craft in one line: the effort parts (skipping handed-in pieces) and the vendor.</summary>
-    private string TradeSummary(FarmRoute route)
-    {
-        var parts = (route.Cost ?? [])
-            .Where(c => !string.Equals(c.Role, "piece", StringComparison.Ordinal))
-            .Select(CostPartText)
-            .ToList();
-        var cost = parts.Count > 0 ? string.Join(" + ", parts) : (route.Kind == "craft" ? T(LocKeys.TeamsFarmCraft) : string.Empty);
-
-        var at = route.Npc is { Count: > 0 } npc && !string.IsNullOrEmpty(npc[0].Name)
-            ? $" @ {npc[0].Name}"
-            : route.Shops is { Count: > 0 } shops && !string.IsNullOrEmpty(shops[0]) ? $" @ {shops[0]}" : string.Empty;
-
-        return (cost + at).Trim();
-    }
-
-    private string CostPartText(FarmCostPart part)
-    {
-        var name = part.Name ?? (part.Id is { } id ? $"#{id}" : T(LocKeys.TeamsFarmCoffer));
-        return $"{part.Count}× {name}";
     }
 }
