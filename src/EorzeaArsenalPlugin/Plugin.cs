@@ -392,29 +392,52 @@ public sealed class Plugin : IDalamudPlugin
         {
             try
             {
+                // Probe both the equipped pieces and the BiS targets — the "where do I fight it" info
+                // lives on the target's drop route, not the (often off-tier) equipped piece.
                 var equipped = await _framework.RunOnFrameworkThread(() => _gearSource.GetEquippedItems()).ConfigureAwait(false);
-                var ids = equipped.Values.Select(v => (long)v.Id).Where(id => id > 0).Distinct().ToList();
-                if (ids.Count == 0)
+                var probe = new Dictionary<long, string>();
+                foreach (var (slot, item) in equipped)
                 {
-                    Chat("obtainprobe: no equipped items read.");
+                    if (item.Id > 0)
+                    {
+                        probe[item.Id] = $"equipped {slot}";
+                    }
+                }
+
+                foreach (var comparison in _bisService.Comparisons)
+                {
+                    foreach (var s in comparison.Slots)
+                    {
+                        if (s.TargetItemId > 0)
+                        {
+                            probe[s.TargetItemId] = $"BiS {s.Slot}";
+                        }
+                    }
+                }
+
+                if (probe.Count == 0)
+                {
+                    Chat("obtainprobe: nothing to probe (open Gear vs BiS first).");
                     return;
                 }
 
-                await _obtainService.PrefetchAsync(ids, CancellationToken.None).ConfigureAwait(false);
-                foreach (var (slot, item) in equipped)
+                await _obtainService.PrefetchAsync(probe.Keys.ToList(), CancellationToken.None).ConfigureAwait(false);
+                foreach (var (id, label) in probe.OrderBy(p => p.Value, StringComparer.Ordinal))
                 {
-                    if (item.Id <= 0)
+                    if (!_obtainService.TryGet(id, out var info) || info is null)
                     {
+                        _log.Info($"obtainprobe {label}: item {id} -> no obtain data");
                         continue;
                     }
 
-                    var resolved = _obtainService.TryGet(item.Id, out var info);
-                    _log.Info(resolved
-                        ? $"obtainprobe {slot}: item {item.Id} -> source={info?.Source ?? "(null)"} obtainSlot={info?.Slot ?? "(null)"}"
-                        : $"obtainprobe {slot}: item {item.Id} -> no obtain data");
+                    var route = SourcingView.PrimaryRoute(info.Source, info.Routes);
+                    var duties = route?.Duties is { Count: > 0 } d ? string.Join("|", d) : "(none)";
+                    var coffer = route?.Via?.Name ?? "(none)";
+                    var npc = route?.Npc is { Count: > 0 } n ? n[0].Name ?? "(?)" : "(none)";
+                    _log.Info($"obtainprobe {label}: item {id} src={info.Source ?? "(null)"} slot={info.Slot ?? "(null)"} route={route?.Kind ?? "(none)"} duties={duties} coffer={coffer} npc={npc}");
                 }
 
-                Chat("obtainprobe: equipped items written to the log (/xivarsenal log).");
+                Chat("obtainprobe: written to the log (/xivarsenal log).");
             }
             catch (Exception ex)
             {

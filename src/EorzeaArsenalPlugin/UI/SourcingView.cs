@@ -345,7 +345,9 @@ internal sealed class SourcingView
             ImGui.Unindent(16f);
         }
 
-        if (step.Coffer is { Length: > 0 } coffer)
+        // The coffer as its own line only when the "where" above is the fight — otherwise the where line
+        // already is the coffer (the fallback when no fight was linked), so this would repeat it.
+        if (step.Coffer is { Length: > 0 } coffer && step.Duties is { Count: > 0 })
         {
             ImGui.Indent(16f);
             ImGui.TextColored(Dim, $"{T(LocKeys.TeamsFarmCoffer)}: {coffer}");
@@ -442,7 +444,13 @@ internal sealed class SourcingView
     {
         if (step.Kind == StepKind.Fight)
         {
-            return step.Duties is { Count: > 0 } d ? string.Join(", ", d) : string.Empty;
+            // Prefer the fight name(s); if the server did not link one, the coffer name is the fallback.
+            if (step.Duties is { Count: > 0 } d)
+            {
+                return string.Join(", ", d);
+            }
+
+            return step.Coffer is { Length: > 0 } coffer ? $"{T(LocKeys.TeamsFarmCoffer)}: {coffer}" : string.Empty;
         }
 
         if (step.Npc is { } npc && !string.IsNullOrEmpty(npc.Name))
