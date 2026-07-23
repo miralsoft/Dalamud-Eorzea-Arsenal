@@ -1048,7 +1048,7 @@ public sealed class TeamsWindow : Window
                 DrawFarmHow(item);
 
                 // Right-click the piece → pin its vendor on the map (when the route has one).
-                if (SourcingView.MappableVendor(item.Routes) is not null && ImGui.BeginPopupContextItem("##farmctx"))
+                if (_sourcing.HasMapTarget(item.Routes) && ImGui.BeginPopupContextItem("##farmctx"))
                 {
                     _sourcing.DrawMapMenuItem(item.Routes);
                     ImGui.EndPopup();

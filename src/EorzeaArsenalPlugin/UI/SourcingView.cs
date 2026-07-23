@@ -216,16 +216,16 @@ internal sealed class SourcingView
         return route.Kind == "craft" ? T(LocKeys.TeamsFarmCraft) : route.Kind == "market" ? T(LocKeys.TeamsFarmMarket) : "?";
     }
 
-    /// <summary>The first vendor across the routes that can be pinned on the map, or <see langword="null"/>.</summary>
-    public static FarmNpc? MappableVendor(List<FarmRoute>? routes)
+    /// <summary>The first vendor across the routes that can be pinned on the map (with its pin), or null.</summary>
+    private (FarmNpc Npc, MapPin Pin)? MappableVendor(List<FarmRoute>? routes)
     {
         foreach (var route in routes ?? [])
         {
             foreach (var npc in route.Npc ?? [])
             {
-                if (npc.CanMap)
+                if (_world.ResolvePin(npc) is { } pin)
                 {
-                    return npc;
+                    return (npc, pin);
                 }
             }
         }
@@ -233,21 +233,23 @@ internal sealed class SourcingView
         return null;
     }
 
+    /// <summary>Whether any route has a vendor that can be pinned on the map.</summary>
+    public bool HasMapTarget(List<FarmRoute>? routes) => MappableVendor(routes) is not null;
+
     /// <summary>
     /// Draws a "show NPC on map" context-menu entry when a mappable vendor exists. Call inside an open
     /// <c>BeginPopupContextItem</c>. Returns <see langword="true"/> when the entry was rendered.
     /// </summary>
     public bool DrawMapMenuItem(List<FarmRoute>? routes)
     {
-        var npc = MappableVendor(routes);
-        if (npc is null)
+        if (MappableVendor(routes) is not { } hit)
         {
             return false;
         }
 
-        if (ImGui.MenuItem($"{T(LocKeys.TeamsFarmShowOnMap)}: {npc.Name}"))
+        if (ImGui.MenuItem($"{T(LocKeys.TeamsFarmShowOnMap)}: {hit.Npc.Name}"))
         {
-            _world.OpenMap((uint)npc.ZoneId!.Value, (uint)npc.MapId!.Value, npc.X!.Value, npc.Y!.Value);
+            _world.OpenMap(hit.Pin);
         }
 
         return true;

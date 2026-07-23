@@ -178,7 +178,7 @@ public sealed class Plugin : IDalamudPlugin
         _teamsService.Toast += OnTeamToast;
         _bisService = new BisService(api, _gearSource, _store, _log);
         _obtainService = new ObtainService(api, _store, _log);
-        _worldActions = new WorldActions(gameGui);
+        _worldActions = new WorldActions(gameGui, dataManager);
 
         _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, _obtainService, _worldActions, Save, LinkItemInChat);
         _logWindow = new LogWindow(_logBuffer, _localizer);
