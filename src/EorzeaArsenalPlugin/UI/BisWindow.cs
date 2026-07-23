@@ -520,6 +520,11 @@ public sealed class BisWindow : Window
                 ImGui.SetClipboardText(_gearSource.GetItemName(item.TargetItemId));
             }
 
+            if (_config.BisShowSourcing && _obtain.TryGet(item.TargetItemId, out var info))
+            {
+                _sourcing.DrawMapMenuItem(info?.Routes);
+            }
+
             ImGui.EndPopup();
         }
     }

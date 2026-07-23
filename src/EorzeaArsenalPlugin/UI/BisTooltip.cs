@@ -287,7 +287,7 @@ public sealed class BisTooltip
             if (!line.Owned && _config.BisShowSourcing && _obtain.TryGet(line.TargetItemId, out var info) && info?.Routes is { Count: > 0 } routes)
             {
                 ImGui.Indent();
-                _sourcing.DrawCompact(info.Source, routes);
+                _sourcing.DrawInline(info.Source, routes);
                 ImGui.Unindent();
             }
         }

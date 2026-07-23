@@ -134,36 +134,54 @@ internal sealed class SourcingView
     }
 
     /// <summary>
-    /// The step-by-step body — a numbered checklist with a heading, costs and "have / need" — without
-    /// opening a tooltip of its own, so it can be embedded in an existing tooltip (the BiS tile). Drawn
-    /// at a slightly larger scale, since it is the detail view.
+    /// The full step-by-step detail — a numbered checklist with a heading, costs, "have / need" and the
+    /// vendor + coordinates for each step. No forced wrap, so each line stays on one line and the
+    /// tooltip auto-sizes instead of breaking a number across lines. Drawn slightly larger, as the
+    /// detail view. Used inside the BiS tile tooltip and the farm hover.
     /// </summary>
     public void DrawBody(string? source, List<FarmRoute>? routes)
     {
-        var steps = BuildSteps(source, routes);
-
         ImGui.SetWindowFontScale(TooltipFontScale);
         try
         {
-            ImGui.PushTextWrapPos(ImGui.GetFontSize() * 24f);
-            ImGui.TextColored(Yellow, T(LocKeys.TeamsFarmWaysHeading));
-
-            if (steps.Count == 0)
-            {
-                ImGui.TextDisabled(T(LocKeys.SourceNoInfo));
-            }
-
-            for (var i = 0; i < steps.Count; i++)
-            {
-                ImGui.Spacing();
-                DrawStepRow(i + 1, steps[i]);
-            }
-
-            ImGui.PopTextWrapPos();
+            DrawStepList(source, routes, heading: true, inline: false);
         }
         finally
         {
             ImGui.SetWindowFontScale(1f);
+        }
+    }
+
+    /// <summary>
+    /// A compact one-line-per-step rendering — verb, cost with "have / need", then the vendor and
+    /// coordinates — for tight places like the in-game hover overlay, where the full block is too tall
+    /// but the "where" still matters.
+    /// </summary>
+    public void DrawInline(string? source, List<FarmRoute>? routes) => DrawStepList(source, routes, heading: false, inline: true);
+
+    private void DrawStepList(string? source, List<FarmRoute>? routes, bool heading, bool inline)
+    {
+        var steps = BuildSteps(source, routes);
+
+        if (heading)
+        {
+            ImGui.TextColored(Yellow, T(LocKeys.TeamsFarmWaysHeading));
+        }
+
+        if (steps.Count == 0)
+        {
+            ImGui.TextDisabled(T(LocKeys.SourceNoInfo));
+            return;
+        }
+
+        for (var i = 0; i < steps.Count; i++)
+        {
+            if (!inline)
+            {
+                ImGui.Spacing();
+            }
+
+            DrawStepRow(i + 1, steps[i], inline);
         }
     }
 
@@ -236,38 +254,60 @@ internal sealed class SourcingView
 
     // --- Step rendering ---------------------------------------------------------------------------
 
-    private void DrawStepRow(int number, SourceStep step)
+    private void DrawStepRow(int number, SourceStep step, bool inline)
     {
         var (ready, _) = StepStatus(step);
-        var color = StepColor(step, ready);
 
+        // Line 1: "N.  Verb" with the handed-in base as a light note after it.
         ImGui.TextColored(Dim, $"{number}.");
         ImGui.SameLine(0f, 6f);
-        ImGui.TextColored(color, StepVerb(step));
-
-        // The costs, each with a have/need count where it is a real item.
-        foreach (var cost in step.Costs)
-        {
-            ImGui.SameLine(0f, 8f);
-            DrawCost(cost);
-        }
-
+        ImGui.TextColored(StepColor(step, ready), StepVerb(step));
         if (step.HandInSlot is { } handIn)
         {
-            ImGui.SameLine(0f, 8f);
-            ImGui.TextColored(Dim, $"[{T(LocKeys.TeamsFarmHandIn)}: {SlotName(handIn)}]");
+            ImGui.SameLine(0f, 6f);
+            ImGui.TextColored(Dim, $"· {T(LocKeys.TeamsFarmHandIn)}: {SlotName(handIn)}");
         }
 
-        // Where: the fight(s), or the vendor + zone + coordinates, indented under the step.
+        // Inline: keep the headline cost + where on this same line (overlay). Block: one line each.
+        if (inline)
+        {
+            var headline = step.Costs.FirstOrDefault();
+            if (headline is not null)
+            {
+                ImGui.SameLine(0f, 8f);
+                DrawCost(headline);
+            }
+
+            var oneWhere = StepWhere(step);
+            if (!string.IsNullOrEmpty(oneWhere))
+            {
+                ImGui.SameLine(0f, 8f);
+                ImGui.TextColored(Dim, $"· {oneWhere}");
+            }
+
+            return;
+        }
+
+        foreach (var cost in step.Costs)
+        {
+            ImGui.Indent(16f);
+            DrawCost(cost);
+            ImGui.Unindent(16f);
+        }
+
         var where = StepWhere(step);
         if (!string.IsNullOrEmpty(where))
         {
-            ImGui.TextColored(Dim, $"    {where}");
+            ImGui.Indent(16f);
+            ImGui.TextColored(Dim, where);
+            ImGui.Unindent(16f);
         }
 
         if (step.Coffer is { Length: > 0 } coffer)
         {
-            ImGui.TextColored(Dim, $"    {T(LocKeys.TeamsFarmCoffer)}: {coffer}");
+            ImGui.Indent(16f);
+            ImGui.TextColored(Dim, $"{T(LocKeys.TeamsFarmCoffer)}: {coffer}");
+            ImGui.Unindent(16f);
         }
     }
 
@@ -278,9 +318,9 @@ internal sealed class SourcingView
         {
             var have = _world.OwnedCount((uint)itemId);
             var enough = have >= cost.Count;
-            ImGui.TextColored(enough ? Green : Text, $"{cost.Count}× {name}");
-            ImGui.SameLine(0f, 4f);
-            ImGui.TextColored(enough ? Green : Yellow, $"({have}/{cost.Count})");
+            ImGui.TextColored(Text, $"{cost.Count}× {name}");
+            ImGui.SameLine(0f, 6f);
+            ImGui.TextColored(enough ? Green : Red, $"{have}/{cost.Count}");
         }
         else
         {

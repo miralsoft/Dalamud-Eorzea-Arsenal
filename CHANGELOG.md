@@ -20,7 +20,9 @@ All notable changes to this project are documented here. The format is based on
     than assuming the base is already in hand. The farm pulls the full chain from `GET /gear/obtain`,
     which its own response omits.
   - **"Do I have it?" per step.** Each purchasable cost (tomes, tokens, materials) carries a
-    **have / need** count from your inventory, green once you own enough.
+    **have / need** count from your inventory — bags, equipped, armoury, the currency crystal and the
+    **saddlebag** — green once you own enough. (Retainer stock cannot be read unless the retainer is
+    open, so a stash there is not yet included.)
   - **What's still short, per character.** Next to each teammate in the farm, a one-line summary sums
     the materials/tokens they still need across all their missing pieces, minus what they own — so you
     see at a glance what to gather for them.

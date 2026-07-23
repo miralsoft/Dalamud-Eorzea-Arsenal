@@ -59,13 +59,47 @@ public sealed class WorldActions : IWorldActions
         _data = data;
     }
 
+    private static readonly InventoryType[] SaddlebagTypes =
+    [
+        InventoryType.SaddleBag1, InventoryType.SaddleBag2,
+        InventoryType.PremiumSaddleBag1, InventoryType.PremiumSaddleBag2,
+    ];
+
     /// <inheritdoc />
     public unsafe int OwnedCount(uint itemId)
     {
         try
         {
             var inventory = InventoryManager.Instance();
-            return inventory == null ? 0 : inventory->GetInventoryItemCount(itemId);
+            if (inventory == null)
+            {
+                return 0;
+            }
+
+            // GetInventoryItemCount covers bags, equipped/armoury and the currency crystal, but not the
+            // saddlebag (loaded whenever the game is), so materials stashed there are counted too. NQ
+            // and HQ are summed. Retainer stock is not readable unless the retainer is open — see the
+            // note in the README on why totals can lag until the next inventory sync.
+            var count = inventory->GetInventoryItemCount(itemId) + inventory->GetInventoryItemCount(itemId, isHq: true);
+            foreach (var type in SaddlebagTypes)
+            {
+                var container = inventory->GetInventoryContainer(type);
+                if (container == null || !container->IsLoaded)
+                {
+                    continue;
+                }
+
+                for (var i = 0; i < container->Size; i++)
+                {
+                    var slot = container->GetInventorySlot(i);
+                    if (slot != null && slot->ItemId == itemId)
+                    {
+                        count += slot->Quantity;
+                    }
+                }
+            }
+
+            return count;
         }
         catch
         {
