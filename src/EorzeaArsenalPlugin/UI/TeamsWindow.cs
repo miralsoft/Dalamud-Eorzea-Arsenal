@@ -1007,7 +1007,7 @@ public sealed class TeamsWindow : Window
         }
     }
 
-    /// <summary>Renders the still-missing pieces with the server's sourcing annotation (R8: display only).</summary>
+    /// <summary>Renders the still-missing pieces with the server's sourcing routes (R8: display only).</summary>
     private void DrawFarmMissing(List<KeyValuePair<string, FarmSlot>> missing)
     {
         using (ImRaii.PushColor(ImGuiCol.Text, Yellow))
@@ -1016,7 +1016,7 @@ public sealed class TeamsWindow : Window
         }
 
         // A target without any sourcing (unconfigured tier) still renders — just without the extra columns.
-        if (!ImGui.BeginTable("##farmMissing", 4, ImGuiTableFlags.NoSavedSettings | ImGuiTableFlags.BordersInnerV))
+        if (!ImGui.BeginTable("##farmMissing", 3, ImGuiTableFlags.NoSavedSettings | ImGuiTableFlags.BordersInnerV))
         {
             return;
         }
@@ -1025,8 +1025,7 @@ public sealed class TeamsWindow : Window
         {
             ImGui.TableSetupColumn(T(LocKeys.TeamsFarmColSlot), ImGuiTableColumnFlags.WidthFixed, 150f);
             ImGui.TableSetupColumn(T(LocKeys.TeamsFarmColSource), ImGuiTableColumnFlags.WidthFixed, 80f);
-            ImGui.TableSetupColumn(T(LocKeys.TeamsFarmColCost), ImGuiTableColumnFlags.WidthFixed, 200f);
-            ImGui.TableSetupColumn(T(LocKeys.TeamsFarmColWhere), ImGuiTableColumnFlags.WidthStretch);
+            ImGui.TableSetupColumn(T(LocKeys.TeamsFarmColHow), ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableHeadersRow();
 
             foreach (var (slot, item) in missing)
@@ -1040,18 +1039,7 @@ public sealed class TeamsWindow : Window
                 ImGui.TextColored(color, label);
 
                 ImGui.TableNextColumn();
-                var cost = CostText(item);
-                if (cost is null)
-                {
-                    ImGui.TextDisabled("—");
-                }
-                else
-                {
-                    ImGui.TextUnformatted(cost);
-                }
-
-                ImGui.TableNextColumn();
-                DrawFarmWhere(item);
+                DrawFarmHow(item);
             }
         }
         finally
@@ -1060,47 +1048,126 @@ public sealed class TeamsWindow : Window
         }
     }
 
-    private void DrawFarmWhere(FarmSlot item)
+    /// <summary>The "how to get it" cell: the primary route in one line, every route on hover.</summary>
+    private void DrawFarmHow(FarmSlot item)
     {
-        // Savage pieces drop; everything else is bought, so the vendor is the useful destination.
-        if (item.Floor is { } floor)
+        var primary = PrimaryRoute(item);
+        if (primary is null)
         {
-            var zone = string.IsNullOrEmpty(item.Zone) ? string.Empty : $" · {item.Zone}";
-            ImGui.TextUnformatted(_localizer.Get(LocKeys.TeamsFarmFloor, floor) + zone);
+            ImGui.TextDisabled("—");
             return;
         }
 
-        if (item.Vendor?.Name is { Length: > 0 } vendor)
+        ImGui.TextUnformatted(RouteSummary(primary));
+        if (item.Routes is { Count: > 0 } routes && ImGui.IsItemHovered())
         {
-            ImGui.TextUnformatted(vendor);
-            if (item.Vendor.Coords is { } c && ImGui.IsItemHovered())
-            {
-                ImGui.SetTooltip($"{T(LocKeys.TeamsFarmVendor)}: {vendor} (X: {c.X.ToString("0.#", CultureInfo.InvariantCulture)}, Y: {c.Y.ToString("0.#", CultureInfo.InvariantCulture)})");
-            }
-
-            return;
+            DrawFarmRoutesTooltip(routes);
         }
-
-        ImGui.TextDisabled("—");
     }
 
-    /// <summary>The cost line: tome books, or savage tokens; <see langword="null"/> when the tier is unconfigured.</summary>
-    private string? CostText(FarmSlot item)
+    /// <summary>
+    /// The route matching <see cref="FarmSlot.Source"/> (savage → drop, else the trade), falling back
+    /// to any trade then the first route — the same rule as the web's <c>FarmPlanner::primaryRoute</c>,
+    /// so the plugin and site never disagree about where a piece comes from.
+    /// </summary>
+    private static FarmRoute? PrimaryRoute(FarmSlot item)
     {
-        var parts = new List<string>(2);
-        if (item.Cost is { } cost && cost.Books > 0)
+        var routes = item.Routes;
+        if (routes is not { Count: > 0 })
         {
-            var unit = cost.Token ?? cost.Currency
-                ?? T(string.Equals(item.Source, "savage", StringComparison.Ordinal) ? LocKeys.TeamsFarmTokens : LocKeys.TeamsFarmBooks);
-            parts.Add($"{cost.Books}× {unit}");
+            return null;
         }
 
-        if (item.Upgrade is { } up && up.Count > 0)
+        if (string.Equals(item.Source, "savage", StringComparison.Ordinal))
         {
-            parts.Add($"+ {up.Count}× {up.Item ?? T(LocKeys.TeamsFarmUpgrade)}");
+            var drop = routes.FirstOrDefault(r => string.Equals(r.Kind, "drop", StringComparison.Ordinal));
+            if (drop is not null)
+            {
+                return drop;
+            }
         }
 
-        return parts.Count == 0 ? null : string.Join("  ", parts);
+        return routes.FirstOrDefault(r => string.Equals(r.Kind, "trade", StringComparison.Ordinal)) ?? routes[0];
+    }
+
+    /// <summary>A one-line summary of a route, sized for the table cell.</summary>
+    private string RouteSummary(FarmRoute route) => route.Kind switch
+    {
+        "drop" => route.Duties is { Count: > 0 } d ? string.Join(", ", d) : route.Via?.Name ?? T(LocKeys.TeamsFarmCoffer),
+        "retired" => T(LocKeys.TeamsFarmRetired),
+        "market" => T(LocKeys.TeamsFarmMarket),
+        _ => TradeSummary(route),
+    };
+
+    /// <summary>A trade/craft in one line: the effort parts (skipping handed-in pieces) and the vendor.</summary>
+    private string TradeSummary(FarmRoute route)
+    {
+        var parts = (route.Cost ?? [])
+            .Where(c => !string.Equals(c.Role, "piece", StringComparison.Ordinal))
+            .Select(CostPartText)
+            .ToList();
+        var cost = parts.Count > 0 ? string.Join(" + ", parts) : (route.Kind == "craft" ? T(LocKeys.TeamsFarmCraft) : string.Empty);
+
+        var at = route.Npc is { Count: > 0 } npc && !string.IsNullOrEmpty(npc[0].Name)
+            ? $" @ {npc[0].Name}"
+            : route.Shops is { Count: > 0 } shops && !string.IsNullOrEmpty(shops[0]) ? $" @ {shops[0]}" : string.Empty;
+
+        return (cost + at).Trim();
+    }
+
+    private string CostPartText(FarmCostPart part)
+    {
+        var name = part.Name ?? (part.Id is { } id ? $"#{id}" : T(LocKeys.TeamsFarmCoffer));
+        return $"{part.Count}× {name}";
+    }
+
+    /// <summary>A game-like tooltip listing every way to get the piece, with costs, vendors and coords.</summary>
+    private void DrawFarmRoutesTooltip(List<FarmRoute> routes)
+    {
+        ImGui.BeginTooltip();
+        ImGui.PushTextWrapPos(360f);
+        ImGui.TextColored(Yellow, T(LocKeys.TeamsFarmWaysHeading));
+
+        foreach (var route in routes)
+        {
+            ImGui.Separator();
+            switch (route.Kind)
+            {
+                case "drop":
+                    var where = route.Duties is { Count: > 0 } d ? string.Join(", ", d) : "?";
+                    ImGui.TextUnformatted($"● {where}");
+                    if (route.Via?.Name is { Length: > 0 } coffer)
+                    {
+                        ImGui.TextDisabled($"   {T(LocKeys.TeamsFarmCoffer)}: {coffer}");
+                    }
+
+                    break;
+
+                case "retired":
+                    ImGui.TextDisabled($"● {T(LocKeys.TeamsFarmRetired)}");
+                    break;
+
+                default:
+                    ImGui.TextUnformatted($"● {TradeSummary(route)}");
+                    foreach (var part in route.Cost ?? [])
+                    {
+                        if (string.Equals(part.Role, "piece", StringComparison.Ordinal))
+                        {
+                            ImGui.TextDisabled($"   {T(LocKeys.TeamsFarmHandIn)}: {(part.Slot is { } s ? SlotName(s) : "?")}");
+                        }
+                    }
+
+                    if (route.Npc is { Count: > 0 } npc && npc[0] is { X: { } x, Y: { } y })
+                    {
+                        ImGui.TextDisabled($"   {npc[0].Zone} (X: {x.ToString("0.#", CultureInfo.InvariantCulture)}, Y: {y.ToString("0.#", CultureInfo.InvariantCulture)})");
+                    }
+
+                    break;
+            }
+        }
+
+        ImGui.PopTextWrapPos();
+        ImGui.EndTooltip();
     }
 
     private (string Label, Vector4 Color) SourceBadge(string? source) => source switch

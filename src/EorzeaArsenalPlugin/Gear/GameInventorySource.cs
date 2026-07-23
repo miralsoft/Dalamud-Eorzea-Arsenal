@@ -8,18 +8,30 @@ using LuminaItem = Lumina.Excel.Sheets.Item;
 namespace EorzeaArsenal.Plugin.Gear;
 
 /// <summary>
-/// Reads the player's <i>owned, equippable</i> items from the game and maps them to the inventory
+/// Reads the player's <i>owned</i> gear (and gear coffers) from the game and maps them to the inventory
 /// wire model. The <c>character</c> scope is scanned as one snapshot across every locally readable
 /// storage (equipped, armoury, bags, saddlebag, glamour dresser) so moving an item between them is
 /// harmless; the armoire is intentionally skipped (it holds only non-tradeable seasonal/unique gear
 /// you cannot sell, and needs a different, heavier API). Retainer storages are scanned separately,
 /// only while a retainer is open. All game-memory access happens on the framework thread (P1) behind
 /// logged-in/null guards (P4); every read is wrapped so no exception ever reaches the game (P2).
+/// <para>
+/// Besides equippable gear, the loose storages (bags, saddlebag, retainer) also report <b>savage gear
+/// coffers</b>, so the web can show "you own this coffer ×N". A coffer is identified the same way the
+/// web derives them — a usable item whose name contains "Coffer"/"Kiste" — not by a hard-coded id
+/// list, so a new tier needs no change. Everything else (potions, materials, food) stays filtered out:
+/// the server's inventory store is the gear-ownership set and must not be flooded.
+/// </para>
 /// </summary>
 public sealed class GameInventorySource : IInventorySource
 {
     // Filter to weapons/armour/accessories (and soul crystals): Item.EquipSlotCategory > 0.
     private const int MaxRealItemId = 9_999_999;
+
+    // Substrings that mark a gear coffer's name in the two UI languages the plugin supports. The
+    // in-game name is client-locale, so on a non-DE/EN client coffers are simply not recognised (the
+    // gear scan is unaffected). Paired with a usable-item gate to exclude housing "coffers".
+    private static readonly string[] CofferNameMarkers = ["coffer", "kiste"];
 
     private static readonly InventoryType[] ArmouryTypes =
     [
@@ -94,12 +106,12 @@ public sealed class GameInventorySource : IInventorySource
 
             foreach (var t in BagTypes)
             {
-                AddContainer(items, t, InventoryContainers.Bags);
+                AddContainer(items, t, InventoryContainers.Bags, includeCoffers: true);
             }
 
             foreach (var t in SaddlebagTypes)
             {
-                AddContainer(items, t, InventoryContainers.Saddlebag);
+                AddContainer(items, t, InventoryContainers.Saddlebag, includeCoffers: true);
             }
 
             AddGlamourDresser(items);
@@ -165,7 +177,7 @@ public sealed class GameInventorySource : IInventorySource
             var items = new List<InventoryItemDto>();
             foreach (var t in RetainerTypes)
             {
-                AddContainer(items, t, InventoryContainers.Retainer, sourceId);
+                AddContainer(items, t, InventoryContainers.Retainer, sourceId, includeCoffers: true);
             }
 
             return new InventoryData
@@ -203,7 +215,7 @@ public sealed class GameInventorySource : IInventorySource
         };
     }
 
-    private unsafe void AddContainer(List<InventoryItemDto> items, InventoryType type, string container, string sourceId = "")
+    private unsafe void AddContainer(List<InventoryItemDto> items, InventoryType type, string container, string sourceId = "", bool includeCoffers = false)
     {
         var inventory = InventoryManager.Instance();
         if (inventory == null)
@@ -226,7 +238,7 @@ public sealed class GameInventorySource : IInventorySource
             }
 
             var id = (int)slot->ItemId;
-            if (id is <= 0 or > MaxRealItemId || !IsEquippable(id))
+            if (id is <= 0 or > MaxRealItemId || !(IsEquippable(id) || (includeCoffers && IsGearCoffer(id))))
             {
                 continue;
             }
@@ -281,5 +293,32 @@ public sealed class GameInventorySource : IInventorySource
     {
         var sheet = _data.GetExcelSheet<LuminaItem>();
         return sheet is not null && sheet.TryGetRow((uint)itemId, out var row) && row.EquipSlotCategory.RowId > 0;
+    }
+
+    /// <summary>
+    /// Whether an item is a gear coffer: a usable item (<c>ItemAction != 0</c>, which rules out housing
+    /// "coffers" and other name collisions) whose name carries a coffer marker. The server only keeps
+    /// the coffer ids it actually knows (via its tier config), so a rare false positive is harmless;
+    /// the real risk — missing a real coffer — cannot happen, as every gear coffer's name contains the
+    /// marker. Locale-bound: only recognised on a DE/EN client (see <see cref="CofferNameMarkers"/>).
+    /// </summary>
+    private bool IsGearCoffer(int itemId)
+    {
+        var sheet = _data.GetExcelSheet<LuminaItem>();
+        if (sheet is null || !sheet.TryGetRow((uint)itemId, out var row) || row.ItemAction.RowId == 0)
+        {
+            return false;
+        }
+
+        var name = row.Name.ExtractText();
+        foreach (var marker in CofferNameMarkers)
+        {
+            if (name.Contains(marker, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -783,29 +783,29 @@ public static class LocKeys
     /// <summary>Farm column: source.</summary>
     public const string TeamsFarmColSource = "teams.farm.col.source";
 
-    /// <summary>Farm column: cost.</summary>
-    public const string TeamsFarmColCost = "teams.farm.col.cost";
-
-    /// <summary>Farm column: where it comes from.</summary>
-    public const string TeamsFarmColWhere = "teams.farm.col.where";
-
-    /// <summary>Farm: generic tome currency fallback.</summary>
-    public const string TeamsFarmBooks = "teams.farm.books";
-
-    /// <summary>Farm: generic savage token fallback.</summary>
-    public const string TeamsFarmTokens = "teams.farm.tokens";
-
-    /// <summary>Farm: raid floor ({0} = floor number).</summary>
-    public const string TeamsFarmFloor = "teams.farm.floor";
-
-    /// <summary>Farm: vendor tooltip heading.</summary>
-    public const string TeamsFarmVendor = "teams.farm.vendor";
-
-    /// <summary>Farm: upgrade material heading.</summary>
-    public const string TeamsFarmUpgrade = "teams.farm.upgrade";
+    /// <summary>Farm column: how to get it (primary route).</summary>
+    public const string TeamsFarmColHow = "teams.farm.col.how";
 
     /// <summary>Farm: unknown source placeholder.</summary>
     public const string TeamsFarmUnknownSource = "teams.farm.unknownsource";
+
+    /// <summary>Farm route: no longer obtainable (retired).</summary>
+    public const string TeamsFarmRetired = "teams.farm.retired";
+
+    /// <summary>Farm route: market board.</summary>
+    public const string TeamsFarmMarket = "teams.farm.market";
+
+    /// <summary>Farm route: craft.</summary>
+    public const string TeamsFarmCraft = "teams.farm.craft";
+
+    /// <summary>Farm: coffer label (the chest a drop arrives as).</summary>
+    public const string TeamsFarmCoffer = "teams.farm.coffer";
+
+    /// <summary>Farm tooltip: heading for the full list of routes.</summary>
+    public const string TeamsFarmWaysHeading = "teams.farm.ways";
+
+    /// <summary>Farm tooltip: the piece you hand in (a slot, not a purchase).</summary>
+    public const string TeamsFarmHandIn = "teams.farm.handin";
 
     /// <summary>Menu/command: open the what's-new window.</summary>
     public const string WhatsNewOpen = "whatsnew.open";

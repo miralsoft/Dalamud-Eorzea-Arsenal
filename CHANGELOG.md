@@ -32,9 +32,15 @@ All notable changes to this project are documented here. The format is based on
     (link / video / plan / note / image / pdf / file); **note text** shown inline; **images open in a
     dedicated window** scaled to size; PDFs and links open in the browser.
   - **Farm** — who-needs-what across the team (equipped vs BiS target, still-missing per member), each
-    missing piece listed with **where it comes from** (savage / Tome+ / Tome), what it costs (books or
-    tokens, plus the upgrade material), and where to get it (raid floor + zone, or the vendor with its
-    map coordinates on hover) — hardest-to-get first. All server-provided; the plugin never guesses.
+    missing piece labelled by **source** (savage / Tome+ / Tome) with the **way to get it** on one line
+    — the fight it drops in, or what to trade and with which vendor — and **every route on hover**
+    (coffer, the piece you hand in, vendor zone + coordinates). The primary route follows the same rule
+    as the web, so plugin and site never disagree. Hardest-to-get first; all server-provided, the
+    plugin never guesses, and an unconfigured tier just shows the item as before.
+  - **Owned gear coffers** ride the existing inventory upload: the loose storages (bags, saddlebag,
+    retainers) now also report savage gear coffers, so a coffer's web page can show "you own ×N, here"
+    and how many open pieces you can make now. Detected by name like the web does, not a hard-coded
+    list; potions, food and materials stay out of the ownership set.
   - **FFLogs** — recent kills/wipes with each report's **date** and a **direct link** to it
     (best-effort; a not-connected/empty state never crashes).
   - **Absence** — report/cancel your own vacation ranges, with a **date picker** and localized date

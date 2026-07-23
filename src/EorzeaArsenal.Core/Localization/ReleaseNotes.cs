@@ -56,8 +56,12 @@ public static class ReleaseNotes
                 "A toast with a sound and a clickable chat link for new loot, event reminders and newly planned events."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
-                "Die Gruppen-Farm zeigt zu jedem fehlenden Teil, woher es kommt (Savage / Tome+ / Tome), was es kostet und wo du es bekommst.",
-                "Group farm shows for every missing piece where it comes from (savage / Tome+ / Tome), what it costs and where to get it."),
+                "Die Gruppen-Farm zeigt zu jedem fehlenden Teil, woher es kommt (Savage / Tome+ / Tome), den Bezugsweg in einer Zeile und alle Wege beim Drüberfahren (Koffer, Abgabe-Teil, Händler mit Koordinaten).",
+                "Group farm shows for every missing piece where it comes from (savage / Tome+ / Tome), the way to get it on one line, and every route on hover (coffer, hand-in piece, vendor with coordinates)."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "Besessene Ausrüstungs-Koffer werden mit hochgeladen, damit die Koffer-Seite im Web zeigt, wie viele du hast und wie viele Teile du sofort erstellen kannst.",
+                "Owned gear coffers are uploaded too, so a coffer's web page shows how many you own and how many pieces you can make now."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "'Im Web öffnen' springt direkt auf den Plan, den Termin oder den Inhalt, den du gerade ansiehst.",

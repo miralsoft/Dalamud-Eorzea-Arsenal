@@ -6,18 +6,24 @@ using Xunit;
 namespace EorzeaArsenal.Core.Tests;
 
 /// <summary>
-/// The farm endpoint annotates each BiS target with where the piece comes from. The annotation is
-/// additive and every field is optional, so these pin down both a fully-described piece and the
+/// The farm endpoint annotates each BiS target with the ways to get the piece — the server's unified
+/// <c>{ id, source, routes[] }</c> shape (verified against the web's <c>TeamsTest</c> Weapon
+/// assertions). These pin down a drop-plus-trade savage piece, an augment trade, and the
 /// unconfigured-tier case that must keep deserializing exactly as before.
 /// </summary>
 public sealed class FarmSourcingTests
 {
     [Fact]
-    public void ReadsSavageSourcing()
+    public void ReadsSavageDropAndTradeRoutes()
     {
         const string body = """
-        {"data":[{"job":"WHM","target":{"Weapon":{"id":49668,"source":"savage",
-          "cost":{"books":8,"token":"AAC Illustrated IV"},"floor":4,"zone":"AAC Cruiserweight"}}}]}
+        {"data":[{"job":"WHM","target":{"Weapon":{
+          "id":49668,"source":"savage","routes":[
+            {"kind":"drop","via":{"id":49738,"name":"Grand Champion's Weapon Coffer"},
+             "duties":["AAC Heavyweight M4 (Savage)"]},
+            {"kind":"trade","cost":[{"id":49763,"name":"AAC Illustrated IV","count":8,"role":"token"}],
+             "npc":[{"id":1049081,"name":"Hhihwi","zone":"Solution Nine","x":8.73,"y":13.43}]}
+          ]}}}]}
         """;
 
         var res = JsonSerializer.Deserialize<FarmResponse>(body, EorzeaJson.Options);
@@ -25,38 +31,58 @@ public sealed class FarmSourcingTests
         var slot = res!.Data![0].Target!["Weapon"];
         Assert.Equal(49668, slot.Id);
         Assert.Equal("savage", slot.Source);
-        Assert.Equal(8, slot.Cost!.Books);
-        Assert.Equal("AAC Illustrated IV", slot.Cost.Token);
-        Assert.Equal(4, slot.Floor);
-        Assert.Equal("AAC Cruiserweight", slot.Zone);
+        Assert.Equal(2, slot.Routes!.Count);
+
+        var drop = slot.Routes[0];
+        Assert.Equal("drop", drop.Kind);
+        Assert.Equal("Grand Champion's Weapon Coffer", drop.Via!.Name);
+        Assert.Equal(49738, drop.Via.Id);
+        Assert.Equal("AAC Heavyweight M4 (Savage)", drop.Duties![0]);
+
+        var trade = slot.Routes[1];
+        Assert.Equal("trade", trade.Kind);
+        Assert.Equal(8, trade.Cost![0].Count);
+        Assert.Equal("token", trade.Cost[0].Role);
+        Assert.Equal("AAC Illustrated IV", trade.Cost[0].Name);
+        Assert.Equal("Hhihwi", trade.Npc![0].Name);
+        Assert.Equal("Solution Nine", trade.Npc[0].Zone);
+        Assert.Equal(8.73f, trade.Npc[0].X!.Value, 2);
     }
 
     [Fact]
-    public void ReadsAugmentedTomeSourcingWithVendor()
+    public void ReadsAugmentTradeWithHandedInPiece()
     {
         const string body = """
-        {"data":[{"job":"WHM","target":{"Body":{"id":123,"source":"tomeplus",
-          "cost":{"books":825,"currency":"Aesthetics"},
-          "upgrade":{"item":"Thundersteeped Twine","count":1},
-          "vendor":{"name":"Nesvaaz","coords":{"x":12.3,"y":11.1}}}}}]}
+        {"data":[{"job":"WHM","target":{"Weapon":{
+          "id":49586,"source":"tomeplus","routes":[
+            {"kind":"trade","cost":[
+              {"slot":"Weapon","acq":"tome","role":"piece","count":1},
+              {"id":49757,"name":"Thundersteeped Solvent","count":1,"role":"material"}
+            ],"npc":[{"id":1,"name":"Theone","zone":"Radz-at-Han"}]}
+          ]}}}]}
         """;
 
         var res = JsonSerializer.Deserialize<FarmResponse>(body, EorzeaJson.Options);
 
-        var slot = res!.Data![0].Target!["Body"];
-        Assert.Equal("tomeplus", slot.Source);
-        Assert.Equal(825, slot.Cost!.Books);
-        Assert.Equal("Thundersteeped Twine", slot.Upgrade!.Item);
-        Assert.Equal(1, slot.Upgrade.Count);
-        Assert.Equal("Nesvaaz", slot.Vendor!.Name);
-        Assert.Equal(12.3f, slot.Vendor.Coords!.X, 3);
-        Assert.Equal(11.1f, slot.Vendor.Coords.Y, 3);
+        var trade = res!.Data![0].Target!["Weapon"].Routes![0];
+        Assert.Equal("tomeplus", res.Data[0].Target!["Weapon"].Source);
+        Assert.Equal(2, trade.Cost!.Count);
+
+        var piece = trade.Cost[0];
+        Assert.Equal("piece", piece.Role);
+        Assert.Equal("Weapon", piece.Slot);
+        Assert.Equal("tome", piece.Acq);
+        Assert.Null(piece.Id);
+
+        var material = trade.Cost[1];
+        Assert.Equal("material", material.Role);
+        Assert.Equal("Thundersteeped Solvent", material.Name);
     }
 
     [Fact]
     public void UnannotatedTargetStillReads()
     {
-        // An unconfigured tier leaves targets exactly as they were — bare item ids.
+        // An unconfigured tier leaves targets exactly as they were — bare item ids, no routes.
         const string body = """{"data":[{"job":"WHM","target":{"Head":{"id":42}}}]}""";
 
         var res = JsonSerializer.Deserialize<FarmResponse>(body, EorzeaJson.Options);
@@ -64,8 +90,6 @@ public sealed class FarmSourcingTests
         var slot = res!.Data![0].Target!["Head"];
         Assert.Equal(42, slot.Id);
         Assert.Null(slot.Source);
-        Assert.Null(slot.Cost);
-        Assert.Null(slot.Vendor);
-        Assert.Null(slot.Floor);
+        Assert.Null(slot.Routes);
     }
 }

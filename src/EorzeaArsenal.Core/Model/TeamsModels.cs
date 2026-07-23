@@ -449,8 +449,11 @@ public sealed class FarmEntry
 
 /// <summary>
 /// An item reference inside an equipped/target slot map. Target slots are additionally annotated by the
-/// server with where the piece comes from and what it costs; every sourcing field is absent for gear the
-/// admin-curated tier config does not know (older gear, crafted pieces, an unconfigured tier).
+/// server (via <c>SourcingConfig::describe</c>) with the ways to get the piece — the same
+/// <c>{ id, source, routes[] }</c> shape the web farm plan, obtain popup and <c>GET /gear/obtain</c>
+/// use. Every sourcing field is absent for gear the admin-curated tier config does not know (older
+/// gear, crafted pieces, an unconfigured tier), so treat <see cref="Source"/>/<see cref="Routes"/> as
+/// optional and fall back to just the item.
 /// </summary>
 public sealed class FarmSlot
 {
@@ -460,63 +463,88 @@ public sealed class FarmSlot
     /// <summary>Acquisition kind: <c>tome</c>, <c>tomeplus</c> or <c>savage</c>; <see langword="null"/> when unknown.</summary>
     public string? Source { get; init; }
 
-    /// <summary>What the piece costs (tome books, or savage tokens).</summary>
-    public FarmCost? Cost { get; init; }
-
-    /// <summary>The upgrade material an augmented (tome+) piece additionally needs.</summary>
-    public FarmUpgrade? Upgrade { get; init; }
-
-    /// <summary>The vendor that sells it.</summary>
-    public FarmVendor? Vendor { get; init; }
-
-    /// <summary>Raid floor that drops it (savage only).</summary>
-    public int? Floor { get; init; }
-
-    /// <summary>Raid zone that drops it (savage only).</summary>
-    public string? Zone { get; init; }
+    /// <summary>The ways to get the piece, best/normal first; <see langword="null"/> when unknown.</summary>
+    public List<FarmRoute>? Routes { get; init; }
 }
 
-/// <summary>What a farm target costs: a count plus the currency or token it is paid in.</summary>
-public sealed class FarmCost
+/// <summary>One way to obtain a piece: a raid drop, a vendor trade, a craft, the market board, or gone.</summary>
+public sealed class FarmRoute
 {
-    /// <summary>Count — tome books for a tome piece, tokens for a savage piece.</summary>
-    public int Books { get; init; }
+    /// <summary>Route kind: <c>drop</c>, <c>trade</c>, <c>craft</c>, <c>market</c> or <c>retired</c>.</summary>
+    public string? Kind { get; init; }
 
-    /// <summary>Tome currency name (tome/tome+ pieces).</summary>
-    public string? Currency { get; init; }
+    /// <summary>The coffer the drop arrives as (<c>drop</c>).</summary>
+    public FarmVia? Via { get; init; }
 
-    /// <summary>Token name (savage pieces).</summary>
-    public string? Token { get; init; }
+    /// <summary>The fights it drops in (<c>drop</c>).</summary>
+    public List<string>? Duties { get; init; }
+
+    /// <summary>The price components (<c>trade</c>/<c>craft</c>).</summary>
+    public List<FarmCostPart>? Cost { get; init; }
+
+    /// <summary>The vendors who take the trade (<c>trade</c>).</summary>
+    public List<FarmNpc>? Npc { get; init; }
+
+    /// <summary>Shop names, when there is no named NPC (<c>trade</c>).</summary>
+    public List<string>? Shops { get; init; }
 }
 
-/// <summary>The upgrade material an augmented piece needs on top of its base piece.</summary>
-public sealed class FarmUpgrade
+/// <summary>The coffer a drop arrives as (also a real item id, deep-linkable to <c>/item/{id}</c>).</summary>
+public sealed class FarmVia
 {
-    /// <summary>Material name.</summary>
-    public string? Item { get; init; }
+    /// <summary>Coffer item id.</summary>
+    public long Id { get; init; }
 
+    /// <summary>Coffer name.</summary>
+    public string? Name { get; init; }
+}
+
+/// <summary>
+/// One component of a price. A <c>currency</c>/<c>token</c>/<c>material</c> part names a real item
+/// (<see cref="Id"/>/<see cref="Name"/>); a <c>piece</c> part is a gear slot handed in — not effort
+/// still ahead — and, when the server walked the chain, carries its own <see cref="Chain"/>.
+/// </summary>
+public sealed class FarmCostPart
+{
     /// <summary>How many are needed.</summary>
     public int Count { get; init; }
+
+    /// <summary>Role: <c>currency</c>, <c>token</c>, <c>material</c> or <c>piece</c>.</summary>
+    public string? Role { get; init; }
+
+    /// <summary>Item id (currency/token/material).</summary>
+    public long? Id { get; init; }
+
+    /// <summary>Item name (currency/token/material); may be <see langword="null"/> — fall back to the id.</summary>
+    public string? Name { get; init; }
+
+    /// <summary>The gear slot handed in (<c>piece</c>).</summary>
+    public string? Slot { get; init; }
+
+    /// <summary>How that handed-in slot is acquired (<c>piece</c>).</summary>
+    public string? Acq { get; init; }
+
+    /// <summary>How to get the handed-in piece, one level deeper (only when the chain was walked).</summary>
+    public List<FarmRoute>? Chain { get; init; }
 }
 
-/// <summary>A vendor NPC.</summary>
-public sealed class FarmVendor
+/// <summary>A vendor NPC that takes a trade.</summary>
+public sealed class FarmNpc
 {
+    /// <summary>NPC id.</summary>
+    public long Id { get; init; }
+
     /// <summary>NPC name.</summary>
     public string? Name { get; init; }
 
-    /// <summary>Map coordinates.</summary>
-    public FarmCoords? Coords { get; init; }
-}
+    /// <summary>Zone the NPC stands in.</summary>
+    public string? Zone { get; init; }
 
-/// <summary>Map coordinates of a vendor.</summary>
-public sealed class FarmCoords
-{
-    /// <summary>X coordinate.</summary>
-    public float X { get; init; }
+    /// <summary>Map X coordinate (may be absent).</summary>
+    public float? X { get; init; }
 
-    /// <summary>Y coordinate.</summary>
-    public float Y { get; init; }
+    /// <summary>Map Y coordinate (may be absent).</summary>
+    public float? Y { get; init; }
 }
 
 // --- GET /teams/{id}/logs (FFLogs) -----------------------------------------------------------------
