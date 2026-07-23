@@ -28,6 +28,9 @@ All notable changes to this project are documented here. The format is based on
     map and drops a flag on the vendor. The location is resolved from the server's ids, or — when it
     only sends a zone name — from the game's own place names, so it works without a server change.
   - A larger, better-spaced tooltip for the whole checklist.
+  - The **in-game hover overlay** now also shows how to get the target when you are hovering a piece
+    that is *not* your BiS item and you do not own the right one yet — so you see where to get it
+    without opening a window.
 
 ### Fixed
 - The hidden Duty-Finder refresh (the `normal`/`alliance` weekly read) no longer leaves the finder on

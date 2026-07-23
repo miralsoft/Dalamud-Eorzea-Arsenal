@@ -189,7 +189,7 @@ public sealed class Plugin : IDalamudPlugin
         _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _log, Save, OpenConfig, OpenImage);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save);
-        _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _log);
+        _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _obtainService, _worldActions, _log);
         _windowSystem.AddWindow(_previewWindow);
         _windowSystem.AddWindow(_imageWindow);
         _windowSystem.AddWindow(_teamsWindow);

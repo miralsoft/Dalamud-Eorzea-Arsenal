@@ -3,6 +3,7 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Plugin.Services;
 using EorzeaArsenal.Abstractions;
+using EorzeaArsenal.Core;
 using EorzeaArsenal.Gear;
 using EorzeaArsenal.Localization;
 using EorzeaArsenal.Model;
@@ -46,6 +47,8 @@ public sealed class BisTooltip
     private readonly IGameGui _gameGui;
     private readonly BisService _bis;
     private readonly GameGearSource _gearSource;
+    private readonly ObtainService _obtain;
+    private readonly SourcingView _sourcing;
     private readonly ILog _log;
 
     private static readonly CharacterDto LiveCharacter = new()
@@ -68,14 +71,18 @@ public sealed class BisTooltip
     /// <param name="gameGui">Provides the hovered item id and addon bounds.</param>
     /// <param name="bis">The shared BiS cache/lookup.</param>
     /// <param name="gearSource">Provides the current gearset index, item names and ownership.</param>
+    /// <param name="obtain">Chain-complete "how to get it" sourcing for a not-owned target.</param>
+    /// <param name="world">Game actions (owned counts, map) for the sourcing renderer.</param>
     /// <param name="log">Diagnostics sink (so a draw failure is recorded, never thrown into the game).</param>
-    public BisTooltip(PluginConfig config, Localizer localizer, IGameGui gameGui, BisService bis, GameGearSource gearSource, ILog log)
+    public BisTooltip(PluginConfig config, Localizer localizer, IGameGui gameGui, BisService bis, GameGearSource gearSource, ObtainService obtain, IWorldActions world, ILog log)
     {
         _config = config;
         _localizer = localizer;
         _gameGui = gameGui;
         _bis = bis;
         _gearSource = gearSource;
+        _obtain = obtain;
+        _sourcing = new SourcingView(localizer, world);
         _log = log;
     }
 
@@ -186,7 +193,18 @@ public sealed class BisTooltip
                 equippedIlvl,
                 _gearSource.OwnsItem(slotComparison.TargetItemId),
                 missing,
-                wrong));
+                wrong,
+                slotComparison.TargetItemId));
+        }
+
+        // Warm the sourcing cache for the targets shown, so "how to get it" is ready on the next hover.
+        if (_config.BisShowSourcing)
+        {
+            var ids = lines.Where(l => !l.Owned && l.TargetItemId > 0).Select(l => (long)l.TargetItemId).ToList();
+            if (ids.Count > 0)
+            {
+                _ = _obtain.PrefetchAsync(ids, CancellationToken.None);
+            }
         }
 
         return lines;
@@ -264,6 +282,14 @@ public sealed class BisTooltip
         if (line.Status is SlotMatch.ItemDiffers or SlotMatch.MissingCurrent)
         {
             ImGui.TextColored(line.Owned ? Green : Red, Indent + (line.Owned ? T(LocKeys.BisOwned) : T(LocKeys.BisNotOwned)));
+
+            // Not the right one and you do not own it yet → show how to get it, right on the hover.
+            if (!line.Owned && _config.BisShowSourcing && _obtain.TryGet(line.TargetItemId, out var info) && info?.Routes is { Count: > 0 } routes)
+            {
+                ImGui.Indent();
+                _sourcing.DrawCompact(info.Source, routes);
+                ImGui.Unindent();
+            }
         }
 
         // Wrong materia (equipped but not BiS) in red — these need replacing.
@@ -369,5 +395,6 @@ public sealed class BisTooltip
         uint? EquippedIlvl,
         bool Owned,
         IReadOnlyList<string> Missing,
-        IReadOnlyList<string> Wrong);
+        IReadOnlyList<string> Wrong,
+        int TargetItemId);
 }
