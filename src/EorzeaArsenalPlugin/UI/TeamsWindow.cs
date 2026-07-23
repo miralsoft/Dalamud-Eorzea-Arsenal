@@ -12,6 +12,7 @@ using EorzeaArsenal.Core;
 using EorzeaArsenal.Localization;
 using EorzeaArsenal.Model;
 using EorzeaArsenal.Plugin.Configuration;
+using EorzeaArsenal.Plugin.Services;
 using LuminaAction = Lumina.Excel.Sheets.Action;
 
 namespace EorzeaArsenal.Plugin.UI;
@@ -79,6 +80,7 @@ public sealed class TeamsWindow : Window
     /// <param name="log">Diagnostics sink.</param>
     /// <param name="save">Persists config (remembered team/job/filters).</param>
     /// <param name="openConfig">Opens the settings window.</param>
+    /// <param name="world">Game actions (owned counts, open the map at a vendor) for the farm sourcing.</param>
     /// <param name="openImage">Opens a content-hub image in the image window (teamId, resourceId, title).</param>
     public TeamsWindow(
         PluginConfig config,
@@ -88,6 +90,7 @@ public sealed class TeamsWindow : Window
         ITextureProvider textures,
         IDataManager data,
         IPlayerState playerState,
+        IWorldActions world,
         ILog log,
         Action save,
         Action openConfig,
@@ -97,7 +100,7 @@ public sealed class TeamsWindow : Window
         _config = config;
         _store = store;
         _localizer = localizer;
-        _sourcing = new SourcingView(localizer);
+        _sourcing = new SourcingView(localizer, world);
         _teams = teams;
         _textures = textures;
         _data = data;
@@ -1032,6 +1035,7 @@ public sealed class TeamsWindow : Window
 
             foreach (var (slot, item) in missing)
             {
+                using var rowId = ImRaii.PushId(slot);
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn();
                 ImGui.TextUnformatted(_sourcing.SlotName(slot));
@@ -1042,6 +1046,13 @@ public sealed class TeamsWindow : Window
 
                 ImGui.TableNextColumn();
                 DrawFarmHow(item);
+
+                // Right-click the piece → pin its vendor on the map (when the route has one).
+                if (SourcingView.MappableVendor(item.Routes) is not null && ImGui.BeginPopupContextItem("##farmctx"))
+                {
+                    _sourcing.DrawMapMenuItem(item.Routes);
+                    ImGui.EndPopup();
+                }
             }
         }
         finally

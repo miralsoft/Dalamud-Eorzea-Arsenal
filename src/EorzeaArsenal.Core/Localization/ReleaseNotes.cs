@@ -68,6 +68,10 @@ public static class ReleaseNotes
                 "In the BiS window, hovering a piece now also shows 'how to get it' — where it comes from and what it costs, just like the group farm."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
+                "Beim Bezug siehst du jetzt die ganze Kette (auch die Basis, die du zuerst brauchst), ob du schon genug hast (z.B. Bücher), und per Rechtsklick 'NPC auf Karte anzeigen'.",
+                "Sourcing now shows the whole chain (including the base you need first), whether you already have enough (e.g. tomes), and a right-click 'Show NPC on map'."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
                 "'Im Web öffnen' springt direkt auf den Plan, den Termin oder den Inhalt, den du gerade ansiehst.",
                 "'Open in web' jumps straight to the plan, event or content you are looking at."),
             new ReleaseNoteItem(

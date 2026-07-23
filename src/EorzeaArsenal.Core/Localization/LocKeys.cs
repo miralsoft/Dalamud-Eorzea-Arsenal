@@ -813,6 +813,9 @@ public static class LocKeys
     /// <summary>Farm tooltip: the piece you hand in (a slot, not a purchase).</summary>
     public const string TeamsFarmHandIn = "teams.farm.handin";
 
+    /// <summary>Context menu: pin the vendor NPC on the in-game map.</summary>
+    public const string TeamsFarmShowOnMap = "teams.farm.showonmap";
+
     /// <summary>Menu/command: open the what's-new window.</summary>
     public const string WhatsNewOpen = "whatsnew.open";
 

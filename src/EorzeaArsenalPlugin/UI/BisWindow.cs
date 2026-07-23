@@ -66,6 +66,7 @@ public sealed class BisWindow : Window
     /// <param name="gearSource">Resolves item names, item levels and icons.</param>
     /// <param name="textures">Loads game icons.</param>
     /// <param name="obtain">Fetches impersonal "how to get it" sourcing.</param>
+    /// <param name="world">Game actions (owned counts, open the map at a vendor) for the sourcing.</param>
     /// <param name="save">Persists the config (filter/scope choices).</param>
     /// <param name="linkItem">Posts a clickable item link to the game chat (arg: item id).</param>
     public BisWindow(
@@ -76,6 +77,7 @@ public sealed class BisWindow : Window
         GameGearSource gearSource,
         ITextureProvider textures,
         ObtainService obtain,
+        IWorldActions world,
         Action save,
         Action<int> linkItem)
         : base("Eorzea Arsenal###EorzeaArsenalBis")
@@ -87,7 +89,7 @@ public sealed class BisWindow : Window
         _gearSource = gearSource;
         _textures = textures;
         _obtain = obtain;
-        _sourcing = new SourcingView(localizer);
+        _sourcing = new SourcingView(localizer, world);
         _save = save;
         _linkItem = linkItem;
 
@@ -645,6 +647,12 @@ public sealed class BisWindow : Window
             if (ImGui.Selectable(T(LocKeys.BisCopyName)))
             {
                 ImGui.SetClipboardText(_gearSource.GetItemName(itemId));
+            }
+
+            // "Show NPC on map" when this piece is bought from a mappable vendor.
+            if (_config.BisShowSourcing && _obtain.TryGet(itemId, out var info))
+            {
+                _sourcing.DrawMapMenuItem(info?.Routes);
             }
 
             ImGui.EndPopup();

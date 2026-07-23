@@ -13,6 +13,13 @@ All notable changes to this project are documented here. The format is based on
   down the whole chain). Reads impersonal game data via `GET /gear/obtain` with your existing key,
   cached for the session and fetched in the background; toggle under *Display*. The route renderer is
   shared with the farm tab, so the two never describe a piece differently.
+- The sourcing detail is now **actionable and complete** in both the BiS window and the team farm:
+  - **The full chain is shown.** An augmented (Tome+) piece lists the base piece you hand in *and*,
+    indented beneath it, how to get that base first — so you see the whole path, not just the last step.
+  - **"Do I have it?"** Each purchasable cost (books, tokens, materials) shows a **have / need** count,
+    green once you own enough — so you can tell at a glance whether you can already buy the piece.
+  - **Show NPC on the map.** Right-click a piece → *Show NPC on map* opens the map and drops a flag on
+    the vendor (when the route has one with a known location).
 
 ### Fixed
 - The hidden Duty-Finder refresh (the `normal`/`alliance` weekly read) no longer leaves the finder on

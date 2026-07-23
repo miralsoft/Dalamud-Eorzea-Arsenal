@@ -22,7 +22,7 @@ public sealed class FarmSourcingTests
             {"kind":"drop","via":{"id":49738,"name":"Grand Champion's Weapon Coffer"},
              "duties":["AAC Heavyweight M4 (Savage)"]},
             {"kind":"trade","cost":[{"id":49763,"name":"AAC Illustrated IV","count":8,"role":"token"}],
-             "npc":[{"id":1049081,"name":"Hhihwi","zone":"Solution Nine","x":8.73,"y":13.43}]}
+             "npc":[{"id":1049081,"name":"Hhihwi","zone":"Solution Nine","zone_id":1186,"map_id":890,"x":8.73,"y":13.43}]}
           ]}}}]}
         """;
 
@@ -44,9 +44,30 @@ public sealed class FarmSourcingTests
         Assert.Equal(8, trade.Cost![0].Count);
         Assert.Equal("token", trade.Cost[0].Role);
         Assert.Equal("AAC Illustrated IV", trade.Cost[0].Name);
-        Assert.Equal("Hhihwi", trade.Npc![0].Name);
-        Assert.Equal("Solution Nine", trade.Npc[0].Zone);
-        Assert.Equal(8.73f, trade.Npc[0].X!.Value, 2);
+        var npc = trade.Npc![0];
+        Assert.Equal("Hhihwi", npc.Name);
+        Assert.Equal("Solution Nine", npc.Zone);
+        Assert.Equal(8.73f, npc.X!.Value, 2);
+        Assert.Equal(1186, npc.ZoneId);
+        Assert.Equal(890, npc.MapId);
+        Assert.True(npc.CanMap);
+    }
+
+    [Fact]
+    public void VendorWithoutMapRefCannotBeMapped()
+    {
+        const string body = """
+        {"data":[{"job":"WHM","target":{"Head":{"id":1,"source":"tome","routes":[
+          {"kind":"trade","cost":[{"id":9,"name":"Tomestone","count":495,"role":"currency"}],
+           "npc":[{"id":2,"name":"Aymark","zone":"Solution Nine"}]}
+        ]}}}]}
+        """;
+
+        var res = JsonSerializer.Deserialize<FarmResponse>(body, EorzeaJson.Options);
+
+        var npc = res!.Data![0].Target!["Head"].Routes![0].Npc![0];
+        Assert.Null(npc.MapId);
+        Assert.False(npc.CanMap);
     }
 
     [Fact]

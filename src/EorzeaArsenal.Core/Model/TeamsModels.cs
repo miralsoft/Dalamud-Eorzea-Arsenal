@@ -540,11 +540,20 @@ public sealed class FarmNpc
     /// <summary>Zone the NPC stands in.</summary>
     public string? Zone { get; init; }
 
+    /// <summary>TerritoryType id of the zone (for a map marker; may be absent).</summary>
+    public long? ZoneId { get; init; }
+
+    /// <summary>Map row id (for a map marker; may be absent).</summary>
+    public long? MapId { get; init; }
+
     /// <summary>Map X coordinate (may be absent).</summary>
     public float? X { get; init; }
 
     /// <summary>Map Y coordinate (may be absent).</summary>
     public float? Y { get; init; }
+
+    /// <summary>Whether this NPC can be pinned on the in-game map (has zone, map and coordinates).</summary>
+    public bool CanMap => ZoneId is > 0 && MapId is > 0 && X is not null && Y is not null;
 }
 
 // --- GET /gear/obtain (impersonal "where do I get this") -------------------------------------------
