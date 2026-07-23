@@ -4,6 +4,7 @@ using Dalamud.Interface.Textures;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
+using EorzeaArsenal.Core;
 using EorzeaArsenal.Gear;
 using EorzeaArsenal.Localization;
 using EorzeaArsenal.Model;
@@ -48,8 +49,14 @@ public sealed class BisWindow : Window
     private readonly BisService _bis;
     private readonly GameGearSource _gearSource;
     private readonly ITextureProvider _textures;
+    private readonly ObtainService _obtain;
+    private readonly SourcingView _sourcing;
     private readonly Action _save;
     private readonly Action<int> _linkItem;
+
+    // Target ids we have already asked the obtain service to resolve, so Draw fires one prefetch per
+    // new set of pieces instead of a task every frame.
+    private readonly HashSet<int> _obtainRequested = [];
 
     /// <summary>Creates the BiS window.</summary>
     /// <param name="config">Live config.</param>
@@ -58,6 +65,7 @@ public sealed class BisWindow : Window
     /// <param name="bis">The shared BiS service (cache + comparison).</param>
     /// <param name="gearSource">Resolves item names, item levels and icons.</param>
     /// <param name="textures">Loads game icons.</param>
+    /// <param name="obtain">Fetches impersonal "how to get it" sourcing.</param>
     /// <param name="save">Persists the config (filter/scope choices).</param>
     /// <param name="linkItem">Posts a clickable item link to the game chat (arg: item id).</param>
     public BisWindow(
@@ -67,6 +75,7 @@ public sealed class BisWindow : Window
         BisService bis,
         GameGearSource gearSource,
         ITextureProvider textures,
+        ObtainService obtain,
         Action save,
         Action<int> linkItem)
         : base("Eorzea Arsenal###EorzeaArsenalBis")
@@ -77,6 +86,8 @@ public sealed class BisWindow : Window
         _bis = bis;
         _gearSource = gearSource;
         _textures = textures;
+        _obtain = obtain;
+        _sourcing = new SourcingView(localizer);
         _save = save;
         _linkItem = linkItem;
 
@@ -88,6 +99,47 @@ public sealed class BisWindow : Window
     }
 
     private string T(string key) => _localizer.Get(key);
+
+    /// <summary>
+    /// Warms the obtain cache for every BiS target piece the moment it appears, once per id. The
+    /// service caches for the process lifetime, so once resolved a hover is instant; a piece is never
+    /// requested twice, and nothing fires when sourcing is off or no key is connected.
+    /// </summary>
+    private void PrefetchObtain()
+    {
+        if (!_config.BisShowSourcing || !_store.HasKey)
+        {
+            return;
+        }
+
+        var toRequest = new List<long>();
+        foreach (var comparison in _bis.Comparisons)
+        {
+            foreach (var slot in comparison.Slots)
+            {
+                if (slot.TargetItemId > 0 && _obtainRequested.Add(slot.TargetItemId))
+                {
+                    toRequest.Add(slot.TargetItemId);
+                }
+            }
+        }
+
+        if (toRequest.Count > 0)
+        {
+            _ = _obtain.PrefetchAsync(toRequest, CancellationToken.None);
+        }
+    }
+
+    /// <summary>Renders the obtain routes for an item inside an already-open tooltip, if enabled and cached.</summary>
+    private void DrawSourcingInTooltip(int itemId)
+    {
+        if (_config.BisShowSourcing && _obtain.TryGet(itemId, out var info) && info?.Routes is { Count: > 0 } routes)
+        {
+            ImGui.Separator();
+            _sourcing.DrawRoutesBody(routes);
+            ImGui.Spacing();
+        }
+    }
 
     /// <inheritdoc />
     public override void OnOpen()
@@ -102,6 +154,7 @@ public sealed class BisWindow : Window
     /// <inheritdoc />
     public override void Draw()
     {
+        PrefetchObtain();
         DrawToolbar();
 
         var statusMessage = StatusMessage();
@@ -525,6 +578,8 @@ public sealed class BisWindow : Window
             ImGui.TextColored(slot.Status == SlotMatch.Match ? Orange : Muted, _localizer.Get(key, string.Join(", ", slot.MissingMateria.Select(_gearSource.GetItemName))));
         }
 
+        DrawSourcingInTooltip(slot.TargetItemId);
+
         ImGui.Spacing();
         ImGui.TextDisabled(T(LocKeys.BisItemHint));
         ImGui.EndTooltip();
@@ -574,7 +629,10 @@ public sealed class BisWindow : Window
 
         if (ImGui.IsItemHovered())
         {
-            ImGui.SetTooltip(T(LocKeys.BisItemHint));
+            ImGui.BeginTooltip();
+            DrawSourcingInTooltip(itemId);
+            ImGui.TextDisabled(T(LocKeys.BisItemHint));
+            ImGui.EndTooltip();
         }
 
         if (clicked)

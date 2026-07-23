@@ -97,6 +97,10 @@ The issued key is **write-only (`gear:write`)** — it can do nothing except pus
   your BiS targets shows a small overlay listing the matching slot/gearset and your current state
   (complete / materia differs / different item / empty). It sits next to the game tooltip and never
   modifies it.
+- **How to get it:** with *Show 'how to get it' on BiS pieces* enabled, a BiS piece's hover also shows
+  where it comes from and what it costs — the fight it drops in with its coffer, or what to trade and
+  with which vendor, down the full chain. This is impersonal game data (`GET /gear/obtain`), cached
+  for the session, and uses the same renderer as the team farm so the two never disagree.
 
 ## Base URL note
 

@@ -141,6 +141,9 @@ public sealed class PluginConfig : IPluginConfiguration
     /// <summary>BiS window: render the character-screen-style icon grid instead of the per-slot list.</summary>
     public bool BisGridView { get; set; }
 
+    /// <summary>BiS window: show "how to get it" sourcing (savage/tome routes) on a piece's hover.</summary>
+    public bool BisShowSourcing { get; set; } = true;
+
     /// <summary>How verbose the Dalamud log output is.</summary>
     public LogVerbosity Verbosity { get; set; } = LogVerbosity.Normal;
 

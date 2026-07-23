@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- **"How to get it" on BiS pieces.** Hovering a BiS target — in the list, the grid tile or the
+  shopping list — now also shows where the piece comes from and what it costs (the same route detail
+  as the team farm: the fight it drops in with its coffer, or what to trade and with which vendor,
+  down the whole chain). Reads impersonal game data via `GET /gear/obtain` with your existing key,
+  cached for the session and fetched in the background; toggle under *Display*. The route renderer is
+  shared with the farm tab, so the two never describe a piece differently.
+
 ### Fixed
 - The hidden Duty-Finder refresh (the `normal`/`alliance` weekly read) no longer leaves the finder on
   the raid it loaded. It now remembers the duty you had selected and re-selects it before closing, so

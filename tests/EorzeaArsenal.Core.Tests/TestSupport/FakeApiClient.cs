@@ -173,6 +173,12 @@ public sealed class FakeApiClient : IApiClient
     /// <summary>Result returned by <see cref="GetLogsAsync"/>.</summary>
     public ApiResult<LogsResponse> LogsResult { get; set; } = ApiResult<LogsResponse>.Ok(new LogsResponse());
 
+    /// <summary>Result returned by <see cref="GetGearObtainAsync"/>.</summary>
+    public ApiResult<ObtainResponse> ObtainResult { get; set; } = ApiResult<ObtainResponse>.Ok(new ObtainResponse { Data = new() });
+
+    /// <summary>Each id set passed to <see cref="GetGearObtainAsync"/>, in call order.</summary>
+    public List<long[]> ObtainRequests { get; } = [];
+
     /// <summary>Result returned by <see cref="PostAttendanceAsync"/>.</summary>
     public ApiResult<StatusAck> AttendanceResult { get; set; } = ApiResult<StatusAck>.Ok(new StatusAck { Status = "ok" });
 
@@ -224,6 +230,13 @@ public sealed class FakeApiClient : IApiClient
     /// <inheritdoc />
     public Task<ApiResult<LogsResponse>> GetLogsAsync(string apiKey, long teamId, CancellationToken ct) =>
         Task.FromResult(LogsResult);
+
+    /// <inheritdoc />
+    public Task<ApiResult<ObtainResponse>> GetGearObtainAsync(string apiKey, IReadOnlyCollection<long> itemIds, CancellationToken ct)
+    {
+        ObtainRequests.Add([.. itemIds]);
+        return Task.FromResult(ObtainResult);
+    }
 
     /// <inheritdoc />
     public Task<ApiResult<StatusAck>> PostAttendanceAsync(string apiKey, long teamId, long eventId, AttendanceRequest request, CancellationToken ct)

@@ -64,6 +64,10 @@ public static class ReleaseNotes
                 "Owned gear coffers are uploaded too, so a coffer's web page shows how many you own and how many pieces you can make now."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
+                "Im BiS-Fenster zeigt das Überfahren eines Teils jetzt auch 'Bezug': woher es kommt und was es kostet — wie in der Gruppen-Farm.",
+                "In the BiS window, hovering a piece now also shows 'how to get it' — where it comes from and what it costs, just like the group farm."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
                 "'Im Web öffnen' springt direkt auf den Plan, den Termin oder den Inhalt, den du gerade ansiehst.",
                 "'Open in web' jumps straight to the plan, event or content you are looking at."),
             new ReleaseNoteItem(

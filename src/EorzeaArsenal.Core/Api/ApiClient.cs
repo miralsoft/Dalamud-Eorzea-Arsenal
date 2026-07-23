@@ -169,6 +169,13 @@ public sealed class ApiClient : IApiClient
         GetAsync<FarmResponse>($"/teams/{teamId}/farm", apiKey, ct);
 
     /// <inheritdoc />
+    public Task<ApiResult<ObtainResponse>> GetGearObtainAsync(string apiKey, IReadOnlyCollection<long> itemIds, CancellationToken ct)
+    {
+        var ids = string.Join(',', itemIds);
+        return GetAsync<ObtainResponse>($"/gear/obtain?item_ids={Uri.EscapeDataString(ids)}", apiKey, ct);
+    }
+
+    /// <inheritdoc />
     public Task<ApiResult<LogsResponse>> GetLogsAsync(string apiKey, long teamId, CancellationToken ct) =>
         GetAsync<LogsResponse>($"/teams/{teamId}/logs", apiKey, ct);
 

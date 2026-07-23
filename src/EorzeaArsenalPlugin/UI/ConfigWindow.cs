@@ -502,6 +502,15 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
+        var bisSourcing = _config.BisShowSourcing;
+        if (ImGui.Checkbox(T(LocKeys.BisShowSourcing), ref bisSourcing))
+        {
+            _config.BisShowSourcing = bisSourcing;
+            _save();
+        }
+
+        Hint(T(LocKeys.BisShowSourcingHint));
+
         var dtrBar = _config.ShowDtrBar;
         if (ImGui.Checkbox(T(LocKeys.ShowDtrBar), ref dtrBar))
         {

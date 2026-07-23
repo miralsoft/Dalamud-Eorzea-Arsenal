@@ -122,6 +122,16 @@ public interface IApiClient
     /// <returns>The farm entries, or a classified error.</returns>
     Task<ApiResult<FarmResponse>> GetFarmAsync(string apiKey, long teamId, CancellationToken ct);
 
+    /// <summary>
+    /// Reads impersonal "how to get it" sourcing for gear pieces via <c>GET /gear/obtain?item_ids=…</c>.
+    /// The data is the same for every player, so any valid bearer passes; no personal scope is needed.
+    /// </summary>
+    /// <param name="apiKey">The API key (any valid key; the read is impersonal and rate-limited).</param>
+    /// <param name="itemIds">The item ids to resolve (server caps at 60 per call — chunk above that).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Per-id sourcing (a <see langword="null"/> entry means "no info yet"), or a classified error.</returns>
+    Task<ApiResult<ObtainResponse>> GetGearObtainAsync(string apiKey, IReadOnlyCollection<long> itemIds, CancellationToken ct);
+
     /// <summary>Reads the FFLogs mirror via <c>GET /teams/{id}/logs</c> (<c>teams:read</c>; best-effort).</summary>
     /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
     /// <param name="teamId">The team id.</param>

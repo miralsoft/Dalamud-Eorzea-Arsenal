@@ -32,6 +32,7 @@ public sealed class TeamsWindow : Window
     private readonly PluginConfig _config;
     private readonly ConfigStore _store;
     private readonly Localizer _localizer;
+    private readonly SourcingView _sourcing;
     private readonly TeamsService _teams;
     private readonly ITextureProvider _textures;
     private readonly IDataManager _data;
@@ -96,6 +97,7 @@ public sealed class TeamsWindow : Window
         _config = config;
         _store = store;
         _localizer = localizer;
+        _sourcing = new SourcingView(localizer);
         _teams = teams;
         _textures = textures;
         _data = data;
@@ -991,8 +993,8 @@ public sealed class TeamsWindow : Window
 
             var missing = target
                 .Where(kv => kv.Value.Id != 0 && (entry.Equipped is null || !entry.Equipped.TryGetValue(kv.Key, out var eq) || eq.Id != kv.Value.Id))
-                .OrderBy(kv => SourceRank(kv.Value.Source))
-                .ThenBy(kv => SlotName(kv.Key), StringComparer.CurrentCultureIgnoreCase)
+                .OrderBy(kv => SourcingView.SourceRank(kv.Value.Source))
+                .ThenBy(kv => _sourcing.SlotName(kv.Key), StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
 
             if (missing.Count == 0)
@@ -1032,10 +1034,10 @@ public sealed class TeamsWindow : Window
             {
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn();
-                ImGui.TextUnformatted(SlotName(slot));
+                ImGui.TextUnformatted(_sourcing.SlotName(slot));
 
                 ImGui.TableNextColumn();
-                var (label, color) = SourceBadge(item.Source);
+                var (label, color) = _sourcing.SourceBadge(item.Source);
                 ImGui.TextColored(color, label);
 
                 ImGui.TableNextColumn();
@@ -1051,141 +1053,19 @@ public sealed class TeamsWindow : Window
     /// <summary>The "how to get it" cell: the primary route in one line, every route on hover.</summary>
     private void DrawFarmHow(FarmSlot item)
     {
-        var primary = PrimaryRoute(item);
+        var primary = SourcingView.PrimaryRoute(item.Source, item.Routes);
         if (primary is null)
         {
             ImGui.TextDisabled("—");
             return;
         }
 
-        ImGui.TextUnformatted(RouteSummary(primary));
+        ImGui.TextUnformatted(_sourcing.RouteSummary(primary));
         if (item.Routes is { Count: > 0 } routes && ImGui.IsItemHovered())
         {
-            DrawFarmRoutesTooltip(routes);
+            _sourcing.DrawRoutesTooltip(routes);
         }
     }
-
-    /// <summary>
-    /// The route matching <see cref="FarmSlot.Source"/> (savage → drop, else the trade), falling back
-    /// to any trade then the first route — the same rule as the web's <c>FarmPlanner::primaryRoute</c>,
-    /// so the plugin and site never disagree about where a piece comes from.
-    /// </summary>
-    private static FarmRoute? PrimaryRoute(FarmSlot item)
-    {
-        var routes = item.Routes;
-        if (routes is not { Count: > 0 })
-        {
-            return null;
-        }
-
-        if (string.Equals(item.Source, "savage", StringComparison.Ordinal))
-        {
-            var drop = routes.FirstOrDefault(r => string.Equals(r.Kind, "drop", StringComparison.Ordinal));
-            if (drop is not null)
-            {
-                return drop;
-            }
-        }
-
-        return routes.FirstOrDefault(r => string.Equals(r.Kind, "trade", StringComparison.Ordinal)) ?? routes[0];
-    }
-
-    /// <summary>A one-line summary of a route, sized for the table cell.</summary>
-    private string RouteSummary(FarmRoute route) => route.Kind switch
-    {
-        "drop" => route.Duties is { Count: > 0 } d ? string.Join(", ", d) : route.Via?.Name ?? T(LocKeys.TeamsFarmCoffer),
-        "retired" => T(LocKeys.TeamsFarmRetired),
-        "market" => T(LocKeys.TeamsFarmMarket),
-        _ => TradeSummary(route),
-    };
-
-    /// <summary>A trade/craft in one line: the effort parts (skipping handed-in pieces) and the vendor.</summary>
-    private string TradeSummary(FarmRoute route)
-    {
-        var parts = (route.Cost ?? [])
-            .Where(c => !string.Equals(c.Role, "piece", StringComparison.Ordinal))
-            .Select(CostPartText)
-            .ToList();
-        var cost = parts.Count > 0 ? string.Join(" + ", parts) : (route.Kind == "craft" ? T(LocKeys.TeamsFarmCraft) : string.Empty);
-
-        var at = route.Npc is { Count: > 0 } npc && !string.IsNullOrEmpty(npc[0].Name)
-            ? $" @ {npc[0].Name}"
-            : route.Shops is { Count: > 0 } shops && !string.IsNullOrEmpty(shops[0]) ? $" @ {shops[0]}" : string.Empty;
-
-        return (cost + at).Trim();
-    }
-
-    private string CostPartText(FarmCostPart part)
-    {
-        var name = part.Name ?? (part.Id is { } id ? $"#{id}" : T(LocKeys.TeamsFarmCoffer));
-        return $"{part.Count}× {name}";
-    }
-
-    /// <summary>A game-like tooltip listing every way to get the piece, with costs, vendors and coords.</summary>
-    private void DrawFarmRoutesTooltip(List<FarmRoute> routes)
-    {
-        ImGui.BeginTooltip();
-        ImGui.PushTextWrapPos(360f);
-        ImGui.TextColored(Yellow, T(LocKeys.TeamsFarmWaysHeading));
-
-        foreach (var route in routes)
-        {
-            ImGui.Separator();
-            switch (route.Kind)
-            {
-                case "drop":
-                    var where = route.Duties is { Count: > 0 } d ? string.Join(", ", d) : "?";
-                    ImGui.TextUnformatted($"● {where}");
-                    if (route.Via?.Name is { Length: > 0 } coffer)
-                    {
-                        ImGui.TextDisabled($"   {T(LocKeys.TeamsFarmCoffer)}: {coffer}");
-                    }
-
-                    break;
-
-                case "retired":
-                    ImGui.TextDisabled($"● {T(LocKeys.TeamsFarmRetired)}");
-                    break;
-
-                default:
-                    ImGui.TextUnformatted($"● {TradeSummary(route)}");
-                    foreach (var part in route.Cost ?? [])
-                    {
-                        if (string.Equals(part.Role, "piece", StringComparison.Ordinal))
-                        {
-                            ImGui.TextDisabled($"   {T(LocKeys.TeamsFarmHandIn)}: {(part.Slot is { } s ? SlotName(s) : "?")}");
-                        }
-                    }
-
-                    if (route.Npc is { Count: > 0 } npc && npc[0] is { X: { } x, Y: { } y })
-                    {
-                        ImGui.TextDisabled($"   {npc[0].Zone} (X: {x.ToString("0.#", CultureInfo.InvariantCulture)}, Y: {y.ToString("0.#", CultureInfo.InvariantCulture)})");
-                    }
-
-                    break;
-            }
-        }
-
-        ImGui.PopTextWrapPos();
-        ImGui.EndTooltip();
-    }
-
-    private (string Label, Vector4 Color) SourceBadge(string? source) => source switch
-    {
-        "savage" => ("Savage", Red),
-        "tomeplus" => ("Tome+", new Vector4(0.55f, 0.75f, 1f, 1f)),
-        "tome" => ("Tome", Green),
-        _ => (T(LocKeys.TeamsFarmUnknownSource), Dim),
-    };
-
-    /// <summary>Groups the missing list by how hard a piece is to get: savage first, then tome+, tome, unknown.</summary>
-    private static int SourceRank(string? source) => source switch
-    {
-        "savage" => 0,
-        "tomeplus" => 1,
-        "tome" => 2,
-        _ => 3,
-    };
 
     // --- FFLogs -----------------------------------------------------------------------------------
 
@@ -1526,24 +1406,6 @@ public sealed class TeamsWindow : Window
     }
 
     // --- Helpers ----------------------------------------------------------------------------------
-
-    private static readonly Dictionary<string, string> SlotDe = new(StringComparer.Ordinal)
-    {
-        ["Weapon"] = "Waffe",
-        ["OffHand"] = "Nebenhand",
-        ["Head"] = "Kopf",
-        ["Body"] = "Rumpf",
-        ["Hands"] = "Hände",
-        ["Legs"] = "Beine",
-        ["Feet"] = "Füße",
-        ["Ears"] = "Ohrringe",
-        ["Neck"] = "Halskette",
-        ["Wrists"] = "Armreif",
-        ["RingLeft"] = "Ring links",
-        ["RingRight"] = "Ring rechts",
-    };
-
-    private string SlotName(string key) => German && SlotDe.TryGetValue(key, out var de) ? de : key;
 
     private static string PlanLabel(MitPlanRef plan) =>
         !string.IsNullOrWhiteSpace(plan.Name) ? plan.Name! : !string.IsNullOrWhiteSpace(plan.Boss) ? plan.Boss! : $"#{plan.Id}";

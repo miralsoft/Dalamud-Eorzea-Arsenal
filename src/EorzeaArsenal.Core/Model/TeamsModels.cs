@@ -547,6 +547,33 @@ public sealed class FarmNpc
     public float? Y { get; init; }
 }
 
+// --- GET /gear/obtain (impersonal "where do I get this") -------------------------------------------
+
+/// <summary>
+/// Response of <c>GET /gear/obtain?item_ids=…</c>: per requested item id (as a string key), how to get
+/// it — or <see langword="null"/> when nothing is curated for that id ("no info yet", never
+/// "unobtainable"). The value is the same <c>{ source, slot, routes[] }</c> shape a farm target
+/// carries, with the cost chain walked, so the sourcing renderer is shared.
+/// </summary>
+public sealed class ObtainResponse
+{
+    /// <summary>Item id (string) → its sourcing, or <see langword="null"/> when uncurated.</summary>
+    public Dictionary<string, ObtainInfo?>? Data { get; init; }
+}
+
+/// <summary>How a single gear piece is obtained: its acquisition kind, slot and the routes in.</summary>
+public sealed class ObtainInfo
+{
+    /// <summary>Acquisition kind: <c>tome</c>, <c>tomeplus</c> or <c>savage</c>.</summary>
+    public string? Source { get; init; }
+
+    /// <summary>The gear slot this piece fills.</summary>
+    public string? Slot { get; init; }
+
+    /// <summary>The ways to get it, best/normal first (chain walked).</summary>
+    public List<FarmRoute>? Routes { get; init; }
+}
+
 // --- GET /teams/{id}/logs (FFLogs) -----------------------------------------------------------------
 
 /// <summary>Response of <c>GET /teams/{id}/logs</c>: the FFLogs mirror (best-effort, never fatal).</summary>

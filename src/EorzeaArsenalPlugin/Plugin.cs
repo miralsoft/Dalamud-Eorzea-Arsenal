@@ -56,6 +56,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly TeamsService _teamsService;
     private readonly TeamsSeenStore _teamsSeenStore;
     private readonly BisService _bisService;
+    private readonly ObtainService _obtainService;
 
     private readonly WindowSystem _windowSystem = new("EorzeaArsenal");
     private readonly ConfigWindow _configWindow;
@@ -175,8 +176,9 @@ public sealed class Plugin : IDalamudPlugin
         _teamsService = new TeamsService(api, _store, _teamsSeenStore, new SystemClock(), _log);
         _teamsService.Toast += OnTeamToast;
         _bisService = new BisService(api, _gearSource, _store, _log);
+        _obtainService = new ObtainService(api, _store, _log);
 
-        _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, Save, LinkItemInChat);
+        _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, _obtainService, Save, LinkItemInChat);
         _logWindow = new LogWindow(_logBuffer, _localizer);
         _previewWindow = new PreviewWindow(_gearSource, _localizer, _log);
         _imageWindow = new ImageWindow(_teamsService, textureProvider, _localizer, _log);

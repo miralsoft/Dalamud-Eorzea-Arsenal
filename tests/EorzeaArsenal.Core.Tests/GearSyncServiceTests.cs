@@ -257,6 +257,9 @@ public sealed class GearSyncServiceTests
         public Task<ApiResult<LogsResponse>> GetLogsAsync(string apiKey, long teamId, CancellationToken ct) =>
             throw new NotSupportedException();
 
+        public Task<ApiResult<ObtainResponse>> GetGearObtainAsync(string apiKey, IReadOnlyCollection<long> itemIds, CancellationToken ct) =>
+            throw new NotSupportedException();
+
         public Task<ApiResult<StatusAck>> PostAttendanceAsync(string apiKey, long teamId, long eventId, AttendanceRequest request, CancellationToken ct) =>
             throw new NotSupportedException();
 

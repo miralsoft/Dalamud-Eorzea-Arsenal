@@ -268,6 +268,12 @@ public static class LocKeys
     /// <summary>BiS hover-overlay toggle.</summary>
     public const string BisTooltipToggle = "config.bistooltip";
 
+    /// <summary>Config: show "how to get it" sourcing on BiS pieces.</summary>
+    public const string BisShowSourcing = "config.bissourcing";
+
+    /// <summary>Config: sourcing toggle hint.</summary>
+    public const string BisShowSourcingHint = "config.bissourcing.hint";
+
     /// <summary>"you have {0}" line (current item name).</summary>
     public const string BisYouHave = "bis.youhave";
 
