@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
-using Dalamud.Interface.Utility.Raii;
+using EorzeaArsenal.Core;
 using EorzeaArsenal.Localization;
 using EorzeaArsenal.Model;
 using EorzeaArsenal.Plugin.Services;
@@ -45,14 +45,17 @@ internal sealed class SourcingView
 
     private readonly Localizer _localizer;
     private readonly IWorldActions _world;
+    private readonly ObtainService _obtain;
 
     /// <summary>Creates the renderer.</summary>
     /// <param name="localizer">UI string resolver.</param>
     /// <param name="world">Game actions: how many of an item is owned, and pin a vendor on the map.</param>
-    public SourcingView(Localizer localizer, IWorldActions world)
+    /// <param name="obtain">Sourcing lookup — used to recognise an equipped item as a tome base.</param>
+    public SourcingView(Localizer localizer, IWorldActions world, ObtainService obtain)
     {
         _localizer = localizer;
         _world = world;
+        _obtain = obtain;
     }
 
     private enum StepKind
@@ -63,6 +66,7 @@ internal sealed class SourcingView
         Craft,
         Market,
         Retired,
+        BaseOwned,
     }
 
     private string T(string key) => _localizer.Get(key);
@@ -96,9 +100,9 @@ internal sealed class SourcingView
     /// A compact one-line summary for a table cell: the steps joined by "→", each coloured by whether
     /// you already have what it needs. Wraps to the cell width. Empty renders a dim dash.
     /// </summary>
-    public void DrawCompact(string? source, List<FarmRoute>? routes)
+    public void DrawCompact(string? source, List<FarmRoute>? routes, long equippedItemId = 0)
     {
-        var steps = BuildSteps(source, routes);
+        var steps = BuildSteps(source, routes, equippedItemId);
         if (steps.Count == 0)
         {
             ImGui.TextDisabled("—");
@@ -126,10 +130,10 @@ internal sealed class SourcingView
     }
 
     /// <summary>A standalone tooltip with the full, numbered step-by-step path (larger, spaced).</summary>
-    public void DrawTooltip(string? source, List<FarmRoute>? routes)
+    public void DrawTooltip(string? source, List<FarmRoute>? routes, long equippedItemId = 0)
     {
         ImGui.BeginTooltip();
-        DrawBody(source, routes);
+        DrawBody(source, routes, equippedItemId);
         ImGui.EndTooltip();
     }
 
@@ -139,12 +143,12 @@ internal sealed class SourcingView
     /// tooltip auto-sizes instead of breaking a number across lines. Drawn slightly larger, as the
     /// detail view. Used inside the BiS tile tooltip and the farm hover.
     /// </summary>
-    public void DrawBody(string? source, List<FarmRoute>? routes)
+    public void DrawBody(string? source, List<FarmRoute>? routes, long equippedItemId = 0)
     {
         ImGui.SetWindowFontScale(TooltipFontScale);
         try
         {
-            DrawStepList(source, routes, heading: true, inline: false);
+            DrawStepList(source, routes, heading: true, inline: false, equippedItemId);
         }
         finally
         {
@@ -157,11 +161,11 @@ internal sealed class SourcingView
     /// coordinates — for tight places like the in-game hover overlay, where the full block is too tall
     /// but the "where" still matters.
     /// </summary>
-    public void DrawInline(string? source, List<FarmRoute>? routes) => DrawStepList(source, routes, heading: false, inline: true);
+    public void DrawInline(string? source, List<FarmRoute>? routes, long equippedItemId = 0) => DrawStepList(source, routes, heading: false, inline: true, equippedItemId);
 
-    private void DrawStepList(string? source, List<FarmRoute>? routes, bool heading, bool inline)
+    private void DrawStepList(string? source, List<FarmRoute>? routes, bool heading, bool inline, long equippedItemId)
     {
-        var steps = BuildSteps(source, routes);
+        var steps = BuildSteps(source, routes, equippedItemId);
 
         if (heading)
         {
@@ -201,7 +205,7 @@ internal sealed class SourcingView
     /// own <c>chain</c> first (so the base acquisition becomes step 1), then the augment/purchase step.
     /// Depth-capped so a self-referential price cannot recurse forever.
     /// </summary>
-    private List<SourceStep> BuildSteps(string? source, List<FarmRoute>? routes, int depth = 0)
+    private List<SourceStep> BuildSteps(string? source, List<FarmRoute>? routes, long equippedItemId, int depth = 0)
     {
         var steps = new List<SourceStep>();
         var primary = PrimaryRoute(source, routes);
@@ -224,12 +228,17 @@ internal sealed class SourcingView
                 var pieces = (primary.Cost ?? []).Where(c => string.Equals(c.Role, "piece", StringComparison.Ordinal)).ToList();
                 var effort = (primary.Cost ?? []).Where(c => !string.Equals(c.Role, "piece", StringComparison.Ordinal)).ToList();
 
-                // The base you hand in has to be acquired first — walk its chain, or note it plainly.
+                // The base you hand in has to be acquired first — unless you already have it equipped
+                // (recognised as a tome piece of the same slot), in which case only the upgrade remains.
                 foreach (var piece in pieces)
                 {
-                    if (piece.Chain is { Count: > 0 })
+                    if (IsEquippedBase(equippedItemId, piece.Slot))
                     {
-                        steps.AddRange(BuildSteps(AcqToSource(piece.Acq), piece.Chain, depth + 1));
+                        steps.Add(new SourceStep(StepKind.BaseOwned, [], null, null, null, [], piece.Slot));
+                    }
+                    else if (piece.Chain is { Count: > 0 })
+                    {
+                        steps.AddRange(BuildSteps(AcqToSource(piece.Acq), piece.Chain, 0, depth + 1));
                     }
                     else
                     {
@@ -251,6 +260,21 @@ internal sealed class SourcingView
     }
 
     private static string? AcqToSource(string? acq) => acq;
+
+    /// <summary>
+    /// Whether the currently equipped item is the tome base for a slot — i.e. the piece you would hand
+    /// in for the augment. Resolved from its own sourcing (a tome piece of the same slot), so a "buy the
+    /// base" step collapses to "base owned" when you are already wearing it.
+    /// </summary>
+    private bool IsEquippedBase(long equippedItemId, string? slot)
+    {
+        if (equippedItemId <= 0 || string.IsNullOrEmpty(slot) || !_obtain.TryGet(equippedItemId, out var info))
+        {
+            return false;
+        }
+
+        return string.Equals(info?.Source, "tome", StringComparison.Ordinal) && string.Equals(info?.Slot, slot, StringComparison.Ordinal);
+    }
 
     // --- Step rendering ---------------------------------------------------------------------------
 
@@ -331,9 +355,9 @@ internal sealed class SourcingView
     /// <summary>Whether a step is satisfied by what the player owns, plus the total items still short.</summary>
     private (bool Ready, int Short) StepStatus(SourceStep step)
     {
-        if (step.Kind is StepKind.Fight or StepKind.Market)
+        if (step.Kind is StepKind.Fight or StepKind.Market or StepKind.BaseOwned)
         {
-            return (true, 0); // an action, not something you stock up for
+            return (true, 0); // an action, or already done
         }
 
         if (step.Kind == StepKind.Retired)
@@ -357,6 +381,7 @@ internal sealed class SourcingView
     {
         StepKind.Fight => Blue,
         StepKind.Retired => Red,
+        StepKind.BaseOwned => Green,
         _ => ready ? Green : Text,
     };
 
@@ -367,6 +392,7 @@ internal sealed class SourcingView
         StepKind.Craft => T(LocKeys.SourceStepCraft),
         StepKind.Market => T(LocKeys.TeamsFarmMarket),
         StepKind.Retired => T(LocKeys.TeamsFarmRetired),
+        StepKind.BaseOwned => T(LocKeys.SourceBaseOwned),
         _ => step.HandInSlot is not null && step.Costs.Count == 0 ? T(LocKeys.SourceStepBase) : T(LocKeys.SourceStepBuy),
     };
 
@@ -379,6 +405,8 @@ internal sealed class SourcingView
                 return step.Duties is { Count: > 0 } d ? d[0] : T(LocKeys.SourceStepFight);
             case StepKind.Retired:
                 return T(LocKeys.TeamsFarmRetired);
+            case StepKind.BaseOwned:
+                return T(LocKeys.SourceBaseOwned);
             default:
                 var headline = step.Costs.FirstOrDefault();
                 var verb = StepVerb(step);

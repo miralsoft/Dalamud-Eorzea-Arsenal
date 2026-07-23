@@ -105,7 +105,7 @@ public sealed class TeamsWindow : Window
         _config = config;
         _store = store;
         _localizer = localizer;
-        _sourcing = new SourcingView(localizer, world);
+        _sourcing = new SourcingView(localizer, world, obtain);
         _obtain = obtain;
         _world = world;
         _teams = teams;
@@ -1007,7 +1007,7 @@ public sealed class TeamsWindow : Window
 
             var missing = target
                 .Where(kv => kv.Value.Id != 0 && (entry.Equipped is null || !entry.Equipped.TryGetValue(kv.Key, out var eq) || eq.Id != kv.Value.Id))
-                .Select(kv => (Slot: kv.Key, Item: kv.Value, Sourcing: EnrichedSourcing(kv.Value)))
+                .Select(kv => (Slot: kv.Key, Item: kv.Value, Sourcing: EnrichedSourcing(kv.Value), Equipped: EquippedId(entry, kv.Key)))
                 .OrderBy(m => SourcingView.SourceRank(m.Sourcing.Source))
                 .ThenBy(m => _sourcing.SlotName(m.Slot), StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
@@ -1024,6 +1024,9 @@ public sealed class TeamsWindow : Window
             ImGui.Separator();
         }
     }
+
+    private static long EquippedId(FarmEntry entry, string slot) =>
+        entry.Equipped is not null && entry.Equipped.TryGetValue(slot, out var eq) ? eq.Id : 0;
 
     /// <summary>The (source, routes) a farm piece renders from — the chain-complete obtain data when it
     /// has loaded, else the farm's own chain-less routes as a fallback.</summary>
@@ -1044,6 +1047,15 @@ public sealed class TeamsWindow : Window
                     ids.Add(kv.Value.Id);
                 }
             }
+
+            // Also the equipped pieces, so an equipped tome base can be recognised per member.
+            foreach (var kv in entry.Equipped ?? [])
+            {
+                if (kv.Value.Id > 0 && _farmObtainRequested.Add(kv.Value.Id))
+                {
+                    ids.Add(kv.Value.Id);
+                }
+            }
         }
 
         if (ids.Count > 0)
@@ -1056,7 +1068,7 @@ public sealed class TeamsWindow : Window
     /// A one-line "still short" summary next to the member: the farmable materials/tokens summed across
     /// all their missing pieces, minus what they own — so you see at a glance what to gather for them.
     /// </summary>
-    private void DrawMemberNeeds(List<(string Slot, FarmSlot Item, (string? Source, List<FarmRoute>? Routes) Sourcing)> missing)
+    private void DrawMemberNeeds(List<(string Slot, FarmSlot Item, (string? Source, List<FarmRoute>? Routes) Sourcing, long Equipped)> missing)
     {
         // Sum the farmable cost items (materials + tokens, not the tier's tomestone) across every piece.
         var needed = new Dictionary<long, (string Name, int Count)>();
@@ -1115,7 +1127,7 @@ public sealed class TeamsWindow : Window
     }
 
     /// <summary>Renders the still-missing pieces as a slot/source/steps table (R8: display only).</summary>
-    private void DrawFarmMissing(List<(string Slot, FarmSlot Item, (string? Source, List<FarmRoute>? Routes) Sourcing)> missing)
+    private void DrawFarmMissing(List<(string Slot, FarmSlot Item, (string? Source, List<FarmRoute>? Routes) Sourcing, long Equipped)> missing)
     {
         if (!ImGui.BeginTable("##farmMissing", 3, ImGuiTableFlags.NoSavedSettings | ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.RowBg))
         {
@@ -1129,7 +1141,7 @@ public sealed class TeamsWindow : Window
             ImGui.TableSetupColumn(T(LocKeys.TeamsFarmColHow), ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableHeadersRow();
 
-            foreach (var (slot, _, sourcing) in missing)
+            foreach (var (slot, _, sourcing, equipped) in missing)
             {
                 using var rowId = ImRaii.PushId(slot);
                 ImGui.TableNextRow();
@@ -1142,7 +1154,7 @@ public sealed class TeamsWindow : Window
                 ImGui.TextColored(color, label);
 
                 ImGui.TableNextColumn();
-                DrawFarmHow(sourcing.Source, sourcing.Routes);
+                DrawFarmHow(sourcing.Source, sourcing.Routes, equipped);
 
                 // Right-click the piece → pin its vendor on the map (when the route has one).
                 if (_sourcing.HasMapTarget(sourcing.Routes) && ImGui.BeginPopupContextItem("##farmctx"))
@@ -1159,15 +1171,15 @@ public sealed class TeamsWindow : Window
     }
 
     /// <summary>The "how to get it" cell: the steps in one line, the full checklist on hover.</summary>
-    private void DrawFarmHow(string? source, List<FarmRoute>? routes)
+    private void DrawFarmHow(string? source, List<FarmRoute>? routes, long equippedItemId)
     {
         ImGui.BeginGroup();
-        _sourcing.DrawCompact(source, routes);
+        _sourcing.DrawCompact(source, routes, equippedItemId);
         ImGui.EndGroup();
 
         if (routes is { Count: > 0 } && ImGui.IsItemHovered())
         {
-            _sourcing.DrawTooltip(source, routes);
+            _sourcing.DrawTooltip(source, routes, equippedItemId);
         }
     }
 

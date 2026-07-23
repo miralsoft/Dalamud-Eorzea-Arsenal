@@ -82,7 +82,7 @@ public sealed class BisTooltip
         _bis = bis;
         _gearSource = gearSource;
         _obtain = obtain;
-        _sourcing = new SourcingView(localizer, world);
+        _sourcing = new SourcingView(localizer, world, obtain);
         _log = log;
     }
 
@@ -194,13 +194,27 @@ public sealed class BisTooltip
                 _gearSource.OwnsItem(slotComparison.TargetItemId),
                 missing,
                 wrong,
-                slotComparison.TargetItemId));
+                slotComparison.TargetItemId,
+                slotComparison.CurrentItemId ?? 0));
         }
 
-        // Warm the sourcing cache for the targets shown, so "how to get it" is ready on the next hover.
+        // Warm the sourcing cache for the targets (and the equipped piece, to spot a tome base) shown.
         if (_config.BisShowSourcing)
         {
-            var ids = lines.Where(l => !l.Owned && l.TargetItemId > 0).Select(l => (long)l.TargetItemId).ToList();
+            var ids = new List<long>();
+            foreach (var l in lines.Where(l => !l.Owned))
+            {
+                if (l.TargetItemId > 0)
+                {
+                    ids.Add(l.TargetItemId);
+                }
+
+                if (l.EquippedItemId > 0)
+                {
+                    ids.Add(l.EquippedItemId);
+                }
+            }
+
             if (ids.Count > 0)
             {
                 _ = _obtain.PrefetchAsync(ids, CancellationToken.None);
@@ -287,7 +301,7 @@ public sealed class BisTooltip
             if (!line.Owned && _config.BisShowSourcing && _obtain.TryGet(line.TargetItemId, out var info) && info?.Routes is { Count: > 0 } routes)
             {
                 ImGui.Indent();
-                _sourcing.DrawInline(info.Source, routes);
+                _sourcing.DrawInline(info.Source, routes, line.EquippedItemId);
                 ImGui.Unindent();
             }
         }
@@ -396,5 +410,6 @@ public sealed class BisTooltip
         bool Owned,
         IReadOnlyList<string> Missing,
         IReadOnlyList<string> Wrong,
-        int TargetItemId);
+        int TargetItemId,
+        int EquippedItemId);
 }

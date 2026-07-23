@@ -89,7 +89,7 @@ public sealed class BisWindow : Window
         _gearSource = gearSource;
         _textures = textures;
         _obtain = obtain;
-        _sourcing = new SourcingView(localizer, world);
+        _sourcing = new SourcingView(localizer, world, obtain);
         _save = save;
         _linkItem = linkItem;
 
@@ -123,6 +123,12 @@ public sealed class BisWindow : Window
                 {
                     toRequest.Add(slot.TargetItemId);
                 }
+
+                // Also resolve the equipped piece, so an equipped tome base can be recognised.
+                if (slot.CurrentItemId is { } equipped && equipped > 0 && _obtainRequested.Add(equipped))
+                {
+                    toRequest.Add(equipped);
+                }
             }
         }
 
@@ -133,12 +139,12 @@ public sealed class BisWindow : Window
     }
 
     /// <summary>Renders the obtain steps for an item inside an already-open tooltip, if enabled and cached.</summary>
-    private void DrawSourcingInTooltip(int itemId)
+    private void DrawSourcingInTooltip(int itemId, int equippedItemId = 0)
     {
         if (_config.BisShowSourcing && _obtain.TryGet(itemId, out var info) && info?.Routes is { Count: > 0 } routes)
         {
             ImGui.Separator();
-            _sourcing.DrawBody(info.Source, routes);
+            _sourcing.DrawBody(info.Source, routes, equippedItemId);
             ImGui.Spacing();
         }
     }
@@ -585,7 +591,7 @@ public sealed class BisWindow : Window
             ImGui.TextColored(slot.Status == SlotMatch.Match ? Orange : Muted, _localizer.Get(key, string.Join(", ", slot.MissingMateria.Select(_gearSource.GetItemName))));
         }
 
-        DrawSourcingInTooltip(slot.TargetItemId);
+        DrawSourcingInTooltip(slot.TargetItemId, slot.CurrentItemId ?? 0);
 
         ImGui.Spacing();
         ImGui.TextDisabled(T(LocKeys.BisItemHint));
@@ -602,7 +608,7 @@ public sealed class BisWindow : Window
         var slotName = _localizer.Get(SlotNames.LocKey(slot.Slot));
         var sourceSuffix = string.IsNullOrEmpty(source) ? string.Empty : $" · {SourceLabel(source)}";
         var line = $"{slotName}: {_gearSource.GetItemName(slot.TargetItemId)} · iLvl {_gearSource.GetItemLevel(slot.TargetItemId)}{sourceSuffix}";
-        ClickableItem(color, line, slot.TargetItemId, $"##slot{gearIndex}_{slot.Slot}");
+        ClickableItem(color, line, slot.TargetItemId, $"##slot{gearIndex}_{slot.Slot}", slot.CurrentItemId ?? 0);
 
         if (slot.Status == SlotMatch.ItemDiffers && slot.CurrentItemId is { } currentId && currentId > 0)
         {
@@ -628,7 +634,7 @@ public sealed class BisWindow : Window
     /// the local chat log (preview), right-click copies the item name to the clipboard so the user
     /// can paste it anywhere (FC/party chat, Discord, the marketboard search).
     /// </summary>
-    private void ClickableItem(Vector4 color, string text, int itemId, string id)
+    private void ClickableItem(Vector4 color, string text, int itemId, string id, int equippedItemId = 0)
     {
         ImGui.PushStyleColor(ImGuiCol.Text, color);
         var clicked = ImGui.Selectable(text + id);
@@ -637,7 +643,7 @@ public sealed class BisWindow : Window
         if (ImGui.IsItemHovered())
         {
             ImGui.BeginTooltip();
-            DrawSourcingInTooltip(itemId);
+            DrawSourcingInTooltip(itemId, equippedItemId);
             ImGui.TextDisabled(T(LocKeys.BisItemHint));
             ImGui.EndTooltip();
         }

@@ -837,6 +837,9 @@ public static class LocKeys
     /// <summary>Sourcing: you own enough of this cost.</summary>
     public const string SourceHave = "source.have";
 
+    /// <summary>Sourcing: the base piece is already owned (equipped), so only the upgrade remains.</summary>
+    public const string SourceBaseOwned = "source.baseowned";
+
     /// <summary>Menu/command: open the what's-new window.</summary>
     public const string WhatsNewOpen = "whatsnew.open";
 
