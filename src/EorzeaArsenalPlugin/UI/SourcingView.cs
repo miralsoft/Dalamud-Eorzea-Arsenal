@@ -273,8 +273,26 @@ internal sealed class SourcingView
             return false;
         }
 
-        return string.Equals(info?.Source, "tome", StringComparison.Ordinal) && string.Equals(info?.Slot, slot, StringComparison.Ordinal);
+        return string.Equals(info?.Source, "tome", StringComparison.Ordinal) && SameSlot(info?.Slot, slot);
     }
+
+    /// <summary>
+    /// Whether two slot keys refer to the same wear position. A ring fits either finger, and the config
+    /// files a ring item under one canonical ring slot, so <c>RingLeft</c> and <c>RingRight</c> are
+    /// treated as one — otherwise a base ring worn in one finger would not satisfy the other's augment.
+    /// </summary>
+    private static bool SameSlot(string? a, string? b)
+    {
+        if (string.Equals(a, b, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return IsRing(a) && IsRing(b);
+    }
+
+    private static bool IsRing(string? slot) =>
+        string.Equals(slot, "RingLeft", StringComparison.Ordinal) || string.Equals(slot, "RingRight", StringComparison.Ordinal);
 
     // --- Step rendering ---------------------------------------------------------------------------
 

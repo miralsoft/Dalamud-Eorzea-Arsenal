@@ -332,6 +332,9 @@ public sealed class Plugin : IDalamudPlugin
             case "whatsnew":
                 OpenWhatsNew();
                 break;
+            case "obtainprobe":
+                RunObtainProbe();
+                break;
             case "weekdump":
                 RunWeeklyProbe();
                 break;
@@ -370,6 +373,54 @@ public sealed class Plugin : IDalamudPlugin
                 RequestManualPush();
                 break;
         }
+    }
+
+    /// <summary>
+    /// Diagnostic: fetches the sourcing for each currently equipped item and logs its source + slot,
+    /// so a "base owned" mismatch can be told apart — a plugin one (slot naming) from a server one
+    /// (the base not classified as tome, or no info returned). Written to <c>/xivarsenal log</c>.
+    /// </summary>
+    private void RunObtainProbe()
+    {
+        if (!_store.HasKey)
+        {
+            Chat(_localizer.Get(LocKeys.PushNotConnected));
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var equipped = await _framework.RunOnFrameworkThread(() => _gearSource.GetEquippedItems()).ConfigureAwait(false);
+                var ids = equipped.Values.Select(v => (long)v.Id).Where(id => id > 0).Distinct().ToList();
+                if (ids.Count == 0)
+                {
+                    Chat("obtainprobe: no equipped items read.");
+                    return;
+                }
+
+                await _obtainService.PrefetchAsync(ids, CancellationToken.None).ConfigureAwait(false);
+                foreach (var (slot, item) in equipped)
+                {
+                    if (item.Id <= 0)
+                    {
+                        continue;
+                    }
+
+                    var resolved = _obtainService.TryGet(item.Id, out var info);
+                    _log.Info(resolved
+                        ? $"obtainprobe {slot}: item {item.Id} -> source={info?.Source ?? "(null)"} obtainSlot={info?.Slot ?? "(null)"}"
+                        : $"obtainprobe {slot}: item {item.Id} -> no obtain data");
+                }
+
+                Chat("obtainprobe: equipped items written to the log (/xivarsenal log).");
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"obtainprobe failed: {ex.GetType().Name}.");
+            }
+        });
     }
 
     /// <summary>Triggers a manual push, gated by opt-in, connection and per-character settings.</summary>
