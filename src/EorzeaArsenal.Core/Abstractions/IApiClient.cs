@@ -132,6 +132,25 @@ public interface IApiClient
     /// <returns>Per-id sourcing (a <see langword="null"/> entry means "no info yet"), or a classified error.</returns>
     Task<ApiResult<ObtainResponse>> GetGearObtainAsync(string apiKey, IReadOnlyCollection<long> itemIds, CancellationToken ct);
 
+    /// <summary>
+    /// Reads the caller's own owned quantity per item via <c>GET /me/holdings?item_ids=…</c> — summed
+    /// across every synced storage including retainers (as of their last visit). Personal (<c>gear:read</c>).
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>gear:read</c>).</param>
+    /// <param name="itemIds">The item ids to count.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Per-id owned quantity (missing/zero = 0), or a classified error.</returns>
+    Task<ApiResult<HoldingsResponse>> GetHoldingsAsync(string apiKey, IReadOnlyCollection<long> itemIds, CancellationToken ct);
+
+    /// <summary>
+    /// Reads the active tier's tracked consumable ids via <c>GET /gear/tracked-items</c> (impersonal),
+    /// so the plugin can add exactly those to its inventory sync for owned-count coverage.
+    /// </summary>
+    /// <param name="apiKey">The API key (any valid key; the read is impersonal and rate-limited).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The item ids to track, or a classified error.</returns>
+    Task<ApiResult<TrackedItemsResponse>> GetTrackedItemsAsync(string apiKey, CancellationToken ct);
+
     /// <summary>Reads the FFLogs mirror via <c>GET /teams/{id}/logs</c> (<c>teams:read</c>; best-effort).</summary>
     /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
     /// <param name="teamId">The team id.</param>

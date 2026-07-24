@@ -1,5 +1,6 @@
 using Dalamud.Plugin.Services;
 using EorzeaArsenal.Abstractions;
+using EorzeaArsenal.Core;
 using EorzeaArsenal.Gear;
 using EorzeaArsenal.Model;
 using FFXIVClientStructs.FFXIV.Client.Game;
@@ -17,10 +18,12 @@ namespace EorzeaArsenal.Plugin.Gear;
 /// logged-in/null guards (P4); every read is wrapped so no exception ever reaches the game (P2).
 /// <para>
 /// Besides equippable gear, the loose storages (bags, saddlebag, retainer) also report <b>savage gear
-/// coffers</b>, so the web can show "you own this coffer ×N". A coffer is identified the same way the
-/// web derives them — a usable item whose name contains "Coffer"/"Kiste" — not by a hard-coded id
-/// list, so a new tier needs no change. Everything else (potions, materials, food) stays filtered out:
-/// the server's inventory store is the gear-ownership set and must not be flooded.
+/// coffers</b> (so the web can show "you own this coffer ×N") and the active tier's <b>tracked
+/// consumables</b> — the books/tokens/materials the server names via <c>/gear/tracked-items</c> — so
+/// its holdings can answer the sourcing view's "have / need". A coffer is identified the same way the
+/// web derives them (a usable item whose name contains "Coffer"/"Kiste"); the tracked set is the
+/// server's bounded list, so neither needs a hard-coded id list. Everything else (potions, food, other
+/// materials) stays filtered out: the server's inventory store must not be flooded.
 /// </para>
 /// </summary>
 public sealed class GameInventorySource : IInventorySource
@@ -63,6 +66,7 @@ public sealed class GameInventorySource : IInventorySource
     private readonly IPlayerState _playerState;
     private readonly IFramework _framework;
     private readonly IDataManager _data;
+    private readonly TrackedItemsStore _tracked;
     private readonly ILog _log;
 
     /// <summary>Creates the game inventory source.</summary>
@@ -70,13 +74,15 @@ public sealed class GameInventorySource : IInventorySource
     /// <param name="playerState">Local character identity (name, world, ContentId).</param>
     /// <param name="framework">Framework thread marshaller.</param>
     /// <param name="data">Excel data (for the equippable filter).</param>
+    /// <param name="tracked">The tier's tracked consumables to also report (materials/tokens).</param>
     /// <param name="log">Diagnostics sink.</param>
-    public GameInventorySource(IClientState clientState, IPlayerState playerState, IFramework framework, IDataManager data, ILog log)
+    public GameInventorySource(IClientState clientState, IPlayerState playerState, IFramework framework, IDataManager data, TrackedItemsStore tracked, ILog log)
     {
         _clientState = clientState;
         _playerState = playerState;
         _framework = framework;
         _data = data;
+        _tracked = tracked;
         _log = log;
     }
 
@@ -238,7 +244,7 @@ public sealed class GameInventorySource : IInventorySource
             }
 
             var id = (int)slot->ItemId;
-            if (id is <= 0 or > MaxRealItemId || !(IsEquippable(id) || (includeCoffers && IsGearCoffer(id))))
+            if (id is <= 0 or > MaxRealItemId || !(IsEquippable(id) || (includeCoffers && (IsGearCoffer(id) || _tracked.Contains(id)))))
             {
                 continue;
             }

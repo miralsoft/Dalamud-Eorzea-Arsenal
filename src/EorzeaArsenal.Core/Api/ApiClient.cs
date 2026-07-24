@@ -176,6 +176,17 @@ public sealed class ApiClient : IApiClient
     }
 
     /// <inheritdoc />
+    public Task<ApiResult<HoldingsResponse>> GetHoldingsAsync(string apiKey, IReadOnlyCollection<long> itemIds, CancellationToken ct)
+    {
+        var ids = string.Join(',', itemIds);
+        return GetAsync<HoldingsResponse>($"/me/holdings?item_ids={Uri.EscapeDataString(ids)}", apiKey, ct);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<TrackedItemsResponse>> GetTrackedItemsAsync(string apiKey, CancellationToken ct) =>
+        GetAsync<TrackedItemsResponse>("/gear/tracked-items", apiKey, ct);
+
+    /// <inheritdoc />
     public Task<ApiResult<LogsResponse>> GetLogsAsync(string apiKey, long teamId, CancellationToken ct) =>
         GetAsync<LogsResponse>($"/teams/{teamId}/logs", apiKey, ct);
 

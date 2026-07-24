@@ -179,6 +179,15 @@ public sealed class FakeApiClient : IApiClient
     /// <summary>Each id set passed to <see cref="GetGearObtainAsync"/>, in call order.</summary>
     public List<long[]> ObtainRequests { get; } = [];
 
+    /// <summary>Result returned by <see cref="GetHoldingsAsync"/>.</summary>
+    public ApiResult<HoldingsResponse> HoldingsResult { get; set; } = ApiResult<HoldingsResponse>.Ok(new HoldingsResponse { Data = new() });
+
+    /// <summary>Each id set passed to <see cref="GetHoldingsAsync"/>, in call order.</summary>
+    public List<long[]> HoldingsRequests { get; } = [];
+
+    /// <summary>Result returned by <see cref="GetTrackedItemsAsync"/>.</summary>
+    public ApiResult<TrackedItemsResponse> TrackedItemsResult { get; set; } = ApiResult<TrackedItemsResponse>.Ok(new TrackedItemsResponse { Data = [] });
+
     /// <summary>Result returned by <see cref="PostAttendanceAsync"/>.</summary>
     public ApiResult<StatusAck> AttendanceResult { get; set; } = ApiResult<StatusAck>.Ok(new StatusAck { Status = "ok" });
 
@@ -237,6 +246,17 @@ public sealed class FakeApiClient : IApiClient
         ObtainRequests.Add([.. itemIds]);
         return Task.FromResult(ObtainResult);
     }
+
+    /// <inheritdoc />
+    public Task<ApiResult<HoldingsResponse>> GetHoldingsAsync(string apiKey, IReadOnlyCollection<long> itemIds, CancellationToken ct)
+    {
+        HoldingsRequests.Add([.. itemIds]);
+        return Task.FromResult(HoldingsResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<TrackedItemsResponse>> GetTrackedItemsAsync(string apiKey, CancellationToken ct) =>
+        Task.FromResult(TrackedItemsResult);
 
     /// <inheritdoc />
     public Task<ApiResult<StatusAck>> PostAttendanceAsync(string apiKey, long teamId, long eventId, AttendanceRequest request, CancellationToken ct)

@@ -20,10 +20,16 @@ All notable changes to this project are documented here. The format is based on
     broken into the concrete things to do (*Fight …*, *Buy …*, *Upgrade …*), so an augmented (Tome+)
     piece reads **get the base first, then augment it** rather than assuming the base is in hand. The
     farm pulls the full chain from `GET /gear/obtain`, which its own response omits.
-  - **"Do I have it?" per step.** Each purchasable cost (tomes, tokens, materials) carries a
-    **have / need** count from your inventory — bags, equipped, armoury, the currency crystal and the
-    **saddlebag** — green once you own enough. (Retainer stock cannot be read unless the retainer is
-    open, so a stash there is not yet included.)
+  - **"Do I have it?" per step, retainers included.** Each purchasable cost (tokens, materials) carries
+    a **have / need** count, green once you own enough. The count comes from the server's holdings
+    (`GET /me/holdings`), which sum every synced storage **including each retainer as of its last
+    visit** — the one thing a live game read cannot see — with the live in-game count as an immediate
+    fallback until the server number lands. The plugin now also reports the tier's tracked consumables
+    (from `GET /gear/tracked-items`) in the inventory sync so those counts exist, and refreshes the
+    holdings after each sync.
+  - **"Base owned" from anywhere.** The Tome+ base step collapses to *Base owned* not only when the
+    base is equipped but whenever you hold it (bags, saddlebag or a retainer), using the base item ids
+    the server now sends on the hand-in cost.
   - **What's still short, per character.** Next to each teammate in the farm, a one-line summary sums
     the materials/tokens they still need across all their missing pieces, minus what they own — so you
     see at a glance what to gather for them.

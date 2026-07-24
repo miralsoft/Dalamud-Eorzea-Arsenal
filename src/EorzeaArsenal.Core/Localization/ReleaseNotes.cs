@@ -76,6 +76,10 @@ public static class ReleaseNotes
                 "In the group farm, each member now has a one-line summary of the materials they still need in total."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
+                "'Hast du / brauchst du' zählt jetzt auch Gehilfen-Bestände mit (vom letzten Besuch), und 'Basis vorhanden' greift, egal ob die Basis getragen wird oder in Tasche/Gehilfe liegt.",
+                "'Have / need' now counts retainer stock too (as of the last visit), and 'Base owned' applies whether the base is equipped or sitting in a bag/retainer."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
                 "'Im Web öffnen' springt direkt auf den Plan, den Termin oder den Inhalt, den du gerade ansiehst.",
                 "'Open in web' jumps straight to the plan, event or content you are looking at."),
             new ReleaseNoteItem(

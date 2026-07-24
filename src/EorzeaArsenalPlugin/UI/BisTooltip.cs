@@ -73,8 +73,9 @@ public sealed class BisTooltip
     /// <param name="gearSource">Provides the current gearset index, item names and ownership.</param>
     /// <param name="obtain">Chain-complete "how to get it" sourcing for a not-owned target.</param>
     /// <param name="world">Game actions (owned counts, map) for the sourcing renderer.</param>
+    /// <param name="holdings">Server-side owned counts (retainers included) for the sourcing renderer.</param>
     /// <param name="log">Diagnostics sink (so a draw failure is recorded, never thrown into the game).</param>
-    public BisTooltip(PluginConfig config, Localizer localizer, IGameGui gameGui, BisService bis, GameGearSource gearSource, ObtainService obtain, IWorldActions world, ILog log)
+    public BisTooltip(PluginConfig config, Localizer localizer, IGameGui gameGui, BisService bis, GameGearSource gearSource, ObtainService obtain, IWorldActions world, HoldingsService holdings, ILog log)
     {
         _config = config;
         _localizer = localizer;
@@ -82,7 +83,7 @@ public sealed class BisTooltip
         _bis = bis;
         _gearSource = gearSource;
         _obtain = obtain;
-        _sourcing = new SourcingView(localizer, world, obtain);
+        _sourcing = new SourcingView(localizer, world, obtain, holdings);
         _log = log;
     }
 

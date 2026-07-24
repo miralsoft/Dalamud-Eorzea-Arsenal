@@ -67,6 +67,7 @@ public sealed class BisWindow : Window
     /// <param name="textures">Loads game icons.</param>
     /// <param name="obtain">Fetches impersonal "how to get it" sourcing.</param>
     /// <param name="world">Game actions (owned counts, open the map at a vendor) for the sourcing.</param>
+    /// <param name="holdings">Server-side owned counts (retainers included) for the sourcing.</param>
     /// <param name="save">Persists the config (filter/scope choices).</param>
     /// <param name="linkItem">Posts a clickable item link to the game chat (arg: item id).</param>
     public BisWindow(
@@ -78,6 +79,7 @@ public sealed class BisWindow : Window
         ITextureProvider textures,
         ObtainService obtain,
         IWorldActions world,
+        HoldingsService holdings,
         Action save,
         Action<int> linkItem)
         : base("Eorzea Arsenal###EorzeaArsenalBis")
@@ -89,7 +91,7 @@ public sealed class BisWindow : Window
         _gearSource = gearSource;
         _textures = textures;
         _obtain = obtain;
-        _sourcing = new SourcingView(localizer, world, obtain);
+        _sourcing = new SourcingView(localizer, world, obtain, holdings);
         _save = save;
         _linkItem = linkItem;
 

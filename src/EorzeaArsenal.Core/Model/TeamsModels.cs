@@ -524,6 +524,12 @@ public sealed class FarmCostPart
     /// <summary>How that handed-in slot is acquired (<c>piece</c>).</summary>
     public string? Acq { get; init; }
 
+    /// <summary>
+    /// The tier's base item ids for a handed-in <c>piece</c> — every job's variant of that slot+acq —
+    /// so the plugin can look ownership up. Present alongside <see cref="Slot"/>/<see cref="Acq"/>.
+    /// </summary>
+    public List<long>? Ids { get; init; }
+
     /// <summary>How to get the handed-in piece, one level deeper (only when the chain was walked).</summary>
     public List<FarmRoute>? Chain { get; init; }
 }
@@ -581,6 +587,27 @@ public sealed class ObtainInfo
 
     /// <summary>The ways to get it, best/normal first (chain walked).</summary>
     public List<FarmRoute>? Routes { get; init; }
+}
+
+/// <summary>
+/// Response of <c>GET /me/holdings?item_ids=…</c>: the caller's own character's owned quantity per
+/// item id (string key), summed across every synced storage — bags, saddlebag, equipped, armoury and
+/// each retainer as of its last visit. A missing/zero id is <c>0</c>.
+/// </summary>
+public sealed class HoldingsResponse
+{
+    /// <summary>Item id (string) → owned quantity.</summary>
+    public Dictionary<string, int>? Data { get; init; }
+}
+
+/// <summary>
+/// Response of <c>GET /gear/tracked-items</c>: the active tier's consumable ids (raid books/tokens,
+/// upgrade materials) the plugin should also report in the inventory sync so holdings has their counts.
+/// </summary>
+public sealed class TrackedItemsResponse
+{
+    /// <summary>The item ids to track.</summary>
+    public List<long>? Data { get; init; }
 }
 
 // --- GET /teams/{id}/logs (FFLogs) -----------------------------------------------------------------

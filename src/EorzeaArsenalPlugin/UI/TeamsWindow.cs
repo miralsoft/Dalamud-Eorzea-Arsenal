@@ -36,6 +36,7 @@ public sealed class TeamsWindow : Window
     private readonly SourcingView _sourcing;
     private readonly ObtainService _obtain;
     private readonly IWorldActions _world;
+    private readonly HoldingsService _holdings;
     private readonly HashSet<long> _farmObtainRequested = [];
     private readonly TeamsService _teams;
     private readonly ITextureProvider _textures;
@@ -85,6 +86,7 @@ public sealed class TeamsWindow : Window
     /// <param name="openConfig">Opens the settings window.</param>
     /// <param name="world">Game actions (owned counts, open the map at a vendor) for the farm sourcing.</param>
     /// <param name="obtain">Chain-complete "how to get it" sourcing, to enrich the farm's own routes.</param>
+    /// <param name="holdings">Server-side owned counts (retainers included) for the farm's have/need.</param>
     /// <param name="openImage">Opens a content-hub image in the image window (teamId, resourceId, title).</param>
     public TeamsWindow(
         PluginConfig config,
@@ -96,6 +98,7 @@ public sealed class TeamsWindow : Window
         IPlayerState playerState,
         IWorldActions world,
         ObtainService obtain,
+        HoldingsService holdings,
         ILog log,
         Action save,
         Action openConfig,
@@ -105,9 +108,10 @@ public sealed class TeamsWindow : Window
         _config = config;
         _store = store;
         _localizer = localizer;
-        _sourcing = new SourcingView(localizer, world, obtain);
+        _sourcing = new SourcingView(localizer, world, obtain, holdings);
         _obtain = obtain;
         _world = world;
+        _holdings = holdings;
         _teams = teams;
         _textures = textures;
         _data = data;
@@ -1078,10 +1082,11 @@ public sealed class TeamsWindow : Window
             CollectNeeds(primary, needed, depth: 0);
         }
 
+        _ = _holdings.PrefetchAsync(needed.Keys, CancellationToken.None);
         var shortItems = new List<string>();
         foreach (var (itemId, entry) in needed)
         {
-            var have = _world.OwnedCount((uint)itemId);
+            var have = _holdings.TryGet(itemId, out var h) ? h : _world.OwnedCount((uint)itemId);
             var shortBy = entry.Count - have;
             if (shortBy > 0)
             {

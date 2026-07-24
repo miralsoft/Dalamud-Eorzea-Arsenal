@@ -46,16 +46,19 @@ internal sealed class SourcingView
     private readonly Localizer _localizer;
     private readonly IWorldActions _world;
     private readonly ObtainService _obtain;
+    private readonly HoldingsService _holdings;
 
     /// <summary>Creates the renderer.</summary>
     /// <param name="localizer">UI string resolver.</param>
-    /// <param name="world">Game actions: how many of an item is owned, and pin a vendor on the map.</param>
+    /// <param name="world">Game actions: how many of an item is owned (live), and pin a vendor on the map.</param>
     /// <param name="obtain">Sourcing lookup — used to recognise an equipped item as a tome base.</param>
-    public SourcingView(Localizer localizer, IWorldActions world, ObtainService obtain)
+    /// <param name="holdings">Server-side owned counts (retainers included); preferred over the live count.</param>
+    public SourcingView(Localizer localizer, IWorldActions world, ObtainService obtain, HoldingsService holdings)
     {
         _localizer = localizer;
         _world = world;
         _obtain = obtain;
+        _holdings = holdings;
     }
 
     private enum StepKind
@@ -72,6 +75,48 @@ internal sealed class SourcingView
     private string T(string key) => _localizer.Get(key);
 
     private bool German => _localizer.Language == Localizer.German;
+
+    /// <summary>How many of an item the player owns — the server holdings (retainers included) when
+    /// they have loaded, otherwise the live in-game count as an immediate fallback.</summary>
+    private int Owned(long itemId) =>
+        itemId > 0 && _holdings.TryGet(itemId, out var count) ? count : _world.OwnedCount((uint)itemId);
+
+    /// <summary>Warms holdings for every material/token/base id a piece references, so counts are ready.</summary>
+    private void EnsureHoldings(List<FarmRoute>? routes)
+    {
+        var ids = new List<long>();
+        CollectHoldingsIds(routes, ids, 0);
+        if (ids.Count > 0)
+        {
+            _ = _holdings.PrefetchAsync(ids, System.Threading.CancellationToken.None);
+        }
+    }
+
+    private static void CollectHoldingsIds(List<FarmRoute>? routes, List<long> into, int depth)
+    {
+        if (routes is null || depth > 2)
+        {
+            return;
+        }
+
+        foreach (var route in routes)
+        {
+            foreach (var cost in route.Cost ?? [])
+            {
+                if (cost.Id is { } id && id > 0)
+                {
+                    into.Add(id);
+                }
+
+                foreach (var baseId in cost.Ids ?? [])
+                {
+                    into.Add(baseId);
+                }
+
+                CollectHoldingsIds(cost.Chain, into, depth + 1);
+            }
+        }
+    }
 
     /// <summary>Localizes a gear-slot key (German where a translation exists, else the raw key).</summary>
     public string SlotName(string key) => German && SlotDe.TryGetValue(key, out var de) ? de : key;
@@ -103,6 +148,7 @@ internal sealed class SourcingView
     /// </summary>
     public void DrawCompact(string? source, List<FarmRoute>? routes, long equippedItemId = 0)
     {
+        EnsureHoldings(routes);
         var methods = BuildMethods(source, routes, equippedItemId);
         if (methods.Count == 0)
         {
@@ -175,6 +221,7 @@ internal sealed class SourcingView
 
     private void DrawStepList(string? source, List<FarmRoute>? routes, bool heading, bool inline, long equippedItemId)
     {
+        EnsureHoldings(routes);
         var methods = BuildMethods(source, routes, equippedItemId);
 
         if (heading)
@@ -296,7 +343,7 @@ internal sealed class SourcingView
 
                 foreach (var piece in pieces)
                 {
-                    if (IsEquippedBase(equippedItemId, piece.Slot))
+                    if (IsBaseOwned(piece, equippedItemId))
                     {
                         steps.Add(new SourceStep(StepKind.BaseOwned, [], null, null, null, [], piece.Slot));
                     }
@@ -326,9 +373,32 @@ internal sealed class SourcingView
     private static string? AcqToSource(string? acq) => acq;
 
     /// <summary>
-    /// Whether the currently equipped item is the tome base for a slot — i.e. the piece you would hand
-    /// in for the augment. Resolved from its own sourcing (a tome piece of the same slot), so a "buy the
-    /// base" step collapses to "base owned" when you are already wearing it.
+    /// Whether the handed-in base is already owned, so the "buy the base" step collapses to "base owned":
+    /// either it is owned <b>anywhere</b> (any of the server's base ids for the slot held per holdings,
+    /// retainers included) or it is the currently equipped piece.
+    /// </summary>
+    private bool IsBaseOwned(FarmCostPart piece, long equippedItemId)
+    {
+        if (piece.Id is { } single && single > 0 && Owned(single) > 0)
+        {
+            return true;
+        }
+
+        foreach (var id in piece.Ids ?? [])
+        {
+            if (Owned(id) > 0)
+            {
+                return true;
+            }
+        }
+
+        return IsEquippedBase(equippedItemId, piece.Slot);
+    }
+
+    /// <summary>
+    /// Whether the currently equipped item is the tome base for a slot — resolved from its own sourcing
+    /// (a tome piece of the same slot). The fast path for a worn base, and the only path until the
+    /// server sends the base ids.
     /// </summary>
     private bool IsEquippedBase(long equippedItemId, string? slot)
     {
@@ -424,7 +494,7 @@ internal sealed class SourcingView
         var name = cost.Name ?? (cost.Id is { } id ? $"#{id}" : T(LocKeys.TeamsFarmCoffer));
         if (cost.Id is { } itemId && itemId > 0)
         {
-            var have = _world.OwnedCount((uint)itemId);
+            var have = Owned(itemId);
             var enough = have >= cost.Count;
             ImGui.TextColored(Text, $"{cost.Count}× {name}");
             ImGui.SameLine(0f, 6f);
@@ -454,7 +524,7 @@ internal sealed class SourcingView
         {
             if (cost.Id is { } id && id > 0)
             {
-                shortBy += Math.Max(0, cost.Count - _world.OwnedCount((uint)id));
+                shortBy += Math.Max(0, cost.Count - Owned(id));
             }
         }
 

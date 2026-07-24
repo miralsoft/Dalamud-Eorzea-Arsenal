@@ -42,6 +42,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ILog _log;
 
     private readonly HttpClient _httpClient;
+    private readonly IApiClient _api;
     private readonly PluginConfig _config;
     private readonly ConfigStore _store;
     private readonly Localizer _localizer;
@@ -57,6 +58,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly TeamsSeenStore _teamsSeenStore;
     private readonly BisService _bisService;
     private readonly ObtainService _obtainService;
+    private readonly HoldingsService _holdingsService;
+    private readonly TrackedItemsStore _trackedItems;
     private readonly WorldActions _worldActions;
 
     private readonly WindowSystem _windowSystem = new("EorzeaArsenal");
@@ -152,8 +155,10 @@ public sealed class Plugin : IDalamudPlugin
         _localizer = new Localizer(_config.Language);
 
         var api = new ApiClient(_httpClient, _store);
+        _api = api;
+        _trackedItems = new TrackedItemsStore();
         _gearSource = new GameGearSource(clientState, playerState, framework, dataManager, _log);
-        _inventorySource = new GameInventorySource(clientState, playerState, framework, dataManager, _log);
+        _inventorySource = new GameInventorySource(clientState, playerState, framework, dataManager, _trackedItems, _log);
         _weeklySource = new GameWeeklySource(clientState, playerState, framework, gameGui, dataManager, _log);
         _connection = new ConnectionService(api, _store, new RealDelay(), _log);
 
@@ -178,18 +183,19 @@ public sealed class Plugin : IDalamudPlugin
         _teamsService.Toast += OnTeamToast;
         _bisService = new BisService(api, _gearSource, _store, _log);
         _obtainService = new ObtainService(api, _store, _log);
+        _holdingsService = new HoldingsService(api, _store, _log);
         _worldActions = new WorldActions(gameGui, dataManager);
 
-        _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, _obtainService, _worldActions, Save, LinkItemInChat);
+        _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, _obtainService, _worldActions, _holdingsService, Save, LinkItemInChat);
         _logWindow = new LogWindow(_logBuffer, _localizer);
         _previewWindow = new PreviewWindow(_gearSource, _localizer, _log);
         _imageWindow = new ImageWindow(_teamsService, textureProvider, _localizer, _log);
         _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
         _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenLog, OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew);
-        _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _log, Save, OpenConfig, OpenImage);
+        _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, _log, Save, OpenConfig, OpenImage);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save);
-        _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _obtainService, _worldActions, _log);
+        _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _obtainService, _worldActions, _holdingsService, _log);
         _windowSystem.AddWindow(_previewWindow);
         _windowSystem.AddWindow(_imageWindow);
         _windowSystem.AddWindow(_teamsWindow);
@@ -221,6 +227,10 @@ public sealed class Plugin : IDalamudPlugin
         {
             HelpMessage = _localizer.Get(LocKeys.CommandHelp),
         });
+
+        // The plugin usually loads mid-session (already logged in), where Login will not fire — so warm
+        // the tracked-items list now if a key is already connected.
+        RefreshTrackedItems();
     }
 
     /// <inheritdoc />
@@ -514,6 +524,42 @@ public sealed class Plugin : IDalamudPlugin
         Chat("Weekly probe written to the log (open it via the log button / /xivarsenal log).");
     });
 
+    /// <summary>
+    /// Fetches the active tier's tracked consumable ids so the inventory scan reports them too. Runs
+    /// in the background, gated on a connected key; a failure just leaves the set as it was (nothing
+    /// extra is reported, the old behaviour). It updates for the next sync, not the current one.
+    /// </summary>
+    private void RefreshTrackedItems()
+    {
+        if (!_config.Enabled || !_store.HasKey)
+        {
+            return;
+        }
+
+        var key = _store.ApiKey;
+        if (string.IsNullOrEmpty(key))
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var result = await _api.GetTrackedItemsAsync(key, CancellationToken.None).ConfigureAwait(false);
+                if (result.IsSuccess && result.Value?.Data is { } ids)
+                {
+                    _trackedItems.Set(ids);
+                    _log.Info($"Tracked items updated: {ids.Count} id(s).");
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"Tracked-items fetch failed: {ex.GetType().Name}.");
+            }
+        });
+    }
+
     /// <summary>Triggers a manual weekly-checklist sync, gated like the gear push.</summary>
     private void RequestWeeklySync()
     {
@@ -563,6 +609,10 @@ public sealed class Plugin : IDalamudPlugin
         // A new session means no retainer is open and the character may differ — reset the
         // retainer-scan dedup so the next visited retainer is re-scanned.
         _lastRetainerScope = null;
+
+        // Learn which consumables to also report (materials/tokens for the active tier), so a later
+        // inventory sync uploads their counts and "have / need" can be answered server-side.
+        RefreshTrackedItems();
 
         // Upload owned items once per session start so the web app reflects this character on login.
         if (_config is { Enabled: true, TosAccepted: true, SyncInventory: true } && _store.HasKey && CurrentCharacterAllowed())
@@ -874,6 +924,12 @@ public sealed class Plugin : IDalamudPlugin
     /// <summary>Reports inventory upload outcomes to chat/toast; stays quiet for skipped/no-op runs.</summary>
     private void OnInventoryCompleted(InventoryReport report)
     {
+        // New items reached the server, so the cached owned counts are stale — drop them.
+        if (report.Outcome == InventoryOutcome.Sent)
+        {
+            _holdingsService.Invalidate();
+        }
+
         var message = InventoryMessage(report);
         if (message is null)
         {
