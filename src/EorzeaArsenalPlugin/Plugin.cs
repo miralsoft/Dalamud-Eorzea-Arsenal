@@ -560,6 +560,49 @@ public sealed class Plugin : IDalamudPlugin
         });
     }
 
+    /// <summary>
+    /// Pushes the capped-tomestone balance to <c>PUT /me/tome-balance</c> for the web purchase advisor.
+    /// Background, gated on a connected + allowed character whose server id is known; a missing scope or
+    /// unknown id just no-ops (the advisor still works with a hand-typed number). Idempotent — a value
+    /// equal to the stored one is harmless — and never adds a poll (it piggy-backs the inventory sync).
+    /// </summary>
+    /// <param name="trigger">What triggered it (for the log line).</param>
+    private void PushTomeBalance(string trigger)
+    {
+        if (!_config.Enabled || !_config.TosAccepted || !_store.HasKey || !CurrentCharacterAllowed())
+        {
+            return;
+        }
+
+        var key = _store.ApiKey;
+        if (string.IsNullOrEmpty(key))
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var (balance, cidHash) = await _framework.RunOnFrameworkThread(() => _weeklySource.ReadTomeBalance()).ConfigureAwait(false);
+                if (balance is null || string.IsNullOrEmpty(cidHash) ||
+                    !_characterDirectory.TryGet(cidHash, out var characterId) || !long.TryParse(characterId, out var id))
+                {
+                    return; // no balance, or the character's server id is not known yet
+                }
+
+                var result = await _api.PutTomeBalanceAsync(key, id, balance.Value, CancellationToken.None).ConfigureAwait(false);
+                _log.Info(result.IsSuccess
+                    ? $"Tome balance pushed: {balance} ({trigger})."
+                    : $"Tome balance push: {result.Error?.Kind} ({trigger}).");
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"Tome balance push failed: {ex.GetType().Name}.");
+            }
+        });
+    }
+
     /// <summary>Triggers a manual weekly-checklist sync, gated like the gear push.</summary>
     private void RequestWeeklySync()
     {
@@ -930,6 +973,10 @@ public sealed class Plugin : IDalamudPlugin
             _holdingsService.Invalidate();
         }
 
+        // Piggy-back the capped-tomestone balance on the inventory sync (we just read the game anyway),
+        // so the web purchase advisor stays current without the player retyping it.
+        PushTomeBalance("inventory");
+
         var message = InventoryMessage(report);
         if (message is null)
         {
@@ -1109,6 +1156,10 @@ public sealed class Plugin : IDalamudPlugin
     {
         _config.CharacterIds = new Dictionary<string, string>(_characterDirectory.Snapshot(), StringComparer.Ordinal);
         Save();
+
+        // The character's server id is now known (learned from a push) — a balance push that no-opped
+        // earlier for lack of it can go through.
+        PushTomeBalance("character-id");
     }
 
     private string ServerHost()

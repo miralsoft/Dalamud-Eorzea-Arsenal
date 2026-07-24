@@ -187,6 +187,17 @@ public sealed class ApiClient : IApiClient
         GetAsync<TrackedItemsResponse>("/gear/tracked-items", apiKey, ct);
 
     /// <inheritdoc />
+    public async Task<ApiResult<TomeBalanceResponse>> PutTomeBalanceAsync(string apiKey, long characterId, int balance, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, Url("/me/tome-balance"))
+        {
+            Content = JsonBody(new TomeBalanceRequest { Balance = balance, CharacterId = characterId }),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<TomeBalanceResponse>(request, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public Task<ApiResult<LogsResponse>> GetLogsAsync(string apiKey, long teamId, CancellationToken ct) =>
         GetAsync<LogsResponse>($"/teams/{teamId}/logs", apiKey, ct);
 

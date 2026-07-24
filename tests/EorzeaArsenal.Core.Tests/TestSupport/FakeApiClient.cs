@@ -188,6 +188,12 @@ public sealed class FakeApiClient : IApiClient
     /// <summary>Result returned by <see cref="GetTrackedItemsAsync"/>.</summary>
     public ApiResult<TrackedItemsResponse> TrackedItemsResult { get; set; } = ApiResult<TrackedItemsResponse>.Ok(new TrackedItemsResponse { Data = [] });
 
+    /// <summary>Each (characterId, balance) passed to <see cref="PutTomeBalanceAsync"/>, in call order.</summary>
+    public List<(long CharacterId, int Balance)> TomeBalancePushes { get; } = [];
+
+    /// <summary>Result returned by <see cref="PutTomeBalanceAsync"/>.</summary>
+    public ApiResult<TomeBalanceResponse> TomeBalanceResult { get; set; } = ApiResult<TomeBalanceResponse>.Ok(new TomeBalanceResponse { Data = new TomeBalanceData { Balance = 0 } });
+
     /// <summary>Result returned by <see cref="PostAttendanceAsync"/>.</summary>
     public ApiResult<StatusAck> AttendanceResult { get; set; } = ApiResult<StatusAck>.Ok(new StatusAck { Status = "ok" });
 
@@ -257,6 +263,13 @@ public sealed class FakeApiClient : IApiClient
     /// <inheritdoc />
     public Task<ApiResult<TrackedItemsResponse>> GetTrackedItemsAsync(string apiKey, CancellationToken ct) =>
         Task.FromResult(TrackedItemsResult);
+
+    /// <inheritdoc />
+    public Task<ApiResult<TomeBalanceResponse>> PutTomeBalanceAsync(string apiKey, long characterId, int balance, CancellationToken ct)
+    {
+        TomeBalancePushes.Add((characterId, balance));
+        return Task.FromResult(TomeBalanceResult);
+    }
 
     /// <inheritdoc />
     public Task<ApiResult<StatusAck>> PostAttendanceAsync(string apiKey, long teamId, long eventId, AttendanceRequest request, CancellationToken ct)

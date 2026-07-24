@@ -43,6 +43,11 @@ All notable changes to this project are documented here. The format is based on
   - The **in-game hover overlay** now also shows how to get the target when you are hovering a piece
     that is *not* your BiS item and you do not own the right one yet — so you see where to get it
     without opening a window.
+- **Capped-tomestone balance sync.** The plugin now sends your current capped-tomestone count to the
+  web purchase advisor (`PUT /me/tome-balance`), so it can say what to buy now vs. in N weeks without
+  you retyping a number the game already knows. It piggy-backs the inventory sync (no extra polling),
+  needs a key with **`characters:write`**, and is per character; if it cannot push, the advisor still
+  works from a hand-typed number.
 
 ### Fixed
 - The hidden Duty-Finder refresh (the `normal`/`alliance` weekly read) no longer leaves the finder on

@@ -151,6 +151,76 @@ public sealed class GameWeeklySource : IWeeklySource
         return Math.Clamp(acquired, 0, limit);
     }
 
+    private uint _cappedTomeItemId;
+    private bool _cappedTomeResolved;
+
+    /// <summary>
+    /// Reads the caller's capped-tomestone <b>balance</b> (how many are currently held) and their
+    /// cid_hash — for the purchase-advisor push. Distinct from <see cref="ReadWeeklyTomes"/>, which is
+    /// how many were <i>acquired this week</i>. Framework thread; never throws (P2).
+    /// </summary>
+    /// <returns>The clamped balance (0…9999) and cid_hash, or nulls when unavailable.</returns>
+    public unsafe (int? Balance, string? CidHash) ReadTomeBalance()
+    {
+        try
+        {
+            var character = ReadCharacter();
+            var itemId = CappedTomestoneItemId();
+            var inventory = InventoryManager.Instance();
+            if (itemId == 0 || inventory == null)
+            {
+                return (null, character?.CidHash);
+            }
+
+            var balance = Math.Clamp((int)inventory->GetInventoryItemCount(itemId), 0, 9999);
+            return (balance, character?.CidHash);
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Tome balance read failed: {ex.GetType().Name}.");
+            return (null, null);
+        }
+    }
+
+    /// <summary>
+    /// Resolves (once, cached) the current capped tomestone's item id: the newest <c>TomestonesItem</c>
+    /// whose slot carries a weekly limit — so it tracks the patch's current limited tomestone without a
+    /// hard-coded id.
+    /// </summary>
+    private uint CappedTomestoneItemId()
+    {
+        if (_cappedTomeResolved)
+        {
+            return _cappedTomeItemId;
+        }
+
+        _cappedTomeResolved = true;
+        try
+        {
+            var sheet = _data.GetExcelSheet<Lumina.Excel.Sheets.TomestonesItem>();
+            if (sheet is null)
+            {
+                return 0;
+            }
+
+            uint newestRow = 0;
+            foreach (var row in sheet)
+            {
+                if (row.Item.RowId > 0 && row.Tomestones.ValueNullable is { WeeklyLimit: > 0 } && row.RowId > newestRow)
+                {
+                    newestRow = row.RowId;
+                    _cappedTomeItemId = row.Item.RowId;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Capped-tomestone resolve failed: {ex.GetType().Name}.");
+        }
+
+        return _cappedTomeItemId;
+    }
+
     private unsafe bool? ReadCustomDone()
     {
         var manager = SatisfactionSupplyManager.Instance();

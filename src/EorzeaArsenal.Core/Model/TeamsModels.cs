@@ -610,6 +610,30 @@ public sealed class TrackedItemsResponse
     public List<long>? Data { get; init; }
 }
 
+/// <summary>Body of <c>PUT /me/tome-balance</c>: the caller's capped-tomestone balance for a character.</summary>
+public sealed class TomeBalanceRequest
+{
+    /// <summary>Capped-tomestone count (server clamps to 0…9999).</summary>
+    public int Balance { get; init; }
+
+    /// <summary>The character the balance belongs to (must be the caller's own).</summary>
+    public long CharacterId { get; init; }
+}
+
+/// <summary>Response of <c>GET/PUT /me/tome-balance</c>: the stored balance echo.</summary>
+public sealed class TomeBalanceResponse
+{
+    /// <summary>The balance payload.</summary>
+    public TomeBalanceData? Data { get; init; }
+}
+
+/// <summary>The stored capped-tomestone balance (<see langword="null"/> when never set).</summary>
+public sealed class TomeBalanceData
+{
+    /// <summary>The balance.</summary>
+    public int? Balance { get; init; }
+}
+
 // --- GET /teams/{id}/logs (FFLogs) -----------------------------------------------------------------
 
 /// <summary>Response of <c>GET /teams/{id}/logs</c>: the FFLogs mirror (best-effort, never fatal).</summary>

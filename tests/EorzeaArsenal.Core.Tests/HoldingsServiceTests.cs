@@ -80,6 +80,20 @@ public sealed class HoldingsServiceTests
     }
 
     [Fact]
+    public void TomeBalanceRoundTrips()
+    {
+        var body = JsonSerializer.Serialize(new TomeBalanceRequest { Balance = 830, CharacterId = 1234 }, EorzeaJson.Options);
+        Assert.Contains("\"balance\":830", body);
+        Assert.Contains("\"character_id\":1234", body);
+
+        var res = JsonSerializer.Deserialize<TomeBalanceResponse>("""{"data":{"balance":830}}""", EorzeaJson.Options);
+        Assert.Equal(830, res!.Data!.Balance);
+
+        var unset = JsonSerializer.Deserialize<TomeBalanceResponse>("""{"data":{"balance":null}}""", EorzeaJson.Options);
+        Assert.Null(unset!.Data!.Balance);
+    }
+
+    [Fact]
     public void TrackedItemsStoreFiltersAndSwaps()
     {
         var store = new TrackedItemsStore();

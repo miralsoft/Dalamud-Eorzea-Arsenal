@@ -151,6 +151,17 @@ public interface IApiClient
     /// <returns>The item ids to track, or a classified error.</returns>
     Task<ApiResult<TrackedItemsResponse>> GetTrackedItemsAsync(string apiKey, CancellationToken ct);
 
+    /// <summary>
+    /// Pushes the caller's capped-tomestone balance for a character via <c>PUT /me/tome-balance</c>
+    /// (bearer + <c>characters:write</c>, no CSRF). Own character only; the server clamps to 0…9999.
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>characters:write</c>).</param>
+    /// <param name="characterId">The caller's own server character id.</param>
+    /// <param name="balance">The capped-tomestone count.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The stored balance echo, or a classified error (403 scope / 404 foreign character).</returns>
+    Task<ApiResult<TomeBalanceResponse>> PutTomeBalanceAsync(string apiKey, long characterId, int balance, CancellationToken ct);
+
     /// <summary>Reads the FFLogs mirror via <c>GET /teams/{id}/logs</c> (<c>teams:read</c>; best-effort).</summary>
     /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
     /// <param name="teamId">The team id.</param>
