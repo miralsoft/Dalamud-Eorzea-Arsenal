@@ -1001,6 +1001,24 @@ public static class LocKeys
     /// <summary>Advisor: the layout has unsaved edits.</summary>
     public const string AdvisorUnsaved = "advisor.unsaved";
 
+    /// <summary>BiS: accordion heading — what this set still needs in total.</summary>
+    public const string BisNeedsHeading = "bis.needs.heading";
+
+    /// <summary>BiS: the tomestones the remaining purchases add up to, against the balance.</summary>
+    public const string BisNeedsTomes = "bis.needs.tomes";
+
+    /// <summary>BiS: how many tomestones are still short.</summary>
+    public const string BisNeedsShort = "bis.needs.short";
+
+    /// <summary>BiS: roughly how many capped weeks that is.</summary>
+    public const string BisNeedsWeeks = "bis.needs.weeks";
+
+    /// <summary>BiS: the balance already covers the remaining purchases.</summary>
+    public const string BisNeedsCovered = "bis.needs.covered";
+
+    /// <summary>BiS: nothing left to buy or collect for this set.</summary>
+    public const string BisNeedsNothing = "bis.needs.nothing";
+
     /// <summary>Config: purchase-advisor text size.</summary>
     public const string AdvisorScale = "advisor.scale";
 

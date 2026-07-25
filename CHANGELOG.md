@@ -63,11 +63,35 @@ All notable changes to this project are documented here. The format is based on
     `groups` on `GET /gear/tracked-items`, so a tier rotation carries itself without a plugin release —
     each with the **server's** owned count, which is the only one that includes your retainers. The
     live in-game count fills in until the server number lands.
-  - `PUT`/`DELETE /me/advisor-plan` are wired and unit-tested but not yet reachable from the UI; a plan
-    is an explicit choice, so it will only ever be written on a deliberate user action, never as a
-    background sync.
+  - **The recommendation, computed server-side.** `GET /me/advisor-options` returns the one ranking the
+    web renders too, so the plugin never owns a second copy of the rules and a tier rotation needs no
+    release: the ranked steps with their tomestone price, when each becomes affordable against the
+    pushed balance, the vendor, and the material each consumes.
+  - **The set as a grid**, laid out like the BiS window and coloured like the web advisor (green on
+    BiS, blue you own it, orange next purchase, grey nothing deterministic left), leading with the
+    single best next move and the set's numbers.
+  - **My layout is editable in game.** The picker per slot offers exactly the pieces the server lists,
+    so a saved plan can never contain an invented item id; saving writes to the same key the web does.
+    A plan is only ever written on a deliberate action, never as a background sync.
+  - Every icon answers on hover: what the piece is, whether you wear/own/still need it, the route in,
+    and — for a material — which bag or retainer the stacks sit in.
+- **"Still needed for this set" in the BiS window.** Each set folds out what completing it actually
+  costs: the tomestones the remaining purchases add up to, measured against the balance the plugin
+  pushes (with how many capped weeks that is), and every upgrade material and raid book still short,
+  each with what you already hold. The totals come from the advisor, so the book trade counts as the
+  alternative to a savage drop exactly as the advisor ranks it, and the read only fires when the
+  section is opened.
 
 ### Fixed
+- **Owned counts no longer read 0 for anything the server does not track.** The server's holdings won
+  unconditionally, but a server `0` means "no record", not "you own none": the weekly tomestone is a
+  currency and is never part of the inventory sync at all, so a player holding 1109 was shown `0/495`.
+  The count is now the higher of the server's number and the game's — the server still wins for
+  retainer stock, the game still wins for anything not synced yet. Holdings are also pinned to the
+  character on screen (`&character_id=`), instead of whichever one the account last made active.
+- **Automatic syncs no longer talk in chat.** Only a sync you asked for reports there; logins, the
+  periodic timer, retainer visits and the hidden Duty-Finder refresh (which produced the duplicate
+  "2 weekly fields" lines) go to the log instead. Failures still always speak.
 - The hidden Duty-Finder refresh (the `normal`/`alliance` weekly read) no longer leaves the finder on
   the raid it loaded. It now remembers the duty you had selected and re-selects it before closing, so
   reopening the Duty Finder puts you back where you were — including a **roulette** (Duty Roulette /

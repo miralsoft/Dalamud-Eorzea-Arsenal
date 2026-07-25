@@ -200,7 +200,7 @@ public sealed class Plugin : IDalamudPlugin
         _advisorService = new AdvisorService(api, _store, _log);
         _worldActions = new WorldActions(gameGui, dataManager);
 
-        _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, _obtainService, _worldActions, _holdingsService, Save, LinkItemInChat);
+        _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, _obtainService, _worldActions, _holdingsService, _advisorService, ServerCharacterId, Save, LinkItemInChat);
         _advisorWindow = new AdvisorWindow(_config, _store, _localizer, _bisService, _advisorService, _trackedItems, _holdingsService, _obtainService, _gearSource, _worldActions, textureProvider, ServerCharacterId, LinkItemInChat);
         _logWindow = new LogWindow(_logBuffer, _localizer);
         _previewWindow = new PreviewWindow(_gearSource, _localizer, _log);

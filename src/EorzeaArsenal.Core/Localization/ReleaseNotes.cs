@@ -84,8 +84,12 @@ public static class ReleaseNotes
                 "'Open in web' jumps straight to the plan, event or content you are looking at."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
-                "Neuer Kaufberater: zeigt den im Web angelegten Plan für die Zwischenausrüstung bis zum BiS und daneben deine Vorräte (Material, Stein, Bücher) mit den Server-Zahlen, also inklusive Gehilfen.",
-                "New purchase advisor: shows the plan you built on the web for the gear on the way to BiS, next to your stock (materials, stone, books) counted server-side — retainers included."),
+                "Neuer Kaufberater: was als Nächstes zu kaufen ist — mit Preis in Steinen, ob es jetzt oder erst in N Wochen reicht, Händler und Material pro Schritt. Dein Set als Raster wie im BiS-Vergleich, dazu deine eigene Aufstellung, die du im Spiel bearbeiten und speichern kannst.",
+                "New purchase advisor: what to buy next — with its tomestone price, whether you can afford it now or in N weeks, the vendor and the material per step. Your set as a grid like the BiS view, plus your own layout, editable and saveable in game."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "Im BiS-Vergleich klappt unter jedem Set 'Noch nötig für dieses Set' auf: wie viele Steine die restlichen Käufe zusammen kosten (und wie viele Wochen das noch sind) sowie jedes Material und jedes Buch, das noch fehlt — inklusive der Bücher als Alternative zum Kistendrop.",
+                "In the BiS view, each set folds out 'Still needed for this set': what the remaining purchases add up to in tomestones (and how many weeks that is), plus every material and raid book still missing — books included as the alternative to a coffer drop."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "Dieser Bereich: 'Was ist neu' fasst nach jedem Update die wichtigsten Änderungen zusammen.",
