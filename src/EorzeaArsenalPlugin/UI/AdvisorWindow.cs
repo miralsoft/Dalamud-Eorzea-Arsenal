@@ -85,6 +85,9 @@ public sealed class AdvisorWindow : Window
     // Stock ids already asked for, so Draw fires one prefetch per set of ids, not one per frame.
     private readonly HashSet<long> _stockRequested = [];
 
+    // Per-frame counter giving each drawn icon its own popup id.
+    private int _iconSeq;
+
     /// <summary>Creates the purchase-advisor window.</summary>
     /// <param name="config">Live config.</param>
     /// <param name="store">Token store (gates every read).</param>
@@ -158,6 +161,8 @@ public sealed class AdvisorWindow : Window
     public override void Draw()
     {
         WindowName = $"{T(LocKeys.AdvisorWindowTitle)}###EorzeaArsenalAdvisor";
+
+        _iconSeq = 0;
 
         // Item names here are long and the pickers hold dozens of entries, so the window runs at its
         // own scale rather than the game's default — otherwise the list is unreadable in a raid.
@@ -360,12 +365,13 @@ public sealed class AdvisorWindow : Window
             return;
         }
 
+        var from = (int)(best.From ?? 0);
+
         ImGui.TextDisabled(T(LocKeys.AdvisorNextBest));
-        DrawIcon(itemId, TileSize);
+        DrawItemIcon(itemId, TileSize, from);
         ImGui.SameLine();
         ImGui.BeginGroup();
 
-        var from = (int)(best.From ?? 0);
         var arrow = from > 0
             ? $"i{_gearSource.GetItemLevel(from)} → i{_gearSource.GetItemLevel(itemId)}"
             : $"i{_gearSource.GetItemLevel(itemId)}";
@@ -479,14 +485,15 @@ public sealed class AdvisorWindow : Window
             ? planned.GetValueOrDefault(slot)
             : entry.Recommended ?? entry.Current?.Id ?? 0);
 
-        DrawIcon(worn, TileSize);
+        // Both icons answer on hover: the left one is what you wear, the right one what it becomes.
+        DrawItemIcon(worn, TileSize, worn);
         if (next > 0 && next != worn)
         {
             ImGui.SameLine(0f, 4f);
             ImGui.AlignTextToFramePadding();
             ImGui.TextColored(Muted, "→");
             ImGui.SameLine(0f, 4f);
-            DrawIcon(next, TileSize);
+            DrawItemIcon(next, TileSize, worn);
         }
 
         ImGui.TableNextColumn();
@@ -531,7 +538,7 @@ public sealed class AdvisorWindow : Window
         }
 
         ImGui.Spacing();
-        DrawIcon(itemId, IconSize);
+        DrawItemIcon(itemId, IconSize, (int)(step.From ?? 0));
         ImGui.SameLine();
         ImGui.BeginGroup();
 
@@ -586,7 +593,7 @@ public sealed class AdvisorWindow : Window
         foreach (var need in needs)
         {
             var owned = Math.Max(need.Owned, Owned((int)need.Id));
-            DrawIcon((int)need.Id, IconSize);
+            DrawItemIcon((int)need.Id, IconSize);
             ImGui.SameLine();
             ClickableItem(
                 owned >= need.Need ? Green : Orange,
@@ -714,7 +721,7 @@ public sealed class AdvisorWindow : Window
             return;
         }
 
-        DrawIcon((int)chosen, IconSize);
+        DrawItemIcon((int)chosen, IconSize, (int)(entry.Current?.Id ?? 0));
         ImGui.SameLine();
 
         var labels = ids.Select(id => OptionLabel(id, entry)).ToArray();
@@ -879,7 +886,7 @@ public sealed class AdvisorWindow : Window
     {
         var count = Owned(itemId);
 
-        DrawIcon(itemId, IconSize);
+        DrawItemIcon(itemId, IconSize);
         ImGui.SameLine();
         ClickableItem(count > 0 ? Muted : new Vector4(0.6f, 0.6f, 0.6f, 1f), $"{count}× {_gearSource.GetItemName(itemId)}", itemId, $"##stock{itemId}");
     }
@@ -944,34 +951,138 @@ public sealed class AdvisorWindow : Window
 
         if (ImGui.IsItemHovered())
         {
-            ImGui.BeginTooltip();
-            if (_obtain.TryGet(itemId, out var info) && info?.Routes is { Count: > 0 } routes)
-            {
-                _sourcing.DrawBody(info.Source, routes, equippedItemId);
-                ImGui.Spacing();
-            }
-
-            DrawWhereItSits(itemId);
-            ImGui.TextDisabled(T(LocKeys.BisItemHint));
-            ImGui.EndTooltip();
+            DrawItemTooltip(itemId, equippedItemId);
         }
 
-        if (ImGui.BeginPopupContextItem(id))
+        ItemContextMenu(itemId, id);
+        WarmSourcing(itemId);
+    }
+
+    /// <summary>
+    /// An item icon that answers for itself on hover — what the piece is, whether you have it and how
+    /// to get it. The icons are what the eye lands on in a grid, so they carry the same detail the
+    /// text line does rather than being decoration.
+    /// </summary>
+    private void DrawItemIcon(int itemId, float size, int equippedItemId = 0)
+    {
+        DrawIcon(itemId, size);
+        if (itemId <= 0)
         {
-            if (ImGui.Selectable(T(LocKeys.BisCopyName)))
-            {
-                ImGui.SetClipboardText(_gearSource.GetItemName(itemId));
-            }
-
-            if (_obtain.TryGet(itemId, out var ctxInfo))
-            {
-                _sourcing.DrawMapMenuItem(ctxInfo?.Routes);
-            }
-
-            ImGui.EndPopup();
+            return;
         }
 
-        if (!_obtain.TryGet(itemId, out _))
+        if (ImGui.IsItemHovered())
+        {
+            DrawItemTooltip(itemId, equippedItemId);
+        }
+
+        // The same piece can appear several times in one frame (grid, step list, stock), so the popup
+        // id counts rather than deriving from the item — two popups sharing an id fight over opening.
+        ItemContextMenu(itemId, $"##icon{_iconSeq++}");
+        WarmSourcing(itemId);
+    }
+
+    /// <summary>
+    /// The full picture of one item: what it is, how it stands against what you wear, where it comes
+    /// from, and — for a material — which bag or retainer it is sitting in. Deliberately structured
+    /// (heading, status, routes, location) rather than one dense block, because this is read mid-raid.
+    /// </summary>
+    private void DrawItemTooltip(int itemId, int equippedItemId)
+    {
+        ImGui.BeginTooltip();
+
+        // A tooltip is its own window and does not inherit the advisor's scale, so set it again.
+        ImGui.SetWindowFontScale(Math.Clamp(_config.AdvisorTextScale, 1f, 1.6f));
+        ImGui.PushTextWrapPos(ImGui.GetFontSize() * 30f);
+
+        _obtain.TryGet(itemId, out var info);
+
+        ImGui.TextColored(Accent, _gearSource.GetItemName(itemId));
+
+        var ilvl = _gearSource.GetItemLevel(itemId);
+        var source = info?.Source;
+        var subtitle = ilvl > 0 ? $"iLvl {ilvl}" : string.Empty;
+        if (!string.IsNullOrEmpty(source))
+        {
+            subtitle = subtitle.Length > 0 ? $"{subtitle} · {SourceLabel(source)}" : SourceLabel(source);
+        }
+
+        if (subtitle.Length > 0)
+        {
+            ImGui.TextColored(Muted, subtitle);
+        }
+
+        DrawOwnershipLine(itemId, equippedItemId);
+
+        if (equippedItemId > 0 && equippedItemId != itemId)
+        {
+            ImGui.TextColored(Muted, _localizer.Get(
+                LocKeys.BisYouHave,
+                $"{_gearSource.GetItemName(equippedItemId)} · iLvl {_gearSource.GetItemLevel(equippedItemId)}"));
+        }
+
+        if (info?.Routes is { Count: > 0 } routes)
+        {
+            ImGui.Separator();
+            _sourcing.DrawBody(info.Source, routes, equippedItemId);
+        }
+        else
+        {
+            ImGui.TextDisabled(T(LocKeys.SourceNoInfo));
+        }
+
+        ImGui.Spacing();
+        DrawWhereItSits(itemId);
+        ImGui.TextDisabled(T(LocKeys.BisItemHint));
+
+        ImGui.PopTextWrapPos();
+        ImGui.SetWindowFontScale(1f);
+        ImGui.EndTooltip();
+    }
+
+    /// <summary>Whether the piece is worn, merely owned, or still missing — the first thing to know.</summary>
+    private void DrawOwnershipLine(int itemId, int equippedItemId)
+    {
+        if (equippedItemId == itemId)
+        {
+            ImGui.TextColored(Green, T(LocKeys.AdvisorPlanWorn));
+            return;
+        }
+
+        var owned = Owned(itemId);
+        if (owned > 0)
+        {
+            ImGui.TextColored(Blue, owned > 1 ? $"{T(LocKeys.AdvisorPlanOwned)} ({owned}×)" : T(LocKeys.AdvisorPlanOwned));
+            return;
+        }
+
+        ImGui.TextColored(Orange, T(LocKeys.AdvisorPlanMissing));
+    }
+
+    private void ItemContextMenu(int itemId, string id)
+    {
+        if (!ImGui.BeginPopupContextItem(id))
+        {
+            return;
+        }
+
+        if (ImGui.Selectable(T(LocKeys.BisCopyName)))
+        {
+            ImGui.SetClipboardText(_gearSource.GetItemName(itemId));
+        }
+
+        if (_obtain.TryGet(itemId, out var info))
+        {
+            _sourcing.DrawMapMenuItem(info?.Routes);
+        }
+
+        ImGui.EndPopup();
+    }
+
+    /// <summary>Warms the sourcing for an item once, so the second hover is instant.</summary>
+    private void WarmSourcing(int itemId)
+    {
+        if (itemId > 0 && !_obtain.TryGet(itemId, out _))
         {
             _ = _obtain.PrefetchAsync([itemId], CancellationToken.None);
         }
