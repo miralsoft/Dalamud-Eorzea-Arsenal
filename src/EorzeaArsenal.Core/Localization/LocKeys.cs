@@ -1001,6 +1001,12 @@ public static class LocKeys
     /// <summary>Advisor: the layout has unsaved edits.</summary>
     public const string AdvisorUnsaved = "advisor.unsaved";
 
+    /// <summary>Farm: the set's own requirement, for a member whose stock the plugin cannot see.</summary>
+    public const string TeamsNeedsRequires = "teams.farm.requires";
+
+    /// <summary>Farm: says plainly that a teammate's stock is not something the plugin knows.</summary>
+    public const string TeamsStockUnknown = "teams.farm.stockunknown";
+
     /// <summary>BiS: accordion heading — what this set still needs in total.</summary>
     public const string BisNeedsHeading = "bis.needs.heading";
 

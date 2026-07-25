@@ -1137,10 +1137,23 @@ public sealed class TeamsWindow : Window
             ImGui.TextUnformatted($"{T(LocKeys.TeamsMissing)}: {missing.Count}");
         }
 
-        if (parts.Count > 0)
+        if (parts.Count == 0)
+        {
+            return;
+        }
+
+        ImGui.SameLine();
+
+        // Word it as the set's requirement, not as their shortfall. The numbers are identical for
+        // everyone; what differs is the stock, and that is exactly what cannot be seen here — saying
+        // "still missing" about a teammate would be a claim the plugin has no basis for.
+        var label = isSelf ? string.Empty : $"{T(LocKeys.TeamsNeedsRequires)} ";
+        ImGui.TextDisabled($"·  {label}{string.Join(", ", parts)}");
+
+        if (!isSelf)
         {
             ImGui.SameLine();
-            ImGui.TextDisabled($"·  {string.Join(", ", parts)}");
+            ImGui.TextDisabled($"({T(LocKeys.TeamsStockUnknown)})");
         }
     }
 
