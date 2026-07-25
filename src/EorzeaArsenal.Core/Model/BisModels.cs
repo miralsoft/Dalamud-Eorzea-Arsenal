@@ -18,6 +18,18 @@ public sealed class BisGearset
     /// <summary>Optional set-level source (used as a fallback when an item has no own source).</summary>
     public string? Source { get; init; }
 
+    /// <summary>
+    /// The set's identity as the web app knows it — its apiPath / shortlink (e.g. <c>sl/&lt;uuid&gt;</c>
+    /// or a catalog path). This is the key a purchase plan is stored under
+    /// (<c>GET /me/advisor-plan?…&amp;target=</c>), so it must be read back from the set and never
+    /// invented. <see langword="null"/> on a server that does not send it yet, which simply means no
+    /// plan can be addressed for this set.
+    /// </summary>
+    public string? Target { get; init; }
+
+    /// <summary>Display name of the target set, when the server sends one alongside <see cref="Target"/>.</summary>
+    public string? TargetName { get; init; }
+
     /// <summary>Target items keyed by the 12 PascalCase slot keys, each <c>{ id, materia, source? }</c>.</summary>
     public Dictionary<string, ItemDto> Items { get; init; } = [];
 }

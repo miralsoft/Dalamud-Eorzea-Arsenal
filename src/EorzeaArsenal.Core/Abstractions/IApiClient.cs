@@ -162,6 +162,40 @@ public interface IApiClient
     /// <returns>The stored balance echo, or a classified error (403 scope / 404 foreign character).</returns>
     Task<ApiResult<TomeBalanceResponse>> PutTomeBalanceAsync(string apiKey, long characterId, int balance, CancellationToken ct);
 
+    /// <summary>
+    /// Reads the saved purchase plan ("Kaufberater") for one character + job + target set via
+    /// <c>GET /me/advisor-plan</c> (<c>plans:read</c>). Own character only; a foreign character or an
+    /// unknown set yields <c>data: null</c>, which is a normal "no plan yet", not an error.
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>plans:read</c>).</param>
+    /// <param name="characterId">The caller's own server character id.</param>
+    /// <param name="job">The job code (sent lower-case).</param>
+    /// <param name="target">The target set's apiPath / shortlink, read back from the set.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The stored plan (possibly <see langword="null"/>), or a classified error.</returns>
+    Task<ApiResult<AdvisorPlanResponse>> GetAdvisorPlanAsync(string apiKey, long characterId, string job, string target, CancellationToken ct);
+
+    /// <summary>
+    /// Saves a purchase plan via <c>PUT /me/advisor-plan</c> (<c>plans:write</c>, no CSRF). Only ever
+    /// called on a deliberate user action — a plan is an explicit choice, not observed state.
+    /// An empty item map clears the plan.
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>plans:write</c>; never logged — R22).</param>
+    /// <param name="request">The plan to store.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The stored plan echo, or a classified error (403 scope / 404 foreign character).</returns>
+    Task<ApiResult<AdvisorPlanResponse>> PutAdvisorPlanAsync(string apiKey, AdvisorPlanRequest request, CancellationToken ct);
+
+    /// <summary>
+    /// Drops a saved purchase plan via <c>DELETE /me/advisor-plan</c> (<c>plans:write</c>), so the view
+    /// falls back to the advisor's recommendation. Idempotent — deleting a missing plan is a no-op.
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>plans:write</c>).</param>
+    /// <param name="request">Which plan to drop.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Success (2xx), or a classified error.</returns>
+    Task<ApiResult<bool>> DeleteAdvisorPlanAsync(string apiKey, AdvisorPlanDeleteRequest request, CancellationToken ct);
+
     /// <summary>Reads the FFLogs mirror via <c>GET /teams/{id}/logs</c> (<c>teams:read</c>; best-effort).</summary>
     /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
     /// <param name="teamId">The team id.</param>

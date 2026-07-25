@@ -601,13 +601,30 @@ public sealed class HoldingsResponse
 }
 
 /// <summary>
-/// Response of <c>GET /gear/tracked-items</c>: the active tier's consumable ids (raid books/tokens,
-/// upgrade materials) the plugin should also report in the inventory sync so holdings has their counts.
+/// Response of <c>GET /gear/tracked-items</c>: the consumable ids (raid books/tokens, upgrade
+/// materials) the plugin should also report in the inventory sync so holdings has their counts, plus
+/// the active tier's classified <see cref="Groups"/> for a "your stock" display.
 /// </summary>
 public sealed class TrackedItemsResponse
 {
-    /// <summary>The item ids to track.</summary>
+    /// <summary>The item ids to track — every tier, since books and materials outlive their tier.</summary>
     public List<long>? Data { get; init; }
+
+    /// <summary>
+    /// The <b>active</b> tier's items only, classified and in display order (materials, then the
+    /// upgrade stone, then the raid books). Absent on an older server, which just means no stock view.
+    /// </summary>
+    public List<TrackedItemGroup>? Groups { get; init; }
+}
+
+/// <summary>One display group of tracked items: what kind they are and which ids belong to it.</summary>
+public sealed class TrackedItemGroup
+{
+    /// <summary>The kind: <c>material</c>, <c>stone</c> or <c>book</c>.</summary>
+    public string? Kind { get; init; }
+
+    /// <summary>The item ids in this group.</summary>
+    public List<long>? Ids { get; init; }
 }
 
 /// <summary>Body of <c>PUT /me/tome-balance</c>: the caller's capped-tomestone balance for a character.</summary>

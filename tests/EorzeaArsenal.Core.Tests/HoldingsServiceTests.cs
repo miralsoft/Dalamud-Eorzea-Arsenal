@@ -93,6 +93,53 @@ public sealed class HoldingsServiceTests
         Assert.Null(unset!.Data!.Balance);
     }
 
+    /// <summary>
+    /// <c>data</c> (what to sync, every tier) and <c>groups</c> (what to display, active tier only)
+    /// are separate lists — a server that sends no groups just means no stock view.
+    /// </summary>
+    [Fact]
+    public void DeserializesTrackedItemGroups()
+    {
+        const string body = """
+        {"data":[49757,49756,49760],
+         "groups":[{"kind":"material","ids":[49757,49758]},{"kind":"stone","ids":[49756]},
+                   {"kind":"book","ids":[49760,49761]}]}
+        """;
+
+        var tracked = JsonSerializer.Deserialize<TrackedItemsResponse>(body, EorzeaJson.Options)!;
+
+        Assert.Equal(3, tracked.Groups!.Count);
+        Assert.Equal("material", tracked.Groups[0].Kind);
+        Assert.Equal([49757L, 49758L], tracked.Groups[0].Ids);
+        Assert.Equal("book", tracked.Groups[2].Kind);
+
+        var legacy = JsonSerializer.Deserialize<TrackedItemsResponse>("""{"data":[1]}""", EorzeaJson.Options)!;
+        Assert.Null(legacy.Groups);
+    }
+
+    [Fact]
+    public void TrackedItemsStoreKeepsGroupOrderAndDropsEmptyOnes()
+    {
+        var store = new TrackedItemsStore();
+        Assert.Empty(store.Groups);
+
+        store.SetGroups(
+        [
+            new TrackedItemGroup { Kind = "material", Ids = [49757, -1, 49758] },
+            new TrackedItemGroup { Kind = "stone", Ids = [] },      // no usable ids → no empty heading
+            new TrackedItemGroup { Kind = null, Ids = [49760] },     // no kind → cannot be labelled
+            new TrackedItemGroup { Kind = "book", Ids = [49760] },
+        ]);
+
+        Assert.Equal(2, store.Groups.Count);
+        Assert.Equal("material", store.Groups[0].Kind);          // server order preserved
+        Assert.Equal([49757, 49758], store.Groups[0].ItemIds);
+        Assert.Equal("book", store.Groups[1].Kind);
+
+        store.SetGroups(null);
+        Assert.Empty(store.Groups);
+    }
+
     [Fact]
     public void TrackedItemsStoreFiltersAndSwaps()
     {

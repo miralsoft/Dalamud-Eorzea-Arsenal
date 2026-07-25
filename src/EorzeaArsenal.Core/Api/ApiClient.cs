@@ -198,6 +198,37 @@ public sealed class ApiClient : IApiClient
     }
 
     /// <inheritdoc />
+    public Task<ApiResult<AdvisorPlanResponse>> GetAdvisorPlanAsync(string apiKey, long characterId, string job, string target, CancellationToken ct)
+    {
+        var query = $"character_id={characterId}" +
+            $"&job={Uri.EscapeDataString(job.ToLowerInvariant())}" +
+            $"&target={Uri.EscapeDataString(target)}";
+        return GetAsync<AdvisorPlanResponse>($"/me/advisor-plan?{query}", apiKey, ct);
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiResult<AdvisorPlanResponse>> PutAdvisorPlanAsync(string apiKey, AdvisorPlanRequest request, CancellationToken ct)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Put, Url("/me/advisor-plan"))
+        {
+            Content = JsonBody(request),
+        };
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<AdvisorPlanResponse>(message, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiResult<bool>> DeleteAdvisorPlanAsync(string apiKey, AdvisorPlanDeleteRequest request, CancellationToken ct)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Delete, Url("/me/advisor-plan"))
+        {
+            Content = JsonBody(request),
+        };
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendVoidAsync(message, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public Task<ApiResult<LogsResponse>> GetLogsAsync(string apiKey, long teamId, CancellationToken ct) =>
         GetAsync<LogsResponse>($"/teams/{teamId}/logs", apiKey, ct);
 

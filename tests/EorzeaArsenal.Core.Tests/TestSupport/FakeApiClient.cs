@@ -271,6 +271,48 @@ public sealed class FakeApiClient : IApiClient
         return Task.FromResult(TomeBalanceResult);
     }
 
+    /// <summary>Result returned by <see cref="GetAdvisorPlanAsync"/>.</summary>
+    public ApiResult<AdvisorPlanResponse> AdvisorPlanResult { get; set; } = ApiResult<AdvisorPlanResponse>.Ok(new AdvisorPlanResponse());
+
+    /// <summary>Result returned by <see cref="PutAdvisorPlanAsync"/> (<see langword="null"/> echoes the request).</summary>
+    public ApiResult<AdvisorPlanResponse>? AdvisorPlanSaveResult { get; set; }
+
+    /// <summary>Result returned by <see cref="DeleteAdvisorPlanAsync"/>.</summary>
+    public ApiResult<bool> AdvisorPlanDeleteResult { get; set; } = ApiResult<bool>.Ok(true);
+
+    /// <summary>Each (characterId, job, target) read, in call order.</summary>
+    public List<(long CharacterId, string Job, string Target)> AdvisorPlanReads { get; } = [];
+
+    /// <summary>The plans saved via <see cref="PutAdvisorPlanAsync"/>, in order.</summary>
+    public List<AdvisorPlanRequest> AdvisorPlanSaves { get; } = [];
+
+    /// <summary>The plans dropped via <see cref="DeleteAdvisorPlanAsync"/>, in order.</summary>
+    public List<AdvisorPlanDeleteRequest> AdvisorPlanDeletes { get; } = [];
+
+    /// <inheritdoc />
+    public Task<ApiResult<AdvisorPlanResponse>> GetAdvisorPlanAsync(string apiKey, long characterId, string job, string target, CancellationToken ct)
+    {
+        AdvisorPlanReads.Add((characterId, job, target));
+        return Task.FromResult(AdvisorPlanResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<AdvisorPlanResponse>> PutAdvisorPlanAsync(string apiKey, AdvisorPlanRequest request, CancellationToken ct)
+    {
+        AdvisorPlanSaves.Add(request);
+        return Task.FromResult(AdvisorPlanSaveResult ?? ApiResult<AdvisorPlanResponse>.Ok(new AdvisorPlanResponse
+        {
+            Data = new AdvisorPlan { Job = request.Job, Target = request.Target, TargetName = request.TargetName, Items = request.Items },
+        }));
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<bool>> DeleteAdvisorPlanAsync(string apiKey, AdvisorPlanDeleteRequest request, CancellationToken ct)
+    {
+        AdvisorPlanDeletes.Add(request);
+        return Task.FromResult(AdvisorPlanDeleteResult);
+    }
+
     /// <inheritdoc />
     public Task<ApiResult<StatusAck>> PostAttendanceAsync(string apiKey, long teamId, long eventId, AttendanceRequest request, CancellationToken ct)
     {
