@@ -20,6 +20,7 @@ public sealed class AdvisorService
 
     // Cache key → the stored plan, or null when the server answered "no plan for this set".
     private readonly ConcurrentDictionary<string, AdvisorPlan?> _plans = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, AdvisorOptions> _options = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, byte> _inFlight = new(StringComparer.Ordinal);
 
     /// <summary>Creates the advisor service.</summary>
@@ -109,6 +110,79 @@ public sealed class AdvisorService
             _inFlight.TryRemove(cacheKey, out _);
         }
     }
+
+    /// <summary>The advice for a set + ranking, when it has been read.</summary>
+    /// <param name="characterId">The caller's own server character id.</param>
+    /// <param name="job">The job code.</param>
+    /// <param name="target">The target set's apiPath / shortlink.</param>
+    /// <param name="sort">The ranking (<c>power</c>, <c>value</c>, <c>cheap</c>).</param>
+    /// <param name="options">The computed advice.</param>
+    /// <returns><see langword="true"/> when the advice is cached.</returns>
+    public bool TryGetOptions(long characterId, string job, string target, string sort, out AdvisorOptions? options) =>
+        _options.TryGetValue(OptionsKey(characterId, job, target, sort), out options);
+
+    /// <summary>
+    /// Reads a set's advice unless it is already cached or in flight. Unlike a plan, the advice depends
+    /// on the character's current gear and holdings, so it is dropped by <see cref="InvalidateOptions"/>
+    /// after anything that changes those. Never throws.
+    /// </summary>
+    /// <param name="characterId">The caller's own server character id.</param>
+    /// <param name="job">The job code.</param>
+    /// <param name="target">The target set's apiPath / shortlink.</param>
+    /// <param name="gearIndex">Optional gearset index (disambiguates two sets of the same job).</param>
+    /// <param name="sort">The ranking to compute.</param>
+    /// <param name="ct">Cancellation token.</param>
+    public async Task EnsureOptionsAsync(long characterId, string job, string target, int? gearIndex, string sort, CancellationToken ct)
+    {
+        var key = _tokens.ApiKey;
+        if (string.IsNullOrEmpty(key) || characterId <= 0 || string.IsNullOrWhiteSpace(job) || string.IsNullOrWhiteSpace(target))
+        {
+            return;
+        }
+
+        var cacheKey = OptionsKey(characterId, job, target, sort);
+        if (_options.ContainsKey(cacheKey) || !_inFlight.TryAdd(cacheKey, 0))
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await _api.GetAdvisorOptionsAsync(key, characterId, job, target, gearIndex, sort, ct).ConfigureAwait(false);
+            if (result.IsSuccess && result.Value?.Data is { } data)
+            {
+                _options[cacheKey] = data;
+                LastErrorKind = null;
+            }
+            else if (!result.IsSuccess)
+            {
+                LastErrorKind = result.Error?.Kind;
+                _log.Info($"Advisor options read failed: {result.Error?.Kind}.");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Not a failure; the set stays uncached for a later retry.
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Advisor options read failed: {ex.GetType().Name}.");
+        }
+        finally
+        {
+            _inFlight.TryRemove(cacheKey, out _);
+        }
+    }
+
+    /// <summary>
+    /// Drops the cached advice, so the next read recomputes it. Call after anything that changes the
+    /// inputs — an inventory sync, a gear change, a tomestone push — or on an explicit refresh. Plans
+    /// are untouched: they are stored values, not derived ones.
+    /// </summary>
+    public void InvalidateOptions() => _options.Clear();
+
+    private static string OptionsKey(long characterId, string job, string target, string sort) =>
+        $"{characterId}|{job.ToLowerInvariant()}|{target}|{sort}";
 
     /// <summary>
     /// Saves a plan for a set and updates the cache from the server's echo. An empty
@@ -238,10 +312,11 @@ public sealed class AdvisorService
         }
     }
 
-    /// <summary>Drops every cached plan, so the next read hits the server (e.g. after reconnecting).</summary>
+    /// <summary>Drops every cached plan and advice, so the next read hits the server (e.g. after reconnecting).</summary>
     public void Invalidate()
     {
         _plans.Clear();
+        _options.Clear();
         _inFlight.Clear();
         LastErrorKind = null;
     }

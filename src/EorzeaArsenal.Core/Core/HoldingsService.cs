@@ -21,17 +21,25 @@ public sealed class HoldingsService
     private readonly ILog _log;
 
     private readonly ConcurrentDictionary<long, int> _cache = new();
+    private readonly ConcurrentDictionary<long, IReadOnlyList<HoldingStack>> _breakdown = new();
     private readonly ConcurrentDictionary<long, byte> _inFlight = new();
+    private readonly Func<long?>? _characterId;
 
     /// <summary>Creates the holdings service.</summary>
     /// <param name="api">HTTP client.</param>
     /// <param name="tokens">Holds the API key.</param>
     /// <param name="log">Diagnostics sink.</param>
-    public HoldingsService(IApiClient api, ITokenStore tokens, ILog log)
+    /// <param name="characterId">
+    /// Supplies the in-game character's server id, so the count is for the character on screen rather
+    /// than whichever one the account last made active. Must be cheap and thread-safe (a cached value,
+    /// not a game read); <see langword="null"/> leaves the choice to the server.
+    /// </param>
+    public HoldingsService(IApiClient api, ITokenStore tokens, ILog log, Func<long?>? characterId = null)
     {
         _api = api;
         _tokens = tokens;
         _log = log;
+        _characterId = characterId;
     }
 
     /// <summary>The cached owned quantity for an item, when it has been fetched.</summary>
@@ -40,6 +48,13 @@ public sealed class HoldingsService
     /// <returns><see langword="true"/> when a count is cached.</returns>
     public bool TryGet(long itemId, out int count) => _cache.TryGetValue(itemId, out count);
 
+    /// <summary>Where an item's count sits — one entry per stack — when the server reported it.</summary>
+    /// <param name="itemId">The item id.</param>
+    /// <param name="stacks">The stacks, largest first.</param>
+    /// <returns><see langword="true"/> when a breakdown is cached and non-empty.</returns>
+    public bool TryGetBreakdown(long itemId, out IReadOnlyList<HoldingStack> stacks) =>
+        _breakdown.TryGetValue(itemId, out stacks!) && stacks.Count > 0;
+
     /// <summary>
     /// Drops every cached count (and any in-flight claim), so the next prefetch re-reads them — call
     /// after an inventory sync completes, since holdings just changed.
@@ -47,6 +62,7 @@ public sealed class HoldingsService
     public void Invalidate()
     {
         _cache.Clear();
+        _breakdown.Clear();
         _inFlight.Clear();
     }
 
@@ -102,7 +118,9 @@ public sealed class HoldingsService
 
     private async Task FetchChunkAsync(string key, List<long> chunk, CancellationToken ct)
     {
-        var result = await _api.GetHoldingsAsync(key, chunk, ct).ConfigureAwait(false);
+        // The breakdown rides along on every read: it is the same query and a handful of rows, and it
+        // answers the question that always follows "do I have it" — where do I go to get it.
+        var result = await _api.GetHoldingsAsync(key, chunk, _characterId?.Invoke(), breakdown: true, ct).ConfigureAwait(false);
         if (!result.IsSuccess)
         {
             _log.Info($"Holdings fetch failed for {chunk.Count} id(s): {result.Error?.Kind}.");
@@ -110,12 +128,18 @@ public sealed class HoldingsService
         }
 
         var data = result.Value?.Data;
+        var breakdown = result.Value?.Breakdown;
         foreach (var id in chunk)
         {
+            var idText = id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
             // An id the server answered but did not mention holds none.
-            _cache[id] = data is not null && data.TryGetValue(id.ToString(System.Globalization.CultureInfo.InvariantCulture), out var count)
-                ? count
-                : 0;
+            _cache[id] = data is not null && data.TryGetValue(idText, out var count) ? count : 0;
+
+            if (breakdown is not null && breakdown.TryGetValue(idText, out var stacks) && stacks is { Count: > 0 })
+            {
+                _breakdown[id] = stacks.OrderByDescending(s => s.Qty).ToList();
+            }
         }
     }
 }

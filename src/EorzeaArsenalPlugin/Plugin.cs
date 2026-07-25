@@ -97,6 +97,14 @@ public sealed class Plugin : IDalamudPlugin
     private long _contentsRefreshDueTicks; // 0 = none scheduled
     private long _nextContentsRefreshTryTicks;
     private string? _lastRetainerScope;
+    private string? _currentCidHash;
+
+    // A successful sync only speaks in chat when the user asked for it. Logins, the periodic timer,
+    // a retainer visit and the hidden Duty-Finder refresh all sync too, and announcing every one of
+    // them buries the chat in lines nobody asked to read. Failures always speak, whatever caused them.
+    private bool _announceInventory;
+    private bool _announceWeekly;
+    private bool _announcePush;
     private bool _bisLoadPending;
     private ulong _lastStoredSig;
     private ulong _lastEquippedItemsSig;
@@ -185,7 +193,10 @@ public sealed class Plugin : IDalamudPlugin
         _teamsService.Toast += OnTeamToast;
         _bisService = new BisService(api, _gearSource, _store, _log);
         _obtainService = new ObtainService(api, _store, _log);
-        _holdingsService = new HoldingsService(api, _store, _log);
+        // Pin the counts to the character actually on screen — without it the server answers for
+        // whichever character the account last made active, which on a multi-character account is a
+        // different inventory.
+        _holdingsService = new HoldingsService(api, _store, _log, () => ServerCharacterId(_currentCidHash));
         _advisorService = new AdvisorService(api, _store, _log);
         _worldActions = new WorldActions(gameGui, dataManager);
 
@@ -505,6 +516,7 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         Chat(_localizer.Get(LocKeys.PushStarted));
+        _announcePush = true;
         _sync.RequestPush(PushTrigger.Manual);
     }
 
@@ -533,6 +545,7 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         Chat(_localizer.Get(LocKeys.InventoryStarted));
+        _announceInventory = true;
         _inventorySync.RequestCharacterSync(InventoryTrigger.Manual);
     }
 
@@ -656,6 +669,7 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         Chat(_localizer.Get(LocKeys.WeeklyStarted));
+        _announceWeekly = true;
         _weeklySync.RequestSync(WeeklyTrigger.Manual);
 
         // The manual sync reads the current state immediately (tomes/custom/unreal/wondrous), but the
@@ -947,6 +961,11 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         var hash = CidHash.Compute(_playerState.ContentId);
+
+        // Remembered on the framework thread so background reads can resolve the character without
+        // touching game state (the id itself comes from a thread-safe dictionary lookup).
+        _currentCidHash = hash;
+
         var world = _playerState.HomeWorld.ValueNullable?.Name.ExtractText() ?? string.Empty;
         if (_config.RecordCharacter(hash, _playerState.CharacterName, world))
         {
@@ -982,10 +1001,19 @@ public sealed class Plugin : IDalamudPlugin
             return; // quiet "skipped" outcomes
         }
 
-        // On failure, append the target server host so a base-URL mismatch (e.g. an old key sent
-        // to the wrong server) is immediately obvious. The host is not a secret (R22).
-        var chatMessage = report.Outcome == PushOutcome.Failed ? $"{message} ({ServerHost()})" : message;
-        Chat(chatMessage);
+        // Same rule as the other syncs: an automatic push (login, gearset change, timer) reports to the
+        // log, not to the chat. On failure, append the target server host so a base-URL mismatch (e.g.
+        // an old key sent to the wrong server) is immediately obvious. The host is not a secret (R22).
+        var failed = report.Outcome == PushOutcome.Failed;
+        var announce = failed || _announcePush;
+        _announcePush = false;
+        if (!announce)
+        {
+            _log.Info($"Gear push (background): {message}");
+            return;
+        }
+
+        Chat(failed ? $"{message} ({ServerHost()})" : message);
         if (_config.UseToasts)
         {
             _toastGui.ShowNormal(message);
@@ -995,10 +1023,13 @@ public sealed class Plugin : IDalamudPlugin
     /// <summary>Reports inventory upload outcomes to chat/toast; stays quiet for skipped/no-op runs.</summary>
     private void OnInventoryCompleted(InventoryReport report)
     {
-        // New items reached the server, so the cached owned counts are stale — drop them.
+        // New items reached the server, so the cached owned counts are stale — drop them. The advisor's
+        // ranking is computed from those same holdings, so it has to go with them; the stored plans are
+        // untouched, since they are choices rather than derived state.
         if (report.Outcome == InventoryOutcome.Sent)
         {
             _holdingsService.Invalidate();
+            _advisorService.InvalidateOptions();
         }
 
         // Piggy-back the capped-tomestone balance on the inventory sync (we just read the game anyway),
@@ -1011,8 +1042,16 @@ public sealed class Plugin : IDalamudPlugin
             return;
         }
 
-        var chatMessage = report.Outcome == InventoryOutcome.Failed ? $"{message} ({ServerHost()})" : message;
-        Chat(chatMessage);
+        var failed = report.Outcome == InventoryOutcome.Failed;
+        var announce = failed || _announceInventory;
+        _announceInventory = false;
+        if (!announce)
+        {
+            _log.Info($"Inventory sync (background): {message}");
+            return;
+        }
+
+        Chat(failed ? $"{message} ({ServerHost()})" : message);
         if (_config.UseToasts)
         {
             _toastGui.ShowNormal(message);
@@ -1067,8 +1106,18 @@ public sealed class Plugin : IDalamudPlugin
             return;
         }
 
-        var chatMessage = report.Outcome == WeeklyOutcome.Failed ? $"{message} ({ServerHost()})" : message;
-        Chat(chatMessage);
+        // The weekly sync also runs after each hidden Duty-Finder refresh, which happens on its own
+        // schedule — announcing those would print several lines the player never asked for.
+        var failed = report.Outcome == WeeklyOutcome.Failed;
+        var announce = failed || _announceWeekly;
+        _announceWeekly = false;
+        if (!announce)
+        {
+            _log.Info($"Weekly sync (background): {message}");
+            return;
+        }
+
+        Chat(failed ? $"{message} ({ServerHost()})" : message);
         if (_config.UseToasts)
         {
             _toastGui.ShowNormal(message);

@@ -598,6 +598,31 @@ public sealed class HoldingsResponse
 {
     /// <summary>Item id (string) → owned quantity.</summary>
     public Dictionary<string, int>? Data { get; init; }
+
+    /// <summary>
+    /// With <c>&amp;breakdown=1</c>: item id (string) → where the count sits, one entry per stack. The
+    /// sum answers "do I have it", this answers "where do I go to get it". Absent without the flag.
+    /// </summary>
+    public Dictionary<string, List<HoldingStack>>? Breakdown { get; init; }
+}
+
+/// <summary>One stack of an owned item: which storage it sits in, and how many.</summary>
+public sealed class HoldingStack
+{
+    /// <summary>The reconciliation scope: <c>character</c> or <c>retainer:&lt;source_id&gt;</c>.</summary>
+    public string? Scope { get; init; }
+
+    /// <summary>The finer storage tag as it was uploaded (<c>bags</c>, <c>saddlebag</c>, <c>retainer</c>…).</summary>
+    public string? Container { get; init; }
+
+    /// <summary>Retainer id for a retainer stack, otherwise empty.</summary>
+    public string? SourceId { get; init; }
+
+    /// <summary>The retainer's name, when one was reported with a scan.</summary>
+    public string? SourceName { get; init; }
+
+    /// <summary>How many sit here.</summary>
+    public int Qty { get; init; }
 }
 
 /// <summary>

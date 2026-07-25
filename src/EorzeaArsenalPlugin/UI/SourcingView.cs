@@ -76,10 +76,29 @@ internal sealed class SourcingView
 
     private bool German => _localizer.Language == Localizer.German;
 
-    /// <summary>How many of an item the player owns — the server holdings (retainers included) when
-    /// they have loaded, otherwise the live in-game count as an immediate fallback.</summary>
-    private int Owned(long itemId) =>
-        itemId > 0 && _holdings.TryGet(itemId, out var count) ? count : _world.OwnedCount((uint)itemId);
+    /// <summary>
+    /// How many of an item the player owns: the higher of the server's holdings and the live in-game
+    /// count.
+    /// </summary>
+    /// <remarks>
+    /// Neither source alone is right. Only the server sees a retainer's stock (as of its last visit),
+    /// so it must be able to win. But a server <c>0</c> means "no record", not "you own none": a
+    /// <b>currency</b> like the weekly tomestone is never part of the inventory sync at all, and a
+    /// material only synced after the tracked-items list arrived has no rows yet — taking the server's
+    /// number there would report 0 of 495 tomestones to a player holding 1109. The game is always right
+    /// about what is local, the server adds what is remote, so the maximum is the honest answer; the
+    /// only error it can make is briefly counting retainer stock that was already spent.
+    /// </remarks>
+    private int Owned(long itemId)
+    {
+        if (itemId <= 0)
+        {
+            return 0;
+        }
+
+        var live = _world.OwnedCount((uint)itemId);
+        return _holdings.TryGet(itemId, out var stored) ? Math.Max(stored, live) : live;
+    }
 
     /// <summary>Warms holdings for every material/token/base id a piece references, so counts are ready.</summary>
     private void EnsureHoldings(List<FarmRoute>? routes)

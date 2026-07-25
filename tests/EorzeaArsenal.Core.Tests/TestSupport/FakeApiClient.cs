@@ -185,6 +185,9 @@ public sealed class FakeApiClient : IApiClient
     /// <summary>Each id set passed to <see cref="GetHoldingsAsync"/>, in call order.</summary>
     public List<long[]> HoldingsRequests { get; } = [];
 
+    /// <summary>The character id each holdings read was pinned to (<see langword="null"/> = server's choice).</summary>
+    public List<long?> HoldingsCharacterIds { get; } = [];
+
     /// <summary>Result returned by <see cref="GetTrackedItemsAsync"/>.</summary>
     public ApiResult<TrackedItemsResponse> TrackedItemsResult { get; set; } = ApiResult<TrackedItemsResponse>.Ok(new TrackedItemsResponse { Data = [] });
 
@@ -254,9 +257,11 @@ public sealed class FakeApiClient : IApiClient
     }
 
     /// <inheritdoc />
-    public Task<ApiResult<HoldingsResponse>> GetHoldingsAsync(string apiKey, IReadOnlyCollection<long> itemIds, CancellationToken ct)
+    public Task<ApiResult<HoldingsResponse>> GetHoldingsAsync(
+        string apiKey, IReadOnlyCollection<long> itemIds, long? characterId, bool breakdown, CancellationToken ct)
     {
         HoldingsRequests.Add([.. itemIds]);
+        HoldingsCharacterIds.Add(characterId);
         return Task.FromResult(HoldingsResult);
     }
 
@@ -288,6 +293,21 @@ public sealed class FakeApiClient : IApiClient
 
     /// <summary>The plans dropped via <see cref="DeleteAdvisorPlanAsync"/>, in order.</summary>
     public List<AdvisorPlanDeleteRequest> AdvisorPlanDeletes { get; } = [];
+
+    /// <summary>Result returned by <see cref="GetAdvisorOptionsAsync"/>.</summary>
+    public ApiResult<AdvisorOptionsResponse> AdvisorOptionsResult { get; set; } =
+        ApiResult<AdvisorOptionsResponse>.Ok(new AdvisorOptionsResponse { Data = new AdvisorOptions() });
+
+    /// <summary>Each (characterId, job, target, gearIndex, sort) asked for, in call order.</summary>
+    public List<(long CharacterId, string Job, string Target, int? GearIndex, string? Sort)> AdvisorOptionsReads { get; } = [];
+
+    /// <inheritdoc />
+    public Task<ApiResult<AdvisorOptionsResponse>> GetAdvisorOptionsAsync(
+        string apiKey, long characterId, string job, string target, int? gearIndex, string? sort, CancellationToken ct)
+    {
+        AdvisorOptionsReads.Add((characterId, job, target, gearIndex, sort));
+        return Task.FromResult(AdvisorOptionsResult);
+    }
 
     /// <inheritdoc />
     public Task<ApiResult<AdvisorPlanResponse>> GetAdvisorPlanAsync(string apiKey, long characterId, string job, string target, CancellationToken ct)

@@ -67,6 +67,43 @@ public sealed class HoldingsServiceTests
         Assert.Equal(2, api.HoldingsRequests.Count);
     }
 
+    /// <summary>
+    /// The breakdown answers "where do I go to get it", and the retainer's name is the only useful
+    /// label for a stack sitting on one — a numeric retainer id tells the player nothing.
+    /// </summary>
+    [Fact]
+    public async Task BreakdownIsCachedLargestStackFirst()
+    {
+        var api = new FakeApiClient();
+        var tokens = new InMemoryTokenStore();
+        tokens.SetApiKey("key");
+        api.HoldingsResult = ApiResult<HoldingsResponse>.Ok(new HoldingsResponse
+        {
+            Data = new() { ["49757"] = 6 },
+            Breakdown = new()
+            {
+                ["49757"] = [
+                    new HoldingStack { Scope = "character", Container = "saddlebag", Qty = 1 },
+                    new HoldingStack { Scope = "retainer:337", Container = "retainer", SourceId = "337", SourceName = "Nanamo", Qty = 5 },
+                ],
+            },
+        });
+        var service = new HoldingsService(api, tokens, NullLog.Instance, () => 42);
+
+        await service.PrefetchAsync([49757L], CancellationToken.None);
+
+        Assert.True(service.TryGetBreakdown(49757, out var stacks));
+        Assert.Equal(5, stacks[0].Qty);                 // biggest stack first — that is where to go
+        Assert.Equal("Nanamo", stacks[0].SourceName);
+        Assert.Equal("saddlebag", stacks[1].Container);
+
+        // The count must be for the character on screen, not whichever one the account made active.
+        Assert.Equal(42, api.HoldingsCharacterIds[0]);
+
+        service.Invalidate();
+        Assert.False(service.TryGetBreakdown(49757, out _));
+    }
+
     [Fact]
     public async Task WithoutAKeyNothingIsRequested()
     {

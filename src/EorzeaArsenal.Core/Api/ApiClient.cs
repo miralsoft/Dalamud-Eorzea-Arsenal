@@ -176,10 +176,21 @@ public sealed class ApiClient : IApiClient
     }
 
     /// <inheritdoc />
-    public Task<ApiResult<HoldingsResponse>> GetHoldingsAsync(string apiKey, IReadOnlyCollection<long> itemIds, CancellationToken ct)
+    public Task<ApiResult<HoldingsResponse>> GetHoldingsAsync(
+        string apiKey, IReadOnlyCollection<long> itemIds, long? characterId, bool breakdown, CancellationToken ct)
     {
-        var ids = string.Join(',', itemIds);
-        return GetAsync<HoldingsResponse>($"/me/holdings?item_ids={Uri.EscapeDataString(ids)}", apiKey, ct);
+        var query = "item_ids=" + Uri.EscapeDataString(string.Join(',', itemIds));
+        if (characterId is { } id and > 0)
+        {
+            query += $"&character_id={id}";
+        }
+
+        if (breakdown)
+        {
+            query += "&breakdown=1";
+        }
+
+        return GetAsync<HoldingsResponse>($"/me/holdings?{query}", apiKey, ct);
     }
 
     /// <inheritdoc />
@@ -195,6 +206,26 @@ public sealed class ApiClient : IApiClient
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
         return await SendAsync<TomeBalanceResponse>(request, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<AdvisorOptionsResponse>> GetAdvisorOptionsAsync(
+        string apiKey, long characterId, string job, string target, int? gearIndex, string? sort, CancellationToken ct)
+    {
+        var query = $"character_id={characterId}" +
+            $"&job={Uri.EscapeDataString(job)}" +
+            $"&target={Uri.EscapeDataString(target)}";
+        if (gearIndex is { } index)
+        {
+            query += $"&gear_index={index}";
+        }
+
+        if (!string.IsNullOrEmpty(sort))
+        {
+            query += $"&sort={Uri.EscapeDataString(sort)}";
+        }
+
+        return GetAsync<AdvisorOptionsResponse>($"/me/advisor-options?{query}", apiKey, ct);
     }
 
     /// <inheritdoc />

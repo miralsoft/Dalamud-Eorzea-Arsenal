@@ -893,6 +893,9 @@ public static class LocKeys
     /// <summary>Advisor: no plan is saved for this set (a normal state).</summary>
     public const string AdvisorNoPlan = "advisor.plan.noplan";
 
+    /// <summary>Advisor: the plugin has not learned this character's server id yet.</summary>
+    public const string AdvisorNoCharacter = "advisor.plan.nocharacter";
+
     /// <summary>Advisor: when the shown plan was last saved.</summary>
     public const string AdvisorPlanSaved = "advisor.plan.saved";
 
@@ -908,8 +911,122 @@ public static class LocKeys
     /// <summary>Advisor: progress summary of the plan.</summary>
     public const string AdvisorPlanSummary = "advisor.plan.summary";
 
-    /// <summary>Advisor: editing a plan in game is not available yet.</summary>
-    public const string AdvisorEditPending = "advisor.plan.editpending";
+    /// <summary>Advisor: view toggle — the server's recommendation.</summary>
+    public const string AdvisorViewRecommendation = "advisor.view.recommendation";
+
+    /// <summary>Advisor: view toggle — the player's own layout.</summary>
+    public const string AdvisorViewPlan = "advisor.view.plan";
+
+    /// <summary>Advisor: ranking label.</summary>
+    public const string AdvisorSortLabel = "advisor.sort.label";
+
+    /// <summary>Advisor ranking: biggest gain first.</summary>
+    public const string AdvisorSortPower = "advisor.sort.power";
+
+    /// <summary>Advisor ranking: best gain per tomestone.</summary>
+    public const string AdvisorSortValue = "advisor.sort.value";
+
+    /// <summary>Advisor ranking: cheapest first.</summary>
+    public const string AdvisorSortCheap = "advisor.sort.cheap";
+
+    /// <summary>Advisor: recompute the advice.</summary>
+    public const string AdvisorRefresh = "advisor.refresh";
+
+    /// <summary>Advisor: the tomestone balance the schedule was computed against.</summary>
+    public const string AdvisorBalance = "advisor.balance";
+
+    /// <summary>Advisor step: buy it with tomestones.</summary>
+    public const string AdvisorStepBuy = "advisor.step.buy";
+
+    /// <summary>Advisor step: augment the base you wear.</summary>
+    public const string AdvisorStepAugment = "advisor.step.augment";
+
+    /// <summary>Advisor step: farm the Extreme-Trial piece.</summary>
+    public const string AdvisorStepTrial = "advisor.step.trial";
+
+    /// <summary>Advisor step: trade the raid books.</summary>
+    public const string AdvisorStepBooks = "advisor.step.books";
+
+    /// <summary>Advisor step: you own it already, just put it on.</summary>
+    public const string AdvisorStepEquip = "advisor.step.equip";
+
+    /// <summary>Advisor schedule: doable right now.</summary>
+    public const string AdvisorWhenNow = "advisor.when.now";
+
+    /// <summary>Advisor schedule: capped weeks still to save.</summary>
+    public const string AdvisorWhenWeeks = "advisor.when.weeks";
+
+    /// <summary>Advisor schedule: books still to collect.</summary>
+    public const string AdvisorWhenBooks = "advisor.when.books";
+
+    /// <summary>Advisor: the tomestone price of a step.</summary>
+    public const string AdvisorCostTomes = "advisor.cost.tomes";
+
+    /// <summary>Advisor: the vendor a purchase is made at.</summary>
+    public const string AdvisorVendor = "advisor.vendor";
+
+    /// <summary>Advisor: the piece this step eventually leads to.</summary>
+    public const string AdvisorLeadsTo = "advisor.leadsto";
+
+    /// <summary>Advisor: nothing deterministic left to do.</summary>
+    public const string AdvisorNothingToDo = "advisor.nothingtodo";
+
+    /// <summary>Advisor: heading of the remaining material/book needs.</summary>
+    public const string AdvisorNeeds = "advisor.needs";
+
+    /// <summary>Advisor: save the edited layout.</summary>
+    public const string AdvisorSave = "advisor.save";
+
+    /// <summary>Advisor: fill the layout from the recommendation.</summary>
+    public const string AdvisorAdopt = "advisor.adopt";
+
+    /// <summary>Advisor: drop the saved layout and fall back to the recommendation.</summary>
+    public const string AdvisorDeletePlan = "advisor.delete";
+
+    /// <summary>Advisor: the save went through.</summary>
+    public const string AdvisorSaved = "advisor.saved";
+
+    /// <summary>Advisor: the save did not go through.</summary>
+    public const string AdvisorSaveFailed = "advisor.savefailed";
+
+    /// <summary>Advisor: this pick matches the recommendation.</summary>
+    public const string AdvisorIsRecommended = "advisor.isrecommended";
+
+    /// <summary>Advisor: this pick is the BiS piece itself.</summary>
+    public const string AdvisorIsBis = "advisor.isbis";
+
+    /// <summary>Advisor: computing the advice.</summary>
+    public const string AdvisorLoadingOptions = "advisor.loadingoptions";
+
+    /// <summary>Advisor: the layout has unsaved edits.</summary>
+    public const string AdvisorUnsaved = "advisor.unsaved";
+
+    /// <summary>Holdings: heading of the "where it sits" breakdown.</summary>
+    public const string HoldingWhere = "holding.where";
+
+    /// <summary>Storage: inventory bags.</summary>
+    public const string HoldingBags = "holding.bags";
+
+    /// <summary>Storage: chocobo saddlebag.</summary>
+    public const string HoldingSaddlebag = "holding.saddlebag";
+
+    /// <summary>Storage: armoury chest.</summary>
+    public const string HoldingArmoury = "holding.armoury";
+
+    /// <summary>Storage: currently worn.</summary>
+    public const string HoldingEquipped = "holding.equipped";
+
+    /// <summary>Storage: glamour dresser.</summary>
+    public const string HoldingGlamour = "holding.glamour";
+
+    /// <summary>Storage: armoire / cabinet.</summary>
+    public const string HoldingArmoire = "holding.armoire";
+
+    /// <summary>Storage: a retainer (unnamed).</summary>
+    public const string HoldingRetainer = "holding.retainer";
+
+    /// <summary>Storage: hand-marked on the website.</summary>
+    public const string HoldingManual = "holding.manual";
 
     /// <summary>Advisor: heading of the stock section.</summary>
     public const string AdvisorStockHeading = "advisor.stock.heading";

@@ -260,7 +260,7 @@ public sealed class GearSyncServiceTests
         public Task<ApiResult<ObtainResponse>> GetGearObtainAsync(string apiKey, IReadOnlyCollection<long> itemIds, CancellationToken ct) =>
             throw new NotSupportedException();
 
-        public Task<ApiResult<HoldingsResponse>> GetHoldingsAsync(string apiKey, IReadOnlyCollection<long> itemIds, CancellationToken ct) =>
+        public Task<ApiResult<HoldingsResponse>> GetHoldingsAsync(string apiKey, IReadOnlyCollection<long> itemIds, long? characterId, bool breakdown, CancellationToken ct) =>
             throw new NotSupportedException();
 
         public Task<ApiResult<TrackedItemsResponse>> GetTrackedItemsAsync(string apiKey, CancellationToken ct) =>
@@ -270,6 +270,9 @@ public sealed class GearSyncServiceTests
             throw new NotSupportedException();
 
         public Task<ApiResult<AdvisorPlanResponse>> GetAdvisorPlanAsync(string apiKey, long characterId, string job, string target, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<AdvisorOptionsResponse>> GetAdvisorOptionsAsync(string apiKey, long characterId, string job, string target, int? gearIndex, string? sort, CancellationToken ct) =>
             throw new NotSupportedException();
 
         public Task<ApiResult<AdvisorPlanResponse>> PutAdvisorPlanAsync(string apiKey, AdvisorPlanRequest request, CancellationToken ct) =>

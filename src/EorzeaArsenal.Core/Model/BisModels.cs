@@ -6,6 +6,13 @@ public sealed class BisGearset
     /// <summary>The character hash this target belongs to.</summary>
     public string? CidHash { get; init; }
 
+    /// <summary>
+    /// The server's numeric character id (sent as a string), which the personal advisor endpoints are
+    /// keyed by — so no <c>cid_hash → id</c> lookup is needed. <see langword="null"/> on a server that
+    /// does not send it, where the locally learned directory still fills in.
+    /// </summary>
+    public string? CharacterId { get; init; }
+
     /// <summary>Uppercase 3-letter job code.</summary>
     public required string Job { get; init; }
 

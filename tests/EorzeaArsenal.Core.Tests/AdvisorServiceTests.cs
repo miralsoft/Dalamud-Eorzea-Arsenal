@@ -1,6 +1,7 @@
 using System.Text.Json;
 using EorzeaArsenal.Abstractions;
 using EorzeaArsenal.Core;
+using EorzeaArsenal.Localization;
 using EorzeaArsenal.Model;
 using EorzeaArsenal.Serialization;
 using EorzeaArsenal.Tests.TestSupport;
@@ -207,6 +208,101 @@ public sealed class AdvisorServiceTests
 
         Assert.Empty(api.AdvisorPlanReads);
         Assert.Empty(api.AdvisorPlanSaves);
+    }
+
+    /// <summary>
+    /// The advisor's one ranking, as the server sends it: raw source spellings, a <c>when</c> that is
+    /// one of three shapes, and material with have/need. Parsing this wrong would misprice the plan.
+    /// </summary>
+    [Fact]
+    public void DeserializesTheServerSideRecommendation()
+    {
+        const string body = """
+        {"data":{"character_id":"11","job":"WHM","target":"sl/abc-123","target_name":"2.5 BiS",
+          "gear_index":3,"tome_balance":830,"weekly_cap":450,"sort":"power",
+          "steps":[
+            {"slot":"Head","from":40123,"to":49700,"final":49586,"kind":"buy","cost":495,
+             "material":[{"id":49757,"name":"Glaze","count":1,"owned":2}],"books_missing":0,
+             "pct":42,"when":{"now":true},"vendor":"Cihanti"},
+            {"slot":"Body","from":null,"to":49631,"final":null,"kind":"books","cost":0,
+             "material":[],"books_missing":2,"pct":30,"when":{"books":2},"vendor":null},
+            {"slot":"Feet","from":1,"to":2,"final":null,"kind":"buy","cost":495,
+             "material":[],"books_missing":0,"pct":28,"when":{"week":2},"vendor":null}],
+          "slots":{"Head":{"current":{"id":40123,"name":"Old","ilvl":730,"source":"Tome","score":10},
+                           "bis":{"id":49586,"name":"New","ilvl":790,"source":"AugTome","score":20},
+                           "recommended":49700,"even":false,
+                           "options":[{"id":49700,"name":"Base","ilvl":780,"source":"Tome","score":18}]}},
+          "materials":[{"id":49757,"name":"Glaze","need":3,"owned":2}]}}
+        """;
+
+        var data = JsonSerializer.Deserialize<AdvisorOptionsResponse>(body, EorzeaJson.Options)!.Data!;
+
+        Assert.Equal("11", data.CharacterId);
+        Assert.Equal(830, data.TomeBalance);
+        Assert.Equal(450, data.WeeklyCap);
+        Assert.Equal(3, data.GearIndex);
+
+        var buy = data.Steps![0];
+        Assert.Equal("buy", buy.Kind);
+        Assert.Equal(495, buy.Cost);
+        Assert.Equal(49586, buy.Final);
+        Assert.True(buy.When!.Now);
+        Assert.Equal("Cihanti", buy.Vendor);
+        Assert.Equal(2, buy.Material![0].Owned);
+
+        // The three when-shapes must stay distinguishable, not collapse into "now".
+        Assert.False(data.Steps[1].When!.Now);
+        Assert.Equal(2, data.Steps[1].When!.Books);
+        Assert.Equal(2, data.Steps[2].When!.Week);
+        Assert.Null(data.Steps[2].When!.Books);
+
+        // An empty slot is a real state, not a zero.
+        Assert.Null(data.Steps[1].From);
+
+        var head = data.Slots!["Head"];
+        Assert.Equal(49700, head.Recommended);
+        Assert.Equal(790, head.Bis!.Ilvl);
+        Assert.Single(head.Options!);
+        Assert.Equal(3, data.Materials![0].Need);
+    }
+
+    /// <summary>
+    /// The advice carries the raw xivgear source spellings while <c>/gear/bis</c> sends the lower-case
+    /// enum. Both must localize, or the same piece reads differently per endpoint.
+    /// </summary>
+    [Theory]
+    [InlineData("Tome", "source.tome")]
+    [InlineData("tome", "source.tome")]
+    [InlineData("AugTome", "source.augmented_tome")]
+    [InlineData("augmented_tome", "source.augmented_tome")]
+    [InlineData("SavageRaid", "source.raid")]
+    [InlineData("ExtremeTrial", "source.extreme")]
+    public void BothSourceVocabulariesResolve(string source, string expectedKey) =>
+        Assert.Equal(expectedKey, SourceNames.LocKey(source));
+
+    [Fact]
+    public async Task OptionsAreCachedPerRankingAndDroppedOnInvalidate()
+    {
+        var api = new FakeApiClient();
+        var service = NewService(api);
+
+        await service.EnsureOptionsAsync(1234, "WHM", Target, 3, "power", CancellationToken.None);
+        Assert.True(service.TryGetOptions(1234, "whm", Target, "power", out var options));
+        Assert.NotNull(options);
+        Assert.Equal((1234L, "WHM", Target, (int?)3, (string?)"power"), api.AdvisorOptionsReads[0]);
+
+        // Same ranking → cached; a different ranking is a different answer and is fetched.
+        await service.EnsureOptionsAsync(1234, "whm", Target, 3, "power", CancellationToken.None);
+        Assert.Single(api.AdvisorOptionsReads);
+        await service.EnsureOptionsAsync(1234, "whm", Target, 3, "cheap", CancellationToken.None);
+        Assert.Equal(2, api.AdvisorOptionsReads.Count);
+
+        // The advice depends on current gear and holdings, so it must be droppable without
+        // touching the stored plans.
+        await service.EnsureAsync(1234, "whm", Target, CancellationToken.None);
+        service.InvalidateOptions();
+        Assert.False(service.TryGetOptions(1234, "whm", Target, "power", out _));
+        Assert.True(service.TryGet(1234, "whm", Target, out _));
     }
 
     [Fact]

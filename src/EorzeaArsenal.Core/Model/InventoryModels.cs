@@ -44,6 +44,13 @@ public sealed class InventoryData
 
     /// <summary>The owned items found within <see cref="Scopes"/> (may be empty to clear a scope).</summary>
     public required IReadOnlyList<InventoryItemDto> Items { get; init; }
+
+    /// <summary>
+    /// Optional display name per scanned scope — the retainer's name, so a holdings breakdown can say
+    /// <i>where</i> a stack sits instead of quoting a numeric id. Only declared scopes can be named;
+    /// omitting it keeps whatever name the server already has, so one scan at the bell is enough.
+    /// </summary>
+    public IReadOnlyDictionary<string, string>? ScopeNames { get; init; }
 }
 
 /// <summary>The wire body of <c>POST /inventory</c> (protocol version 2).</summary>
@@ -61,6 +68,9 @@ public sealed class InventoryPayload
     /// <summary>The owned items across the scanned scopes.</summary>
     public required IReadOnlyList<InventoryItemDto> Items { get; init; }
 
+    /// <summary>Optional display name per scanned scope (a retainer's name); omitted when empty.</summary>
+    public IReadOnlyDictionary<string, string>? ScopeNames { get; init; }
+
     /// <summary>Wraps an <see cref="InventoryData"/> snapshot into a sendable payload.</summary>
     /// <param name="data">The scanned snapshot.</param>
     /// <returns>A payload carrying the inventory protocol version.</returns>
@@ -69,6 +79,7 @@ public sealed class InventoryPayload
         Character = data.Character,
         Scopes = data.Scopes,
         Items = data.Items,
+        ScopeNames = data.ScopeNames is { Count: > 0 } names ? names : null,
     };
 }
 

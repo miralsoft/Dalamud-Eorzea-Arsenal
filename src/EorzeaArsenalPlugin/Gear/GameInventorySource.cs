@@ -186,11 +186,20 @@ public sealed class GameInventorySource : IInventorySource
                 AddContainer(items, t, InventoryContainers.Retainer, sourceId, includeCoffers: true);
             }
 
+            // The name is only readable here, at the bell. Sending it lets the server's holdings
+            // breakdown say "2× at Nanamo" instead of quoting a numeric retainer id; a later sync may
+            // omit it and the stored name stays.
+            var scope = InventoryProtocol.RetainerScope(sourceId);
+            var name = RetainerName(manager);
+
             return new InventoryData
             {
                 Character = character,
-                Scopes = [InventoryProtocol.RetainerScope(sourceId)],
+                Scopes = [scope],
                 Items = items,
+                ScopeNames = string.IsNullOrEmpty(name)
+                    ? null
+                    : new Dictionary<string, string>(StringComparer.Ordinal) { [scope] = name },
             };
         }
         catch (Exception ex)
@@ -198,6 +207,17 @@ public sealed class GameInventorySource : IInventorySource
             _log.Error($"Retainer read failed: {ex.GetType().Name}.");
             return null;
         }
+    }
+
+    /// <summary>
+    /// The open retainer's display name, or <c>""</c> when the game does not hand one over. Only the
+    /// active retainer is asked for — this runs while its window is open, which is the same condition
+    /// that makes its bags readable at all.
+    /// </summary>
+    private static unsafe string RetainerName(RetainerManager* manager)
+    {
+        var retainer = manager->GetActiveRetainer();
+        return retainer == null ? string.Empty : retainer->NameString;
     }
 
     private CharacterDto? ReadCharacter()

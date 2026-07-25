@@ -138,9 +138,15 @@ public interface IApiClient
     /// </summary>
     /// <param name="apiKey">The API key (must carry <c>gear:read</c>).</param>
     /// <param name="itemIds">The item ids to count.</param>
+    /// <param name="characterId">
+    /// The character to count for; <see langword="null"/> falls back to the account's <i>active</i>
+    /// character, which need not be the one in game. A foreign id is a <c>404</c>.
+    /// </param>
+    /// <param name="breakdown">Also ask where each count sits (per storage / retainer).</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>Per-id owned quantity (missing/zero = 0), or a classified error.</returns>
-    Task<ApiResult<HoldingsResponse>> GetHoldingsAsync(string apiKey, IReadOnlyCollection<long> itemIds, CancellationToken ct);
+    Task<ApiResult<HoldingsResponse>> GetHoldingsAsync(
+        string apiKey, IReadOnlyCollection<long> itemIds, long? characterId, bool breakdown, CancellationToken ct);
 
     /// <summary>
     /// Reads the active tier's tracked consumable ids via <c>GET /gear/tracked-items</c> (impersonal),
@@ -161,6 +167,23 @@ public interface IApiClient
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The stored balance echo, or a classified error (403 scope / 404 foreign character).</returns>
     Task<ApiResult<TomeBalanceResponse>> PutTomeBalanceAsync(string apiKey, long characterId, int balance, CancellationToken ct);
+
+    /// <summary>
+    /// Reads the purchase advice for one set via <c>GET /me/advisor-options</c> (<c>gear:read</c>):
+    /// the ranked deterministic steps, the pieces selectable per slot, and what the open slots still
+    /// need in material. Computed server-side so the plugin and the web can never disagree, and so a
+    /// tier rotation needs no plugin release.
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>gear:read</c>).</param>
+    /// <param name="characterId">The caller's own server character id.</param>
+    /// <param name="job">The job code.</param>
+    /// <param name="target">The target set's apiPath / shortlink, read back from the set.</param>
+    /// <param name="gearIndex">Optional gearset index, to disambiguate two sets of the same job.</param>
+    /// <param name="sort">Ranking: <c>power</c> (default), <c>value</c> or <c>cheap</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The advice, or a classified error (404 when no gearset points at that target).</returns>
+    Task<ApiResult<AdvisorOptionsResponse>> GetAdvisorOptionsAsync(
+        string apiKey, long characterId, string job, string target, int? gearIndex, string? sort, CancellationToken ct);
 
     /// <summary>
     /// Reads the saved purchase plan ("Kaufberater") for one character + job + target set via
