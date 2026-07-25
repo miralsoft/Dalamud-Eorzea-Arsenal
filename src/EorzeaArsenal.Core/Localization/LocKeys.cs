@@ -1001,6 +1001,36 @@ public static class LocKeys
     /// <summary>Advisor: the layout has unsaved edits.</summary>
     public const string AdvisorUnsaved = "advisor.unsaved";
 
+    /// <summary>Config: purchase-advisor text size.</summary>
+    public const string AdvisorScale = "advisor.scale";
+
+    /// <summary>Config: purchase-advisor text size hint.</summary>
+    public const string AdvisorScaleHint = "advisor.scale.hint";
+
+    /// <summary>Advisor: headline card — the single best next move.</summary>
+    public const string AdvisorNextBest = "advisor.nextbest";
+
+    /// <summary>Advisor: how much of the remaining way to BiS a step closes.</summary>
+    public const string AdvisorProgress = "advisor.progress";
+
+    /// <summary>Advisor: how many slots already sit on BiS.</summary>
+    public const string AdvisorOnBis = "advisor.onbis";
+
+    /// <summary>Advisor: average item level, current → target.</summary>
+    public const string AdvisorAvgIlvl = "advisor.avgilvl";
+
+    /// <summary>Advisor: heading of the per-slot grid.</summary>
+    public const string AdvisorYourSet = "advisor.yourset";
+
+    /// <summary>Advisor: heading of the ranked step list.</summary>
+    public const string AdvisorOrderHeading = "advisor.order";
+
+    /// <summary>Advisor: what the tile colours mean.</summary>
+    public const string AdvisorLegend = "advisor.legend";
+
+    /// <summary>Advisor: this slot is already best possible without luck.</summary>
+    public const string AdvisorSlotCapped = "advisor.slot.capped";
+
     /// <summary>Holdings: heading of the "where it sits" breakdown.</summary>
     public const string HoldingWhere = "holding.where";
 

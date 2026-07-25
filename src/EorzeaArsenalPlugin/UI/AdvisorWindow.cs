@@ -30,14 +30,29 @@ namespace EorzeaArsenal.Plugin.UI;
 /// </remarks>
 public sealed class AdvisorWindow : Window
 {
-    private const float IconSize = 30f;
+    private const float IconSize = 32f;
+    private const float TileSize = 40f;
     private static readonly string[] Sorts = ["power", "value", "cheap"];
+
+    // The character-screen layout, row by row — the same shape as the BiS grid, so a player reads both
+    // windows the same way.
+    private static readonly (string Left, string Right)[] GridRows =
+    [
+        ("Weapon", "OffHand"),
+        ("Head", "Ears"),
+        ("Body", "Neck"),
+        ("Hands", "Wrists"),
+        ("Legs", "RingLeft"),
+        ("Feet", "RingRight"),
+    ];
 
     private static readonly Vector4 Accent = new(0.62f, 0.82f, 1f, 1f);
     private static readonly Vector4 Muted = new(0.78f, 0.80f, 0.85f, 1f);
     private static readonly Vector4 Green = new(0.45f, 0.82f, 0.45f, 1f);
     private static readonly Vector4 Orange = new(0.96f, 0.62f, 0.22f, 1f);
     private static readonly Vector4 Red = new(0.92f, 0.45f, 0.45f, 1f);
+    private static readonly Vector4 Blue = new(0.45f, 0.68f, 0.95f, 1f);
+    private static readonly Vector4 Grey = new(0.58f, 0.58f, 0.62f, 1f);
 
     private readonly PluginConfig _config;
     private readonly ConfigStore _store;
@@ -144,21 +159,31 @@ public sealed class AdvisorWindow : Window
     {
         WindowName = $"{T(LocKeys.AdvisorWindowTitle)}###EorzeaArsenalAdvisor";
 
-        using (ImRaii.PushColor(ImGuiCol.Text, Muted))
+        // Item names here are long and the pickers hold dozens of entries, so the window runs at its
+        // own scale rather than the game's default — otherwise the list is unreadable in a raid.
+        ImGui.SetWindowFontScale(Math.Clamp(_config.AdvisorTextScale, 1f, 1.6f));
+        try
         {
-            ImGui.TextWrapped(T(LocKeys.AdvisorIntro));
+            using (ImRaii.PushColor(ImGuiCol.Text, Muted))
+            {
+                ImGui.TextWrapped(T(LocKeys.AdvisorIntro));
+            }
+
+            ImGui.Spacing();
+            var comparison = DrawSetPicker();
+            DrawToolbar();
+            ImGui.Separator();
+
+            DrawSetBody(comparison);
+
+            ImGui.Spacing();
+            ImGui.Separator();
+            DrawStockSection();
         }
-
-        ImGui.Spacing();
-        var comparison = DrawSetPicker();
-        DrawToolbar();
-        ImGui.Separator();
-
-        DrawSetBody(comparison);
-
-        ImGui.Spacing();
-        ImGui.Separator();
-        DrawStockSection();
+        finally
+        {
+            ImGui.SetWindowFontScale(1f);
+        }
     }
 
     /// <summary>
@@ -291,14 +316,21 @@ public sealed class AdvisorWindow : Window
     /// <summary>The server's ranked steps: what to do, what it costs, and when it is affordable.</summary>
     private void DrawRecommendation(AdvisorOptions options)
     {
-        ImGui.TextColored(Accent, T(LocKeys.AdvisorViewRecommendation));
-        ImGui.SameLine();
-        ImGui.TextDisabled($"· {_localizer.Get(LocKeys.AdvisorBalance, options.TomeBalance, options.WeeklyCap)}");
+        DrawHeadline(options);
+        DrawSummary(options);
+
+        ImGui.Spacing();
+        ImGui.TextColored(Accent, T(LocKeys.AdvisorYourSet));
+        DrawSlotGrid(options, planned: null);
+        ImGui.TextDisabled(T(LocKeys.AdvisorLegend));
+
+        ImGui.Spacing();
+        ImGui.Separator();
+        ImGui.TextColored(Accent, T(LocKeys.AdvisorOrderHeading));
 
         var steps = options.Steps ?? [];
         if (steps.Count == 0)
         {
-            ImGui.Spacing();
             ImGui.TextColored(Green, T(LocKeys.AdvisorNothingToDo));
         }
 
@@ -308,6 +340,186 @@ public sealed class AdvisorWindow : Window
         }
 
         DrawNeeds(options.Materials);
+    }
+
+    /// <summary>
+    /// The one-line answer the window exists for: the single best next move, with how much of the
+    /// remaining way to BiS it closes.
+    /// </summary>
+    private void DrawHeadline(AdvisorOptions options)
+    {
+        if (options.Steps is not { Count: > 0 } steps)
+        {
+            return;
+        }
+
+        var best = steps[0];
+        var itemId = (int)(best.To ?? 0);
+        if (itemId <= 0)
+        {
+            return;
+        }
+
+        ImGui.TextDisabled(T(LocKeys.AdvisorNextBest));
+        DrawIcon(itemId, TileSize);
+        ImGui.SameLine();
+        ImGui.BeginGroup();
+
+        var from = (int)(best.From ?? 0);
+        var arrow = from > 0
+            ? $"i{_gearSource.GetItemLevel(from)} → i{_gearSource.GetItemLevel(itemId)}"
+            : $"i{_gearSource.GetItemLevel(itemId)}";
+        ImGui.TextColored(Accent, $"{KindLabel(best.Kind)}: {_gearSource.GetItemName(itemId)}  ·  {arrow}");
+
+        var (whenText, whenColor) = WhenLabel(best.When);
+        var cost = best.Cost > 0 ? $"{_localizer.Get(LocKeys.AdvisorCostTomes, best.Cost)} · " : string.Empty;
+        ImGui.TextColored(whenColor, $"{cost}{whenText}");
+        ImGui.EndGroup();
+
+        if (best.Pct > 0)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(Green, $"+{best.Pct}% {T(LocKeys.AdvisorProgress)}");
+        }
+
+        ImGui.Spacing();
+    }
+
+    /// <summary>The set at a glance: slots already on BiS, the average item level, and the balance.</summary>
+    private void DrawSummary(AdvisorOptions options)
+    {
+        var slots = options.Slots ?? [];
+        if (slots.Count == 0)
+        {
+            return;
+        }
+
+        var onBis = slots.Count(kv => IsOnBis(kv.Key, kv.Value, slots));
+        var current = slots.Values.Where(s => s.Current is not null).Select(s => s.Current!.Ilvl).ToList();
+        var target = slots.Values.Where(s => s.Bis is not null).Select(s => s.Bis!.Ilvl).ToList();
+
+        ImGui.TextColored(Muted, $"{T(LocKeys.AdvisorOnBis)} {onBis}/{slots.Count}");
+        if (current.Count > 0 && target.Count > 0)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(Muted, $"   ·   {T(LocKeys.AdvisorAvgIlvl)} {current.Average():0} → {target.Average():0}");
+        }
+
+        ImGui.SameLine();
+        ImGui.TextColored(Muted, $"   ·   {_localizer.Get(LocKeys.AdvisorBalance, options.TomeBalance, options.WeeklyCap)}");
+    }
+
+    /// <summary>
+    /// Rings are interchangeable, so a slot counts as done when its piece sits in <i>either</i> ring
+    /// target — the same rule the server ranks by.
+    /// </summary>
+    private static bool IsOnBis(string slot, AdvisorSlot entry, Dictionary<string, AdvisorSlot> all)
+    {
+        var worn = entry.Current?.Id ?? 0;
+        if (worn <= 0)
+        {
+            return false;
+        }
+
+        if (slot is "RingLeft" or "RingRight")
+        {
+            return worn == (all.GetValueOrDefault("RingLeft")?.Bis?.Id ?? 0)
+                || worn == (all.GetValueOrDefault("RingRight")?.Bis?.Id ?? 0);
+        }
+
+        return worn == (entry.Bis?.Id ?? 0);
+    }
+
+    /// <summary>
+    /// The character-screen grid: per slot what is worn and what it becomes next, colour-coded so the
+    /// state of the whole set reads at a glance. In the layout view the "next" piece is the player's
+    /// own pick instead of the recommendation.
+    /// </summary>
+    private void DrawSlotGrid(AdvisorOptions options, IReadOnlyDictionary<string, long>? planned)
+    {
+        var slots = options.Slots ?? [];
+        if (slots.Count == 0)
+        {
+            return;
+        }
+
+        if (!ImGui.BeginTable("##advisorgrid", 4, ImGuiTableFlags.PadOuterX))
+        {
+            return;
+        }
+
+        ImGui.TableSetupColumn("li", ImGuiTableColumnFlags.WidthFixed, (TileSize * 2f) + 24f);
+        ImGui.TableSetupColumn("ld", ImGuiTableColumnFlags.WidthStretch);
+        ImGui.TableSetupColumn("ri", ImGuiTableColumnFlags.WidthFixed, (TileSize * 2f) + 24f);
+        ImGui.TableSetupColumn("rd", ImGuiTableColumnFlags.WidthStretch);
+
+        foreach (var (left, right) in GridRows)
+        {
+            ImGui.TableNextRow();
+            DrawGridCells(left, slots, planned);
+            DrawGridCells(right, slots, planned);
+        }
+
+        ImGui.EndTable();
+    }
+
+    private void DrawGridCells(string slot, Dictionary<string, AdvisorSlot> slots, IReadOnlyDictionary<string, long>? planned)
+    {
+        ImGui.TableNextColumn();
+        if (!slots.TryGetValue(slot, out var entry))
+        {
+            // A slot this job does not fill (no off-hand): leave the row aligned and move on.
+            ImGui.Dummy(new Vector2(TileSize, TileSize));
+            ImGui.TableNextColumn();
+            return;
+        }
+
+        var worn = (int)(entry.Current?.Id ?? 0);
+        var next = (int)(planned is not null
+            ? planned.GetValueOrDefault(slot)
+            : entry.Recommended ?? entry.Current?.Id ?? 0);
+
+        DrawIcon(worn, TileSize);
+        if (next > 0 && next != worn)
+        {
+            ImGui.SameLine(0f, 4f);
+            ImGui.AlignTextToFramePadding();
+            ImGui.TextColored(Muted, "→");
+            ImGui.SameLine(0f, 4f);
+            DrawIcon(next, TileSize);
+        }
+
+        ImGui.TableNextColumn();
+        var shown = next > 0 ? next : worn;
+        var color = SlotColor(slot, entry, slots, next);
+        var detail = shown > 0 ? $"i{_gearSource.GetItemLevel(shown)}" : "—";
+        ClickableItem(color, $"{_sourcing.SlotName(slot)}  ·  {detail}", shown, $"##grid{slot}", worn);
+    }
+
+    /// <summary>
+    /// The tile colour, matching the web advisor: green = already on BiS, blue = you own the piece and
+    /// only have to put it on, orange = the next purchase, grey = nothing deterministic left (a savage
+    /// BiS you can only get lucky on).
+    /// </summary>
+    private Vector4 SlotColor(string slot, AdvisorSlot entry, Dictionary<string, AdvisorSlot> slots, long next)
+    {
+        if (IsOnBis(slot, entry, slots))
+        {
+            return Green;
+        }
+
+        if (entry.Even)
+        {
+            return Grey;
+        }
+
+        var worn = entry.Current?.Id ?? 0;
+        if (next > 0 && next != worn && Owned((int)next) > 0)
+        {
+            return Blue;
+        }
+
+        return next > 0 && next != worn ? Orange : Grey;
     }
 
     private void DrawStep(int rank, AdvisorStep step)
@@ -439,6 +651,13 @@ public sealed class AdvisorWindow : Window
             ImGui.TextColored(Orange, $"· {T(LocKeys.AdvisorUnsaved)}");
         }
 
+        // The same grid as the recommendation, so switching views does not relearn the layout — only
+        // the "next" piece changes from the advisor's pick to the player's.
+        DrawSlotGrid(options, _draft);
+        ImGui.TextDisabled(T(LocKeys.AdvisorLegend));
+
+        ImGui.Spacing();
+        ImGui.Separator();
         foreach (var slot in SlotOrder(options.Slots?.Keys ?? Enumerable.Empty<string>()))
         {
             DrawPlanSlot(slot, options.Slots![slot]);
@@ -500,7 +719,11 @@ public sealed class AdvisorWindow : Window
 
         var labels = ids.Select(id => OptionLabel(id, entry)).ToArray();
         var index = Math.Max(0, ids.IndexOf(chosen));
-        ImGui.SetNextItemWidth(430f);
+
+        // The picker holds every current-tier piece for the slot and the names are long, so give it as
+        // much of the window as the slot label leaves — a cramped list is unusable.
+        var labelWidth = ImGui.CalcTextSize(_sourcing.SlotName(slot)).X + (ImGui.GetStyle().ItemSpacing.X * 2f);
+        ImGui.SetNextItemWidth(Math.Max(360f, ImGui.GetContentRegionAvail().X - labelWidth));
         if (ImGui.Combo($"{_sourcing.SlotName(slot)}##planslot{slot}", ref index, labels, labels.Length))
         {
             _draft[slot] = ids[index];

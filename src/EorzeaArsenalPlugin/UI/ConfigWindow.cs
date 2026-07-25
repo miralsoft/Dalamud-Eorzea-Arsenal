@@ -219,6 +219,17 @@ public sealed class ConfigWindow : Window, IDisposable
         }
 
         Hint(T(LocKeys.TeamsEventScaleHint));
+        GroupGap();
+
+        var advisorScale = _config.AdvisorTextScale;
+        ImGui.SetNextItemWidth(240f);
+        if (ImGui.SliderFloat(T(LocKeys.AdvisorScale), ref advisorScale, 1f, 1.6f, "%.2fx"))
+        {
+            _config.AdvisorTextScale = Math.Clamp(advisorScale, 1f, 1.6f);
+            _save();
+        }
+
+        Hint(T(LocKeys.AdvisorScaleHint));
     }
 
     private void Tab(string key, Action body)

@@ -123,6 +123,9 @@ public sealed class PluginConfig : IPluginConfiguration
     /// <summary>Termine list: text scale (1.0 - 1.6).</summary>
     public float TeamsEventTextScale { get; set; } = 1.15f;
 
+    /// <summary>Purchase advisor: text scale (1.0 - 1.6). Long item names need the room.</summary>
+    public float AdvisorTextScale { get; set; } = 1.2f;
+
     /// <summary>The release-notes version the user has acknowledged; empty on a fresh install.</summary>
     public string LastSeenReleaseNotes { get; set; } = string.Empty;
 
