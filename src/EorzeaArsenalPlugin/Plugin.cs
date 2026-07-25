@@ -987,12 +987,18 @@ public sealed class Plugin : IDalamudPlugin
     {
         UpdateDtr();
 
-        // A successful push just recorded this character's server id — sync the weekly checklist now
-        // (covers a first-time character whose id was not yet known at login).
-        if (report.Outcome == PushOutcome.Sent &&
-            _config is { Enabled: true, TosAccepted: true, SyncWeekly: true } && _store.HasKey)
+        if (report.Outcome == PushOutcome.Sent)
         {
-            _weeklySync.RequestSync(WeeklyTrigger.GearPush);
+            // The advisor ranks against the gear the server has on file, which just changed — drop the
+            // cached advice so a job switch does not keep showing the previous set's next step.
+            _advisorService.InvalidateOptions();
+
+            // A successful push just recorded this character's server id — sync the weekly checklist
+            // now (covers a first-time character whose id was not yet known at login).
+            if (_config is { Enabled: true, TosAccepted: true, SyncWeekly: true } && _store.HasKey)
+            {
+                _weeklySync.RequestSync(WeeklyTrigger.GearPush);
+            }
         }
 
         var message = PushReportFormatter.Describe(report, _localizer);

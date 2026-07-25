@@ -69,8 +69,12 @@ public sealed class AdvisorWindow : Window
     private readonly Func<string?, long?> _resolveCharacterId;
     private readonly Action<int> _linkItem;
 
-    // The gearset the user is looking at; -1 means "the set the character currently has on".
+    // The gearset the user is looking at; -1 means "not chosen yet — take the one being worn".
     private int _selectedGearIndex = -1;
+
+    // The gearset the character wore last frame, so an in-game job/gearset switch can be told apart
+    // from the player simply having picked another set from the combo.
+    private int _lastWornGearIndex = -1;
     private bool _showPlanView;
     private int _sortIndex;
 
@@ -204,11 +208,7 @@ public sealed class AdvisorWindow : Window
             return null;
         }
 
-        if (_selectedGearIndex < 0 || sets.All(s => s.GearIndex != _selectedGearIndex))
-        {
-            var current = _gearSource.GetCurrentGearsetIndex();
-            _selectedGearIndex = sets.Any(s => s.GearIndex == current) ? current : sets[0].GearIndex;
-        }
+        FollowWornGearset(sets);
 
         var labels = sets.Select(SetLabel).ToArray();
         var index = 0;
@@ -264,6 +264,32 @@ public sealed class AdvisorWindow : Window
         if (ImGui.Combo(T(LocKeys.AdvisorSortLabel), ref sort, sorts, sorts.Length))
         {
             _sortIndex = sort;
+        }
+    }
+
+    /// <summary>
+    /// Moves the shown set to the one the character actually wears whenever they switch gearset or job
+    /// in game — the BiS window behaves that way, and switching class to look at that class's advice is
+    /// exactly why the window is open. Picking another set from the combo still sticks: only a real
+    /// in-game change moves the selection, not every frame.
+    /// </summary>
+    private void FollowWornGearset(IReadOnlyList<GearsetComparison> sets)
+    {
+        var worn = _gearSource.GetCurrentGearsetIndex();
+        var wornIsKnown = sets.Any(s => s.GearIndex == worn);
+        var switched = worn != _lastWornGearIndex;
+        _lastWornGearIndex = worn;
+
+        // Never yank the view away from a layout that has unsaved edits in it.
+        if (switched && wornIsKnown && !(_showPlanView && _draftDirty))
+        {
+            _selectedGearIndex = worn;
+            return;
+        }
+
+        if (_selectedGearIndex < 0 || sets.All(s => s.GearIndex != _selectedGearIndex))
+        {
+            _selectedGearIndex = wornIsKnown ? worn : sets[0].GearIndex;
         }
     }
 
