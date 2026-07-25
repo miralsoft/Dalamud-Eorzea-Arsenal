@@ -267,8 +267,41 @@ public sealed class AdvisorServiceTests
     }
 
     /// <summary>
-    /// The advice carries the raw xivgear source spellings while <c>/gear/bis</c> sends the lower-case
-    /// enum. Both must localize, or the same piece reads differently per endpoint.
+    /// <c>materials</c> and <c>target_needs</c> answer two different questions and must stay apart: the
+    /// first is what the advised path costs (a bridge's material included), the second what the BiS set
+    /// itself costs. Conflating them told a player with an Ultimate weapon that their BiS wanted the
+    /// tome bridge's upgrade material.
+    /// </summary>
+    [Fact]
+    public void TargetNeedsAreSeparateFromThePathsNeeds()
+    {
+        const string body = """
+        {"data":{"job":"DRK","target":"sl/abc-123",
+          "materials":[{"id":49759,"name":"Solvent","need":1,"owned":0},
+                       {"id":49758,"name":"Twine","need":2,"owned":0}],
+          "target_needs":{"tomes":2190,
+            "materials":[{"id":49758,"name":"Twine","need":1,"owned":0,"for":["Body"]},
+                         {"id":49763,"name":"Edition IV","need":8,"owned":0,"for":["Weapon","Legs"]}]}}}
+        """;
+
+        var data = JsonSerializer.Deserialize<AdvisorOptionsResponse>(body, EorzeaJson.Options)!.Data!;
+
+        // The path still wants the bridge's Solvent…
+        Assert.Contains(data.Materials!, m => m.Id == 49759);
+
+        // …but the set itself does not, and it asks for less Twine.
+        Assert.DoesNotContain(data.TargetNeeds!.Materials!, m => m.Id == 49759);
+        Assert.Equal(1, data.TargetNeeds.Materials!.Single(m => m.Id == 49758).Need);
+        Assert.Equal(2190, data.TargetNeeds.Tomes);
+
+        // `for` names the slots, so a row can say what the material is actually for.
+        Assert.Equal(["Weapon", "Legs"], data.TargetNeeds.Materials.Single(m => m.Id == 49763).For);
+    }
+
+    /// <summary>
+    /// The advice used to carry the raw xivgear source spellings while <c>/gear/bis</c> sent the
+    /// lower-case enum; the server has since unified on the enum. Both still resolve, so an older
+    /// server keeps rendering correctly.
     /// </summary>
     [Theory]
     [InlineData("Tome", "source.tome")]

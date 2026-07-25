@@ -37,6 +37,9 @@ public sealed class TeamsWindow : Window
     private readonly ObtainService _obtain;
     private readonly IWorldActions _world;
     private readonly HoldingsService _holdings;
+
+    // The player's own server character id, so a farm row of theirs can be told from a teammate's.
+    private readonly Func<long?> _myCharacterId;
     private readonly HashSet<long> _farmObtainRequested = [];
     private readonly TeamsService _teams;
     private readonly ITextureProvider _textures;
@@ -87,6 +90,10 @@ public sealed class TeamsWindow : Window
     /// <param name="world">Game actions (owned counts, open the map at a vendor) for the farm sourcing.</param>
     /// <param name="obtain">Chain-complete "how to get it" sourcing, to enrich the farm's own routes.</param>
     /// <param name="holdings">Server-side owned counts (retainers included) for the farm's have/need.</param>
+    /// <param name="myCharacterId">
+    /// The player's own server character id, so a farm row belonging to them can be told apart from a
+    /// teammate's — only their own may be measured against what the plugin can see.
+    /// </param>
     /// <param name="openImage">Opens a content-hub image in the image window (teamId, resourceId, title).</param>
     public TeamsWindow(
         PluginConfig config,
@@ -99,12 +106,14 @@ public sealed class TeamsWindow : Window
         IWorldActions world,
         ObtainService obtain,
         HoldingsService holdings,
+        Func<long?> myCharacterId,
         ILog log,
         Action save,
         Action openConfig,
         Action<long, long, string?> openImage)
         : base("Eorzea Arsenal — Teams###EorzeaArsenalTeams")
     {
+        _myCharacterId = myCharacterId;
         _config = config;
         _store = store;
         _localizer = localizer;
@@ -1023,8 +1032,12 @@ public sealed class TeamsWindow : Window
                 continue;
             }
 
-            DrawMemberNeeds(missing);
-            DrawFarmMissing(missing);
+            // Only the player's own row may be measured against what the plugin can see. For everyone
+            // else the requirement is shown, but never a have/need — see DrawMemberNeeds.
+            var isSelf = _myCharacterId() is { } me && entry.CharacterId == me;
+
+            DrawMemberNeeds(missing, isSelf);
+            DrawFarmMissing(missing, isSelf);
             ImGui.Separator();
         }
     }
@@ -1072,7 +1085,19 @@ public sealed class TeamsWindow : Window
     /// A one-line "still short" summary next to the member: the farmable materials/tokens summed across
     /// all their missing pieces, minus what they own — so you see at a glance what to gather for them.
     /// </summary>
-    private void DrawMemberNeeds(List<(string Slot, FarmSlot Item, (string? Source, List<FarmRoute>? Routes) Sourcing, long Equipped)> missing)
+    /// <summary>
+    /// The one-line summary under a member: how many pieces are still missing and what they cost in
+    /// materials and tokens.
+    /// </summary>
+    /// <param name="missing">The member's still-missing pieces.</param>
+    /// <param name="isSelf">
+    /// Whether this row is the player's own character. Only then is the cost measured against what is
+    /// held — the plugin can see nobody else's bags, retainers or tomestones, so for a teammate it
+    /// states the full requirement instead of subtracting the player's own stock from it.
+    /// </param>
+    private void DrawMemberNeeds(
+        List<(string Slot, FarmSlot Item, (string? Source, List<FarmRoute>? Routes) Sourcing, long Equipped)> missing,
+        bool isSelf)
     {
         // Sum the farmable cost items (materials + tokens, not the tier's tomestone) across every piece.
         var needed = new Dictionary<long, (string Name, int Count)>();
@@ -1082,15 +1107,28 @@ public sealed class TeamsWindow : Window
             CollectNeeds(primary, needed, depth: 0);
         }
 
-        _ = _holdings.PrefetchAsync(needed.Keys, CancellationToken.None);
-        var shortItems = new List<string>();
+        if (isSelf)
+        {
+            _ = _holdings.PrefetchAsync(needed.Keys, CancellationToken.None);
+        }
+
+        var parts = new List<string>();
         foreach (var (itemId, entry) in needed)
         {
-            var have = _holdings.TryGet(itemId, out var h) ? h : _world.OwnedCount((uint)itemId);
+            var name = _world.LocalizedItemName(itemId) ?? entry.Name;
+            if (!isSelf)
+            {
+                parts.Add($"{entry.Count}× {name}");
+                continue;
+            }
+
+            var have = Math.Max(
+                _holdings.TryGet(itemId, out var h) ? h : 0,
+                _world.OwnedCount((uint)itemId));
             var shortBy = entry.Count - have;
             if (shortBy > 0)
             {
-                shortItems.Add($"{shortBy}× {entry.Name}");
+                parts.Add($"{shortBy}× {name}");
             }
         }
 
@@ -1099,10 +1137,10 @@ public sealed class TeamsWindow : Window
             ImGui.TextUnformatted($"{T(LocKeys.TeamsMissing)}: {missing.Count}");
         }
 
-        if (shortItems.Count > 0)
+        if (parts.Count > 0)
         {
             ImGui.SameLine();
-            ImGui.TextDisabled($"·  {string.Join(", ", shortItems)}");
+            ImGui.TextDisabled($"·  {string.Join(", ", parts)}");
         }
     }
 
@@ -1132,7 +1170,9 @@ public sealed class TeamsWindow : Window
     }
 
     /// <summary>Renders the still-missing pieces as a slot/source/steps table (R8: display only).</summary>
-    private void DrawFarmMissing(List<(string Slot, FarmSlot Item, (string? Source, List<FarmRoute>? Routes) Sourcing, long Equipped)> missing)
+    private void DrawFarmMissing(
+        List<(string Slot, FarmSlot Item, (string? Source, List<FarmRoute>? Routes) Sourcing, long Equipped)> missing,
+        bool isSelf)
     {
         if (!ImGui.BeginTable("##farmMissing", 3, ImGuiTableFlags.NoSavedSettings | ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.RowBg))
         {
@@ -1159,7 +1199,7 @@ public sealed class TeamsWindow : Window
                 ImGui.TextColored(color, label);
 
                 ImGui.TableNextColumn();
-                DrawFarmHow(sourcing.Source, sourcing.Routes, equipped);
+                DrawFarmHow(sourcing.Source, sourcing.Routes, equipped, isSelf);
 
                 // Right-click the piece → pin its vendor on the map (when the route has one).
                 if (_sourcing.HasMapTarget(sourcing.Routes) && ImGui.BeginPopupContextItem("##farmctx"))
@@ -1176,15 +1216,15 @@ public sealed class TeamsWindow : Window
     }
 
     /// <summary>The "how to get it" cell: the steps in one line, the full checklist on hover.</summary>
-    private void DrawFarmHow(string? source, List<FarmRoute>? routes, long equippedItemId)
+    private void DrawFarmHow(string? source, List<FarmRoute>? routes, long equippedItemId, bool isSelf)
     {
         ImGui.BeginGroup();
-        _sourcing.DrawCompact(source, routes, equippedItemId);
+        _sourcing.DrawCompact(source, routes, equippedItemId, isSelf);
         ImGui.EndGroup();
 
         if (routes is { Count: > 0 } && ImGui.IsItemHovered())
         {
-            _sourcing.DrawTooltip(source, routes, equippedItemId);
+            _sourcing.DrawTooltip(source, routes, equippedItemId, isSelf);
         }
     }
 

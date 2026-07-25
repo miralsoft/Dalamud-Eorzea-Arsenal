@@ -109,7 +109,27 @@ public sealed class AdvisorOptions
     /// <summary>Slot → what is worn, what BiS is, what is recommended, and the pieces to choose from.</summary>
     public Dictionary<string, AdvisorSlot>? Slots { get; init; }
 
-    /// <summary>What the still-open slots need in material and books, with what is held.</summary>
+    /// <summary>
+    /// What the <b>recommended path</b> still needs in material and books — a bridge's upgrade
+    /// material included, because doing what the advisor says really costs it.
+    /// </summary>
+    public List<AdvisorMaterialNeed>? Materials { get; init; }
+
+    /// <summary>
+    /// What the <b>BiS set itself</b> still costs: each open slot's own target piece and nothing else.
+    /// A different question from <see cref="Materials"/> — a bridge is a way there, not part of the
+    /// goal, so an Ultimate weapon asks for nothing rather than inheriting the tome bridge's price.
+    /// </summary>
+    public AdvisorTargetNeeds? TargetNeeds { get; init; }
+}
+
+/// <summary>What completing the BiS set still costs, independent of the route the advisor recommends.</summary>
+public sealed class AdvisorTargetNeeds
+{
+    /// <summary>Capped tomestones, counting only slots whose BiS piece is actually bought.</summary>
+    public int Tomes { get; init; }
+
+    /// <summary>The materials and books the target pieces themselves ask for.</summary>
     public List<AdvisorMaterialNeed>? Materials { get; init; }
 }
 
@@ -196,6 +216,9 @@ public sealed class AdvisorMaterialNeed
 
     /// <summary>How many the character holds (server count, retainers included).</summary>
     public int Owned { get; init; }
+
+    /// <summary>The slots this need came from, so a tooltip can say which pieces want it.</summary>
+    public List<string>? For { get; init; }
 }
 
 /// <summary>One slot's picture: worn, target, recommendation and the pieces that may replace it.</summary>

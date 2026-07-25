@@ -77,6 +77,14 @@ internal sealed class SourcingView
     private bool German => _localizer.Language == Localizer.German;
 
     /// <summary>
+    /// Whether the counts on screen may be read as "this character's". Only ever true for the player's
+    /// own character: the plugin can see nobody else's bags, retainers or tomestones, so on a
+    /// teammate's row a have/need line would be the player's own stock wearing someone else's name.
+    /// The requirement itself is still shown — it is the same for everyone — just never the comparison.
+    /// </summary>
+    private bool _ownershipKnown = true;
+
+    /// <summary>
     /// How many of an item the player owns: the higher of the server's holdings and the live in-game
     /// count.
     /// </summary>
@@ -103,6 +111,11 @@ internal sealed class SourcingView
     /// <summary>Warms holdings for every material/token/base id a piece references, so counts are ready.</summary>
     private void EnsureHoldings(List<FarmRoute>? routes)
     {
+        if (!_ownershipKnown)
+        {
+            return; // nothing on this row is counted, so nothing needs counting
+        }
+
         var ids = new List<long>();
         CollectHoldingsIds(routes, ids, 0);
         if (ids.Count > 0)
@@ -165,8 +178,9 @@ internal sealed class SourcingView
     /// by whether you already have what it needs, plus an "or …" hint when other ways exist (the hover
     /// lists them all). Empty renders a dim dash.
     /// </summary>
-    public void DrawCompact(string? source, List<FarmRoute>? routes, long equippedItemId = 0)
+    public void DrawCompact(string? source, List<FarmRoute>? routes, long equippedItemId = 0, bool ownershipKnown = true)
     {
+        _ownershipKnown = ownershipKnown;
         EnsureHoldings(routes);
         var methods = BuildMethods(source, routes, equippedItemId);
         if (methods.Count == 0)
@@ -205,10 +219,10 @@ internal sealed class SourcingView
     }
 
     /// <summary>A standalone tooltip with the full, numbered step-by-step path (larger, spaced).</summary>
-    public void DrawTooltip(string? source, List<FarmRoute>? routes, long equippedItemId = 0)
+    public void DrawTooltip(string? source, List<FarmRoute>? routes, long equippedItemId = 0, bool ownershipKnown = true)
     {
         ImGui.BeginTooltip();
-        DrawBody(source, routes, equippedItemId);
+        DrawBody(source, routes, equippedItemId, ownershipKnown);
         ImGui.EndTooltip();
     }
 
@@ -218,8 +232,9 @@ internal sealed class SourcingView
     /// tooltip auto-sizes instead of breaking a number across lines. Drawn slightly larger, as the
     /// detail view. Used inside the BiS tile tooltip and the farm hover.
     /// </summary>
-    public void DrawBody(string? source, List<FarmRoute>? routes, long equippedItemId = 0)
+    public void DrawBody(string? source, List<FarmRoute>? routes, long equippedItemId = 0, bool ownershipKnown = true)
     {
+        _ownershipKnown = ownershipKnown;
         ImGui.SetWindowFontScale(TooltipFontScale);
         try
         {
@@ -349,7 +364,9 @@ internal sealed class SourcingView
         switch (route.Kind)
         {
             case "drop":
-                steps.Add(new SourceStep(StepKind.Fight, [], route.Npc?.FirstOrDefault(), null, route.Via?.Name, route.Duties ?? [], null));
+                // The coffer carries an item id, so it can be named in the player's language.
+                var coffer = route.Via is { } via ? ItemName(via.Id, via.Name) : null;
+                steps.Add(new SourceStep(StepKind.Fight, [], route.Npc?.FirstOrDefault(), null, coffer, route.Duties ?? [], null));
                 break;
 
             case "retired":
@@ -396,18 +413,26 @@ internal sealed class SourcingView
     /// either it is owned <b>anywhere</b> (any of the server's base ids for the slot held per holdings,
     /// retainers included) or it is the currently equipped piece.
     /// </summary>
+    /// <remarks>
+    /// For a teammate only the equipped check applies. What they wear comes from the team data and is
+    /// real; what they hold in bags or on a retainer is not something the plugin can see, and answering
+    /// it from the player's own stock would put a stranger's name on the player's inventory.
+    /// </remarks>
     private bool IsBaseOwned(FarmCostPart piece, long equippedItemId)
     {
-        if (piece.Id is { } single && single > 0 && Owned(single) > 0)
+        if (_ownershipKnown)
         {
-            return true;
-        }
-
-        foreach (var id in piece.Ids ?? [])
-        {
-            if (Owned(id) > 0)
+            if (piece.Id is { } single && single > 0 && Owned(single) > 0)
             {
                 return true;
+            }
+
+            foreach (var id in piece.Ids ?? [])
+            {
+                if (Owned(id) > 0)
+                {
+                    return true;
+                }
             }
         }
 
@@ -508,10 +533,28 @@ internal sealed class SourcingView
         }
     }
 
+    /// <summary>
+    /// An item's name in the player's language. The server names everything in English, but the game
+    /// carries every language — so whenever an id came along, the game's own name wins and the player
+    /// reads what the item is actually called on their client.
+    /// </summary>
+    /// <param name="itemId">The item id the server sent, if any.</param>
+    /// <param name="serverName">The server's English name, used when the id is missing or unknown.</param>
+    /// <returns>The best name available.</returns>
+    private string ItemName(long? itemId, string? serverName)
+    {
+        if (itemId is { } id && id > 0 && _world.LocalizedItemName(id) is { Length: > 0 } localized)
+        {
+            return localized;
+        }
+
+        return serverName ?? (itemId is { } raw && raw > 0 ? $"#{raw}" : T(LocKeys.TeamsFarmCoffer));
+    }
+
     private void DrawCost(FarmCostPart cost)
     {
-        var name = cost.Name ?? (cost.Id is { } id ? $"#{id}" : T(LocKeys.TeamsFarmCoffer));
-        if (cost.Id is { } itemId && itemId > 0)
+        var name = ItemName(cost.Id, cost.Name);
+        if (cost.Id is { } itemId && itemId > 0 && _ownershipKnown)
         {
             var have = Owned(itemId);
             var enough = have >= cost.Count;
@@ -536,6 +579,13 @@ internal sealed class SourcingView
         if (step.Kind == StepKind.Retired)
         {
             return (false, 0);
+        }
+
+        if (!_ownershipKnown)
+        {
+            // Someone else's row: the step is neither "done" nor "short" — it is simply not our answer
+            // to give, so it renders neutrally rather than green or red.
+            return (true, 0);
         }
 
         var shortBy = 0;
@@ -588,10 +638,17 @@ internal sealed class SourcingView
                     return verb;
                 }
 
-                var name = headline.Name ?? T(LocKeys.TeamsFarmCoffer);
-                return $"{verb} {headline.Count}× {name}";
+                return $"{verb} {headline.Count}× {ItemName(headline.Id, headline.Name)}";
         }
     }
+
+    /// <summary>A vendor's name in the player's language, falling back to the server's English one.</summary>
+    private string NpcName(FarmNpc npc) =>
+        _world.LocalizedNpcName(npc.Id, npc.Name) ?? npc.Name ?? string.Empty;
+
+    /// <summary>A duty's name in the player's language, falling back to the server's English one.</summary>
+    private string DutyName(string englishName) =>
+        _world.LocalizedDutyName(englishName) ?? englishName;
 
     private string StepWhere(SourceStep step)
     {
@@ -600,7 +657,7 @@ internal sealed class SourcingView
             // Prefer the fight name(s); if the server did not link one, the coffer name is the fallback.
             if (step.Duties is { Count: > 0 } d)
             {
-                return string.Join(", ", d);
+                return string.Join(", ", d.Select(DutyName));
             }
 
             return step.Coffer is { Length: > 0 } coffer ? $"{T(LocKeys.TeamsFarmCoffer)}: {coffer}" : string.Empty;
@@ -608,11 +665,12 @@ internal sealed class SourcingView
 
         if (step.Npc is { } npc && !string.IsNullOrEmpty(npc.Name))
         {
-            var zone = string.IsNullOrEmpty(npc.Zone) ? string.Empty : $" · {npc.Zone}";
+            var zoneName = _world.LocalizedZoneName(npc.ZoneId, npc.Zone) ?? npc.Zone;
+            var zone = string.IsNullOrEmpty(zoneName) ? string.Empty : $" · {zoneName}";
             var coords = npc is { X: { } x, Y: { } y }
                 ? $" ({x.ToString("0.#", CultureInfo.InvariantCulture)}, {y.ToString("0.#", CultureInfo.InvariantCulture)})"
                 : string.Empty;
-            return $"{npc.Name}{zone}{coords}";
+            return $"{NpcName(npc)}{zone}{coords}";
         }
 
         return step.Shops is { Count: > 0 } shops && !string.IsNullOrEmpty(shops[0]) ? shops[0] : string.Empty;
@@ -673,7 +731,7 @@ internal sealed class SourcingView
             return false;
         }
 
-        if (ImGui.MenuItem($"{T(LocKeys.TeamsFarmShowOnMap)}: {hit.Npc.Name}"))
+        if (ImGui.MenuItem($"{T(LocKeys.TeamsFarmShowOnMap)}: {NpcName(hit.Npc)}"))
         {
             _world.OpenMap(hit.Pin);
         }

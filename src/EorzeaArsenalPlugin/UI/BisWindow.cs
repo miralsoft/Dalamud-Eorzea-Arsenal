@@ -388,7 +388,10 @@ public sealed class BisWindow : Window
             return;
         }
 
-        var (tomes, materials) = NeedsForTargets(options);
+        // The server answers this exact question separately from "what does the advised path cost" —
+        // a bridge piece is a way to the goal, not part of it.
+        var tomes = options.TargetNeeds?.Tomes ?? 0;
+        var materials = options.TargetNeeds?.Materials ?? [];
         if (tomes <= 0 && materials.Count == 0)
         {
             ImGui.TextColored(Green, T(LocKeys.BisNeedsNothing));
@@ -404,19 +407,22 @@ public sealed class BisWindow : Window
         // window otherwise only ever asks for gear pieces and the hover would stay empty.
         if (_config.BisShowSourcing && _store.HasKey)
         {
-            var unknown = materials.Keys.Where(id => !_obtain.TryGet((int)id, out _)).ToList();
+            var unknown = materials.Select(m => m.Id).Where(id => !_obtain.TryGet((int)id, out _)).ToList();
             if (unknown.Count > 0)
             {
                 _ = _obtain.PrefetchAsync(unknown, CancellationToken.None);
             }
         }
 
-        foreach (var need in materials.Values.OrderByDescending(n => n.Need - n.Owned))
+        foreach (var need in materials.OrderByDescending(n => n.Need - n.Owned))
         {
             // The advisor counted from stored holdings; the game may already know better (a stack
             // bought since the last sync), so take the higher number — same rule as everywhere else.
             var owned = Math.Max(need.Owned, OwnedNow((int)need.Id));
             var itemId = (int)need.Id;
+            var slots = need.For is { Count: > 0 } forSlots
+                ? string.Join(", ", forSlots.Select(s => _localizer.Get(SlotNames.LocKey(s))))
+                : null;
 
             DrawIcon(itemId, IconSize);
             if (ImGui.IsItemHovered())
@@ -424,71 +430,27 @@ public sealed class BisWindow : Window
                 ImGui.BeginTooltip();
                 ImGui.TextColored(Accent, _gearSource.GetItemName(itemId));
                 ImGui.TextColored(owned >= need.Need ? Green : Orange, $"{owned}/{need.Need}");
+                if (slots is not null)
+                {
+                    ImGui.TextColored(Muted, slots);
+                }
+
                 DrawSourcingInTooltip(itemId);
                 ImGui.TextDisabled(T(LocKeys.BisItemHint));
                 ImGui.EndTooltip();
             }
 
             ImGui.SameLine();
+
+            // Naming the slots turns a bare number into something actionable — "3× Twine" says little,
+            // "for body, hands and feet" says what it is for.
+            var suffix = slots is null ? string.Empty : $"   ·   {slots}";
             ClickableItem(
                 owned >= need.Need ? Green : Orange,
-                $"{_gearSource.GetItemName(itemId)} — {owned}/{need.Need}",
+                $"{_gearSource.GetItemName(itemId)} — {owned}/{need.Need}{suffix}",
                 itemId,
                 $"##need{comparison.GearIndex}_{need.Id}");
         }
-    }
-
-    /// <summary>
-    /// What the <b>BiS pieces themselves</b> still cost, as opposed to what the advisor's recommended
-    /// path costs. The two differ whenever a slot's BiS is not buyable: for an Ultimate or Savage
-    /// weapon the advisor sensibly recommends buying the tome bridge weapon in the meantime, and that
-    /// bridge's stones and upgrade material are <i>not</i> something the BiS set requires. Such a
-    /// detour is recognisable by its step aiming at a piece other than the slot's BiS
-    /// (<c>final</c>), and is left out here — the purchase advisor still shows it, where it belongs.
-    /// </summary>
-    /// <param name="options">The server's advice for this set.</param>
-    /// <returns>The tomestone total and the per-item needs of the BiS targets.</returns>
-    private static (int Tomes, Dictionary<long, AdvisorMaterialNeed> Materials) NeedsForTargets(AdvisorOptions options)
-    {
-        var tomes = 0;
-        var needs = new Dictionary<long, AdvisorMaterialNeed>();
-
-        foreach (var step in options.Steps ?? [])
-        {
-            var bis = step.Slot is not null && (options.Slots?.TryGetValue(step.Slot, out var slot) ?? false)
-                ? slot.Bis?.Id ?? 0
-                : 0;
-
-            // `final` names what the step is on the way to. When that is not this slot's BiS piece,
-            // the step is a stopgap for a target you cannot buy — its cost belongs to the advisor, not
-            // to the BiS set.
-            if (step.Final is { } final && final > 0 && bis > 0 && final != bis)
-            {
-                continue;
-            }
-
-            tomes += step.Cost;
-            foreach (var material in step.Material ?? [])
-            {
-                needs[material.Id] = needs.TryGetValue(material.Id, out var existing)
-                    ? new AdvisorMaterialNeed
-                    {
-                        Id = material.Id,
-                        Name = material.Name,
-                        Need = existing.Need + material.Count,
-                        Owned = material.Owned,
-                    }
-                    : new AdvisorMaterialNeed
-                    {
-                        Id = material.Id,
-                        Name = material.Name,
-                        Need = material.Count,
-                        Owned = material.Owned,
-                    };
-            }
-        }
-
-        return (tomes, needs);
     }
 
     /// <summary>The tomestone total, what is banked against it, and how many capped weeks are left.</summary>

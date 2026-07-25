@@ -2,6 +2,9 @@ using Dalamud.Game;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
+using LuminaDuty = Lumina.Excel.Sheets.ContentFinderCondition;
+using LuminaENpc = Lumina.Excel.Sheets.ENpcResident;
+using LuminaItem = Lumina.Excel.Sheets.Item;
 using LuminaPlaceName = Lumina.Excel.Sheets.PlaceName;
 using LuminaTerritory = Lumina.Excel.Sheets.TerritoryType;
 
@@ -38,6 +41,36 @@ public interface IWorldActions
     /// <summary>Opens the in-game map at a pin and drops a flag on it.</summary>
     /// <param name="pin">The resolved pin.</param>
     void OpenMap(MapPin pin);
+
+    /// <summary>
+    /// The game's own name for a vendor NPC, in the client's language. The server names things in
+    /// English; the game holds every language, so anything it can identify by id is shown the way the
+    /// player sees it in game.
+    /// </summary>
+    /// <param name="npcId">The NPC's resident row id as the server sends it.</param>
+    /// <param name="englishName">The server's English name, used to confirm the row really is that NPC.</param>
+    /// <returns>The localized name, or <see langword="null"/> when it cannot be confirmed.</returns>
+    string? LocalizedNpcName(long npcId, string? englishName);
+
+    /// <summary>The game's own name for an item, in the client's language.</summary>
+    /// <param name="itemId">The item id.</param>
+    /// <returns>The localized name, or <see langword="null"/> when the id is unknown.</returns>
+    string? LocalizedItemName(long itemId);
+
+    /// <summary>
+    /// The game's own name for a duty, in the client's language. The server sends only the English
+    /// name here, so it is matched against the game's English list — an exact hit gives the localized
+    /// name, anything else keeps the server's text.
+    /// </summary>
+    /// <param name="englishName">The duty name as the server sends it.</param>
+    /// <returns>The localized name, or <see langword="null"/> when it cannot be matched.</returns>
+    string? LocalizedDutyName(string? englishName);
+
+    /// <summary>The game's own name for a zone, in the client's language.</summary>
+    /// <param name="territoryId">The territory id, when the server sent one.</param>
+    /// <param name="englishName">The server's English zone name (also used to find the zone without an id).</param>
+    /// <returns>The localized name, or <see langword="null"/> when it cannot be resolved.</returns>
+    string? LocalizedZoneName(long? territoryId, string? englishName);
 }
 
 /// <inheritdoc cref="IWorldActions"/>
@@ -49,6 +82,10 @@ public sealed class WorldActions : IWorldActions
     // English zone name (lower-case) -> (territory, default map). Built once, lazily, so a vendor the
     // server named but did not give ids for can still be placed. Null until first use.
     private Dictionary<string, (uint Territory, uint Map)>? _zoneByName;
+
+    // English duty name (lower-case) -> ContentFinderCondition row. Built once, lazily; the server
+    // sends duty names as plain text with no id, so the English name is the only handle we have.
+    private Dictionary<string, uint>? _dutyByEnglishName;
 
     /// <summary>Creates the world-actions seam.</summary>
     /// <param name="gameGui">Dalamud game GUI (opens the map).</param>
@@ -156,6 +193,142 @@ public sealed class WorldActions : IWorldActions
         catch
         {
             // A stale/unknown map ref simply does nothing rather than disturbing the game.
+        }
+    }
+
+    /// <inheritdoc />
+    public string? LocalizedNpcName(long npcId, string? englishName)
+    {
+        if (npcId <= 0 || npcId > uint.MaxValue)
+        {
+            return null;
+        }
+
+        try
+        {
+            var localized = _data.GetExcelSheet<LuminaENpc>()?.GetRowOrDefault((uint)npcId)?.Singular.ExtractText();
+            if (string.IsNullOrEmpty(localized))
+            {
+                return null;
+            }
+
+            // The id's meaning is the server's word, so confirm it: the same row read in English has to
+            // be the name the server sent. A mismatch means the id is not this NPC, and showing the
+            // wrong vendor is worse than showing an English one.
+            if (!string.IsNullOrEmpty(englishName))
+            {
+                var english = _data.GetExcelSheet<LuminaENpc>(ClientLanguage.English)?.GetRowOrDefault((uint)npcId)?.Singular.ExtractText();
+                if (!string.Equals(english?.Trim(), englishName.Trim(), StringComparison.OrdinalIgnoreCase))
+                {
+                    return null;
+                }
+            }
+
+            return localized;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <inheritdoc />
+    public string? LocalizedItemName(long itemId)
+    {
+        if (itemId is <= 0 or > uint.MaxValue)
+        {
+            return null;
+        }
+
+        try
+        {
+            var name = _data.GetExcelSheet<LuminaItem>()?.GetRowOrDefault((uint)itemId)?.Name.ExtractText();
+            return string.IsNullOrEmpty(name) ? null : name;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <inheritdoc />
+    public string? LocalizedDutyName(string? englishName)
+    {
+        if (string.IsNullOrWhiteSpace(englishName))
+        {
+            return null;
+        }
+
+        try
+        {
+            return DutyIndex().TryGetValue(englishName.Trim().ToLowerInvariant(), out var rowId)
+                && _data.GetExcelSheet<LuminaDuty>()?.GetRowOrDefault(rowId)?.Name.ExtractText() is { Length: > 0 } name
+                ? name
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Builds (once) the English-duty-name → row index used to localize the server's duty text.</summary>
+    private Dictionary<string, uint> DutyIndex()
+    {
+        if (_dutyByEnglishName is not null)
+        {
+            return _dutyByEnglishName;
+        }
+
+        var index = new Dictionary<string, uint>(StringComparer.Ordinal);
+        try
+        {
+            if (_data.GetExcelSheet<LuminaDuty>(ClientLanguage.English) is { } duties)
+            {
+                foreach (var duty in duties)
+                {
+                    var name = duty.Name.ExtractText();
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        index[name.Trim().ToLowerInvariant()] = duty.RowId;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // A missing sheet just means the server's English names stay as they are.
+        }
+
+        _dutyByEnglishName = index;
+        return index;
+    }
+
+    /// <inheritdoc />
+    public string? LocalizedZoneName(long? territoryId, string? englishName)
+    {
+        try
+        {
+            var territory = territoryId is > 0 and <= uint.MaxValue ? (uint)territoryId.Value : 0u;
+
+            // Without an id the English name still identifies the zone — the same index the map pin uses.
+            if (territory == 0 && !string.IsNullOrEmpty(englishName)
+                && ZoneIndex().TryGetValue(englishName.ToLowerInvariant(), out var byName))
+            {
+                territory = byName.Territory;
+            }
+
+            if (territory == 0 || _data.GetExcelSheet<LuminaTerritory>()?.GetRowOrDefault(territory) is not { } row)
+            {
+                return null;
+            }
+
+            var name = _data.GetExcelSheet<LuminaPlaceName>()?.GetRowOrDefault(row.PlaceName.RowId)?.Name.ExtractText();
+            return string.IsNullOrEmpty(name) ? null : name;
+        }
+        catch
+        {
+            return null;
         }
     }
 
