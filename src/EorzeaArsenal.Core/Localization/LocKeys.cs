@@ -869,4 +869,69 @@ public static class LocKeys
 
     /// <summary>Config: auto-open hint.</summary>
     public const string WhatsNewOnUpdateHint = "whatsnew.onupdate.hint";
+
+    // Purchase advisor ("Kaufberater"): the intermediate gear on the way to BiS.
+
+    /// <summary>Menu/command: open the purchase-advisor window.</summary>
+    public const string AdvisorOpen = "advisor.open";
+
+    /// <summary>Advisor: window title.</summary>
+    public const string AdvisorWindowTitle = "advisor.title";
+
+    /// <summary>Advisor: what this window is for.</summary>
+    public const string AdvisorIntro = "advisor.intro";
+
+    /// <summary>Advisor: the gearset picker label.</summary>
+    public const string AdvisorSetLabel = "advisor.setlabel";
+
+    /// <summary>Advisor: heading of the saved-plan section.</summary>
+    public const string AdvisorPlanHeading = "advisor.plan.heading";
+
+    /// <summary>Advisor: this set carries no web identity, so no plan can be addressed.</summary>
+    public const string AdvisorNoTarget = "advisor.plan.notarget";
+
+    /// <summary>Advisor: no plan is saved for this set (a normal state).</summary>
+    public const string AdvisorNoPlan = "advisor.plan.noplan";
+
+    /// <summary>Advisor: when the shown plan was last saved.</summary>
+    public const string AdvisorPlanSaved = "advisor.plan.saved";
+
+    /// <summary>Advisor: the planned piece is already worn.</summary>
+    public const string AdvisorPlanWorn = "advisor.plan.worn";
+
+    /// <summary>Advisor: the planned piece is owned but not worn.</summary>
+    public const string AdvisorPlanOwned = "advisor.plan.owned";
+
+    /// <summary>Advisor: the planned piece is still missing.</summary>
+    public const string AdvisorPlanMissing = "advisor.plan.missing";
+
+    /// <summary>Advisor: progress summary of the plan.</summary>
+    public const string AdvisorPlanSummary = "advisor.plan.summary";
+
+    /// <summary>Advisor: editing a plan in game is not available yet.</summary>
+    public const string AdvisorEditPending = "advisor.plan.editpending";
+
+    /// <summary>Advisor: heading of the stock section.</summary>
+    public const string AdvisorStockHeading = "advisor.stock.heading";
+
+    /// <summary>Advisor: where the stock numbers come from.</summary>
+    public const string AdvisorStockHint = "advisor.stock.hint";
+
+    /// <summary>Advisor: the server has not sent a stock list (yet).</summary>
+    public const string AdvisorStockEmpty = "advisor.stock.empty";
+
+    /// <summary>Advisor stock group: upgrade materials.</summary>
+    public const string AdvisorStockMaterial = "advisor.stock.material";
+
+    /// <summary>Advisor stock group: the universal upgrade stone.</summary>
+    public const string AdvisorStockStone = "advisor.stock.stone";
+
+    /// <summary>Advisor stock group: raid books / tokens.</summary>
+    public const string AdvisorStockBook = "advisor.stock.book";
+
+    /// <summary>Advisor: reading the plan.</summary>
+    public const string AdvisorLoading = "advisor.loading";
+
+    /// <summary>Advisor: the key lacks the plans:read scope.</summary>
+    public const string AdvisorScopeHint = "advisor.scopehint";
 }

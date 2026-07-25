@@ -49,6 +49,24 @@ All notable changes to this project are documented here. The format is based on
   needs a key with **`characters:write`**, and is per character; if it cannot push, the advisor still
   works from a hand-typed number.
 
+- **Purchase advisor ("Kaufberater") window.** A separate menu entry, deliberately not folded into the
+  BiS window: BiS is the *goal*, the advisor is the *path* to it (the intermediate gear between raid
+  tiers).
+  - **Your saved plan.** Renders the layout you built in the web advisor, read per (character, job,
+    target set) via `GET /me/advisor-plan` (scope `plans:read`), per slot with *worn / owned / still
+    missing* and the usual sourcing on hover. A plan is stored under the set's **web identity**, so it
+    only becomes addressable once `GET /gear/bis` sends a set's `target`; until then the section says
+    so instead of failing. "No plan saved" is a normal state, not an error — the advisor's
+    *recommendation* is computed client-side in the web and has no endpoint, so it is not mirrored here
+    yet, and editing a plan in game waits on the per-slot choices from the server.
+  - **Your stock.** The active tier's tracked materials, upgrade stone and books — from the new
+    `groups` on `GET /gear/tracked-items`, so a tier rotation carries itself without a plugin release —
+    each with the **server's** owned count, which is the only one that includes your retainers. The
+    live in-game count fills in until the server number lands.
+  - `PUT`/`DELETE /me/advisor-plan` are wired and unit-tested but not yet reachable from the UI; a plan
+    is an explicit choice, so it will only ever be written on a deliberate user action, never as a
+    background sync.
+
 ### Fixed
 - The hidden Duty-Finder refresh (the `normal`/`alliance` weekly read) no longer leaves the finder on
   the raid it loaded. It now remembers the duty you had selected and re-selects it before closing, so

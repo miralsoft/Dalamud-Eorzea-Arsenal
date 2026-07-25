@@ -34,6 +34,7 @@ public sealed class StatusWindow : Window
     private readonly Action _requestWeeklySync;
     private readonly Action _openConfig;
     private readonly Action _openBis;
+    private readonly Action _openAdvisor;
     private readonly Action _openLog;
     private readonly Action _openTeams;
     private readonly Action _openCalendar;
@@ -52,6 +53,7 @@ public sealed class StatusWindow : Window
     /// <param name="requestWeeklySync">Callback to trigger a manual weekly-checklist sync.</param>
     /// <param name="openConfig">Callback to open the settings window.</param>
     /// <param name="openBis">Callback to open the BiS comparison window.</param>
+    /// <param name="openAdvisor">Callback to open the purchase-advisor window.</param>
     /// <param name="openLog">Callback to open the diagnostics log window.</param>
     /// <param name="openTeams">Callback to open the Teams companion window.</param>
     /// <param name="openCalendar">Callback to open the calendar window.</param>
@@ -69,6 +71,7 @@ public sealed class StatusWindow : Window
         Action requestWeeklySync,
         Action openConfig,
         Action openBis,
+        Action openAdvisor,
         Action openLog,
         Action openTeams,
         Action openCalendar,
@@ -87,6 +90,7 @@ public sealed class StatusWindow : Window
         _requestWeeklySync = requestWeeklySync;
         _openConfig = openConfig;
         _openBis = openBis;
+        _openAdvisor = openAdvisor;
         _openLog = openLog;
         _openTeams = openTeams;
         _openCalendar = openCalendar;
@@ -168,6 +172,12 @@ public sealed class StatusWindow : Window
         if (MenuButton(FontAwesomeIcon.BalanceScale, T(LocKeys.BisOpen)))
         {
             _openBis();
+        }
+
+        // Sits next to, not inside, the BiS entry: BiS is the goal, the advisor is the path to it.
+        if (MenuButton(FontAwesomeIcon.ShoppingBasket, T(LocKeys.AdvisorOpen)))
+        {
+            _openAdvisor();
         }
 
         if (MenuButton(FontAwesomeIcon.Eye, T(LocKeys.PreviewButton)))

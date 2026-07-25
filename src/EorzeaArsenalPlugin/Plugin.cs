@@ -59,6 +59,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly BisService _bisService;
     private readonly ObtainService _obtainService;
     private readonly HoldingsService _holdingsService;
+    private readonly AdvisorService _advisorService;
     private readonly TrackedItemsStore _trackedItems;
     private readonly WorldActions _worldActions;
 
@@ -69,6 +70,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly CalendarWindow _calendarWindow;
     private readonly ImageWindow _imageWindow;
     private readonly BisWindow _bisWindow;
+    private readonly AdvisorWindow _advisorWindow;
     private readonly LogWindow _logWindow;
     private readonly PreviewWindow _previewWindow;
     private readonly WhatsNewWindow _whatsNewWindow;
@@ -184,14 +186,16 @@ public sealed class Plugin : IDalamudPlugin
         _bisService = new BisService(api, _gearSource, _store, _log);
         _obtainService = new ObtainService(api, _store, _log);
         _holdingsService = new HoldingsService(api, _store, _log);
+        _advisorService = new AdvisorService(api, _store, _log);
         _worldActions = new WorldActions(gameGui, dataManager);
 
         _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, _obtainService, _worldActions, _holdingsService, Save, LinkItemInChat);
+        _advisorWindow = new AdvisorWindow(_config, _store, _localizer, _bisService, _advisorService, _trackedItems, _holdingsService, _obtainService, _gearSource, _worldActions, textureProvider, ServerCharacterId, LinkItemInChat);
         _logWindow = new LogWindow(_logBuffer, _localizer);
         _previewWindow = new PreviewWindow(_gearSource, _localizer, _log);
         _imageWindow = new ImageWindow(_teamsService, textureProvider, _localizer, _log);
         _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenLog, OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew);
         _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, _log, Save, OpenConfig, OpenImage);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save);
@@ -201,6 +205,7 @@ public sealed class Plugin : IDalamudPlugin
         _windowSystem.AddWindow(_teamsWindow);
         _windowSystem.AddWindow(_calendarWindow);
         _windowSystem.AddWindow(_bisWindow);
+        _windowSystem.AddWindow(_advisorWindow);
         _windowSystem.AddWindow(_logWindow);
         _windowSystem.AddWindow(_statusWindow);
         _windowSystem.AddWindow(_configWindow);
@@ -271,6 +276,22 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OpenBis() => _bisWindow.IsOpen = true;
 
+    private void OpenAdvisor() => _advisorWindow.IsOpen = true;
+
+    /// <summary>
+    /// The server's numeric character id for a <c>cid_hash</c>, which personal per-character endpoints
+    /// (the purchase plan, the weekly checklist) are keyed by. Only known once a push has been
+    /// answered for that character; <see langword="null"/> until then.
+    /// </summary>
+    /// <param name="cidHash">The character hash, e.g. from a BiS gearset.</param>
+    /// <returns>The numeric id, or <see langword="null"/> when not learned yet.</returns>
+    private long? ServerCharacterId(string? cidHash) =>
+        !string.IsNullOrEmpty(cidHash) &&
+        _characterDirectory.TryGet(cidHash, out var id) &&
+        long.TryParse(id, out var numeric)
+            ? numeric
+            : null;
+
     private void OpenLog() => _logWindow.IsOpen = true;
 
     private void OpenPreview() => _previewWindow.Open();
@@ -335,6 +356,9 @@ public sealed class Plugin : IDalamudPlugin
                 break;
             case "calendar":
                 OpenCalendar();
+                break;
+            case "advisor":
+                OpenAdvisor();
                 break;
             case "log":
                 OpenLog();
@@ -550,7 +574,11 @@ public sealed class Plugin : IDalamudPlugin
                 if (result.IsSuccess && result.Value?.Data is { } ids)
                 {
                     _trackedItems.Set(ids);
-                    _log.Info($"Tracked items updated: {ids.Count} id(s).");
+
+                    // The active tier's classified groups drive the advisor's stock view; absent on an
+                    // older server, which just leaves that view empty.
+                    _trackedItems.SetGroups(result.Value.Groups);
+                    _log.Info($"Tracked items updated: {ids.Count} id(s), {_trackedItems.Groups.Count} group(s).");
                 }
             }
             catch (Exception ex)

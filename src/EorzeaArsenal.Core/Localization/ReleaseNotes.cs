@@ -84,6 +84,10 @@ public static class ReleaseNotes
                 "'Open in web' jumps straight to the plan, event or content you are looking at."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
+                "Neuer Kaufberater: zeigt den im Web angelegten Plan für die Zwischenausrüstung bis zum BiS und daneben deine Vorräte (Material, Stein, Bücher) mit den Server-Zahlen, also inklusive Gehilfen.",
+                "New purchase advisor: shows the plan you built on the web for the gear on the way to BiS, next to your stock (materials, stone, books) counted server-side — retainers included."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
                 "Dieser Bereich: 'Was ist neu' fasst nach jedem Update die wichtigsten Änderungen zusammen.",
                 "This very page: 'What's new' sums up the important changes after each update."),
             new ReleaseNoteItem(
