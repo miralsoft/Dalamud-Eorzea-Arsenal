@@ -203,6 +203,30 @@ public sealed class HoldingsServiceTests
         Assert.Empty(store.Groups);
     }
 
+    /// <summary>
+    /// The inventory upload replaces a scope wholesale, so a scan running before this list arrived
+    /// reports no materials and the server deletes the counts it had — in game <b>and</b> on the web.
+    /// "Loaded" therefore has to mean "read successfully", never "we tried".
+    /// </summary>
+    [Fact]
+    public void TrackedItemsStoreOnlyCountsAsLoadedAfterASuccessfulRead()
+    {
+        var store = new TrackedItemsStore();
+        Assert.False(store.IsLoaded);
+
+        // Groups alone are a display detail and say nothing about the sync list.
+        store.SetGroups([new TrackedItemGroup { Kind = "book", Ids = [49760] }]);
+        Assert.False(store.IsLoaded);
+
+        store.Set([49757L]);
+        Assert.True(store.IsLoaded);
+
+        // An empty list is a legitimate answer (an unconfigured tier) and stays loaded.
+        store.Set([]);
+        Assert.True(store.IsLoaded);
+        Assert.False(store.HasAny);
+    }
+
     [Fact]
     public void TrackedItemsStoreFiltersAndSwaps()
     {

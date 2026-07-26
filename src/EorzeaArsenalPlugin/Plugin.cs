@@ -480,6 +480,15 @@ public sealed class Plugin : IDalamudPlugin
                     var coffer = route?.Via?.Name ?? "(none)";
                     var npc = route?.Npc is { Count: > 0 } n ? n[0].Name ?? "(?)" : "(none)";
                     _log.Info($"obtainprobe {label}: item {id} src={info.Source ?? "(null)"} slot={info.Slot ?? "(null)"} route={route?.Kind ?? "(none)"} duties={duties} coffer={coffer} npc={npc}");
+
+                    // Server text vs. what the game calls the same thing — so a name that looks English
+                    // can be told apart from one the lookup failed on (many proper nouns are identical).
+                    _log.Info($"obtainprobe {label}: lang item='{_worldActions.LocalizedItemName(id) ?? "(miss)"}'"
+                        + $" coffer='{(route?.Via is { } via ? _worldActions.LocalizedItemName(via.Id) ?? "(miss)" : "(none)")}'"
+                        + $" npc='{(route?.Npc is { Count: > 0 } np ? _worldActions.LocalizedNpcName(np[0].Id, np[0].Name) ?? "(miss)" : "(none)")}'"
+                        + $" zone='{(route?.Npc is { Count: > 0 } nz ? _worldActions.LocalizedZoneName(nz[0].ZoneId, nz[0].Zone) ?? "(miss)" : "(none)")}'"
+                        + $" dutyIds={(route?.DutyContentIds is { Count: > 0 } di ? string.Join("|", di) : "(none)")}"
+                        + $" dutyByName='{(route?.Duties is { Count: > 0 } dn ? _worldActions.LocalizedDutyName(dn[0]) ?? "(miss)" : "(none)")}'");
                 }
 
                 Chat("obtainprobe: written to the log (/xivarsenal log).");
@@ -546,7 +555,7 @@ public sealed class Plugin : IDalamudPlugin
 
         Chat(_localizer.Get(LocKeys.InventoryStarted));
         _announceInventory = true;
-        _inventorySync.RequestCharacterSync(InventoryTrigger.Manual);
+        RequestCharacterInventorySync(InventoryTrigger.Manual);
     }
 
     /// <summary>
@@ -562,11 +571,12 @@ public sealed class Plugin : IDalamudPlugin
     });
 
     /// <summary>
-    /// Fetches the active tier's tracked consumable ids so the inventory scan reports them too. Runs
-    /// in the background, gated on a connected key; a failure just leaves the set as it was (nothing
-    /// extra is reported, the old behaviour). It updates for the next sync, not the current one.
+    /// Fetches the tracked consumable ids so the inventory scan reports them too. Runs in the
+    /// background, gated on a connected key; a failure leaves the previous set — and the "loaded" flag
+    /// — untouched, so a scan never mistakes a failed read for "there are none".
     /// </summary>
-    private void RefreshTrackedItems()
+    /// <param name="thenSyncInventory">Run the deferred character sync once the list is in.</param>
+    private void RefreshTrackedItems(bool thenSyncInventory = false)
     {
         if (!_config.Enabled || !_store.HasKey)
         {
@@ -592,6 +602,15 @@ public sealed class Plugin : IDalamudPlugin
                     // older server, which just leaves that view empty.
                     _trackedItems.SetGroups(result.Value.Groups);
                     _log.Info($"Tracked items updated: {ids.Count} id(s), {_trackedItems.Groups.Count} group(s).");
+
+                    if (thenSyncInventory)
+                    {
+                        _inventorySync.RequestCharacterSync(InventoryTrigger.Login);
+                    }
+                }
+                else
+                {
+                    _log.Info($"Tracked-items fetch failed: {result.Error?.Kind}. Keeping the previous list.");
                 }
             }
             catch (Exception ex)
@@ -599,6 +618,29 @@ public sealed class Plugin : IDalamudPlugin
                 _log.Error($"Tracked-items fetch failed: {ex.GetType().Name}.");
             }
         });
+    }
+
+    /// <summary>
+    /// Uploads the character scope — but only once the tracked-items list is in.
+    /// </summary>
+    /// <remarks>
+    /// The upload declares the character scope fully observed, so the server replaces it entirely. A
+    /// scan that runs before the list arrived carries no materials or books, and the server then
+    /// deletes the counts it had — the stock reads 0 in game <i>and</i> on the web until a later sync
+    /// happens to run with the list loaded. Waiting costs one HTTP round trip on login; not waiting
+    /// costs the player their stock.
+    /// </remarks>
+    /// <param name="trigger">What asked for the sync.</param>
+    private void RequestCharacterInventorySync(InventoryTrigger trigger)
+    {
+        if (_trackedItems.IsLoaded)
+        {
+            _inventorySync.RequestCharacterSync(trigger);
+            return;
+        }
+
+        _log.Info("Inventory sync deferred: the tracked-items list has not loaded yet.");
+        RefreshTrackedItems(thenSyncInventory: true);
     }
 
     /// <summary>
@@ -702,7 +744,7 @@ public sealed class Plugin : IDalamudPlugin
         // Upload owned items once per session start so the web app reflects this character on login.
         if (_config is { Enabled: true, TosAccepted: true, SyncInventory: true } && _store.HasKey && CurrentCharacterAllowed())
         {
-            _inventorySync.RequestCharacterSync(InventoryTrigger.Login);
+            RequestCharacterInventorySync(InventoryTrigger.Login);
         }
 
         // Sync the weekly checklist on login. If this character's server id isn't known yet, the sync
@@ -803,7 +845,7 @@ public sealed class Plugin : IDalamudPlugin
             if (now >= _nextInventoryAutoTicks)
             {
                 _nextInventoryAutoTicks = now + 300_000;
-                _inventorySync.RequestCharacterSync(InventoryTrigger.Auto);
+                RequestCharacterInventorySync(InventoryTrigger.Auto);
             }
 
             if (_config.SyncRetainers)
@@ -904,6 +946,15 @@ public sealed class Plugin : IDalamudPlugin
         if (scope == _lastRetainerScope)
         {
             return; // already uploaded this retainer for the current visit
+        }
+
+        // The retainer scope is replaced wholesale too, so uploading before the tracked-items list is
+        // in would delete whatever materials that retainer is holding for us.
+        if (!_trackedItems.IsLoaded)
+        {
+            _log.Info("Retainer sync deferred: the tracked-items list has not loaded yet.");
+            RefreshTrackedItems();
+            return;
         }
 
         _lastRetainerScope = scope;

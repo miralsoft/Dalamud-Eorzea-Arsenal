@@ -18,9 +18,20 @@ public sealed class TrackedItemsStore
 {
     private volatile HashSet<int> _ids = [];
     private volatile IReadOnlyList<TrackedStockGroup> _groups = [];
+    private volatile bool _loaded;
 
     /// <summary>Whether any ids are tracked yet (the list may not have loaded).</summary>
     public bool HasAny => _ids.Count > 0;
+
+    /// <summary>
+    /// Whether the server's list has been read successfully at least once this session.
+    /// </summary>
+    /// <remarks>
+    /// The inventory upload replaces a scope wholesale, so a scan that runs before this list arrived
+    /// reports no materials — and the server, told the scope was fully observed, deletes the ones it
+    /// had. Callers must therefore wait for this before syncing the character scope.
+    /// </remarks>
+    public bool IsLoaded => _loaded;
 
     /// <summary>
     /// The active tier's items grouped for display, in the server's order. Empty until the list has
@@ -33,10 +44,17 @@ public sealed class TrackedItemsStore
     /// <returns><see langword="true"/> when tracked.</returns>
     public bool Contains(int itemId) => _ids.Contains(itemId);
 
-    /// <summary>Replaces the tracked set (whole-swap, so a concurrent read sees a consistent list).</summary>
+    /// <summary>
+    /// Replaces the tracked set (whole-swap, so a concurrent read sees a consistent list) and marks the
+    /// list loaded. Only call this on a successful read — a failed one must leave the previous set and
+    /// <see cref="IsLoaded"/> alone, or a scan would report an empty list as fact.
+    /// </summary>
     /// <param name="ids">The new ids (non-positive and out-of-range values are dropped).</param>
-    public void Set(IEnumerable<long> ids) =>
+    public void Set(IEnumerable<long> ids)
+    {
         _ids = ids.Where(id => id is > 0 and <= int.MaxValue).Select(id => (int)id).ToHashSet();
+        _loaded = true;
+    }
 
     /// <summary>
     /// Replaces the display groups (whole-swap). Groups without a kind or without usable ids are
