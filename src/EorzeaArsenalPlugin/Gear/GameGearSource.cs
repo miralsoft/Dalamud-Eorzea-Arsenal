@@ -42,6 +42,10 @@ public sealed class GameGearSource : IGearSource
     /// <param name="framework">Framework thread marshaller.</param>
     /// <param name="data">Excel data (for materia resolution).</param>
     /// <param name="log">Diagnostics sink.</param>
+    /// <param name="language">
+    /// The language item names are read in — the plugin's own setting, not the client's, so switching
+    /// the plugin to English switches the names with it. <see langword="null"/> keeps the client's.
+    /// </param>
     public GameGearSource(IClientState clientState, IPlayerState playerState, IFramework framework, IDataManager data, ILog log, Func<ClientLanguage>? language = null)
     {
         _clientState = clientState;

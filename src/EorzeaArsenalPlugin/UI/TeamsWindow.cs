@@ -1233,7 +1233,9 @@ public sealed class TeamsWindow : Window
     }
 
     /// <summary>Renders the still-missing pieces as a slot/source/steps table (R8: display only).</summary>
+    /// <param name="missing">Pieces still to get.</param>
     /// <param name="owned">Pieces already held, listed apart because they need no farming at all.</param>
+    /// <param name="isSelf">Whether this row is the player's own character (only then may stock be judged).</param>
     private void DrawFarmMissing(
         List<(string Slot, FarmSlot Item, (string? Source, List<FarmRoute>? Routes) Sourcing, long Equipped)> missing,
         List<(string Slot, FarmSlot Item, (string? Source, List<FarmRoute>? Routes) Sourcing, long Equipped)> owned,

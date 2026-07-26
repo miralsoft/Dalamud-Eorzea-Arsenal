@@ -290,12 +290,13 @@ public sealed class AdvisorServiceTests
         Assert.Contains(data.Materials!, m => m.Id == 49759);
 
         // …but the set itself does not, and it asks for less Twine.
-        Assert.DoesNotContain(data.TargetNeeds!.Materials!, m => m.Id == 49759);
-        Assert.Equal(1, data.TargetNeeds.Materials!.Single(m => m.Id == 49758).Need);
+        var targetNeeds = data.TargetNeeds!.Materials!;
+        Assert.DoesNotContain(targetNeeds, m => m.Id == 49759);
+        Assert.Equal(1, targetNeeds.Single(m => m.Id == 49758).Need);
         Assert.Equal(2190, data.TargetNeeds.Tomes);
 
         // `for` names the slots, so a row can say what the material is actually for.
-        Assert.Equal(["Weapon", "Legs"], data.TargetNeeds.Materials.Single(m => m.Id == 49763).For);
+        Assert.Equal(["Weapon", "Legs"], targetNeeds.Single(m => m.Id == 49763).For);
     }
 
     /// <summary>
