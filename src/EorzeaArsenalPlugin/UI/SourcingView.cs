@@ -24,6 +24,7 @@ internal sealed class SourcingView
     private static readonly Vector4 Red = new(0.92f, 0.45f, 0.45f, 1f);
     private static readonly Vector4 Yellow = new(0.95f, 0.83f, 0.35f, 1f);
     private static readonly Vector4 Blue = new(0.55f, 0.78f, 1f, 1f);
+    private static readonly Vector4 Orange = new(0.96f, 0.62f, 0.22f, 1f);
     private static readonly Vector4 Dim = new(0.62f, 0.62f, 0.62f, 1f);
     private static readonly Vector4 Text = new(0.88f, 0.88f, 0.88f, 1f);
 
@@ -567,7 +568,10 @@ internal sealed class SourcingView
             var enough = have >= cost.Count;
             ImGui.TextColored(Text, $"{cost.Count}× {name}");
             ImGui.SameLine(0f, 6f);
-            ImGui.TextColored(enough ? Green : Red, $"{have}/{cost.Count}");
+
+            // Orange, not red: being short of a material is the normal state of farming, not an error.
+            // Red is kept for something you can no longer get at all.
+            ImGui.TextColored(enough ? Green : Orange, $"{have}/{cost.Count}");
         }
         else
         {
@@ -607,12 +611,32 @@ internal sealed class SourcingView
         return (shortBy == 0, shortBy);
     }
 
+    /// <summary>
+    /// The colour of a step, which says one thing only: <b>can this be done right now</b>.
+    /// </summary>
+    /// <remarks>
+    /// Green means "yes, you have what it takes" everywhere in the plugin — on BiS pieces, in the
+    /// advisor grid, here. It must therefore never appear on a teammate's row, where the plugin cannot
+    /// see their stock: colouring a purchase green there would claim they can afford it. The kind of
+    /// step is carried by its verb ("Fight", "Buy", "Upgrade"), not by the colour, so the two never
+    /// compete for the same signal.
+    /// </remarks>
     private Vector4 StepColor(SourceStep step, bool ready) => step.Kind switch
     {
+        // An activity: there is nothing to hold for it, so readiness does not apply to anyone.
         StepKind.Fight => Blue,
+
+        // A fact about the world, not about a person.
         StepKind.Retired => Red,
+
+        // The one ownership statement that holds for a teammate too — it comes from what they wear,
+        // which the team shares, not from the player's own bags.
         StepKind.BaseOwned => Green,
-        _ => ready ? Green : Text,
+
+        // Someone else's row: not ours to judge, so it stays neutral rather than guessing.
+        _ when !_ownershipKnown => Dim,
+
+        _ => ready ? Green : Orange,
     };
 
     private string StepVerb(SourceStep step) => step.Kind switch

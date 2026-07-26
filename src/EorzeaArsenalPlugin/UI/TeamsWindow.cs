@@ -1002,6 +1002,11 @@ public sealed class TeamsWindow : Window
         // base step too. One prefetch per newly-seen target id; the service caches for the session.
         PrefetchFarmObtain(entries);
 
+        // The colours mean the same thing here as everywhere else in the plugin, but a farm row mixes
+        // your own character with other people's — so say once what they stand for.
+        ImGui.TextDisabled(T(LocKeys.TeamsFarmLegend));
+        ImGui.Separator();
+
         using var child = ImRaii.Child("##farm", new Vector2(0, 0), false);
         foreach (var entry in entries.OrderByDescending(e => e.IsCore))
         {
