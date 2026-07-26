@@ -1004,6 +1004,9 @@ public static class LocKeys
     /// <summary>Advisor: the layout has unsaved edits.</summary>
     public const string AdvisorUnsaved = "advisor.unsaved";
 
+    /// <summary>Inventory: the saddlebag has to be opened once before it can be read.</summary>
+    public const string InventorySaddlebagClosed = "inventory.saddlebagclosed";
+
     /// <summary>Farm: the set's own requirement, for a member whose stock the plugin cannot see.</summary>
     public const string TeamsNeedsRequires = "teams.farm.requires";
 

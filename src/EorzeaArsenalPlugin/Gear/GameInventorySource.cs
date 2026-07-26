@@ -93,6 +93,46 @@ public sealed class GameInventorySource : IInventorySource
     public Task<InventoryData?> ReadCharacterAsync(CancellationToken ct) =>
         _framework.RunOnFrameworkThread(ReadCharacterOnFramework);
 
+    /// <summary>
+    /// Whether the chocobo saddlebag can be read right now. The game only fills those containers once
+    /// the player has opened the saddlebag in this session.
+    /// </summary>
+    /// <remarks>
+    /// This matters because the saddlebag belongs to the <c>character</c> scope, and the upload
+    /// declares that scope <b>fully observed</b> — the server then replaces it entirely. Syncing while
+    /// the saddlebag is unreadable therefore tells the server "there is nothing in it", and everything
+    /// stored there is deleted. Callers must not sync the character scope until this is true.
+    /// </remarks>
+    public unsafe bool IsSaddlebagReadable
+    {
+        get
+        {
+            try
+            {
+                var inventory = InventoryManager.Instance();
+                if (inventory == null)
+                {
+                    return false;
+                }
+
+                foreach (var type in SaddlebagTypes)
+                {
+                    var container = inventory->GetInventoryContainer(type);
+                    if (container != null && container->IsLoaded)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
     private InventoryData? ReadCharacterOnFramework()
     {
         try

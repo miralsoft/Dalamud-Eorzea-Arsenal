@@ -87,6 +87,7 @@ public sealed class WorldActions : IWorldActions
 {
     private readonly IGameGui _gameGui;
     private readonly IDataManager _data;
+    private readonly Func<ClientLanguage> _language;
 
     // English zone name (lower-case) -> (territory, default map). Built once, lazily, so a vendor the
     // server named but did not give ids for can still be placed. Null until first use.
@@ -103,11 +104,21 @@ public sealed class WorldActions : IWorldActions
     /// <summary>Creates the world-actions seam.</summary>
     /// <param name="gameGui">Dalamud game GUI (opens the map).</param>
     /// <param name="data">Excel data (resolves a zone name to its territory + map).</param>
-    public WorldActions(IGameGui gameGui, IDataManager data)
+    /// <param name="language">
+    /// The language every game name is read in. This follows the plugin's own language setting, not
+    /// the game client's: a player who switches the plugin to English expects the item and place names
+    /// to switch with it, not to stay in whatever language the client happens to run.
+    /// </param>
+    public WorldActions(IGameGui gameGui, IDataManager data, Func<ClientLanguage> language)
     {
         _gameGui = gameGui;
         _data = data;
+        _language = language;
     }
+
+    /// <summary>The sheet for a name lookup, in the plugin's language.</summary>
+    private Lumina.Excel.ExcelSheet<T>? Sheet<T>()
+        where T : struct, Lumina.Excel.IExcelRow<T> => _data.GetExcelSheet<T>(_language());
 
     private static readonly InventoryType[] SaddlebagTypes =
     [
@@ -222,7 +233,7 @@ public sealed class WorldActions : IWorldActions
             // Confirmed with the server: this is an ENpcResident row, so the lookup is direct — no
             // cross-check against the English name needed, and no second sheet read per vendor.
             _ = englishName;
-            var localized = _data.GetExcelSheet<LuminaENpc>()?.GetRowOrDefault((uint)npcId)?.Singular.ExtractText();
+            var localized = Sheet<LuminaENpc>()?.GetRowOrDefault((uint)npcId)?.Singular.ExtractText();
             return string.IsNullOrEmpty(localized) ? null : localized;
         }
         catch
@@ -241,7 +252,7 @@ public sealed class WorldActions : IWorldActions
 
         try
         {
-            var name = _data.GetExcelSheet<LuminaItem>()?.GetRowOrDefault((uint)itemId)?.Name.ExtractText();
+            var name = Sheet<LuminaItem>()?.GetRowOrDefault((uint)itemId)?.Name.ExtractText();
             return string.IsNullOrEmpty(name) ? null : name;
         }
         catch
@@ -261,7 +272,7 @@ public sealed class WorldActions : IWorldActions
         try
         {
             return DutyIndex().TryGetValue(englishName.Trim().ToLowerInvariant(), out var rowId)
-                && _data.GetExcelSheet<LuminaDuty>()?.GetRowOrDefault(rowId)?.Name.ExtractText() is { Length: > 0 } name
+                && Sheet<LuminaDuty>()?.GetRowOrDefault(rowId)?.Name.ExtractText() is { Length: > 0 } name
                 ? name
                 : null;
         }
@@ -282,7 +293,7 @@ public sealed class WorldActions : IWorldActions
         try
         {
             return DutyByContent().TryGetValue((uint)instanceContentId, out var rowId)
-                && _data.GetExcelSheet<LuminaDuty>()?.GetRowOrDefault(rowId)?.Name.ExtractText() is { Length: > 0 } name
+                && Sheet<LuminaDuty>()?.GetRowOrDefault(rowId)?.Name.ExtractText() is { Length: > 0 } name
                 ? name
                 : null;
         }
@@ -398,7 +409,7 @@ public sealed class WorldActions : IWorldActions
             return null;
         }
 
-        var name = _data.GetExcelSheet<LuminaPlaceName>()?.GetRowOrDefault(placeId)?.Name.ExtractText();
+        var name = Sheet<LuminaPlaceName>()?.GetRowOrDefault(placeId)?.Name.ExtractText();
         return string.IsNullOrEmpty(name) ? null : name;
     }
 

@@ -1,3 +1,4 @@
+using Dalamud.Game;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Command;
 using Dalamud.Game.Gui.Dtr;
@@ -167,7 +168,7 @@ public sealed class Plugin : IDalamudPlugin
         var api = new ApiClient(_httpClient, _store);
         _api = api;
         _trackedItems = new TrackedItemsStore();
-        _gearSource = new GameGearSource(clientState, playerState, framework, dataManager, _log);
+        _gearSource = new GameGearSource(clientState, playerState, framework, dataManager, _log, GameNameLanguage);
         _inventorySource = new GameInventorySource(clientState, playerState, framework, dataManager, _trackedItems, _log);
         _weeklySource = new GameWeeklySource(clientState, playerState, framework, gameGui, dataManager, _log);
         _connection = new ConnectionService(api, _store, new RealDelay(), _log);
@@ -198,7 +199,7 @@ public sealed class Plugin : IDalamudPlugin
         // different inventory.
         _holdingsService = new HoldingsService(api, _store, _log, () => ServerCharacterId(_currentCidHash));
         _advisorService = new AdvisorService(api, _store, _log);
-        _worldActions = new WorldActions(gameGui, dataManager);
+        _worldActions = new WorldActions(gameGui, dataManager, GameNameLanguage);
 
         _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, _obtainService, _worldActions, _holdingsService, _advisorService, ServerCharacterId, Save, LinkItemInChat);
         _advisorWindow = new AdvisorWindow(_config, _store, _localizer, _bisService, _advisorService, _trackedItems, _holdingsService, _obtainService, _gearSource, _worldActions, textureProvider, ServerCharacterId, LinkItemInChat);
@@ -280,6 +281,19 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     private void Save() => _pluginInterface.SavePluginConfig(_config);
+
+    /// <summary>
+    /// The language every <b>game</b> name (items, vendors, zones, duties) is read in.
+    /// </summary>
+    /// <remarks>
+    /// It follows the plugin's own language setting rather than the game client's. Switching the
+    /// plugin to English and still reading "Blitzimprägnierte Glasur" is the wrong answer: the setting
+    /// is what the player expects to govern everything the plugin writes on screen, and it is also the
+    /// only way an English-speaking player on a German client can use the plugin at all.
+    /// </remarks>
+    /// <returns>The Dalamud client language matching the plugin's language.</returns>
+    private ClientLanguage GameNameLanguage() =>
+        _localizer.Language == Localizer.German ? ClientLanguage.German : ClientLanguage.English;
 
     private void OpenConfig() => _configWindow.IsOpen = true;
 
@@ -634,6 +648,20 @@ public sealed class Plugin : IDalamudPlugin
     /// <param name="trigger">What asked for the sync.</param>
     private void RequestCharacterInventorySync(InventoryTrigger trigger)
     {
+        // The saddlebag is part of the character scope but only readable once the player has opened it
+        // this session. Syncing without it would tell the server the saddlebag is empty, and everything
+        // stored there would be deleted — the same class of loss as syncing before the tracked list.
+        if (!_inventorySource.IsSaddlebagReadable)
+        {
+            _log.Info("Inventory sync skipped: the saddlebag is not readable yet (open it once).");
+            if (trigger == InventoryTrigger.Manual)
+            {
+                Chat(_localizer.Get(LocKeys.InventorySaddlebagClosed));
+            }
+
+            return;
+        }
+
         if (_trackedItems.IsLoaded)
         {
             _inventorySync.RequestCharacterSync(trigger);

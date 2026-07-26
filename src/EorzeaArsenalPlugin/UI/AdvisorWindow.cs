@@ -487,34 +487,31 @@ public sealed class AdvisorWindow : Window
             return;
         }
 
-        if (!ImGui.BeginTable("##advisorgrid", 4, ImGuiTableFlags.PadOuterX))
+        // Two columns, one per side of the character screen. The icons and the label share a cell so
+        // the text sits right after whatever was drawn: a slot that only shows what you wear does not
+        // leave a gap where a second icon would have been.
+        if (!ImGui.BeginTable("##advisorgrid", 2, ImGuiTableFlags.PadOuterX))
         {
             return;
         }
 
-        ImGui.TableSetupColumn("li", ImGuiTableColumnFlags.WidthFixed, (TileSize * 2f) + 24f);
-        ImGui.TableSetupColumn("ld", ImGuiTableColumnFlags.WidthStretch);
-        ImGui.TableSetupColumn("ri", ImGuiTableColumnFlags.WidthFixed, (TileSize * 2f) + 24f);
-        ImGui.TableSetupColumn("rd", ImGuiTableColumnFlags.WidthStretch);
-
         foreach (var (left, right) in GridRows)
         {
             ImGui.TableNextRow();
-            DrawGridCells(left, slots, planned);
-            DrawGridCells(right, slots, planned);
+            DrawGridCell(left, slots, planned);
+            DrawGridCell(right, slots, planned);
         }
 
         ImGui.EndTable();
     }
 
-    private void DrawGridCells(string slot, Dictionary<string, AdvisorSlot> slots, IReadOnlyDictionary<string, long>? planned)
+    private void DrawGridCell(string slot, Dictionary<string, AdvisorSlot> slots, IReadOnlyDictionary<string, long>? planned)
     {
         ImGui.TableNextColumn();
         if (!slots.TryGetValue(slot, out var entry))
         {
-            // A slot this job does not fill (no off-hand): leave the row aligned and move on.
+            // A slot this job does not fill (no off-hand): keep the row height, draw nothing.
             ImGui.Dummy(new Vector2(TileSize, TileSize));
-            ImGui.TableNextColumn();
             return;
         }
 
@@ -528,17 +525,30 @@ public sealed class AdvisorWindow : Window
         if (next > 0 && next != worn)
         {
             ImGui.SameLine(0f, 4f);
-            ImGui.AlignTextToFramePadding();
-            ImGui.TextColored(Muted, "→");
+            DrawArrow();
             ImGui.SameLine(0f, 4f);
             DrawItemIcon(next, TileSize, worn);
         }
 
-        ImGui.TableNextColumn();
+        ImGui.SameLine(0f, 8f);
+
+        // Centre the label against the icon rather than sitting on its top edge.
+        var offset = Math.Max(0f, (TileSize - ImGui.GetTextLineHeight()) / 2f);
+        ImGui.SetCursorPosY(ImGui.GetCursorPosY() + offset);
+
         var shown = next > 0 ? next : worn;
         var color = SlotColor(slot, entry, slots, next);
         var detail = shown > 0 ? $"i{_gearSource.GetItemLevel(shown)}" : "—";
         ClickableItem(color, $"{_sourcing.SlotName(slot)}  ·  {detail}", shown, $"##grid{slot}", worn);
+    }
+
+    /// <summary>The "becomes" arrow, vertically centred against the icons beside it.</summary>
+    private static void DrawArrow()
+    {
+        var offset = Math.Max(0f, (TileSize - ImGui.GetTextLineHeight()) / 2f);
+        ImGui.SetCursorPosY(ImGui.GetCursorPosY() + offset);
+        ImGui.TextColored(Muted, "→");
+        ImGui.SetCursorPosY(ImGui.GetCursorPosY() - offset);
     }
 
     /// <summary>

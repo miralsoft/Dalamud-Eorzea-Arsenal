@@ -83,6 +83,15 @@ All notable changes to this project are documented here. The format is based on
   section is opened.
 
 ### Fixed
+- **The language setting now governs game names too.** Item, vendor, zone and duty names were read in
+  the game client's language regardless of what the plugin was set to, so switching the plugin to
+  English left them German. They follow the plugin's setting now — which is also the only way to use
+  the plugin in English on a German client.
+- **The inventory sync no longer empties the saddlebag.** Its containers are only readable once the
+  player has opened the saddlebag in a session, but it belongs to the `character` scope, which the
+  upload declares fully observed — so syncing beforehand told the server the saddlebag was empty and
+  it deleted what was stored there. The character sync now waits until the saddlebag can actually be
+  read, and says so when a manual sync is asked for.
 - **The sourcing speaks the client's language.** Coffers, materials, books, vendors, zones and fight
   names were English throughout, because the server names things in English while the game carries
   every language itself. Anything the server identifies by id is now named by the game — items,
