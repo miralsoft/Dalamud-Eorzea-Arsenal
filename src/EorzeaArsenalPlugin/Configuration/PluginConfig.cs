@@ -80,6 +80,58 @@ public sealed class PluginConfig : IPluginConfiguration
     /// </summary>
     public bool SyncWeekly { get; set; }
 
+    /// <summary>
+    /// Opt-in: enable the read-only <b>Teams companion</b> (calendar, mit cheat sheets, content hub,
+    /// farm, FFLogs) plus the two own-record writes (RSVP, absence) and in-game team notifications.
+    /// Independent of the gear push; off by default. Needs a key with <c>teams:read</c>/<c>teams:write</c>.
+    /// </summary>
+    public bool SyncTeams { get; set; }
+
+    /// <summary>The highest team-notification id already toasted (dedup watermark; persisted).</summary>
+    public long TeamsLastNotificationId { get; set; }
+
+    /// <summary>The team last selected in the Teams window (id), so it reopens where the user left off.</summary>
+    public long TeamsLastTeamId { get; set; }
+
+    /// <summary>Mit-sheet: show every job at once (<see langword="true"/>) instead of a single job.</summary>
+    public bool TeamsShowAllJobs { get; set; }
+
+    /// <summary>Remembered mit-sheet job per plan, keyed by <c>planId</c> (as a string).</summary>
+    public Dictionary<string, string> TeamsPlanJob { get; set; } = new();
+
+    /// <summary>Mit-sheet cooldown display: 0 = icon + name, 1 = icon only (name on hover), 2 = name only.</summary>
+    public int TeamsMitDisplay { get; set; }
+
+    /// <summary>Content-hub resource label: 0 = icon + text, 1 = icon only, 2 = text only.</summary>
+    public int TeamsResourceDisplay { get; set; }
+
+    /// <summary>Content hub: show note bodies inline (<see langword="true"/>) or just the title.</summary>
+    public bool TeamsShowNotes { get; set; } = true;
+
+    /// <summary>Mit-sheet default: show all jobs (<see langword="true"/>) or just the current/first job.</summary>
+    public bool TeamsDefaultAllJobs { get; set; }
+
+    /// <summary>Mit-sheet default: include the "other" mechanic tag (off by default = hide clutter).</summary>
+    public bool TeamsDefaultShowOther { get; set; }
+
+    /// <summary>Termine list: show already-elapsed occurrences too.</summary>
+    public bool TeamsShowPastEvents { get; set; }
+
+    /// <summary>Mit-sheet default: tick every phase (<see langword="true"/>) or just the first one.</summary>
+    public bool TeamsDefaultAllPhases { get; set; } = true;
+
+    /// <summary>Termine list: text scale (1.0 - 1.6).</summary>
+    public float TeamsEventTextScale { get; set; } = 1.15f;
+
+    /// <summary>Purchase advisor: text scale (1.0 - 1.6). Long item names need the room.</summary>
+    public float AdvisorTextScale { get; set; } = 1.2f;
+
+    /// <summary>The release-notes version the user has acknowledged; empty on a fresh install.</summary>
+    public string LastSeenReleaseNotes { get; set; } = string.Empty;
+
+    /// <summary>Open the what's-new window once after the plugin updated.</summary>
+    public bool ShowWhatsNewOnUpdate { get; set; } = true;
+
     /// <summary>BiS window: show all gearsets (<see langword="true"/>) or only the current one.</summary>
     public bool BisShowAllSets { get; set; }
 
@@ -91,6 +143,9 @@ public sealed class PluginConfig : IPluginConfiguration
 
     /// <summary>BiS window: render the character-screen-style icon grid instead of the per-slot list.</summary>
     public bool BisGridView { get; set; }
+
+    /// <summary>BiS window: show "how to get it" sourcing (savage/tome routes) on a piece's hover.</summary>
+    public bool BisShowSourcing { get; set; } = true;
 
     /// <summary>How verbose the Dalamud log output is.</summary>
     public LogVerbosity Verbosity { get; set; } = LogVerbosity.Normal;

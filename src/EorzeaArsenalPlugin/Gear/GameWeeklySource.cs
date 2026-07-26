@@ -10,6 +10,7 @@ using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using LuminaCfc = Lumina.Excel.Sheets.ContentFinderCondition;
+using LuminaRoulette = Lumina.Excel.Sheets.ContentRoulette;
 
 namespace EorzeaArsenal.Plugin.Gear;
 
@@ -148,6 +149,76 @@ public sealed class GameWeeklySource : IWeeklySource
         }
 
         return Math.Clamp(acquired, 0, limit);
+    }
+
+    private uint _cappedTomeItemId;
+    private bool _cappedTomeResolved;
+
+    /// <summary>
+    /// Reads the caller's capped-tomestone <b>balance</b> (how many are currently held) and their
+    /// cid_hash — for the purchase-advisor push. Distinct from <see cref="ReadWeeklyTomes"/>, which is
+    /// how many were <i>acquired this week</i>. Framework thread; never throws (P2).
+    /// </summary>
+    /// <returns>The clamped balance (0…9999) and cid_hash, or nulls when unavailable.</returns>
+    public unsafe (int? Balance, string? CidHash) ReadTomeBalance()
+    {
+        try
+        {
+            var character = ReadCharacter();
+            var itemId = CappedTomestoneItemId();
+            var inventory = InventoryManager.Instance();
+            if (itemId == 0 || inventory == null)
+            {
+                return (null, character?.CidHash);
+            }
+
+            var balance = Math.Clamp((int)inventory->GetInventoryItemCount(itemId), 0, 9999);
+            return (balance, character?.CidHash);
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Tome balance read failed: {ex.GetType().Name}.");
+            return (null, null);
+        }
+    }
+
+    /// <summary>
+    /// Resolves (once, cached) the current capped tomestone's item id: the newest <c>TomestonesItem</c>
+    /// whose slot carries a weekly limit — so it tracks the patch's current limited tomestone without a
+    /// hard-coded id.
+    /// </summary>
+    private uint CappedTomestoneItemId()
+    {
+        if (_cappedTomeResolved)
+        {
+            return _cappedTomeItemId;
+        }
+
+        _cappedTomeResolved = true;
+        try
+        {
+            var sheet = _data.GetExcelSheet<Lumina.Excel.Sheets.TomestonesItem>();
+            if (sheet is null)
+            {
+                return 0;
+            }
+
+            uint newestRow = 0;
+            foreach (var row in sheet)
+            {
+                if (row.Item.RowId > 0 && row.Tomestones.ValueNullable is { WeeklyLimit: > 0 } && row.RowId > newestRow)
+                {
+                    newestRow = row.RowId;
+                    _cappedTomeItemId = row.Item.RowId;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Capped-tomestone resolve failed: {ex.GetType().Name}.");
+        }
+
+        return _cappedTomeItemId;
     }
 
     private unsafe bool? ReadCustomDone()
@@ -866,7 +937,7 @@ public sealed class GameWeeklySource : IWeeklySource
             if (!keepVisible)
             {
                 agent->Hide();
-                return "weekopen: show+hide sent — wait ~3s, then run /bisexport weekdump.";
+                return "weekopen: show+hide sent — wait ~3s, then run /xivarsenal weekdump.";
             }
 
             return "weekopen: shown visibly (control test) — close it manually.";
@@ -1003,6 +1074,19 @@ public sealed class GameWeeklySource : IWeeklySource
     private uint _cfNormalCfc, _cfNormalIc, _cfAllianceCfc, _cfAllianceIc;
     private bool _raidTargetsBuilt;
 
+    // What the Duty Finder had selected before we hijacked it, so it can be handed back untouched.
+    private uint _cfPrevIc, _cfPrevCfc;
+    private bool _cfPrevIsRoulette;
+
+    // InstanceContent id -> ContentFinderCondition row, to turn a read-back selection into something
+    // OpenRegularDuty accepts. Built alongside the raid targets.
+    private readonly Dictionary<uint, uint> _cfcByInstanceContent = [];
+
+    // Valid ContentRoulette rows. SelectedDutyId holds a roulette id when a roulette is picked and an
+    // InstanceContent id otherwise, with no flag to tell them apart — but roulette ids are a short,
+    // known list, so membership here is what distinguishes the two.
+    private readonly HashSet<uint> _rouletteIds = [];
+
     // Fresh normal/alliance from a hidden refresh (or a live open), trusted ≤ 2 min — see ReadNormalAlliance.
     private bool? _freshNormal, _freshAlliance;
     private long _freshNormalAllianceTicks;
@@ -1027,6 +1111,18 @@ public sealed class GameWeeklySource : IWeeklySource
         _raidTargetsBuilt = true;
         try
         {
+            var roulettes = _data.GetExcelSheet<LuminaRoulette>();
+            if (roulettes is not null)
+            {
+                foreach (var roulette in roulettes)
+                {
+                    if (roulette.RowId != 0 && !roulette.Name.IsEmpty)
+                    {
+                        _rouletteIds.Add(roulette.RowId);
+                    }
+                }
+            }
+
             var sheet = _data.GetExcelSheet<LuminaCfc>();
             if (sheet is null)
             {
@@ -1035,7 +1131,15 @@ public sealed class GameWeeklySource : IWeeklySource
 
             foreach (var row in sheet)
             {
-                if (row.Content.RowId == 0 || row.ContentType.RowId != RaidContentType)
+                if (row.Content.RowId == 0)
+                {
+                    continue;
+                }
+
+                // Every duty, not just raids — whatever was selected before has to be restorable.
+                _cfcByInstanceContent[row.Content.RowId] = row.RowId;
+
+                if (row.ContentType.RowId != RaidContentType)
                 {
                     continue;
                 }
@@ -1088,6 +1192,14 @@ public sealed class GameWeeklySource : IWeeklySource
             {
                 return;
             }
+
+            // Remember what the user had selected: loading our raids overwrites it, and the finder
+            // keeps that selection while closed — so without this they reopen it somewhere else.
+            var selected = agent->InterfaceSub.SelectedDutyId;
+            _cfPrevIc = selected > 0 ? (uint)selected : 0u;
+            _cfPrevIsRoulette = _cfPrevIc != 0 && _rouletteIds.Contains(_cfPrevIc);
+            _cfPrevCfc = !_cfPrevIsRoulette && _cfPrevIc != 0 && _cfcByInstanceContent.TryGetValue(_cfPrevIc, out var prevCfc) ? prevCfc : 0u;
+            _log.Info($"Weekly refresh: ContentsFinder selection before = {_cfPrevIc} ({(_cfPrevIsRoulette ? "roulette" : $"duty, cfc {_cfPrevCfc}")}).");
 
             _freshNormal = null;
             _freshAlliance = null;
@@ -1168,17 +1280,41 @@ public sealed class GameWeeklySource : IWeeklySource
 
                     break;
 
-                case 2: // alliance loading → read it, then close
+                case 2: // alliance loading → read it, then hand the finder back
                     if ((sub->SelectedDutyId == (int)_cfAllianceIc && stepElapsed >= 150) || stepElapsed > 1500)
                     {
                         _freshAlliance = RewardDone(sub, _cfAllianceIc);
+                        if (_cfPrevIsRoulette || _cfPrevCfc != 0)
+                        {
+                            if (_cfPrevIsRoulette)
+                            {
+                                agent->OpenRouletteDuty((byte)_cfPrevIc, false);
+                            }
+                            else
+                            {
+                                agent->OpenRegularDuty(_cfPrevCfc, false);
+                            }
+
+                            Advance(3, now);
+                        }
+                        else
+                        {
+                            FinishContentsRefresh(agent);
+                        }
+                    }
+
+                    break;
+
+                case 3: // restoring the user's own selection → close once it took
+                    if ((sub->SelectedDutyId == (int)_cfPrevIc && stepElapsed >= 150) || stepElapsed > 1500)
+                    {
                         FinishContentsRefresh(agent);
                     }
 
                     break;
             }
 
-            if (_cfRefreshStartTicks != 0 && now - _cfRefreshStartTicks > 6_000)
+            if (_cfRefreshStartTicks != 0 && now - _cfRefreshStartTicks > 8_000)
             {
                 _log.Info("Weekly refresh: ContentsFinder timeout — closing.");
                 FinishContentsRefresh(agent);
@@ -1212,9 +1348,14 @@ public sealed class GameWeeklySource : IWeeklySource
     private unsafe void FinishContentsRefresh(AgentContentsFinder* agent)
     {
         _freshNormalAllianceTicks = Environment.TickCount64;
+        var restored = _cfPrevIc == 0
+            ? "nothing was selected"
+            : !_cfPrevIsRoulette && _cfPrevCfc == 0
+                ? $"{_cfPrevIc} is neither a roulette nor a known duty"
+                : $"now {agent->InterfaceSub.SelectedDutyId}, wanted {_cfPrevIc} ({(_cfPrevIsRoulette ? "roulette" : "duty")})";
         agent->Hide();
         _cfRefreshStartTicks = 0;
-        _log.Info($"Weekly refresh: ContentsFinder read (normal={_freshNormal} alliance={_freshAlliance}).");
+        _log.Info($"Weekly refresh: ContentsFinder read (normal={_freshNormal} alliance={_freshAlliance}); selection restored: {restored}.");
         try
         {
             ContentsRefreshCompleted?.Invoke();
@@ -1301,7 +1442,7 @@ public sealed class GameWeeklySource : IWeeklySource
                           $"sel={sub->SelectedDutyId} recv={sub->GetReceivedRewardCount()} max={sub->GetMaxReceivedRewardCount()}");
             }
 
-            sb.Append("\n  (if the window popped open, note it; run /bisexport weekdump ~1s later to read the settled reward + kind)");
+            sb.Append("\n  (if the window popped open, note it; run /xivarsenal weekdump ~1s later to read the settled reward + kind)");
             return sb.ToString();
         }
         catch (Exception ex)

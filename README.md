@@ -18,9 +18,11 @@ then push gear**.
   ContentId — the raw ContentId is **never** sent).
 - Pushes the gearsets to the API with a single `PUT /gear`. Re-pushes update in place.
 - Shows an in-game **"Gear vs BiS"** comparison window and a hover overlay, plus a compact status
-  entry in the **server-info bar** (DTR) — time since last push, click to open the status window
+  entry in the **server-info bar** (DTR) — time since last push, click to open the menu window
   (toggleable).
-- A **diagnostics log window** (`/bisexport log`) with copy/clear for support.
+- A **diagnostics log window** (`/xivarsenal log`) with copy/clear for support.
+- A **"what's new"** window (`/xivarsenal whatsnew`, or the highlighted menu entry) summarising what
+  each version changed in plain language; it opens once after an update.
 - Bilingual UI (**Deutsch / English**).
 
 It can **optionally** also upload which **owned, equippable items** you have — equipped, armoury,
@@ -36,6 +38,13 @@ and **alliance** raid clears are read from the game and merged into the web app 
 tick them by hand. It only ever sends values it can read with certainty and only what changed, so
 your manual entries are never overwritten. This opt-in is **off by default** and needs a key with
 `characters:write` + `gear:read`.
+
+It also offers an optional **Teams companion** (`/xivarsenal teams` or the hub button): your teams'
+**calendar** with in-game **RSVP**, **mit cheat sheets**, a **content hub** (images shown inline,
+links/PDFs open in the browser), the **farm** overview (who needs what), **FFLogs**, and your own
+**absence** management — plus in-game **toasts** (with sound and a clickable link) for new loot, event
+reminders and newly planned events. It only reads and renders what the server sends and only writes your
+own RSVP/absence. This opt-in is **off by default** and needs a key with `teams:read` + `teams:write`.
 
 ## Install (custom plugin repository)
 
@@ -71,16 +80,16 @@ The issued key is **write-only (`gear:write`)** — it can do nothing except pus
 
 ## Usage
 
-- Run **`/bisexport`** to push all your gearsets. `/bisexport status` opens the status window,
-  `/bisexport config` the settings.
-- The **status window** (Main UI button) shows the last push, its result, a rate-limit countdown,
+- Run **`/xivarsenal`** to push all your gearsets. `/xivarsenal menu` opens the menu window,
+  `/xivarsenal config` the settings.
+- The **menu window** (Main UI button) shows the last push, its result, a rate-limit countdown,
   and quick actions: **push now**, **preview what will be sent**, **open web app**.
 - Optionally enable **Push on login**, **Push automatically** and **Push on gearset change**
   (all throttled — at most one push every few minutes, only when something changed, to respect the
   API's 30 uploads/hour limit).
 - **Per-character opt-in**, **toast notifications**, **log verbosity** and a **web app URL** are
   configurable in the settings window.
-- **Gear vs BiS:** the status window's *Gear vs BiS* button reads your pinned BiS targets
+- **Gear vs BiS:** the menu window's *Gear vs BiS* button reads your pinned BiS targets
   (`GET /gear/bis`, needs the `gear:read` scope your key now carries) and shows a per-slot diff of
   your current gear against BiS. If you connected before this existed, **reconnect** to get read
   access. No BiS shown? Pin one for your gearsets in the web app.
@@ -88,6 +97,10 @@ The issued key is **write-only (`gear:write`)** — it can do nothing except pus
   your BiS targets shows a small overlay listing the matching slot/gearset and your current state
   (complete / materia differs / different item / empty). It sits next to the game tooltip and never
   modifies it.
+- **How to get it:** with *Show 'how to get it' on BiS pieces* enabled, a BiS piece's hover also shows
+  where it comes from and what it costs — the fight it drops in with its coffer, or what to trade and
+  with which vendor, down the full chain. This is impersonal game data (`GET /gear/obtain`), cached
+  for the session, and uses the same renderer as the team farm so the two never disagree.
 
 ## Base URL note
 

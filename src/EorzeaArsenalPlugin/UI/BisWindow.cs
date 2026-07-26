@@ -4,6 +4,7 @@ using Dalamud.Interface.Textures;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
+using EorzeaArsenal.Core;
 using EorzeaArsenal.Gear;
 using EorzeaArsenal.Localization;
 using EorzeaArsenal.Model;
@@ -48,8 +49,17 @@ public sealed class BisWindow : Window
     private readonly BisService _bis;
     private readonly GameGearSource _gearSource;
     private readonly ITextureProvider _textures;
+    private readonly ObtainService _obtain;
+    private readonly AdvisorService _advisor;
+    private readonly IWorldActions _world;
+    private readonly SourcingView _sourcing;
     private readonly Action _save;
     private readonly Action<int> _linkItem;
+    private readonly Func<string?, long?> _resolveCharacterId;
+
+    // Target ids we have already asked the obtain service to resolve, so Draw fires one prefetch per
+    // new set of pieces instead of a task every frame.
+    private readonly HashSet<int> _obtainRequested = [];
 
     /// <summary>Creates the BiS window.</summary>
     /// <param name="config">Live config.</param>
@@ -58,6 +68,11 @@ public sealed class BisWindow : Window
     /// <param name="bis">The shared BiS service (cache + comparison).</param>
     /// <param name="gearSource">Resolves item names, item levels and icons.</param>
     /// <param name="textures">Loads game icons.</param>
+    /// <param name="obtain">Fetches impersonal "how to get it" sourcing.</param>
+    /// <param name="world">Game actions (owned counts, open the map at a vendor) for the sourcing.</param>
+    /// <param name="holdings">Server-side owned counts (retainers included) for the sourcing.</param>
+    /// <param name="advisor">Supplies the set's remaining cost (tomestones, materials, books).</param>
+    /// <param name="resolveCharacterId">Fallback <c>cid_hash</c> → server character id, learned from pushes.</param>
     /// <param name="save">Persists the config (filter/scope choices).</param>
     /// <param name="linkItem">Posts a clickable item link to the game chat (arg: item id).</param>
     public BisWindow(
@@ -67,6 +82,11 @@ public sealed class BisWindow : Window
         BisService bis,
         GameGearSource gearSource,
         ITextureProvider textures,
+        ObtainService obtain,
+        IWorldActions world,
+        HoldingsService holdings,
+        AdvisorService advisor,
+        Func<string?, long?> resolveCharacterId,
         Action save,
         Action<int> linkItem)
         : base("Eorzea Arsenal###EorzeaArsenalBis")
@@ -77,8 +97,13 @@ public sealed class BisWindow : Window
         _bis = bis;
         _gearSource = gearSource;
         _textures = textures;
+        _obtain = obtain;
+        _advisor = advisor;
+        _world = world;
+        _sourcing = new SourcingView(localizer, world, obtain, holdings);
         _save = save;
         _linkItem = linkItem;
+        _resolveCharacterId = resolveCharacterId;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -88,6 +113,53 @@ public sealed class BisWindow : Window
     }
 
     private string T(string key) => _localizer.Get(key);
+
+    /// <summary>
+    /// Warms the obtain cache for every BiS target piece the moment it appears, once per id. The
+    /// service caches for the process lifetime, so once resolved a hover is instant; a piece is never
+    /// requested twice, and nothing fires when sourcing is off or no key is connected.
+    /// </summary>
+    private void PrefetchObtain()
+    {
+        if (!_config.BisShowSourcing || !_store.HasKey)
+        {
+            return;
+        }
+
+        var toRequest = new List<long>();
+        foreach (var comparison in _bis.Comparisons)
+        {
+            foreach (var slot in comparison.Slots)
+            {
+                if (slot.TargetItemId > 0 && _obtainRequested.Add(slot.TargetItemId))
+                {
+                    toRequest.Add(slot.TargetItemId);
+                }
+
+                // Also resolve the equipped piece, so an equipped tome base can be recognised.
+                if (slot.CurrentItemId is { } equipped && equipped > 0 && _obtainRequested.Add(equipped))
+                {
+                    toRequest.Add(equipped);
+                }
+            }
+        }
+
+        if (toRequest.Count > 0)
+        {
+            _ = _obtain.PrefetchAsync(toRequest, CancellationToken.None);
+        }
+    }
+
+    /// <summary>Renders the obtain steps for an item inside an already-open tooltip, if enabled and cached.</summary>
+    private void DrawSourcingInTooltip(int itemId, int equippedItemId = 0)
+    {
+        if (_config.BisShowSourcing && _obtain.TryGet(itemId, out var info) && info?.Routes is { Count: > 0 } routes)
+        {
+            ImGui.Separator();
+            _sourcing.DrawBody(info.Source, routes, equippedItemId);
+            ImGui.Spacing();
+        }
+    }
 
     /// <inheritdoc />
     public override void OnOpen()
@@ -102,6 +174,7 @@ public sealed class BisWindow : Window
     /// <inheritdoc />
     public override void Draw()
     {
+        PrefetchObtain();
         DrawToolbar();
 
         var statusMessage = StatusMessage();
@@ -271,9 +344,155 @@ public sealed class BisWindow : Window
             DrawSlot(comparison.GearIndex, slot, target?.Items.GetValueOrDefault(slot.Slot)?.Source ?? target?.Source);
         }
 
+        DrawSetNeeds(comparison, target);
+
         ImGui.Spacing();
         ImGui.Separator();
     }
+
+    /// <summary>
+    /// What this set still costs in total, folded away until asked for: the tomestones the remaining
+    /// purchases add up to (against the balance the plugin pushes), and every upgrade material and raid
+    /// book still to collect, each with what is already held.
+    /// </summary>
+    /// <remarks>
+    /// The sum comes from the server's advisor (<c>GET /me/advisor-options</c>) rather than being added
+    /// up here, so it can never disagree with the purchase advisor or the web about which route a piece
+    /// takes — the book trade counts as the alternative to a savage drop exactly as the advisor ranks
+    /// it. The read only fires once the player actually opens the section: with "all sets" shown that
+    /// would otherwise be one request per job for a panel nobody looked at.
+    /// </remarks>
+    private void DrawSetNeeds(GearsetComparison comparison, BisGearset? target)
+    {
+        if (string.IsNullOrEmpty(target?.Target))
+        {
+            return; // no set identity from the server → nothing to ask for
+        }
+
+        if (!ImGui.CollapsingHeader($"{T(LocKeys.BisNeedsHeading)}##needs{comparison.GearIndex}"))
+        {
+            return;
+        }
+
+        var characterId = ParseId(target.CharacterId) ?? _resolveCharacterId(target.CidHash);
+        if (characterId is not { } id)
+        {
+            ImGui.TextDisabled(T(LocKeys.AdvisorNoCharacter));
+            return;
+        }
+
+        if (!_advisor.TryGetOptions(id, comparison.Job, target.Target, AdvisorSort, out var options) || options is null)
+        {
+            _ = _advisor.EnsureOptionsAsync(id, comparison.Job, target.Target, comparison.GearIndex, AdvisorSort, CancellationToken.None);
+            ImGui.TextDisabled(T(LocKeys.AdvisorLoadingOptions));
+            return;
+        }
+
+        // The server answers this exact question separately from "what does the advised path cost" —
+        // a bridge piece is a way to the goal, not part of it.
+        var tomes = options.TargetNeeds?.Tomes ?? 0;
+        var materials = options.TargetNeeds?.Materials ?? [];
+        if (tomes <= 0 && materials.Count == 0)
+        {
+            // "Nothing to get" is only true when the set is actually complete. With slots still open it
+            // means the opposite: the remaining pieces have no purchase behind them (an Ultimate weapon
+            // is won, not bought), so saying "nothing left" would claim the set was done when it isn't.
+            var open = comparison.Slots.Count(s => s.Status != SlotMatch.Match);
+            if (open > 0)
+            {
+                using (ImRaii.PushColor(ImGuiCol.Text, Muted))
+                {
+                    ImGui.TextWrapped(_localizer.Get(LocKeys.BisNeedsUnknown, open));
+                }
+            }
+            else
+            {
+                ImGui.TextColored(Green, T(LocKeys.BisNeedsNothing));
+            }
+
+            return;
+        }
+
+        if (tomes > 0)
+        {
+            DrawTomeLine(tomes, options.TomeBalance, options.WeeklyCap);
+        }
+
+        // A material is only useful if you know where it comes from, so warm its sourcing too — the
+        // window otherwise only ever asks for gear pieces and the hover would stay empty.
+        if (_config.BisShowSourcing && _store.HasKey)
+        {
+            var unknown = materials.Select(m => m.Id).Where(id => !_obtain.TryGet((int)id, out _)).ToList();
+            if (unknown.Count > 0)
+            {
+                _ = _obtain.PrefetchAsync(unknown, CancellationToken.None);
+            }
+        }
+
+        foreach (var need in materials.OrderByDescending(n => n.Need - n.Owned))
+        {
+            // The advisor counted from stored holdings; the game may already know better (a stack
+            // bought since the last sync), so take the higher number — same rule as everywhere else.
+            var owned = Math.Max(need.Owned, OwnedNow((int)need.Id));
+            var itemId = (int)need.Id;
+            var slots = need.For is { Count: > 0 } forSlots
+                ? string.Join(", ", forSlots.Select(s => _localizer.Get(SlotNames.LocKey(s))))
+                : null;
+
+            DrawIcon(itemId, IconSize);
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.BeginTooltip();
+                ImGui.TextColored(Accent, _gearSource.GetItemName(itemId));
+                ImGui.TextColored(owned >= need.Need ? Green : Orange, $"{owned}/{need.Need}");
+                if (slots is not null)
+                {
+                    ImGui.TextColored(Muted, slots);
+                }
+
+                DrawSourcingInTooltip(itemId);
+                ImGui.TextDisabled(T(LocKeys.BisItemHint));
+                ImGui.EndTooltip();
+            }
+
+            ImGui.SameLine();
+
+            // Naming the slots turns a bare number into something actionable — "3× Twine" says little,
+            // "for body, hands and feet" says what it is for.
+            var suffix = slots is null ? string.Empty : $"   ·   {slots}";
+            ClickableItem(
+                owned >= need.Need ? Green : Orange,
+                $"{_gearSource.GetItemName(itemId)} — {owned}/{need.Need}{suffix}",
+                itemId,
+                $"##need{comparison.GearIndex}_{need.Id}");
+        }
+    }
+
+    /// <summary>The tomestone total, what is banked against it, and how many capped weeks are left.</summary>
+    private void DrawTomeLine(int needed, int balance, int weeklyCap)
+    {
+        var line = _localizer.Get(LocKeys.BisNeedsTomes, needed, balance);
+        var missing = needed - balance;
+        if (missing <= 0)
+        {
+            ImGui.TextColored(Green, $"{line} · {T(LocKeys.BisNeedsCovered)}");
+            return;
+        }
+
+        var weeks = weeklyCap > 0 ? (int)Math.Ceiling(missing / (double)weeklyCap) : 0;
+        var suffix = weeks > 0
+            ? $" · {_localizer.Get(LocKeys.BisNeedsShort, missing)} · {_localizer.Get(LocKeys.BisNeedsWeeks, weeks)}"
+            : $" · {_localizer.Get(LocKeys.BisNeedsShort, missing)}";
+        ImGui.TextColored(Orange, line + suffix);
+    }
+
+    /// <summary>The live in-game count, used only to beat a stale server number (never to replace it).</summary>
+    private int OwnedNow(int itemId) => _world.OwnedCount((uint)itemId);
+
+    private static long? ParseId(string? value) => long.TryParse(value, out var id) && id > 0 ? id : null;
+
+    /// <summary>The advisor ranking the needs are summed from; the order does not change the total.</summary>
+    private const string AdvisorSort = "power";
 
     /// <summary>
     /// Aggregates, across the shown sets, the BiS items you don't yet own (not equipped and not in
@@ -407,6 +626,8 @@ public sealed class BisWindow : Window
             ImGui.EndTable();
         }
 
+        DrawSetNeeds(comparison, target);
+
         ImGui.Spacing();
         ImGui.Separator();
     }
@@ -463,6 +684,11 @@ public sealed class BisWindow : Window
             if (ImGui.Selectable(T(LocKeys.BisCopyName)))
             {
                 ImGui.SetClipboardText(_gearSource.GetItemName(item.TargetItemId));
+            }
+
+            if (_config.BisShowSourcing && _obtain.TryGet(item.TargetItemId, out var info))
+            {
+                _sourcing.DrawMapMenuItem(info?.Routes);
             }
 
             ImGui.EndPopup();
@@ -525,6 +751,8 @@ public sealed class BisWindow : Window
             ImGui.TextColored(slot.Status == SlotMatch.Match ? Orange : Muted, _localizer.Get(key, string.Join(", ", slot.MissingMateria.Select(_gearSource.GetItemName))));
         }
 
+        DrawSourcingInTooltip(slot.TargetItemId, slot.CurrentItemId ?? 0);
+
         ImGui.Spacing();
         ImGui.TextDisabled(T(LocKeys.BisItemHint));
         ImGui.EndTooltip();
@@ -540,7 +768,7 @@ public sealed class BisWindow : Window
         var slotName = _localizer.Get(SlotNames.LocKey(slot.Slot));
         var sourceSuffix = string.IsNullOrEmpty(source) ? string.Empty : $" · {SourceLabel(source)}";
         var line = $"{slotName}: {_gearSource.GetItemName(slot.TargetItemId)} · iLvl {_gearSource.GetItemLevel(slot.TargetItemId)}{sourceSuffix}";
-        ClickableItem(color, line, slot.TargetItemId, $"##slot{gearIndex}_{slot.Slot}");
+        ClickableItem(color, line, slot.TargetItemId, $"##slot{gearIndex}_{slot.Slot}", slot.CurrentItemId ?? 0);
 
         if (slot.Status == SlotMatch.ItemDiffers && slot.CurrentItemId is { } currentId && currentId > 0)
         {
@@ -566,7 +794,7 @@ public sealed class BisWindow : Window
     /// the local chat log (preview), right-click copies the item name to the clipboard so the user
     /// can paste it anywhere (FC/party chat, Discord, the marketboard search).
     /// </summary>
-    private void ClickableItem(Vector4 color, string text, int itemId, string id)
+    private void ClickableItem(Vector4 color, string text, int itemId, string id, int equippedItemId = 0)
     {
         ImGui.PushStyleColor(ImGuiCol.Text, color);
         var clicked = ImGui.Selectable(text + id);
@@ -574,7 +802,10 @@ public sealed class BisWindow : Window
 
         if (ImGui.IsItemHovered())
         {
-            ImGui.SetTooltip(T(LocKeys.BisItemHint));
+            ImGui.BeginTooltip();
+            DrawSourcingInTooltip(itemId, equippedItemId);
+            ImGui.TextDisabled(T(LocKeys.BisItemHint));
+            ImGui.EndTooltip();
         }
 
         if (clicked)
@@ -587,6 +818,12 @@ public sealed class BisWindow : Window
             if (ImGui.Selectable(T(LocKeys.BisCopyName)))
             {
                 ImGui.SetClipboardText(_gearSource.GetItemName(itemId));
+            }
+
+            // "Show NPC on map" when this piece is bought from a mappable vendor.
+            if (_config.BisShowSourcing && _obtain.TryGet(itemId, out var info))
+            {
+                _sourcing.DrawMapMenuItem(info?.Routes);
             }
 
             ImGui.EndPopup();

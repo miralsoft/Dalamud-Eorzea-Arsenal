@@ -140,6 +140,225 @@ public sealed class FakeApiClient : IApiClient
             : ApiResult<WeeklyPushResult>.Ok(new WeeklyPushResult { Status = "ok" });
         return Task.FromResult(result);
     }
+
+    // --- Teams companion ---------------------------------------------------------------------------
+
+    private readonly Queue<ApiResult<CalendarResponse>> _calendarResults = new();
+    private readonly Queue<ApiResult<NotificationsResponse>> _notificationResults = new();
+
+    /// <summary>Number of <see cref="GetCalendarAsync"/> calls made.</summary>
+    public int CalendarCalls { get; private set; }
+
+    /// <summary>Number of <see cref="GetNotificationsAsync"/> calls made.</summary>
+    public int NotificationCalls { get; private set; }
+
+    /// <summary>The attendance requests posted, in order.</summary>
+    public List<AttendanceRequest> AttendanceRequests { get; } = [];
+
+    /// <summary>Result returned by <see cref="GetTeamsAsync"/>.</summary>
+    public ApiResult<TeamsResponse> TeamsResult { get; set; } = ApiResult<TeamsResponse>.Ok(new TeamsResponse());
+
+    /// <summary>Result returned by <see cref="GetMitSheetAsync"/>.</summary>
+    public ApiResult<MitSheetResponse> MitSheetResult { get; set; } = ApiResult<MitSheetResponse>.Ok(new MitSheetResponse());
+
+    /// <summary>Result returned by <see cref="GetContentSheetAsync"/>.</summary>
+    public ApiResult<ContentSheetResponse> ContentSheetResult { get; set; } = ApiResult<ContentSheetResponse>.Ok(new ContentSheetResponse());
+
+    /// <summary>Result returned by <see cref="GetResourceFileAsync"/>.</summary>
+    public ApiResult<ResourceFile> ResourceFileResult { get; set; } = ApiResult<ResourceFile>.Ok(new ResourceFile { Bytes = [], Mime = null });
+
+    /// <summary>Result returned by <see cref="GetFarmAsync"/>.</summary>
+    public ApiResult<FarmResponse> FarmResult { get; set; } = ApiResult<FarmResponse>.Ok(new FarmResponse());
+
+    /// <summary>Result returned by <see cref="GetLogsAsync"/>.</summary>
+    public ApiResult<LogsResponse> LogsResult { get; set; } = ApiResult<LogsResponse>.Ok(new LogsResponse());
+
+    /// <summary>Result returned by <see cref="GetGearObtainAsync"/>.</summary>
+    public ApiResult<ObtainResponse> ObtainResult { get; set; } = ApiResult<ObtainResponse>.Ok(new ObtainResponse { Data = new() });
+
+    /// <summary>Each id set passed to <see cref="GetGearObtainAsync"/>, in call order.</summary>
+    public List<long[]> ObtainRequests { get; } = [];
+
+    /// <summary>Result returned by <see cref="GetHoldingsAsync"/>.</summary>
+    public ApiResult<HoldingsResponse> HoldingsResult { get; set; } = ApiResult<HoldingsResponse>.Ok(new HoldingsResponse { Data = new() });
+
+    /// <summary>Each id set passed to <see cref="GetHoldingsAsync"/>, in call order.</summary>
+    public List<long[]> HoldingsRequests { get; } = [];
+
+    /// <summary>The character id each holdings read was pinned to (<see langword="null"/> = server's choice).</summary>
+    public List<long?> HoldingsCharacterIds { get; } = [];
+
+    /// <summary>Result returned by <see cref="GetTrackedItemsAsync"/>.</summary>
+    public ApiResult<TrackedItemsResponse> TrackedItemsResult { get; set; } = ApiResult<TrackedItemsResponse>.Ok(new TrackedItemsResponse { Data = [] });
+
+    /// <summary>Each (characterId, balance) passed to <see cref="PutTomeBalanceAsync"/>, in call order.</summary>
+    public List<(long CharacterId, int Balance)> TomeBalancePushes { get; } = [];
+
+    /// <summary>Result returned by <see cref="PutTomeBalanceAsync"/>.</summary>
+    public ApiResult<TomeBalanceResponse> TomeBalanceResult { get; set; } = ApiResult<TomeBalanceResponse>.Ok(new TomeBalanceResponse { Data = new TomeBalanceData { Balance = 0 } });
+
+    /// <summary>Result returned by <see cref="PostAttendanceAsync"/>.</summary>
+    public ApiResult<StatusAck> AttendanceResult { get; set; } = ApiResult<StatusAck>.Ok(new StatusAck { Status = "ok" });
+
+    /// <summary>Result returned by <see cref="GetAbsencesAsync"/>.</summary>
+    public ApiResult<AbsencesResponse> AbsencesResult { get; set; } = ApiResult<AbsencesResponse>.Ok(new AbsencesResponse());
+
+    /// <summary>Result returned by <see cref="PostAbsenceAsync"/>.</summary>
+    public ApiResult<AbsenceCreateResponse> AbsenceCreateResult { get; set; } = ApiResult<AbsenceCreateResponse>.Ok(new AbsenceCreateResponse { Data = new AbsenceCreated { Id = 1 } });
+
+    /// <summary>Result returned by <see cref="DeleteAbsenceAsync"/>.</summary>
+    public ApiResult<bool> DeleteAbsenceResult { get; set; } = ApiResult<bool>.Ok(true);
+
+    /// <summary>Queues a calendar result (for the polling service).</summary>
+    /// <param name="result">The result to return on the next call.</param>
+    public void EnqueueCalendar(ApiResult<CalendarResponse> result) => _calendarResults.Enqueue(result);
+
+    /// <summary>Queues a notifications result (for the polling service).</summary>
+    /// <param name="result">The result to return on the next call.</param>
+    public void EnqueueNotifications(ApiResult<NotificationsResponse> result) => _notificationResults.Enqueue(result);
+
+    /// <inheritdoc />
+    public Task<ApiResult<TeamsResponse>> GetTeamsAsync(string apiKey, CancellationToken ct) =>
+        Task.FromResult(TeamsResult);
+
+    /// <inheritdoc />
+    public Task<ApiResult<CalendarResponse>> GetCalendarAsync(string apiKey, string? from, string? to, CancellationToken ct)
+    {
+        CalendarCalls++;
+        var result = _calendarResults.Count > 0 ? _calendarResults.Dequeue() : ApiResult<CalendarResponse>.Ok(new CalendarResponse { Data = [] });
+        return Task.FromResult(result);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<MitSheetResponse>> GetMitSheetAsync(string apiKey, long teamId, long planId, CancellationToken ct) =>
+        Task.FromResult(MitSheetResult);
+
+    /// <inheritdoc />
+    public Task<ApiResult<ContentSheetResponse>> GetContentSheetAsync(string apiKey, long teamId, CancellationToken ct) =>
+        Task.FromResult(ContentSheetResult);
+
+    /// <inheritdoc />
+    public Task<ApiResult<ResourceFile>> GetResourceFileAsync(string apiKey, long teamId, long resourceId, CancellationToken ct) =>
+        Task.FromResult(ResourceFileResult);
+
+    /// <inheritdoc />
+    public Task<ApiResult<FarmResponse>> GetFarmAsync(string apiKey, long teamId, CancellationToken ct) =>
+        Task.FromResult(FarmResult);
+
+    /// <inheritdoc />
+    public Task<ApiResult<LogsResponse>> GetLogsAsync(string apiKey, long teamId, CancellationToken ct) =>
+        Task.FromResult(LogsResult);
+
+    /// <inheritdoc />
+    public Task<ApiResult<ObtainResponse>> GetGearObtainAsync(string apiKey, IReadOnlyCollection<long> itemIds, CancellationToken ct)
+    {
+        ObtainRequests.Add([.. itemIds]);
+        return Task.FromResult(ObtainResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<HoldingsResponse>> GetHoldingsAsync(
+        string apiKey, IReadOnlyCollection<long> itemIds, long? characterId, bool breakdown, CancellationToken ct)
+    {
+        HoldingsRequests.Add([.. itemIds]);
+        HoldingsCharacterIds.Add(characterId);
+        return Task.FromResult(HoldingsResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<TrackedItemsResponse>> GetTrackedItemsAsync(string apiKey, CancellationToken ct) =>
+        Task.FromResult(TrackedItemsResult);
+
+    /// <inheritdoc />
+    public Task<ApiResult<TomeBalanceResponse>> PutTomeBalanceAsync(string apiKey, long characterId, int balance, CancellationToken ct)
+    {
+        TomeBalancePushes.Add((characterId, balance));
+        return Task.FromResult(TomeBalanceResult);
+    }
+
+    /// <summary>Result returned by <see cref="GetAdvisorPlanAsync"/>.</summary>
+    public ApiResult<AdvisorPlanResponse> AdvisorPlanResult { get; set; } = ApiResult<AdvisorPlanResponse>.Ok(new AdvisorPlanResponse());
+
+    /// <summary>Result returned by <see cref="PutAdvisorPlanAsync"/> (<see langword="null"/> echoes the request).</summary>
+    public ApiResult<AdvisorPlanResponse>? AdvisorPlanSaveResult { get; set; }
+
+    /// <summary>Result returned by <see cref="DeleteAdvisorPlanAsync"/>.</summary>
+    public ApiResult<bool> AdvisorPlanDeleteResult { get; set; } = ApiResult<bool>.Ok(true);
+
+    /// <summary>Each (characterId, job, target) read, in call order.</summary>
+    public List<(long CharacterId, string Job, string Target)> AdvisorPlanReads { get; } = [];
+
+    /// <summary>The plans saved via <see cref="PutAdvisorPlanAsync"/>, in order.</summary>
+    public List<AdvisorPlanRequest> AdvisorPlanSaves { get; } = [];
+
+    /// <summary>The plans dropped via <see cref="DeleteAdvisorPlanAsync"/>, in order.</summary>
+    public List<AdvisorPlanDeleteRequest> AdvisorPlanDeletes { get; } = [];
+
+    /// <summary>Result returned by <see cref="GetAdvisorOptionsAsync"/>.</summary>
+    public ApiResult<AdvisorOptionsResponse> AdvisorOptionsResult { get; set; } =
+        ApiResult<AdvisorOptionsResponse>.Ok(new AdvisorOptionsResponse { Data = new AdvisorOptions() });
+
+    /// <summary>Each (characterId, job, target, gearIndex, sort) asked for, in call order.</summary>
+    public List<(long CharacterId, string Job, string Target, int? GearIndex, string? Sort)> AdvisorOptionsReads { get; } = [];
+
+    /// <inheritdoc />
+    public Task<ApiResult<AdvisorOptionsResponse>> GetAdvisorOptionsAsync(
+        string apiKey, long characterId, string job, string target, int? gearIndex, string? sort, CancellationToken ct)
+    {
+        AdvisorOptionsReads.Add((characterId, job, target, gearIndex, sort));
+        return Task.FromResult(AdvisorOptionsResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<AdvisorPlanResponse>> GetAdvisorPlanAsync(string apiKey, long characterId, string job, string target, CancellationToken ct)
+    {
+        AdvisorPlanReads.Add((characterId, job, target));
+        return Task.FromResult(AdvisorPlanResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<AdvisorPlanResponse>> PutAdvisorPlanAsync(string apiKey, AdvisorPlanRequest request, CancellationToken ct)
+    {
+        AdvisorPlanSaves.Add(request);
+        return Task.FromResult(AdvisorPlanSaveResult ?? ApiResult<AdvisorPlanResponse>.Ok(new AdvisorPlanResponse
+        {
+            Data = new AdvisorPlan { Job = request.Job, Target = request.Target, TargetName = request.TargetName, Items = request.Items },
+        }));
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<bool>> DeleteAdvisorPlanAsync(string apiKey, AdvisorPlanDeleteRequest request, CancellationToken ct)
+    {
+        AdvisorPlanDeletes.Add(request);
+        return Task.FromResult(AdvisorPlanDeleteResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<StatusAck>> PostAttendanceAsync(string apiKey, long teamId, long eventId, AttendanceRequest request, CancellationToken ct)
+    {
+        AttendanceRequests.Add(request);
+        return Task.FromResult(AttendanceResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<AbsencesResponse>> GetAbsencesAsync(string apiKey, long teamId, CancellationToken ct) =>
+        Task.FromResult(AbsencesResult);
+
+    /// <inheritdoc />
+    public Task<ApiResult<AbsenceCreateResponse>> PostAbsenceAsync(string apiKey, long teamId, AbsenceCreateRequest request, CancellationToken ct) =>
+        Task.FromResult(AbsenceCreateResult);
+
+    /// <inheritdoc />
+    public Task<ApiResult<bool>> DeleteAbsenceAsync(string apiKey, long teamId, long absenceId, CancellationToken ct) =>
+        Task.FromResult(DeleteAbsenceResult);
+
+    /// <inheritdoc />
+    public Task<ApiResult<NotificationsResponse>> GetNotificationsAsync(string apiKey, CancellationToken ct)
+    {
+        NotificationCalls++;
+        var result = _notificationResults.Count > 0 ? _notificationResults.Dequeue() : ApiResult<NotificationsResponse>.Ok(new NotificationsResponse { Data = [] });
+        return Task.FromResult(result);
+    }
 }
 
 /// <summary>Builders for common test data.</summary>

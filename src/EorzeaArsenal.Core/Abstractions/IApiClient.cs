@@ -75,4 +75,192 @@ public interface IApiClient
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The merge result, or a classified error (401/403/404/422/429).</returns>
     Task<ApiResult<WeeklyPushResult>> PutWeeklyAsync(string apiKey, string characterId, WeeklyPayload payload, CancellationToken ct);
+
+    // --- Teams companion (Phase C + D): teams:read reads + teams:write own-record writes -----------
+
+    /// <summary>Reads the player's teams + active mit plans via <c>GET /me/teams</c> (<c>teams:read</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The teams, or a classified error.</returns>
+    Task<ApiResult<TeamsResponse>> GetTeamsAsync(string apiKey, CancellationToken ct);
+
+    /// <summary>Reads the expanded calendar via <c>GET /me/calendar</c> (<c>teams:read</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="from">Optional window start <c>YYYY-MM-DD</c>.</param>
+    /// <param name="to">Optional window end <c>YYYY-MM-DD</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The occurrences, or a classified error.</returns>
+    Task<ApiResult<CalendarResponse>> GetCalendarAsync(string apiKey, string? from, string? to, CancellationToken ct);
+
+    /// <summary>Reads a mit cheat sheet via <c>GET /teams/{id}/mit/{planId}/sheet</c> (<c>teams:read</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="planId">The plan id.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The sheet, or a classified error (404 if not a member).</returns>
+    Task<ApiResult<MitSheetResponse>> GetMitSheetAsync(string apiKey, long teamId, long planId, CancellationToken ct);
+
+    /// <summary>Reads the content hub via <c>GET /teams/{id}/content/sheet</c> (<c>teams:read</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The hub, or a classified error (404 if not a member).</returns>
+    Task<ApiResult<ContentSheetResponse>> GetContentSheetAsync(string apiKey, long teamId, CancellationToken ct);
+
+    /// <summary>Streams a resource file via <c>GET /teams/{id}/resources/{resourceId}/file</c> (<c>teams:read</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="resourceId">The resource id.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The bytes + MIME, or a classified error.</returns>
+    Task<ApiResult<ResourceFile>> GetResourceFileAsync(string apiKey, long teamId, long resourceId, CancellationToken ct);
+
+    /// <summary>Reads the who-needs-what farm overview via <c>GET /teams/{id}/farm</c> (<c>teams:read</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The farm entries, or a classified error.</returns>
+    Task<ApiResult<FarmResponse>> GetFarmAsync(string apiKey, long teamId, CancellationToken ct);
+
+    /// <summary>
+    /// Reads impersonal "how to get it" sourcing for gear pieces via <c>GET /gear/obtain?item_ids=…</c>.
+    /// The data is the same for every player, so any valid bearer passes; no personal scope is needed.
+    /// </summary>
+    /// <param name="apiKey">The API key (any valid key; the read is impersonal and rate-limited).</param>
+    /// <param name="itemIds">The item ids to resolve (server caps at 60 per call — chunk above that).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Per-id sourcing (a <see langword="null"/> entry means "no info yet"), or a classified error.</returns>
+    Task<ApiResult<ObtainResponse>> GetGearObtainAsync(string apiKey, IReadOnlyCollection<long> itemIds, CancellationToken ct);
+
+    /// <summary>
+    /// Reads the caller's own owned quantity per item via <c>GET /me/holdings?item_ids=…</c> — summed
+    /// across every synced storage including retainers (as of their last visit). Personal (<c>gear:read</c>).
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>gear:read</c>).</param>
+    /// <param name="itemIds">The item ids to count.</param>
+    /// <param name="characterId">
+    /// The character to count for; <see langword="null"/> falls back to the account's <i>active</i>
+    /// character, which need not be the one in game. A foreign id is a <c>404</c>.
+    /// </param>
+    /// <param name="breakdown">Also ask where each count sits (per storage / retainer).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Per-id owned quantity (missing/zero = 0), or a classified error.</returns>
+    Task<ApiResult<HoldingsResponse>> GetHoldingsAsync(
+        string apiKey, IReadOnlyCollection<long> itemIds, long? characterId, bool breakdown, CancellationToken ct);
+
+    /// <summary>
+    /// Reads the active tier's tracked consumable ids via <c>GET /gear/tracked-items</c> (impersonal),
+    /// so the plugin can add exactly those to its inventory sync for owned-count coverage.
+    /// </summary>
+    /// <param name="apiKey">The API key (any valid key; the read is impersonal and rate-limited).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The item ids to track, or a classified error.</returns>
+    Task<ApiResult<TrackedItemsResponse>> GetTrackedItemsAsync(string apiKey, CancellationToken ct);
+
+    /// <summary>
+    /// Pushes the caller's capped-tomestone balance for a character via <c>PUT /me/tome-balance</c>
+    /// (bearer + <c>characters:write</c>, no CSRF). Own character only; the server clamps to 0…9999.
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>characters:write</c>).</param>
+    /// <param name="characterId">The caller's own server character id.</param>
+    /// <param name="balance">The capped-tomestone count.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The stored balance echo, or a classified error (403 scope / 404 foreign character).</returns>
+    Task<ApiResult<TomeBalanceResponse>> PutTomeBalanceAsync(string apiKey, long characterId, int balance, CancellationToken ct);
+
+    /// <summary>
+    /// Reads the purchase advice for one set via <c>GET /me/advisor-options</c> (<c>gear:read</c>):
+    /// the ranked deterministic steps, the pieces selectable per slot, and what the open slots still
+    /// need in material. Computed server-side so the plugin and the web can never disagree, and so a
+    /// tier rotation needs no plugin release.
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>gear:read</c>).</param>
+    /// <param name="characterId">The caller's own server character id.</param>
+    /// <param name="job">The job code.</param>
+    /// <param name="target">The target set's apiPath / shortlink, read back from the set.</param>
+    /// <param name="gearIndex">Optional gearset index, to disambiguate two sets of the same job.</param>
+    /// <param name="sort">Ranking: <c>power</c> (default), <c>value</c> or <c>cheap</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The advice, or a classified error (404 when no gearset points at that target).</returns>
+    Task<ApiResult<AdvisorOptionsResponse>> GetAdvisorOptionsAsync(
+        string apiKey, long characterId, string job, string target, int? gearIndex, string? sort, CancellationToken ct);
+
+    /// <summary>
+    /// Reads the saved purchase plan ("Kaufberater") for one character + job + target set via
+    /// <c>GET /me/advisor-plan</c> (<c>plans:read</c>). Own character only; a foreign character or an
+    /// unknown set yields <c>data: null</c>, which is a normal "no plan yet", not an error.
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>plans:read</c>).</param>
+    /// <param name="characterId">The caller's own server character id.</param>
+    /// <param name="job">The job code (sent lower-case).</param>
+    /// <param name="target">The target set's apiPath / shortlink, read back from the set.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The stored plan (possibly <see langword="null"/>), or a classified error.</returns>
+    Task<ApiResult<AdvisorPlanResponse>> GetAdvisorPlanAsync(string apiKey, long characterId, string job, string target, CancellationToken ct);
+
+    /// <summary>
+    /// Saves a purchase plan via <c>PUT /me/advisor-plan</c> (<c>plans:write</c>, no CSRF). Only ever
+    /// called on a deliberate user action — a plan is an explicit choice, not observed state.
+    /// An empty item map clears the plan.
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>plans:write</c>; never logged — R22).</param>
+    /// <param name="request">The plan to store.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The stored plan echo, or a classified error (403 scope / 404 foreign character).</returns>
+    Task<ApiResult<AdvisorPlanResponse>> PutAdvisorPlanAsync(string apiKey, AdvisorPlanRequest request, CancellationToken ct);
+
+    /// <summary>
+    /// Drops a saved purchase plan via <c>DELETE /me/advisor-plan</c> (<c>plans:write</c>), so the view
+    /// falls back to the advisor's recommendation. Idempotent — deleting a missing plan is a no-op.
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>plans:write</c>).</param>
+    /// <param name="request">Which plan to drop.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Success (2xx), or a classified error.</returns>
+    Task<ApiResult<bool>> DeleteAdvisorPlanAsync(string apiKey, AdvisorPlanDeleteRequest request, CancellationToken ct);
+
+    /// <summary>Reads the FFLogs mirror via <c>GET /teams/{id}/logs</c> (<c>teams:read</c>; best-effort).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The logs (possibly a disconnected/empty state), or a classified error.</returns>
+    Task<ApiResult<LogsResponse>> GetLogsAsync(string apiKey, long teamId, CancellationToken ct);
+
+    /// <summary>Sets your own RSVP via <c>POST /teams/{id}/events/{eventId}/attendance</c> (<c>teams:write</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:write</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="eventId">The event id.</param>
+    /// <param name="request">The occurrence date + new status.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>An ack, or a classified error (403 capability / 404 not a member).</returns>
+    Task<ApiResult<StatusAck>> PostAttendanceAsync(string apiKey, long teamId, long eventId, AttendanceRequest request, CancellationToken ct);
+
+    /// <summary>Reads absence ranges via <c>GET /teams/{id}/absences</c> (<c>teams:read</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Your own ranges (plus others' if you hold the right), or a classified error.</returns>
+    Task<ApiResult<AbsencesResponse>> GetAbsencesAsync(string apiKey, long teamId, CancellationToken ct);
+
+    /// <summary>Reports your own absence via <c>POST /teams/{id}/absences</c> (<c>teams:write</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:write</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="request">The date range + optional note.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The created id, or a classified error.</returns>
+    Task<ApiResult<AbsenceCreateResponse>> PostAbsenceAsync(string apiKey, long teamId, AbsenceCreateRequest request, CancellationToken ct);
+
+    /// <summary>Deletes your own absence via <c>DELETE /teams/{id}/absences/{absenceId}</c> (<c>teams:write</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:write</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="absenceId">The absence id (must be yours).</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Success (2xx), or a classified error (403/404).</returns>
+    Task<ApiResult<bool>> DeleteAbsenceAsync(string apiKey, long teamId, long absenceId, CancellationToken ct);
+
+    /// <summary>Reads the notification feed via <c>GET /notifications</c> (bearer).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The feed (newest first), or a classified error.</returns>
+    Task<ApiResult<NotificationsResponse>> GetNotificationsAsync(string apiKey, CancellationToken ct);
 }

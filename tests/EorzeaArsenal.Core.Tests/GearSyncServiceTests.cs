@@ -236,6 +236,66 @@ public sealed class GearSyncServiceTests
         public Task<ApiResult<InventoryPushResult>> PushInventoryAsync(string apiKey, InventoryPayload payload, CancellationToken ct) =>
             throw new NotSupportedException();
 
+        public Task<ApiResult<TeamsResponse>> GetTeamsAsync(string apiKey, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<CalendarResponse>> GetCalendarAsync(string apiKey, string? from, string? to, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<MitSheetResponse>> GetMitSheetAsync(string apiKey, long teamId, long planId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<ContentSheetResponse>> GetContentSheetAsync(string apiKey, long teamId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<ResourceFile>> GetResourceFileAsync(string apiKey, long teamId, long resourceId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<FarmResponse>> GetFarmAsync(string apiKey, long teamId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<LogsResponse>> GetLogsAsync(string apiKey, long teamId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<ObtainResponse>> GetGearObtainAsync(string apiKey, IReadOnlyCollection<long> itemIds, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<HoldingsResponse>> GetHoldingsAsync(string apiKey, IReadOnlyCollection<long> itemIds, long? characterId, bool breakdown, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<TrackedItemsResponse>> GetTrackedItemsAsync(string apiKey, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<TomeBalanceResponse>> PutTomeBalanceAsync(string apiKey, long characterId, int balance, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<AdvisorPlanResponse>> GetAdvisorPlanAsync(string apiKey, long characterId, string job, string target, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<AdvisorOptionsResponse>> GetAdvisorOptionsAsync(string apiKey, long characterId, string job, string target, int? gearIndex, string? sort, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<AdvisorPlanResponse>> PutAdvisorPlanAsync(string apiKey, AdvisorPlanRequest request, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<bool>> DeleteAdvisorPlanAsync(string apiKey, AdvisorPlanDeleteRequest request, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<StatusAck>> PostAttendanceAsync(string apiKey, long teamId, long eventId, AttendanceRequest request, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<AbsencesResponse>> GetAbsencesAsync(string apiKey, long teamId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<AbsenceCreateResponse>> PostAbsenceAsync(string apiKey, long teamId, AbsenceCreateRequest request, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<bool>> DeleteAbsenceAsync(string apiKey, long teamId, long absenceId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<NotificationsResponse>> GetNotificationsAsync(string apiKey, CancellationToken ct) =>
+            throw new NotSupportedException();
+
         public Task<ApiResult<GearPushResult>> PushGearAsync(string apiKey, GearPayload payload, CancellationToken ct)
         {
             var now = Interlocked.Increment(ref _concurrent);

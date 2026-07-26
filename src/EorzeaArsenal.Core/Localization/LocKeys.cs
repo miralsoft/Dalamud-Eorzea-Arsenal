@@ -13,7 +13,7 @@ public static class LocKeys
     /// <summary>Config window title.</summary>
     public const string ConfigWindowTitle = "window.config.title";
 
-    /// <summary>Help text for the /bisexport command.</summary>
+    /// <summary>Help text for the /xivarsenal command.</summary>
     public const string CommandHelp = "command.help";
 
     /// <summary>"Language" label.</summary>
@@ -268,6 +268,12 @@ public static class LocKeys
     /// <summary>BiS hover-overlay toggle.</summary>
     public const string BisTooltipToggle = "config.bistooltip";
 
+    /// <summary>Config: show "how to get it" sourcing on BiS pieces.</summary>
+    public const string BisShowSourcing = "config.bissourcing";
+
+    /// <summary>Config: sourcing toggle hint.</summary>
+    public const string BisShowSourcingHint = "config.bissourcing.hint";
+
     /// <summary>"you have {0}" line (current item name).</summary>
     public const string BisYouHave = "bis.youhave";
 
@@ -433,4 +439,697 @@ public static class LocKeys
 
     /// <summary>Empty-log placeholder.</summary>
     public const string LogEmpty = "log.empty";
+
+    // Teams companion
+    /// <summary>Teams window: enable/connect hint.</summary>
+    public const string TeamsDisabledHint = "teams.disabledhint";
+
+    /// <summary>Teams window: reconnect-for-scope hint.</summary>
+    public const string TeamsScopeHint = "teams.scopehint";
+
+    /// <summary>Teams status-window entry / window title.</summary>
+    public const string TeamsOpen = "teams.open";
+
+    /// <summary>Config: enable the Teams companion.</summary>
+    public const string SyncTeams = "config.syncteams";
+
+    /// <summary>Config: Teams companion hint.</summary>
+    public const string SyncTeamsHint = "config.syncteams.hint";
+
+    /// <summary>Tab: calendar.</summary>
+    public const string TeamsTabCalendar = "teams.tab.calendar";
+
+    /// <summary>Tab: mit cheat sheet.</summary>
+    public const string TeamsTabMit = "teams.tab.mit";
+
+    /// <summary>Tab: content hub.</summary>
+    public const string TeamsTabContent = "teams.tab.content";
+
+    /// <summary>Tab: farm.</summary>
+    public const string TeamsTabFarm = "teams.tab.farm";
+
+    /// <summary>Tab: FFLogs.</summary>
+    public const string TeamsTabLogs = "teams.tab.logs";
+
+    /// <summary>Tab: absence.</summary>
+    public const string TeamsTabAbsence = "teams.tab.absence";
+
+    /// <summary>Team picker label.</summary>
+    public const string TeamsTeamLabel = "teams.teamlabel";
+
+    /// <summary>Loading placeholder.</summary>
+    public const string TeamsLoading = "teams.loading";
+
+    /// <summary>No teams placeholder.</summary>
+    public const string TeamsNoTeams = "teams.noteams";
+
+    /// <summary>Refresh button.</summary>
+    public const string TeamsRefresh = "teams.refresh";
+
+    /// <summary>Help button.</summary>
+    public const string TeamsHelp = "teams.help";
+
+    /// <summary>Working/saving placeholder.</summary>
+    public const string TeamsWorking = "teams.working";
+
+    /// <summary>Saved acknowledgement.</summary>
+    public const string TeamsSaved = "teams.saved";
+
+    /// <summary>No events placeholder.</summary>
+    public const string TeamsNoEvents = "teams.noevents";
+
+    /// <summary>Linked-content label.</summary>
+    public const string TeamsContentsLabel = "teams.contentslabel";
+
+    /// <summary>Attendance counts format: yes {0}, maybe {1}, no {2}, total {3}.</summary>
+    public const string TeamsAttendCounts = "teams.attendcounts";
+
+    /// <summary>RSVP yes.</summary>
+    public const string TeamsRsvpYes = "teams.rsvp.yes";
+
+    /// <summary>RSVP maybe.</summary>
+    public const string TeamsRsvpMaybe = "teams.rsvp.maybe";
+
+    /// <summary>RSVP no.</summary>
+    public const string TeamsRsvpNo = "teams.rsvp.no";
+
+    /// <summary>Plan picker label.</summary>
+    public const string TeamsPlanLabel = "teams.planlabel";
+
+    /// <summary>Job picker label.</summary>
+    public const string TeamsJobLabel = "teams.joblabel";
+
+    /// <summary>Show all jobs checkbox.</summary>
+    public const string TeamsAllJobs = "teams.alljobs";
+
+    /// <summary>No plan placeholder.</summary>
+    public const string TeamsNoPlan = "teams.noplan";
+
+    /// <summary>Mechanics header.</summary>
+    public const string TeamsMechanics = "teams.mechanics";
+
+    /// <summary>Cooldowns header.</summary>
+    public const string TeamsCooldowns = "teams.cooldowns";
+
+    /// <summary>No placements placeholder.</summary>
+    public const string TeamsNoPlacements = "teams.noplacements";
+
+    /// <summary>Bosses header.</summary>
+    public const string TeamsBosses = "teams.bosses";
+
+    /// <summary>Resources header.</summary>
+    public const string TeamsResources = "teams.resources";
+
+    /// <summary>No content placeholder.</summary>
+    public const string TeamsNoContent = "teams.nocontent";
+
+    /// <summary>No farm data placeholder.</summary>
+    public const string TeamsNoFarm = "teams.nofarm";
+
+    /// <summary>Core (Stamm) tag.</summary>
+    public const string TeamsCore = "teams.core";
+
+    /// <summary>Substitute (Ersatz) tag.</summary>
+    public const string TeamsSubstitute = "teams.substitute";
+
+    /// <summary>No BiS target placeholder.</summary>
+    public const string TeamsTargetNone = "teams.targetnone";
+
+    /// <summary>All BiS complete.</summary>
+    public const string TeamsComplete = "teams.complete";
+
+    /// <summary>Still-missing label.</summary>
+    public const string TeamsMissing = "teams.missing";
+
+    /// <summary>FFLogs not connected placeholder.</summary>
+    public const string TeamsLogsNotConnected = "teams.logs.notconnected";
+
+    /// <summary>No reports placeholder.</summary>
+    public const string TeamsNoReports = "teams.noreports";
+
+    /// <summary>Kills/wipes format: {0} kills, {1} wipes.</summary>
+    public const string TeamsKillsWipes = "teams.killswipes";
+
+    /// <summary>Absence: from date.</summary>
+    public const string TeamsAbsenceFrom = "teams.absence.from";
+
+    /// <summary>Absence: to date.</summary>
+    public const string TeamsAbsenceTo = "teams.absence.to";
+
+    /// <summary>Absence: note.</summary>
+    public const string TeamsAbsenceNote = "teams.absence.note";
+
+    /// <summary>Absence: add button.</summary>
+    public const string TeamsAbsenceAdd = "teams.absence.add";
+
+    /// <summary>Absence: delete button.</summary>
+    public const string TeamsAbsenceDelete = "teams.absence.delete";
+
+    /// <summary>Absence: invalid date message.</summary>
+    public const string TeamsAbsenceInvalid = "teams.absence.invalid";
+
+    /// <summary>No absences placeholder.</summary>
+    public const string TeamsNoAbsences = "teams.noabsences";
+
+    /// <summary>Generic teams error.</summary>
+    public const string TeamsErrorGeneric = "teams.error.generic";
+
+    /// <summary>Forbidden (capability) error.</summary>
+    public const string TeamsErrorForbidden = "teams.error.forbidden";
+
+    /// <summary>Not a member (404) error.</summary>
+    public const string TeamsNotMember = "teams.error.notmember";
+
+    /// <summary>Network error.</summary>
+    public const string TeamsErrorNetwork = "teams.error.network";
+
+    /// <summary>Calendar hub entry / window.</summary>
+    public const string TeamsCalendarOpen = "teams.calendar.open";
+
+    /// <summary>Calendar: open in web.</summary>
+    public const string TeamsCalendarOpenWeb = "teams.calendar.openweb";
+
+    /// <summary>Calendar: pick a day hint.</summary>
+    public const string TeamsCalendarPickDay = "teams.calendar.pickday";
+
+    /// <summary>Open the team in the web app.</summary>
+    public const string TeamsOpenWeb = "teams.openweb";
+
+    /// <summary>Mit sheet: phases label.</summary>
+    public const string TeamsPhasesLabel = "teams.phases";
+
+    /// <summary>Mit sheet: mechanic filter label.</summary>
+    public const string TeamsFilterLabel = "teams.filter";
+
+    /// <summary>Tag: raidwide.</summary>
+    public const string TeamsTagRaidwide = "teams.tag.raidwide";
+
+    /// <summary>Tag: tankbuster.</summary>
+    public const string TeamsTagTankbuster = "teams.tag.tankbuster";
+
+    /// <summary>Tag: other.</summary>
+    public const string TeamsTagOther = "teams.tag.other";
+
+    /// <summary>Timeline column: time.</summary>
+    public const string TeamsColTime = "teams.col.time";
+
+    /// <summary>Timeline column: mechanic.</summary>
+    public const string TeamsColMechanic = "teams.col.mechanic";
+
+    /// <summary>Cooldown tooltip: recast.</summary>
+    public const string TeamsRecast = "teams.recast";
+
+    /// <summary>Cooldown tooltip: duration.</summary>
+    public const string TeamsDuration = "teams.duration";
+
+    /// <summary>Resource type: link.</summary>
+    public const string TeamsResLink = "teams.res.link";
+
+    /// <summary>Resource type: video.</summary>
+    public const string TeamsResVideo = "teams.res.video";
+
+    /// <summary>Resource type: plan.</summary>
+    public const string TeamsResPlan = "teams.res.plan";
+
+    /// <summary>Resource type: note.</summary>
+    public const string TeamsResNote = "teams.res.note";
+
+    /// <summary>Resource type: image.</summary>
+    public const string TeamsResImage = "teams.res.image";
+
+    /// <summary>Resource type: pdf.</summary>
+    public const string TeamsResPdf = "teams.res.pdf";
+
+    /// <summary>Resource type: file.</summary>
+    public const string TeamsResFile = "teams.res.file";
+
+    /// <summary>FFLogs: open this report.</summary>
+    public const string TeamsFflogsReport = "teams.fflogs.report";
+
+    /// <summary>Config tab: teams.</summary>
+    public const string TabTeams = "config.tab.teams";
+
+    /// <summary>Display mode: icon + text.</summary>
+    public const string TeamsDispIconText = "teams.disp.icontext";
+
+    /// <summary>Display mode: icon only.</summary>
+    public const string TeamsDispIcon = "teams.disp.icon";
+
+    /// <summary>Display mode: text only.</summary>
+    public const string TeamsDispText = "teams.disp.text";
+
+    /// <summary>Config: mit cooldown display.</summary>
+    public const string TeamsMitDisplayLabel = "teams.mitdisplay";
+
+    /// <summary>Config: mit cooldown display hint.</summary>
+    public const string TeamsMitDisplayHint = "teams.mitdisplay.hint";
+
+    /// <summary>Config: resource label display.</summary>
+    public const string TeamsResourceDisplayLabel = "teams.resdisplay";
+
+    /// <summary>Config: resource label display hint.</summary>
+    public const string TeamsResourceDisplayHint = "teams.resdisplay.hint";
+
+    /// <summary>Config: show note bodies.</summary>
+    public const string TeamsShowNotes = "teams.shownotes";
+
+    /// <summary>Config: show note bodies hint.</summary>
+    public const string TeamsShowNotesHint = "teams.shownotes.hint";
+
+    /// <summary>Action tooltip: range.</summary>
+    public const string TeamsRange = "teams.range";
+
+    /// <summary>Action tooltip: radius.</summary>
+    public const string TeamsRadius = "teams.radius";
+
+    /// <summary>Action tooltip: cast.</summary>
+    public const string TeamsCast = "teams.cast";
+
+    /// <summary>Action tooltip: instant.</summary>
+    public const string TeamsInstant = "teams.instant";
+
+    /// <summary>Calendar legend: everyone present.</summary>
+    public const string TeamsCalAllPresent = "teams.cal.allpresent";
+
+    /// <summary>Calendar legend: unclear.</summary>
+    public const string TeamsCalUnclear = "teams.cal.unclear";
+
+    /// <summary>Calendar legend: someone missing.</summary>
+    public const string TeamsCalMissing = "teams.cal.missing";
+
+    /// <summary>Event kind: recurring.</summary>
+    public const string TeamsRecurring = "teams.recurring";
+
+    /// <summary>Event kind: single.</summary>
+    public const string TeamsSingle = "teams.single";
+
+    /// <summary>Tab: events (per-team list).</summary>
+    public const string TeamsTabEvents = "teams.tab.events";
+
+    /// <summary>Termine: show past occurrences ({0} = count).</summary>
+    public const string TeamsShowPast = "teams.showpast";
+
+    /// <summary>Config: default job view.</summary>
+    public const string TeamsDefaultJobLabel = "teams.defaultjob";
+
+    /// <summary>Config: default = current job.</summary>
+    public const string TeamsDefaultCurrentJob = "teams.defaultjob.current";
+
+    /// <summary>Config: default = all jobs.</summary>
+    public const string TeamsDefaultAllJobsOpt = "teams.defaultjob.all";
+
+    /// <summary>Config: default show the "other" tag.</summary>
+    public const string TeamsDefaultShowOther = "teams.defaultshowother";
+
+    /// <summary>Config: default show-other hint.</summary>
+    public const string TeamsDefaultShowOtherHint = "teams.defaultshowother.hint";
+
+    /// <summary>Absence: new-entry heading.</summary>
+    public const string TeamsAbsenceNew = "teams.absence.new";
+
+    /// <summary>Absence: editing heading.</summary>
+    public const string TeamsAbsenceEditing = "teams.absence.editing";
+
+    /// <summary>Absence: update button.</summary>
+    public const string TeamsAbsenceUpdate = "teams.absence.update";
+
+    /// <summary>Absence: cancel edit.</summary>
+    public const string TeamsAbsenceCancel = "teams.absence.cancel";
+
+    /// <summary>Absence: current-list heading.</summary>
+    public const string TeamsAbsenceCurrent = "teams.absence.current";
+
+    /// <summary>Absence: edit button.</summary>
+    public const string TeamsAbsenceEdit = "teams.absence.edit";
+
+    /// <summary>Absence: end-before-start error.</summary>
+    public const string TeamsAbsenceRangeInvalid = "teams.absence.rangeinvalid";
+
+    /// <summary>Config: default phase selection.</summary>
+    public const string TeamsDefaultPhasesLabel = "teams.defaultphases";
+
+    /// <summary>Config: default = all phases.</summary>
+    public const string TeamsDefaultPhasesAll = "teams.defaultphases.all";
+
+    /// <summary>Config: default = first phase only.</summary>
+    public const string TeamsDefaultPhasesFirst = "teams.defaultphases.first";
+
+    /// <summary>Config: default phase hint.</summary>
+    public const string TeamsDefaultPhasesHint = "teams.defaultphases.hint";
+
+    /// <summary>Config: Termine text size.</summary>
+    public const string TeamsEventScale = "teams.eventscale";
+
+    /// <summary>Config: Termine text size hint.</summary>
+    public const string TeamsEventScaleHint = "teams.eventscale.hint";
+
+    /// <summary>Farm column: slot.</summary>
+    public const string TeamsFarmColSlot = "teams.farm.col.slot";
+
+    /// <summary>Farm column: source.</summary>
+    public const string TeamsFarmColSource = "teams.farm.col.source";
+
+    /// <summary>Farm column: how to get it (primary route).</summary>
+    public const string TeamsFarmColHow = "teams.farm.col.how";
+
+    /// <summary>Farm: unknown source placeholder.</summary>
+    public const string TeamsFarmUnknownSource = "teams.farm.unknownsource";
+
+    /// <summary>Farm route: no longer obtainable (retired).</summary>
+    public const string TeamsFarmRetired = "teams.farm.retired";
+
+    /// <summary>Farm route: market board.</summary>
+    public const string TeamsFarmMarket = "teams.farm.market";
+
+    /// <summary>Farm route: craft.</summary>
+    public const string TeamsFarmCraft = "teams.farm.craft";
+
+    /// <summary>Farm: coffer label (the chest a drop arrives as).</summary>
+    public const string TeamsFarmCoffer = "teams.farm.coffer";
+
+    /// <summary>Farm tooltip: heading for the full list of routes.</summary>
+    public const string TeamsFarmWaysHeading = "teams.farm.ways";
+
+    /// <summary>Farm tooltip: the piece you hand in (a slot, not a purchase).</summary>
+    public const string TeamsFarmHandIn = "teams.farm.handin";
+
+    /// <summary>Context menu: pin the vendor NPC on the in-game map.</summary>
+    public const string TeamsFarmShowOnMap = "teams.farm.showonmap";
+
+    /// <summary>Sourcing step: fight/earn it (a drop).</summary>
+    public const string SourceStepFight = "source.step.fight";
+
+    /// <summary>Sourcing step: buy it.</summary>
+    public const string SourceStepBuy = "source.step.buy";
+
+    /// <summary>Sourcing step: upgrade/augment it.</summary>
+    public const string SourceStepAugment = "source.step.augment";
+
+    /// <summary>Sourcing step: craft it.</summary>
+    public const string SourceStepCraft = "source.step.craft";
+
+    /// <summary>Sourcing step: get the base piece (fallback when the chain is unknown).</summary>
+    public const string SourceStepBase = "source.step.base";
+
+    /// <summary>Sourcing: no info available.</summary>
+    public const string SourceNoInfo = "source.noinfo";
+
+    /// <summary>Sourcing: you own enough of this cost.</summary>
+    public const string SourceHave = "source.have";
+
+    /// <summary>Sourcing: the base piece is already owned (equipped), so only the upgrade remains.</summary>
+    public const string SourceBaseOwned = "source.baseowned";
+
+    /// <summary>Sourcing: the coffer this piece drops in is already in the bag.</summary>
+    public const string SourceCofferOwned = "source.cofferowned";
+
+    /// <summary>Sourcing: this way is doable right now with what you hold.</summary>
+    public const string SourceDoableNow = "source.doablenow";
+
+    /// <summary>Sourcing: separates alternative acquisition ways ("or").</summary>
+    public const string SourceOr = "source.or";
+
+    /// <summary>Menu/command: open the what's-new window.</summary>
+    public const string WhatsNewOpen = "whatsnew.open";
+
+    /// <summary>What's new: window intro line.</summary>
+    public const string WhatsNewIntro = "whatsnew.intro";
+
+    /// <summary>What's new: badge for the installed version.</summary>
+    public const string WhatsNewInstalled = "whatsnew.installed";
+
+    /// <summary>What's new: "new" badge.</summary>
+    public const string WhatsNewKindAdded = "whatsnew.kind.added";
+
+    /// <summary>What's new: "improved" badge.</summary>
+    public const string WhatsNewKindImproved = "whatsnew.kind.improved";
+
+    /// <summary>What's new: "fixed" badge.</summary>
+    public const string WhatsNewKindFixed = "whatsnew.kind.fixed";
+
+    /// <summary>What's new: link to the full changelog.</summary>
+    public const string WhatsNewFullChangelog = "whatsnew.fullchangelog";
+
+    /// <summary>Config: auto-open the notes after an update.</summary>
+    public const string WhatsNewOnUpdate = "whatsnew.onupdate";
+
+    /// <summary>Config: auto-open hint.</summary>
+    public const string WhatsNewOnUpdateHint = "whatsnew.onupdate.hint";
+
+    // Purchase advisor ("Kaufberater"): the intermediate gear on the way to BiS.
+
+    /// <summary>Menu/command: open the purchase-advisor window.</summary>
+    public const string AdvisorOpen = "advisor.open";
+
+    /// <summary>Advisor: window title.</summary>
+    public const string AdvisorWindowTitle = "advisor.title";
+
+    /// <summary>Advisor: what this window is for.</summary>
+    public const string AdvisorIntro = "advisor.intro";
+
+    /// <summary>Advisor: the gearset picker label.</summary>
+    public const string AdvisorSetLabel = "advisor.setlabel";
+
+    /// <summary>Advisor: heading of the saved-plan section.</summary>
+    public const string AdvisorPlanHeading = "advisor.plan.heading";
+
+    /// <summary>Advisor: this set carries no web identity, so no plan can be addressed.</summary>
+    public const string AdvisorNoTarget = "advisor.plan.notarget";
+
+    /// <summary>Advisor: no plan is saved for this set (a normal state).</summary>
+    public const string AdvisorNoPlan = "advisor.plan.noplan";
+
+    /// <summary>Advisor: the plugin has not learned this character's server id yet.</summary>
+    public const string AdvisorNoCharacter = "advisor.plan.nocharacter";
+
+    /// <summary>Advisor: when the shown plan was last saved.</summary>
+    public const string AdvisorPlanSaved = "advisor.plan.saved";
+
+    /// <summary>Advisor: the planned piece is already worn.</summary>
+    public const string AdvisorPlanWorn = "advisor.plan.worn";
+
+    /// <summary>Advisor: the planned piece is owned but not worn.</summary>
+    public const string AdvisorPlanOwned = "advisor.plan.owned";
+
+    /// <summary>Advisor: the planned piece is still missing.</summary>
+    public const string AdvisorPlanMissing = "advisor.plan.missing";
+
+    /// <summary>Advisor: progress summary of the plan.</summary>
+    public const string AdvisorPlanSummary = "advisor.plan.summary";
+
+    /// <summary>Advisor: view toggle — the server's recommendation.</summary>
+    public const string AdvisorViewRecommendation = "advisor.view.recommendation";
+
+    /// <summary>Advisor: view toggle — the player's own layout.</summary>
+    public const string AdvisorViewPlan = "advisor.view.plan";
+
+    /// <summary>Advisor: ranking label.</summary>
+    public const string AdvisorSortLabel = "advisor.sort.label";
+
+    /// <summary>Advisor ranking: biggest gain first.</summary>
+    public const string AdvisorSortPower = "advisor.sort.power";
+
+    /// <summary>Advisor ranking: best gain per tomestone.</summary>
+    public const string AdvisorSortValue = "advisor.sort.value";
+
+    /// <summary>Advisor ranking: cheapest first.</summary>
+    public const string AdvisorSortCheap = "advisor.sort.cheap";
+
+    /// <summary>Advisor: recompute the advice.</summary>
+    public const string AdvisorRefresh = "advisor.refresh";
+
+    /// <summary>Advisor: the tomestone balance the schedule was computed against.</summary>
+    public const string AdvisorBalance = "advisor.balance";
+
+    /// <summary>Advisor step: buy it with tomestones.</summary>
+    public const string AdvisorStepBuy = "advisor.step.buy";
+
+    /// <summary>Advisor step: augment the base you wear.</summary>
+    public const string AdvisorStepAugment = "advisor.step.augment";
+
+    /// <summary>Advisor step: farm the Extreme-Trial piece.</summary>
+    public const string AdvisorStepTrial = "advisor.step.trial";
+
+    /// <summary>Advisor step: trade the raid books.</summary>
+    public const string AdvisorStepBooks = "advisor.step.books";
+
+    /// <summary>Advisor step: you own it already, just put it on.</summary>
+    public const string AdvisorStepEquip = "advisor.step.equip";
+
+    /// <summary>Advisor schedule: doable right now.</summary>
+    public const string AdvisorWhenNow = "advisor.when.now";
+
+    /// <summary>Advisor schedule: capped weeks still to save.</summary>
+    public const string AdvisorWhenWeeks = "advisor.when.weeks";
+
+    /// <summary>Advisor schedule: books still to collect.</summary>
+    public const string AdvisorWhenBooks = "advisor.when.books";
+
+    /// <summary>Advisor: the tomestone price of a step.</summary>
+    public const string AdvisorCostTomes = "advisor.cost.tomes";
+
+    /// <summary>Advisor: the vendor a purchase is made at.</summary>
+    public const string AdvisorVendor = "advisor.vendor";
+
+    /// <summary>Advisor: the piece this step eventually leads to.</summary>
+    public const string AdvisorLeadsTo = "advisor.leadsto";
+
+    /// <summary>Advisor: nothing deterministic left to do.</summary>
+    public const string AdvisorNothingToDo = "advisor.nothingtodo";
+
+    /// <summary>Advisor: slots are still open, but none of them is a step you can plan for.</summary>
+    public const string AdvisorNoSteps = "advisor.nosteps";
+
+    /// <summary>Advisor: heading of the remaining material/book needs.</summary>
+    public const string AdvisorNeeds = "advisor.needs";
+
+    /// <summary>Advisor: save the edited layout.</summary>
+    public const string AdvisorSave = "advisor.save";
+
+    /// <summary>Advisor: fill the layout from the recommendation.</summary>
+    public const string AdvisorAdopt = "advisor.adopt";
+
+    /// <summary>Advisor: drop the saved layout and fall back to the recommendation.</summary>
+    public const string AdvisorDeletePlan = "advisor.delete";
+
+    /// <summary>Advisor: the save went through.</summary>
+    public const string AdvisorSaved = "advisor.saved";
+
+    /// <summary>Advisor: the save did not go through.</summary>
+    public const string AdvisorSaveFailed = "advisor.savefailed";
+
+    /// <summary>Advisor: this pick matches the recommendation.</summary>
+    public const string AdvisorIsRecommended = "advisor.isrecommended";
+
+    /// <summary>Advisor: this pick is the BiS piece itself.</summary>
+    public const string AdvisorIsBis = "advisor.isbis";
+
+    /// <summary>Advisor: computing the advice.</summary>
+    public const string AdvisorLoadingOptions = "advisor.loadingoptions";
+
+    /// <summary>Advisor: the layout has unsaved edits.</summary>
+    public const string AdvisorUnsaved = "advisor.unsaved";
+
+    /// <summary>Inventory: the saddlebag has to be opened once before it can be read.</summary>
+    public const string InventorySaddlebagClosed = "inventory.saddlebagclosed";
+
+    /// <summary>Farm: the piece is already in a bag, only waiting to be put on.</summary>
+    public const string TeamsFarmJustEquip = "teams.farm.justequip";
+
+    /// <summary>Farm: a member already has the piece — neutral wording, since it is not the player.</summary>
+    public const string TeamsFarmAlreadyHas = "teams.farm.alreadyhas";
+
+    /// <summary>Farm: how many pieces are only waiting to be put on.</summary>
+    public const string TeamsFarmJustEquipCount = "teams.farm.justequip.count";
+
+    /// <summary>Farm: what the step colours mean.</summary>
+    public const string TeamsFarmLegend = "teams.farm.legend";
+
+    /// <summary>Farm: the set's own requirement, for a member whose stock the plugin cannot see.</summary>
+    public const string TeamsNeedsRequires = "teams.farm.requires";
+
+    /// <summary>Farm: says plainly that a teammate's stock is not something the plugin knows.</summary>
+    public const string TeamsStockUnknown = "teams.farm.stockunknown";
+
+    /// <summary>BiS: accordion heading — what this set still needs in total.</summary>
+    public const string BisNeedsHeading = "bis.needs.heading";
+
+    /// <summary>BiS: the tomestones the remaining purchases add up to, against the balance.</summary>
+    public const string BisNeedsTomes = "bis.needs.tomes";
+
+    /// <summary>BiS: how many tomestones are still short.</summary>
+    public const string BisNeedsShort = "bis.needs.short";
+
+    /// <summary>BiS: roughly how many capped weeks that is.</summary>
+    public const string BisNeedsWeeks = "bis.needs.weeks";
+
+    /// <summary>BiS: the balance already covers the remaining purchases.</summary>
+    public const string BisNeedsCovered = "bis.needs.covered";
+
+    /// <summary>BiS: nothing left to buy or collect for this set.</summary>
+    public const string BisNeedsNothing = "bis.needs.nothing";
+
+    /// <summary>BiS: slots are still open, but nothing is known about what they cost.</summary>
+    public const string BisNeedsUnknown = "bis.needs.unknown";
+
+    /// <summary>Config: purchase-advisor text size.</summary>
+    public const string AdvisorScale = "advisor.scale";
+
+    /// <summary>Config: purchase-advisor text size hint.</summary>
+    public const string AdvisorScaleHint = "advisor.scale.hint";
+
+    /// <summary>Advisor: headline card — the single best next move.</summary>
+    public const string AdvisorNextBest = "advisor.nextbest";
+
+    /// <summary>Advisor: how much of the remaining way to BiS a step closes.</summary>
+    public const string AdvisorProgress = "advisor.progress";
+
+    /// <summary>Advisor: how many slots already sit on BiS.</summary>
+    public const string AdvisorOnBis = "advisor.onbis";
+
+    /// <summary>Advisor: average item level, current → target.</summary>
+    public const string AdvisorAvgIlvl = "advisor.avgilvl";
+
+    /// <summary>Advisor: heading of the per-slot grid.</summary>
+    public const string AdvisorYourSet = "advisor.yourset";
+
+    /// <summary>Advisor: heading of the ranked step list.</summary>
+    public const string AdvisorOrderHeading = "advisor.order";
+
+    /// <summary>Advisor: what the tile colours mean.</summary>
+    public const string AdvisorLegend = "advisor.legend";
+
+    /// <summary>Advisor: this slot is already best possible without luck.</summary>
+    public const string AdvisorSlotCapped = "advisor.slot.capped";
+
+    /// <summary>Holdings: heading of the "where it sits" breakdown.</summary>
+    public const string HoldingWhere = "holding.where";
+
+    /// <summary>Storage: inventory bags.</summary>
+    public const string HoldingBags = "holding.bags";
+
+    /// <summary>Storage: chocobo saddlebag.</summary>
+    public const string HoldingSaddlebag = "holding.saddlebag";
+
+    /// <summary>Storage: armoury chest.</summary>
+    public const string HoldingArmoury = "holding.armoury";
+
+    /// <summary>Storage: currently worn.</summary>
+    public const string HoldingEquipped = "holding.equipped";
+
+    /// <summary>Storage: glamour dresser.</summary>
+    public const string HoldingGlamour = "holding.glamour";
+
+    /// <summary>Storage: armoire / cabinet.</summary>
+    public const string HoldingArmoire = "holding.armoire";
+
+    /// <summary>Storage: a retainer (unnamed).</summary>
+    public const string HoldingRetainer = "holding.retainer";
+
+    /// <summary>Storage: hand-marked on the website.</summary>
+    public const string HoldingManual = "holding.manual";
+
+    /// <summary>Advisor: heading of the stock section.</summary>
+    public const string AdvisorStockHeading = "advisor.stock.heading";
+
+    /// <summary>Advisor: where the stock numbers come from.</summary>
+    public const string AdvisorStockHint = "advisor.stock.hint";
+
+    /// <summary>Advisor: the server has not sent a stock list (yet).</summary>
+    public const string AdvisorStockEmpty = "advisor.stock.empty";
+
+    /// <summary>Advisor stock group: upgrade materials.</summary>
+    public const string AdvisorStockMaterial = "advisor.stock.material";
+
+    /// <summary>Advisor stock group: the universal upgrade stone.</summary>
+    public const string AdvisorStockStone = "advisor.stock.stone";
+
+    /// <summary>Advisor stock group: raid books / tokens.</summary>
+    public const string AdvisorStockBook = "advisor.stock.book";
+
+    /// <summary>Advisor: reading the plan.</summary>
+    public const string AdvisorLoading = "advisor.loading";
+
+    /// <summary>Advisor: the key lacks the plans:read scope.</summary>
+    public const string AdvisorScopeHint = "advisor.scopehint";
 }

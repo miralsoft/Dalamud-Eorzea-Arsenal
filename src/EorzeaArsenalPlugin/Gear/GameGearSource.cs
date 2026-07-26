@@ -1,3 +1,4 @@
+using Dalamud.Game;
 using Dalamud.Plugin.Services;
 using EorzeaArsenal.Abstractions;
 using EorzeaArsenal.Gear;
@@ -41,14 +42,27 @@ public sealed class GameGearSource : IGearSource
     /// <param name="framework">Framework thread marshaller.</param>
     /// <param name="data">Excel data (for materia resolution).</param>
     /// <param name="log">Diagnostics sink.</param>
-    public GameGearSource(IClientState clientState, IPlayerState playerState, IFramework framework, IDataManager data, ILog log)
+    /// <param name="language">
+    /// The language item names are read in — the plugin's own setting, not the client's, so switching
+    /// the plugin to English switches the names with it. <see langword="null"/> keeps the client's.
+    /// </param>
+    public GameGearSource(IClientState clientState, IPlayerState playerState, IFramework framework, IDataManager data, ILog log, Func<ClientLanguage>? language = null)
     {
         _clientState = clientState;
         _playerState = playerState;
         _framework = framework;
         _data = data;
         _log = log;
+        _language = language;
     }
+
+    // Item names follow the plugin's language setting, not the game client's — switching the plugin to
+    // English has to switch the item names with it. Null keeps the client's own language.
+    private readonly Func<ClientLanguage>? _language;
+
+    /// <summary>The item sheet in the language names should be read in.</summary>
+    private Lumina.Excel.ExcelSheet<LuminaItem>? ItemSheet() =>
+        _language is null ? _data.GetExcelSheet<LuminaItem>() : _data.GetExcelSheet<LuminaItem>(_language());
 
     /// <inheritdoc />
     public bool IsAvailable => _clientState.IsLoggedIn && _playerState.IsLoaded && _playerState.ContentId != 0;
@@ -408,7 +422,7 @@ public sealed class GameGearSource : IGearSource
     /// <returns>The localized item name.</returns>
     public string GetItemName(int itemId)
     {
-        var sheet = _data.GetExcelSheet<LuminaItem>();
+        var sheet = ItemSheet();
         if (sheet is not null && sheet.TryGetRow((uint)itemId, out var row))
         {
             var name = row.Name.ExtractText();

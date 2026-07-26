@@ -4,11 +4,8 @@ using Dalamud.Interface;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using Dalamud.Utility;
-using EorzeaArsenal.Abstractions;
 using EorzeaArsenal.Core;
-using EorzeaArsenal.Gear;
 using EorzeaArsenal.Localization;
-using EorzeaArsenal.Model;
 using EorzeaArsenal.Plugin.Configuration;
 
 namespace EorzeaArsenal.Plugin.UI;
@@ -32,17 +29,17 @@ public sealed class StatusWindow : Window
     private readonly GearSyncService _sync;
     private readonly InventorySyncService _inventory;
     private readonly WeeklySyncService _weekly;
-    private readonly IGearSource _gearSource;
-    private readonly ILog _log;
     private readonly Action _requestManualPush;
     private readonly Action _requestInventorySync;
     private readonly Action _requestWeeklySync;
     private readonly Action _openConfig;
     private readonly Action _openBis;
+    private readonly Action _openAdvisor;
     private readonly Action _openLog;
-
-    private volatile string[] _previewLines = [];
-    private volatile bool _previewRan;
+    private readonly Action _openTeams;
+    private readonly Action _openCalendar;
+    private readonly Action _openPreview;
+    private readonly Action _openWhatsNew;
 
     /// <summary>Creates the status window.</summary>
     /// <param name="config">Live config.</param>
@@ -51,14 +48,17 @@ public sealed class StatusWindow : Window
     /// <param name="sync">The sync service whose state is shown.</param>
     /// <param name="inventory">The inventory sync service (for status + manual sync).</param>
     /// <param name="weekly">The weekly-checklist sync service (for status + manual sync).</param>
-    /// <param name="gearSource">Gear source (for the preview).</param>
-    /// <param name="log">Diagnostics sink.</param>
     /// <param name="requestManualPush">Callback to trigger a manual push.</param>
     /// <param name="requestInventorySync">Callback to trigger a manual inventory sync.</param>
     /// <param name="requestWeeklySync">Callback to trigger a manual weekly-checklist sync.</param>
     /// <param name="openConfig">Callback to open the settings window.</param>
     /// <param name="openBis">Callback to open the BiS comparison window.</param>
+    /// <param name="openAdvisor">Callback to open the purchase-advisor window.</param>
     /// <param name="openLog">Callback to open the diagnostics log window.</param>
+    /// <param name="openTeams">Callback to open the Teams companion window.</param>
+    /// <param name="openCalendar">Callback to open the calendar window.</param>
+    /// <param name="openPreview">Callback to open the preview window.</param>
+    /// <param name="openWhatsNew">Callback to open the what's-new window.</param>
     public StatusWindow(
         PluginConfig config,
         ConfigStore store,
@@ -66,14 +66,17 @@ public sealed class StatusWindow : Window
         GearSyncService sync,
         InventorySyncService inventory,
         WeeklySyncService weekly,
-        IGearSource gearSource,
-        ILog log,
         Action requestManualPush,
         Action requestInventorySync,
         Action requestWeeklySync,
         Action openConfig,
         Action openBis,
-        Action openLog)
+        Action openAdvisor,
+        Action openLog,
+        Action openTeams,
+        Action openCalendar,
+        Action openPreview,
+        Action openWhatsNew)
         : base("Eorzea Arsenal###EorzeaArsenalStatus")
     {
         _config = config;
@@ -82,14 +85,17 @@ public sealed class StatusWindow : Window
         _sync = sync;
         _inventory = inventory;
         _weekly = weekly;
-        _gearSource = gearSource;
-        _log = log;
         _requestManualPush = requestManualPush;
         _requestInventorySync = requestInventorySync;
         _requestWeeklySync = requestWeeklySync;
         _openConfig = openConfig;
         _openBis = openBis;
+        _openAdvisor = openAdvisor;
         _openLog = openLog;
+        _openTeams = openTeams;
+        _openCalendar = openCalendar;
+        _openPreview = openPreview;
+        _openWhatsNew = openWhatsNew;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -153,14 +159,30 @@ public sealed class StatusWindow : Window
         }
 
         Section(T(LocKeys.SectionView));
+        if (_config.SyncTeams && MenuButton(FontAwesomeIcon.Users, T(LocKeys.TeamsOpen)))
+        {
+            _openTeams();
+        }
+
+        if (_config.SyncTeams && MenuButton(FontAwesomeIcon.CalendarAlt, T(LocKeys.TeamsCalendarOpen)))
+        {
+            _openCalendar();
+        }
+
         if (MenuButton(FontAwesomeIcon.BalanceScale, T(LocKeys.BisOpen)))
         {
             _openBis();
         }
 
+        // Sits next to, not inside, the BiS entry: BiS is the goal, the advisor is the path to it.
+        if (MenuButton(FontAwesomeIcon.ShoppingBasket, T(LocKeys.AdvisorOpen)))
+        {
+            _openAdvisor();
+        }
+
         if (MenuButton(FontAwesomeIcon.Eye, T(LocKeys.PreviewButton)))
         {
-            RunPreview();
+            _openPreview();
         }
 
         if (MenuButton(FontAwesomeIcon.Globe, T(LocKeys.OpenWebApp)))
@@ -174,12 +196,18 @@ public sealed class StatusWindow : Window
             _openConfig();
         }
 
+        // Highlighted until the user has looked at the notes for the version they are running.
+        var unseen = ReleaseNotes.HasUnseen(_config.LastSeenReleaseNotes);
+        var whatsNew = unseen ? $"{T(LocKeys.WhatsNewOpen)}   ·   {ReleaseNotes.Latest.Version}" : T(LocKeys.WhatsNewOpen);
+        if (MenuButton(FontAwesomeIcon.Gift, whatsNew, accent: unseen ? Yellow : null))
+        {
+            _openWhatsNew();
+        }
+
         if (MenuButton(FontAwesomeIcon.ClipboardList, T(LocKeys.OpenLog)))
         {
             _openLog();
         }
-
-        DrawPreview();
     }
 
     /// <summary>A dimmed, labelled section separator.</summary>
@@ -195,7 +223,7 @@ public sealed class StatusWindow : Window
     }
 
     /// <summary>A full-width "menu" button with a leading FontAwesome icon and a text label.</summary>
-    private bool MenuButton(FontAwesomeIcon icon, string label, bool enabled = true)
+    private bool MenuButton(FontAwesomeIcon icon, string label, bool enabled = true, Vector4? accent = null)
     {
         using var disabled = ImRaii.Disabled(!enabled);
 
@@ -205,7 +233,9 @@ public sealed class StatusWindow : Window
         var clicked = ImGui.Button($"##menu_{label}", new Vector2(width, height));
 
         var draw = ImGui.GetWindowDrawList();
-        var color = ImGui.GetColorU32(enabled ? ImGuiCol.Text : ImGuiCol.TextDisabled);
+        var color = enabled && accent is { } tint
+            ? ImGui.GetColorU32(tint)
+            : ImGui.GetColorU32(enabled ? ImGuiCol.Text : ImGuiCol.TextDisabled);
         var midY = origin.Y + (height / 2f);
 
         ImGui.PushFont(UiBuilder.IconFont);
@@ -298,57 +328,6 @@ public sealed class StatusWindow : Window
         }
 
         return ago < TimeSpan.FromHours(1) ? $"{(int)ago.TotalMinutes}m" : $"{(int)ago.TotalHours}h";
-    }
-
-    private void DrawPreview()
-    {
-        if (!_previewRan)
-        {
-            return;
-        }
-
-        ImGui.Separator();
-        var lines = _previewLines;
-        if (lines.Length == 0)
-        {
-            ImGui.TextDisabled(T(LocKeys.PreviewEmpty));
-            return;
-        }
-
-        ImGui.TextUnformatted(_localizer.Get(LocKeys.PreviewHeader, lines.Length));
-        foreach (var line in lines)
-        {
-            ImGui.BulletText(line);
-        }
-    }
-
-    private void RunPreview()
-    {
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                var data = await _gearSource.ReadAsync(CancellationToken.None).ConfigureAwait(false);
-                if (data is null)
-                {
-                    _previewLines = [];
-                    _previewRan = true;
-                    return;
-                }
-
-                var clean = GearSanitizer.Sanitize(data);
-                _previewLines = clean.Gearsets
-                    .Select(g => $"#{g.GearIndex} {g.Job}{(string.IsNullOrEmpty(g.Name) ? string.Empty : $" — {g.Name}")} ({g.Items.Count} items)")
-                    .ToArray();
-                _previewRan = true;
-            }
-            catch (Exception ex)
-            {
-                _log.Error($"Preview failed: {ex.GetType().Name}.");
-                _previewLines = [];
-                _previewRan = true;
-            }
-        });
     }
 
     private string WebUrl()

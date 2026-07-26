@@ -6,6 +6,206 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- **"How to get it" on BiS pieces.** Hovering a BiS target — in the list, the grid tile or the
+  shopping list — now also shows where the piece comes from and what it costs (the same route detail
+  as the team farm: the fight it drops in with its coffer, or what to trade and with which vendor,
+  down the whole chain). Reads impersonal game data via `GET /gear/obtain` with your existing key,
+  cached for the session and fetched in the background; toggle under *Display*. The route renderer is
+  shared with the farm tab, so the two never describe a piece differently.
+- The sourcing detail is now shown as **numbered steps**, and is actionable and complete in both the
+  BiS window and the team farm:
+  - **Every way in, and every step of it.** A piece lists all of its acquisition routes as
+    alternatives — a savage piece drops in the fight **or** can be traded for books — and each route is
+    broken into the concrete things to do (*Fight …*, *Buy …*, *Upgrade …*), so an augmented (Tome+)
+    piece reads **get the base first, then augment it** rather than assuming the base is in hand. The
+    farm pulls the full chain from `GET /gear/obtain`, which its own response omits.
+  - **"Do I have it?" per step, retainers included.** Each purchasable cost (tokens, materials) carries
+    a **have / need** count, green once you own enough. The count comes from the server's holdings
+    (`GET /me/holdings`), which sum every synced storage **including each retainer as of its last
+    visit** — the one thing a live game read cannot see — with the live in-game count as an immediate
+    fallback until the server number lands. The plugin now also reports the tier's tracked consumables
+    (from `GET /gear/tracked-items`) in the inventory sync so those counts exist, and refreshes the
+    holdings after each sync.
+  - **"Base owned" from anywhere.** The Tome+ base step collapses to *Base owned* not only when the
+    base is equipped but whenever you hold it (bags, saddlebag or a retainer), using the base item ids
+    the server now sends on the hand-in cost.
+  - **What's still short, per character.** Next to each teammate in the farm, a one-line summary sums
+    the materials/tokens they still need across all their missing pieces, minus what they own — so you
+    see at a glance what to gather for them.
+  - **Show NPC on the map.** Right-click a piece (farm row or BiS item) → *Show NPC on map* opens the
+    map and drops a flag on the vendor. The location is resolved from the server's ids, or — when it
+    only sends a zone name — from the game's own place names, so it works without a server change.
+  - A larger, better-spaced tooltip for the whole checklist.
+  - **Skips a step you already did.** If you are already wearing the tome base a Tome+ piece upgrades
+    from (recognised as a tome piece of the same slot), the "buy the base" step collapses to
+    **"Base owned"** — only the upgrade remains.
+  - The **in-game hover overlay** now also shows how to get the target when you are hovering a piece
+    that is *not* your BiS item and you do not own the right one yet — so you see where to get it
+    without opening a window.
+- **Capped-tomestone balance sync.** The plugin now sends your current capped-tomestone count to the
+  web purchase advisor (`PUT /me/tome-balance`), so it can say what to buy now vs. in N weeks without
+  you retyping a number the game already knows. It piggy-backs the inventory sync (no extra polling),
+  needs a key with **`characters:write`**, and is per character; if it cannot push, the advisor still
+  works from a hand-typed number.
+
+- **Purchase advisor ("Kaufberater") window.** A separate menu entry, deliberately not folded into the
+  BiS window: BiS is the *goal*, the advisor is the *path* to it (the intermediate gear between raid
+  tiers).
+  - **Your saved plan.** Renders the layout you built in the web advisor, read per (character, job,
+    target set) via `GET /me/advisor-plan` (scope `plans:read`), per slot with *worn / owned / still
+    missing* and the usual sourcing on hover. A plan is stored under the set's **web identity**, so it
+    only becomes addressable once `GET /gear/bis` sends a set's `target`; until then the section says
+    so instead of failing. "No plan saved" is a normal state, not an error — the advisor's
+    *recommendation* is computed client-side in the web and has no endpoint, so it is not mirrored here
+    yet, and editing a plan in game waits on the per-slot choices from the server.
+  - **Your stock.** The active tier's tracked materials, upgrade stone and books — from the new
+    `groups` on `GET /gear/tracked-items`, so a tier rotation carries itself without a plugin release —
+    each with the **server's** owned count, which is the only one that includes your retainers. The
+    live in-game count fills in until the server number lands.
+  - **The recommendation, computed server-side.** `GET /me/advisor-options` returns the one ranking the
+    web renders too, so the plugin never owns a second copy of the rules and a tier rotation needs no
+    release: the ranked steps with their tomestone price, when each becomes affordable against the
+    pushed balance, the vendor, and the material each consumes.
+  - **The set as a grid**, laid out like the BiS window and coloured like the web advisor (green on
+    BiS, blue you own it, orange next purchase, grey nothing deterministic left), leading with the
+    single best next move and the set's numbers.
+  - **My layout is editable in game.** The picker per slot offers exactly the pieces the server lists,
+    so a saved plan can never contain an invented item id; saving writes to the same key the web does.
+    A plan is only ever written on a deliberate action, never as a background sync.
+  - Every icon answers on hover: what the piece is, whether you wear/own/still need it, the route in,
+    and — for a material — which bag or retainer the stacks sit in.
+- **"Still needed for this set" in the BiS window.** Each set folds out what completing it actually
+  costs: the tomestones the remaining purchases add up to, measured against the balance the plugin
+  pushes (with how many capped weeks that is), and every upgrade material and raid book still short,
+  each with what you already hold. The totals come from the advisor, so the book trade counts as the
+  alternative to a savage drop exactly as the advisor ranks it, and the read only fires when the
+  section is opened.
+
+- **The farm leads with what you can actually do.** For your own characters the ways in are ordered by
+  what you hold rather than by what the piece's source suggests: a coffer already in your bag reads
+  *"Coffer in hand — just open it"* instead of sending you to the fight, and a book trade you can
+  afford comes before the drop, marked *"you can do this now"*. Coffers are counted server-side too,
+  so one sitting on a retainer counts. A teammate's row is never re-ordered — their stock is not
+  visible, so there is nothing to rank by.
+
+- **The farm knows what a member owns, not just what they wear.** The server now answers that per
+  slot (worn, ticked off by the team, or marked as an upgraded tier), so a teammate holding the
+  augmented neck while still wearing the base is no longer told to buy the upgrade — and the counts
+  match the web tracker instead of reading high. Your own row adds what the plugin can see itself, so
+  a piece bought since the last sync counts immediately.
+
+### Fixed
+- **The glamour dresser no longer clears itself.** Like the saddlebag it only reads after the player
+  has opened it — and unlike the saddlebag the client exposes no "loaded" flag at all, so an unopened
+  dresser is indistinguishable from an emptied one. It is now its own reconciliation scope, declared
+  only when pieces were actually found; an emptied dresser therefore keeps its last known contents,
+  which is the harmless direction.
+- **A swapped ring pair is no longer two missing rings.** The farm compared finger by finger, so
+  wearing both BiS rings the other way round listed them as still to get. The rule (rings are
+  interchangeable) now lives once in the core, tested, instead of being re-derived per view.
+- **The language setting now governs game names too.** Item, vendor, zone and duty names were read in
+  the game client's language regardless of what the plugin was set to, so switching the plugin to
+  English left them German. They follow the plugin's setting now — which is also the only way to use
+  the plugin in English on a German client.
+- **The inventory sync no longer empties the saddlebag.** Its containers only read once the player has
+  opened the saddlebag in a session — and until then they read as *empty*, not *unavailable*. It used
+  to ride along in the `character` scope, which the upload declares fully observed, so syncing
+  beforehand told the server the saddlebag was empty and it deleted what was stored there. The
+  saddlebag is now its own reconciliation scope (like a retainer): it is declared only when it was
+  actually read, and left alone otherwise. A manual sync says once when it could not be read, so the
+  player knows those counts are not current — nothing is lost either way.
+- **The sourcing speaks the client's language.** Coffers, materials, books, vendors, zones and fight
+  names were English throughout, because the server names things in English while the game carries
+  every language itself. Anything the server identifies by id is now named by the game — items,
+  coffers, vendor NPCs (`ENpcResident`), zones (`TerritoryType` → `PlaceName`) and fights (the
+  server's new `duty_content_ids`, paired only when there is one id per name, since it omits the ones
+  it cannot resolve). Every lookup falls back to the server's English text, so nothing can read worse
+  than before. Shop labels stay English on purpose: they are the data source's own wording and have no
+  game row to look up.
+- **A teammate's row no longer answers from your bags.** The team farm measured every member's
+  remaining cost against the player's own holdings, so someone else's line claimed they were short
+  materials — or already owned a base piece — purely because the player was. The plugin can see
+  nobody else's bags, retainers or tomestones (`/me/holdings` is caller-only and now pinned to the
+  character on screen; the farm endpoint carries only shared gear). A teammate's row now states what
+  the set requires and says plainly that their stock is not visible; only the player's own row is
+  measured. The equipped check stays for everyone — what a member wears comes from the team data.
+- **Owned counts no longer read 0 for anything the server does not track.** The server's holdings won
+  unconditionally, but a server `0` means "no record", not "you own none": the weekly tomestone is a
+  currency and is never part of the inventory sync at all, so a player holding 1109 was shown `0/495`.
+  The count is now the higher of the server's number and the game's — the server still wins for
+  retainer stock, the game still wins for anything not synced yet. Holdings are also pinned to the
+  character on screen (`&character_id=`), instead of whichever one the account last made active.
+- **Automatic syncs no longer talk in chat.** Only a sync you asked for reports there; logins, the
+  periodic timer, retainer visits and the hidden Duty-Finder refresh (which produced the duplicate
+  "2 weekly fields" lines) go to the log instead. Failures still always speak.
+- The hidden Duty-Finder refresh (the `normal`/`alliance` weekly read) no longer leaves the finder on
+  the raid it loaded. It now remembers the duty you had selected and re-selects it before closing, so
+  reopening the Duty Finder puts you back where you were — including a **roulette** (Duty Roulette /
+  daily), which the game stores in the same field as a regular duty but restores through a different
+  call. Nothing selected beforehand means nothing is restored.
+
+## [0.4.0] - 2026-07-17
+
+### Added
+- **Teams companion (opt-in).** A new in-game window (hub button, `/xivarsenal teams`) that mirrors your
+  teams from the web app — read-only rendering; the server owns all logic. Off by default; needs a key
+  with **`teams:read`** (+ **`teams:write`** for the two writes). Existing keys auto-upgrade on the next
+  call. Covers:
+  - **Calendar** — a dedicated cross-team month calendar (own hub button / `/xivarsenal calendar`)
+    over the current + next two months, colour-coded per team, with **in-game RSVP** (yes/maybe/no;
+    optimistic, then re-polled) and per-event "open in web".
+  - **Mit cheat sheets** — a **time-axis timeline**: mechanics on the left, cooldowns in per-job
+    columns aligned to the same times, grouped by named phase. **Phase checkboxes** and a **tag filter**
+    (raidwide / tankbuster / other) pick what to show; cooldowns render as skill icons with the name,
+    recast and duration on hover. The current job is preselected only when the plan has it (else a free
+    picker; single-job or all-jobs), remembered per plan.
+  - **Content hub** — every fight with its bosses/drops and resources, each **labelled by type**
+    (link / video / plan / note / image / pdf / file); **note text** shown inline; **images open in a
+    dedicated window** scaled to size; PDFs and links open in the browser.
+  - **Farm** — who-needs-what across the team (equipped vs BiS target, still-missing per member), each
+    missing piece labelled by **source** (savage / Tome+ / Tome) with the **way to get it** on one line
+    — the fight it drops in, or what to trade and with which vendor — and **every route on hover**
+    (coffer, the piece you hand in, vendor zone + coordinates). The primary route follows the same rule
+    as the web, so plugin and site never disagree. Hardest-to-get first; all server-provided, the
+    plugin never guesses, and an unconfigured tier just shows the item as before.
+  - **Owned gear coffers** ride the existing inventory upload: the loose storages (bags, saddlebag,
+    retainers) now also report savage gear coffers, so a coffer's web page can show "you own ×N, here"
+    and how many open pieces you can make now. Detected by name like the web does, not a hard-coded
+    list; potions, food and materials stay out of the ownership set.
+  - **FFLogs** — recent kills/wipes with each report's **date** and a **direct link** to it
+    (best-effort; a not-connected/empty state never crashes).
+  - **Absence** — report/cancel your own vacation ranges, with a **date picker** and localized date
+    display (DE/EN).
+  - **Events** — the per-team list of upcoming (and optionally past) dates, grouped by event, with
+    **zebra-striped rows** and a **configurable text size** so long lists stay readable at a glance.
+  - A **Teams settings tab** (icon/text display for cooldowns and resource labels, note visibility,
+    default job/tag/phase selection for mit plans, event text size) and **"open in web" deep links**
+    that land on the exact thing you were looking at — the selected mit plan, that one event
+    occurrence, that content — not just the tab.
+  - **In-game notifications** — a toast **with a sound** and a **clickable chat link** for new loot,
+    event reminders (each of your 1-day / 3-hour / 1-hour warnings fires once) and newly planned events.
+    Deduped by notification id and persisted, so a relog never re-toasts the backlog.
+- Polls the calendar + notifications at most every ~5 minutes; the content hub, farm and FFLogs load on
+  demand. Never writes anything but your own RSVP and your own absence; a server `403`/`404` is shown,
+  never worked around.
+- **"What's new" window** (`/xivarsenal whatsnew`, or the menu entry, which stays highlighted until you
+  have read the notes for the version you are running). A short, plain-language digest of what each
+  release changed — new / improved / fixed — as opposed to this changelog, which is written for
+  contributors. It ships **inside the plugin**, so it works offline and can never disagree with the
+  build you are running. After an install or update it **opens once, on the first frame you are
+  actually in the world** — not at the title screen, and it works just as well when the update is
+  installed mid-session. Switchable off under *Display*; links out to the full changelog. A test pins
+  the notes to the shipped version so a release cannot forget them.
+
+### Changed
+- **The chat command is now `/xivarsenal`** (was `/bisexport`) — the plugin long outgrew a pure BiS
+  export. The old `/bisexport` command has been removed.
+- The hub is now the **menu** window (`/xivarsenal menu`, was `/xivarsenal status`) and is purely
+  actionable; the **"what will be sent" preview** moved into its own window instead of expanding inline.
+- A failed team/parse response now surfaces the concrete cause (HTTP status or the JSON path of a
+  shape mismatch) instead of a generic "could not load", to make diagnosis quick.
+
 ## [0.3.0] - 2026-07-05
 
 ### Added
@@ -30,8 +230,8 @@ All notable changes to this project are documented here. The format is based on
 ### Changed
 - The manual **Sync weekly** action now also kicks off the hidden Savage + Duty-Finder refreshes, so a
   button press picks up the `f1`–`f4` / `normal` / `alliance` fields too.
-- The `/bisexport weekdump` diagnostic now also reports the Wondrous Tails expiry/expired flags and
-  the classified kind (normal/alliance) of the selected Duty Finder duty. New `/bisexport dutyrefresh`
+- The `/xivarsenal weekdump` diagnostic now also reports the Wondrous Tails expiry/expired flags and
+  the classified kind (normal/alliance) of the selected Duty Finder duty. New `/xivarsenal dutyrefresh`
   triggers the hidden Duty-Finder refresh on demand; `dutyprobe` is a raw control test.
 
 ## [0.2.0] - 2026-07-02
@@ -120,14 +320,14 @@ First public release.
   *off* when not set up. Hover for the full time; click to open the status window. Toggleable.
 - **Diagnostics log window.** Lists recent plugin messages (status codes, `request_id`s, the failing
   request method+URL, errors — never secrets/bodies, R22) with **Copy**/**Clear**, opened via the
-  log icon or `/bisexport log`. The log is per-session (cleared on login; in memory only).
+  log icon or `/xivarsenal log`. The log is per-session (cleared on login; in memory only).
 - **Status window** — last push time, outcome + `request_id`, rate-limit countdown, and quick
   actions: push now, preview what will be sent, open web app, open settings.
 - **Connect via OAuth 2.0 device flow and paste-key fallback**, with in-plugin **Disconnect**. The
   device flow opens the pre-filled approval page (`verification_uri_complete`, RFC 8628) and copies
   the `user_code`; approval stays the user's explicit click (the plugin never approves
   programmatically). A scope check after the connection test warns if the key lacks `gear:write`.
-- **`PUT /gear` push** of all gearsets across all jobs, triggered by `/bisexport`, login, a
+- **`PUT /gear` push** of all gearsets across all jobs, triggered by `/xivarsenal`, login, a
   debounced gearset-change detector, or a throttled auto-push. Stable `cid_hash` (SHA-256 of the
   decimal ContentId), locked by a test vector. Per-character push opt-in, single in-flight push with
   coalescing, client-side validation, and proactive 429 back-off (30 uploads/hour).

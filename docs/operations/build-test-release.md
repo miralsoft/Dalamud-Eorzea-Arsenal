@@ -69,4 +69,4 @@ Users add this stable URL under Dalamud → Settings → Experimental → Custom
 3. In settings: accept the ToS notice, enable, set the base URL the API launcher printed
    (incl. `/api/v1`), **Test connection**, then connect (paste a key created via the API for
    end-to-end testing today).
-4. Run `/bisexport`; confirm the push and check the gear in the web app.
+4. Run `/xivarsenal`; confirm the push and check the gear in the web app.

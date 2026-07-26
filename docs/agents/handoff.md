@@ -19,5 +19,5 @@ New agent or contributor? Read in this order:
 
 ## What you cannot do here
 
-Launch FFXIV. In-game testing (loading the dev plugin, `/bisexport`, verifying the gear read) is
+Launch FFXIV. In-game testing (loading the dev plugin, `/xivarsenal`, verifying the gear read) is
 the **operator's** step. Provide clear steps; do not claim in-game behavior you have not verified.

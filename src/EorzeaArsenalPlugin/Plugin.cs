@@ -1,10 +1,13 @@
+using Dalamud.Game;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Command;
 using Dalamud.Game.Gui.Dtr;
 using Dalamud.Game.Text.SeStringHandling;
+using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
+using Dalamud.Utility;
 using EorzeaArsenal.Abstractions;
 using EorzeaArsenal.Api;
 using EorzeaArsenal.Core;
@@ -15,6 +18,7 @@ using EorzeaArsenal.Plugin.Configuration;
 using EorzeaArsenal.Plugin.Gear;
 using EorzeaArsenal.Plugin.Services;
 using EorzeaArsenal.Plugin.UI;
+using FFXIVClientStructs.FFXIV.Client.UI;
 
 namespace EorzeaArsenal.Plugin;
 
@@ -24,7 +28,7 @@ namespace EorzeaArsenal.Plugin;
 /// </summary>
 public sealed class Plugin : IDalamudPlugin
 {
-    private const string CommandName = "/bisexport";
+    private const string CommandName = "/xivarsenal";
     private const string ChatPrefix = "[Eorzea Arsenal] ";
 
     private readonly IDalamudPluginInterface _pluginInterface;
@@ -39,6 +43,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ILog _log;
 
     private readonly HttpClient _httpClient;
+    private readonly IApiClient _api;
     private readonly PluginConfig _config;
     private readonly ConfigStore _store;
     private readonly Localizer _localizer;
@@ -50,13 +55,27 @@ public sealed class Plugin : IDalamudPlugin
     private readonly GearSyncService _sync;
     private readonly InventorySyncService _inventorySync;
     private readonly WeeklySyncService _weeklySync;
+    private readonly TeamsService _teamsService;
+    private readonly TeamsSeenStore _teamsSeenStore;
     private readonly BisService _bisService;
+    private readonly ObtainService _obtainService;
+    private readonly HoldingsService _holdingsService;
+    private readonly AdvisorService _advisorService;
+    private readonly TrackedItemsStore _trackedItems;
+    private readonly WorldActions _worldActions;
 
     private readonly WindowSystem _windowSystem = new("EorzeaArsenal");
     private readonly ConfigWindow _configWindow;
     private readonly StatusWindow _statusWindow;
+    private readonly TeamsWindow _teamsWindow;
+    private readonly CalendarWindow _calendarWindow;
+    private readonly ImageWindow _imageWindow;
     private readonly BisWindow _bisWindow;
+    private readonly AdvisorWindow _advisorWindow;
     private readonly LogWindow _logWindow;
+    private readonly PreviewWindow _previewWindow;
+    private readonly WhatsNewWindow _whatsNewWindow;
+    private bool _whatsNewPending;
     private readonly BisTooltip _bisTooltip;
     private readonly IDtrBarEntry _dtrEntry;
 
@@ -72,11 +91,21 @@ public sealed class Plugin : IDalamudPlugin
     private long _nextRaidFinderCheckTicks;
     private bool _raidFinderWasOpen;
     private uint _lastContentsFinderDutyId;
+    private long _nextTeamsPollTicks;
+    private uint _nextTeamsLinkId = 1;
     private long _hiddenRefreshDueTicks; // 0 = none scheduled
     private long _nextHiddenRefreshTryTicks;
     private long _contentsRefreshDueTicks; // 0 = none scheduled
     private long _nextContentsRefreshTryTicks;
     private string? _lastRetainerScope;
+    private string? _currentCidHash;
+
+    // A successful sync only speaks in chat when the user asked for it. Logins, the periodic timer,
+    // a retainer visit and the hidden Duty-Finder refresh all sync too, and announcing every one of
+    // them buries the chat in lines nobody asked to read. Failures always speak, whatever caused them.
+    private bool _announceInventory;
+    private bool _announceWeekly;
+    private bool _announcePush;
     private bool _bisLoadPending;
     private ulong _lastStoredSig;
     private ulong _lastEquippedItemsSig;
@@ -137,8 +166,10 @@ public sealed class Plugin : IDalamudPlugin
         _localizer = new Localizer(_config.Language);
 
         var api = new ApiClient(_httpClient, _store);
-        _gearSource = new GameGearSource(clientState, playerState, framework, dataManager, _log);
-        _inventorySource = new GameInventorySource(clientState, playerState, framework, dataManager, _log);
+        _api = api;
+        _trackedItems = new TrackedItemsStore();
+        _gearSource = new GameGearSource(clientState, playerState, framework, dataManager, _log, GameNameLanguage);
+        _inventorySource = new GameInventorySource(clientState, playerState, framework, dataManager, _trackedItems, _log);
         _weeklySource = new GameWeeklySource(clientState, playerState, framework, gameGui, dataManager, _log);
         _connection = new ConnectionService(api, _store, new RealDelay(), _log);
 
@@ -158,17 +189,45 @@ public sealed class Plugin : IDalamudPlugin
         _weeklySync.SyncCompleted += OnWeeklyCompleted;
         _weeklySource.HiddenRefreshCompleted += OnHiddenRefreshCompleted;
         _weeklySource.ContentsRefreshCompleted += OnHiddenRefreshCompleted;
+        _teamsSeenStore = new TeamsSeenStore(_config, Save);
+        _teamsService = new TeamsService(api, _store, _teamsSeenStore, new SystemClock(), _log);
+        _teamsService.Toast += OnTeamToast;
         _bisService = new BisService(api, _gearSource, _store, _log);
+        _obtainService = new ObtainService(api, _store, _log);
+        // Pin the counts to the character actually on screen — without it the server answers for
+        // whichever character the account last made active, which on a multi-character account is a
+        // different inventory.
+        _holdingsService = new HoldingsService(api, _store, _log, () => ServerCharacterId(_currentCidHash));
+        _advisorService = new AdvisorService(api, _store, _log);
+        _worldActions = new WorldActions(gameGui, dataManager, GameNameLanguage);
 
-        _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, Save, LinkItemInChat);
+        _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, _obtainService, _worldActions, _holdingsService, _advisorService, ServerCharacterId, Save, LinkItemInChat);
+        _advisorWindow = new AdvisorWindow(_config, _store, _localizer, _bisService, _advisorService, _trackedItems, _holdingsService, _obtainService, _gearSource, _worldActions, textureProvider, ServerCharacterId, LinkItemInChat);
         _logWindow = new LogWindow(_logBuffer, _localizer);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, _gearSource, _log, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenLog);
+        _previewWindow = new PreviewWindow(_gearSource, _localizer, _log);
+        _imageWindow = new ImageWindow(_teamsService, textureProvider, _localizer, _log);
+        _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew);
+        _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage);
+        _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save);
-        _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _log);
+        _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _obtainService, _worldActions, _holdingsService, _log);
+        _windowSystem.AddWindow(_previewWindow);
+        _windowSystem.AddWindow(_imageWindow);
+        _windowSystem.AddWindow(_teamsWindow);
+        _windowSystem.AddWindow(_calendarWindow);
         _windowSystem.AddWindow(_bisWindow);
+        _windowSystem.AddWindow(_advisorWindow);
         _windowSystem.AddWindow(_logWindow);
         _windowSystem.AddWindow(_statusWindow);
         _windowSystem.AddWindow(_configWindow);
+        _windowSystem.AddWindow(_whatsNewWindow);
+
+        // Show what changed once per new version. Deferred rather than opened here: a plugin usually
+        // loads at the title screen, where the window would be dismissed unseen. OnFrameworkUpdate
+        // opens it as soon as a character is actually in the world — which also covers installing the
+        // update mid-session, where no Login event follows.
+        _whatsNewPending = _config.ShowWhatsNewOnUpdate && ReleaseNotes.HasUnseen(_config.LastSeenReleaseNotes);
 
         _dtrEntry = dtrBar.Get("Eorzea Arsenal");
         _dtrEntry.OnClick = _ => OpenStatus();
@@ -185,6 +244,10 @@ public sealed class Plugin : IDalamudPlugin
         {
             HelpMessage = _localizer.Get(LocKeys.CommandHelp),
         });
+
+        // The plugin usually loads mid-session (already logged in), where Login will not fire — so warm
+        // the tracked-items list now if a key is already connected.
+        RefreshTrackedItems();
     }
 
     /// <inheritdoc />
@@ -208,6 +271,10 @@ public sealed class Plugin : IDalamudPlugin
         _weeklySource.ContentsRefreshCompleted -= OnHiddenRefreshCompleted;
         _weeklySync.SyncCompleted -= OnWeeklyCompleted;
         _weeklySync.Dispose();
+        _teamsService.Toast -= OnTeamToast;
+        _teamsService.Dispose();
+        _imageWindow.Dispose();
+        _chatGui.RemoveChatLinkHandler();
         _characterDirectory.Changed -= OnCharacterDirectoryChanged;
         _configWindow.Dispose();
         _httpClient.Dispose();
@@ -215,13 +282,62 @@ public sealed class Plugin : IDalamudPlugin
 
     private void Save() => _pluginInterface.SavePluginConfig(_config);
 
+    /// <summary>
+    /// The language every <b>game</b> name (items, vendors, zones, duties) is read in.
+    /// </summary>
+    /// <remarks>
+    /// It follows the plugin's own language setting rather than the game client's. Switching the
+    /// plugin to English and still reading "Blitzimprägnierte Glasur" is the wrong answer: the setting
+    /// is what the player expects to govern everything the plugin writes on screen, and it is also the
+    /// only way an English-speaking player on a German client can use the plugin at all.
+    /// </remarks>
+    /// <returns>The Dalamud client language matching the plugin's language.</returns>
+    private ClientLanguage GameNameLanguage() =>
+        _localizer.Language == Localizer.German ? ClientLanguage.German : ClientLanguage.English;
+
     private void OpenConfig() => _configWindow.IsOpen = true;
 
     private void OpenStatus() => _statusWindow.IsOpen = true;
 
     private void OpenBis() => _bisWindow.IsOpen = true;
 
+    private void OpenAdvisor() => _advisorWindow.IsOpen = true;
+
+    /// <summary>
+    /// The server's numeric character id for a <c>cid_hash</c>, which personal per-character endpoints
+    /// (the purchase plan, the weekly checklist) are keyed by. Only known once a push has been
+    /// answered for that character; <see langword="null"/> until then.
+    /// </summary>
+    /// <param name="cidHash">The character hash, e.g. from a BiS gearset.</param>
+    /// <returns>The numeric id, or <see langword="null"/> when not learned yet.</returns>
+    private long? ServerCharacterId(string? cidHash) =>
+        !string.IsNullOrEmpty(cidHash) &&
+        _characterDirectory.TryGet(cidHash, out var id) &&
+        long.TryParse(id, out var numeric)
+            ? numeric
+            : null;
+
     private void OpenLog() => _logWindow.IsOpen = true;
+
+    private void OpenPreview() => _previewWindow.Open();
+
+    private void OpenWhatsNew() => _whatsNewWindow.Open();
+
+    private void OpenImage(long teamId, long resourceId, string? title) => _imageWindow.Open(teamId, resourceId, title);
+
+    private void OpenCalendar()
+    {
+        _calendarWindow.Open();
+    }
+
+    private void OpenTeams()
+    {
+        _teamsWindow.IsOpen = true;
+        if (_config is { Enabled: true, TosAccepted: true, SyncTeams: true } && _store.HasKey)
+        {
+            _teamsService.RequestPoll();
+        }
+    }
 
     private void Chat(string message) => _chatGui.Print(ChatPrefix + message);
 
@@ -257,11 +373,26 @@ public sealed class Plugin : IDalamudPlugin
             case "config":
                 OpenConfig();
                 break;
-            case "status":
+            case "menu":
                 OpenStatus();
+                break;
+            case "teams":
+                OpenTeams();
+                break;
+            case "calendar":
+                OpenCalendar();
+                break;
+            case "advisor":
+                OpenAdvisor();
                 break;
             case "log":
                 OpenLog();
+                break;
+            case "whatsnew":
+                OpenWhatsNew();
+                break;
+            case "obtainprobe":
+                RunObtainProbe();
                 break;
             case "weekdump":
                 RunWeeklyProbe();
@@ -285,7 +416,7 @@ public sealed class Plugin : IDalamudPlugin
                 {
                     var dump = _weeklySource.ProbeContentsFinderLoad();
                     _log.Info(dump);
-                    Chat("Duty-load probe written to the log (/bisexport log).");
+                    Chat("Duty-load probe written to the log (/xivarsenal log).");
                 });
                 break;
             case "dutyrefresh":
@@ -294,13 +425,94 @@ public sealed class Plugin : IDalamudPlugin
                 _ = _framework.RunOnFrameworkThread(() =>
                 {
                     _weeklySource.BeginContentsFinderRefresh();
-                    Chat("Hidden Duty-Finder refresh started — watch the log (/bisexport log).");
+                    Chat("Hidden Duty-Finder refresh started — watch the log (/xivarsenal log).");
                 });
                 break;
             default:
                 RequestManualPush();
                 break;
         }
+    }
+
+    /// <summary>
+    /// Diagnostic: fetches the sourcing for each currently equipped item and logs its source + slot,
+    /// so a "base owned" mismatch can be told apart — a plugin one (slot naming) from a server one
+    /// (the base not classified as tome, or no info returned). Written to <c>/xivarsenal log</c>.
+    /// </summary>
+    private void RunObtainProbe()
+    {
+        if (!_store.HasKey)
+        {
+            Chat(_localizer.Get(LocKeys.PushNotConnected));
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                // Probe both the equipped pieces and the BiS targets — the "where do I fight it" info
+                // lives on the target's drop route, not the (often off-tier) equipped piece.
+                var equipped = await _framework.RunOnFrameworkThread(() => _gearSource.GetEquippedItems()).ConfigureAwait(false);
+                var probe = new Dictionary<long, string>();
+                foreach (var (slot, item) in equipped)
+                {
+                    if (item.Id > 0)
+                    {
+                        probe[item.Id] = $"equipped {slot}";
+                    }
+                }
+
+                foreach (var comparison in _bisService.Comparisons)
+                {
+                    foreach (var s in comparison.Slots)
+                    {
+                        if (s.TargetItemId > 0)
+                        {
+                            probe[s.TargetItemId] = $"BiS {s.Slot}";
+                        }
+                    }
+                }
+
+                if (probe.Count == 0)
+                {
+                    Chat("obtainprobe: nothing to probe (open Gear vs BiS first).");
+                    return;
+                }
+
+                await _obtainService.PrefetchAsync(probe.Keys.ToList(), CancellationToken.None).ConfigureAwait(false);
+                foreach (var (id, label) in probe.OrderBy(p => p.Value, StringComparer.Ordinal))
+                {
+                    if (!_obtainService.TryGet(id, out var info) || info is null)
+                    {
+                        _log.Info($"obtainprobe {label}: item {id} -> no obtain data");
+                        continue;
+                    }
+
+                    var route = SourcingView.PrimaryRoute(info.Source, info.Routes);
+                    var duties = route?.Duties is { Count: > 0 } d ? string.Join("|", d) : "(none)";
+                    var coffer = route?.Via?.Name ?? "(none)";
+                    var npc = route?.Npc is { Count: > 0 } n ? n[0].Name ?? "(?)" : "(none)";
+                    _log.Info($"obtainprobe {label}: item {id} src={info.Source ?? "(null)"} slot={info.Slot ?? "(null)"} route={route?.Kind ?? "(none)"} duties={duties} coffer={coffer} npc={npc}");
+
+                    // Server text vs. what the game calls the same thing — so a name that looks English
+                    // can be told apart from one the lookup failed on (many proper nouns are identical).
+                    _log.Info($"obtainprobe {label}: lang item='{_worldActions.LocalizedItemName(id) ?? "(miss)"}'"
+                        + $" coffer='{(route?.Via is { } via ? _worldActions.LocalizedItemName(via.Id) ?? "(miss)" : "(none)")}'"
+                        + $" npc='{(route?.Npc is { Count: > 0 } np ? _worldActions.LocalizedNpcName(np[0].Id, np[0].Name) ?? "(miss)" : "(none)")}'"
+                        + $" zone='{(route?.Npc is { Count: > 0 } nz ? _worldActions.LocalizedZoneName(nz[0].ZoneId, nz[0].Zone) ?? "(miss)" : "(none)")}'"
+                        + $" zoneRaw='{(route?.Npc is { Count: > 0 } nr ? $"{nr[0].Zone ?? "(null)"}/id={nr[0].ZoneId?.ToString() ?? "(null)"}/map={nr[0].MapId?.ToString() ?? "(null)"}" : "(none)")}'"
+                        + $" dutyIds={(route?.DutyContentIds is { Count: > 0 } di ? string.Join("|", di) : "(none)")}"
+                        + $" dutyByName='{(route?.Duties is { Count: > 0 } dn ? _worldActions.LocalizedDutyName(dn[0]) ?? "(miss)" : "(none)")}'");
+                }
+
+                Chat("obtainprobe: written to the log (/xivarsenal log).");
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"obtainprobe failed: {ex.GetType().Name}.");
+            }
+        });
     }
 
     /// <summary>Triggers a manual push, gated by opt-in, connection and per-character settings.</summary>
@@ -328,6 +540,7 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         Chat(_localizer.Get(LocKeys.PushStarted));
+        _announcePush = true;
         _sync.RequestPush(PushTrigger.Manual);
     }
 
@@ -356,20 +569,145 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         Chat(_localizer.Get(LocKeys.InventoryStarted));
-        _inventorySync.RequestCharacterSync(InventoryTrigger.Manual);
+        _announceInventory = true;
+        RequestCharacterInventorySync(InventoryTrigger.Manual);
     }
 
     /// <summary>
     /// Developer probe: reads the candidate weekly values via the game's own APIs on the framework
     /// thread and writes them to the diagnostics log so their meaning can be confirmed / re-verified
-    /// after a game patch. Triggered by <c>/bisexport weekdump</c> (see docs/dev/weekly-data-probing.md).
+    /// after a game patch. Triggered by <c>/xivarsenal weekdump</c> (see docs/dev/weekly-data-probing.md).
     /// </summary>
     private void RunWeeklyProbe() => _ = _framework.RunOnFrameworkThread(() =>
     {
         var dump = _weeklySource.ReadRawWeeklyDiagnostics();
         _log.Info(dump);
-        Chat("Weekly probe written to the log (open it via the log button / /bisexport log).");
+        Chat("Weekly probe written to the log (open it via the log button / /xivarsenal log).");
     });
+
+    /// <summary>
+    /// Fetches the tracked consumable ids so the inventory scan reports them too. Runs in the
+    /// background, gated on a connected key; a failure leaves the previous set — and the "loaded" flag
+    /// — untouched, so a scan never mistakes a failed read for "there are none".
+    /// </summary>
+    /// <param name="thenSyncInventory">Run the deferred character sync once the list is in.</param>
+    private void RefreshTrackedItems(bool thenSyncInventory = false)
+    {
+        if (!_config.Enabled || !_store.HasKey)
+        {
+            return;
+        }
+
+        var key = _store.ApiKey;
+        if (string.IsNullOrEmpty(key))
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var result = await _api.GetTrackedItemsAsync(key, CancellationToken.None).ConfigureAwait(false);
+                if (result.IsSuccess && result.Value?.Data is { } ids)
+                {
+                    _trackedItems.Set(ids);
+
+                    // The active tier's classified groups drive the advisor's stock view; absent on an
+                    // older server, which just leaves that view empty.
+                    _trackedItems.SetGroups(result.Value.Groups);
+                    _log.Info($"Tracked items updated: {ids.Count} id(s), {_trackedItems.Groups.Count} group(s).");
+
+                    if (thenSyncInventory)
+                    {
+                        _inventorySync.RequestCharacterSync(InventoryTrigger.Login);
+                    }
+                }
+                else
+                {
+                    _log.Info($"Tracked-items fetch failed: {result.Error?.Kind}. Keeping the previous list.");
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"Tracked-items fetch failed: {ex.GetType().Name}.");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Uploads the character scope — but only once the tracked-items list is in.
+    /// </summary>
+    /// <remarks>
+    /// The upload declares the character scope fully observed, so the server replaces it entirely. A
+    /// scan that runs before the list arrived carries no materials or books, and the server then
+    /// deletes the counts it had — the stock reads 0 in game <i>and</i> on the web until a later sync
+    /// happens to run with the list loaded. Waiting costs one HTTP round trip on login; not waiting
+    /// costs the player their stock.
+    /// </remarks>
+    /// <param name="trigger">What asked for the sync.</param>
+    private void RequestCharacterInventorySync(InventoryTrigger trigger)
+    {
+        // The saddlebag no longer blocks the sync: it is its own scope now, so an unread one is simply
+        // left undeclared and keeps whatever the server last knew. Worth saying once on a manual sync,
+        // since its contents will not be up to date until the player has opened it.
+        if (trigger == InventoryTrigger.Manual && !_inventorySource.IsSaddlebagReadable)
+        {
+            Chat(_localizer.Get(LocKeys.InventorySaddlebagClosed));
+        }
+
+        if (_trackedItems.IsLoaded)
+        {
+            _inventorySync.RequestCharacterSync(trigger);
+            return;
+        }
+
+        _log.Info("Inventory sync deferred: the tracked-items list has not loaded yet.");
+        RefreshTrackedItems(thenSyncInventory: true);
+    }
+
+    /// <summary>
+    /// Pushes the capped-tomestone balance to <c>PUT /me/tome-balance</c> for the web purchase advisor.
+    /// Background, gated on a connected + allowed character whose server id is known; a missing scope or
+    /// unknown id just no-ops (the advisor still works with a hand-typed number). Idempotent — a value
+    /// equal to the stored one is harmless — and never adds a poll (it piggy-backs the inventory sync).
+    /// </summary>
+    /// <param name="trigger">What triggered it (for the log line).</param>
+    private void PushTomeBalance(string trigger)
+    {
+        if (!_config.Enabled || !_config.TosAccepted || !_store.HasKey || !CurrentCharacterAllowed())
+        {
+            return;
+        }
+
+        var key = _store.ApiKey;
+        if (string.IsNullOrEmpty(key))
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var (balance, cidHash) = await _framework.RunOnFrameworkThread(() => _weeklySource.ReadTomeBalance()).ConfigureAwait(false);
+                if (balance is null || string.IsNullOrEmpty(cidHash) ||
+                    !_characterDirectory.TryGet(cidHash, out var characterId) || !long.TryParse(characterId, out var id))
+                {
+                    return; // no balance, or the character's server id is not known yet
+                }
+
+                var result = await _api.PutTomeBalanceAsync(key, id, balance.Value, CancellationToken.None).ConfigureAwait(false);
+                _log.Info(result.IsSuccess
+                    ? $"Tome balance pushed: {balance} ({trigger})."
+                    : $"Tome balance push: {result.Error?.Kind} ({trigger}).");
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"Tome balance push failed: {ex.GetType().Name}.");
+            }
+        });
+    }
 
     /// <summary>Triggers a manual weekly-checklist sync, gated like the gear push.</summary>
     private void RequestWeeklySync()
@@ -396,6 +734,7 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         Chat(_localizer.Get(LocKeys.WeeklyStarted));
+        _announceWeekly = true;
         _weeklySync.RequestSync(WeeklyTrigger.Manual);
 
         // The manual sync reads the current state immediately (tomes/custom/unreal/wondrous), but the
@@ -421,10 +760,14 @@ public sealed class Plugin : IDalamudPlugin
         // retainer-scan dedup so the next visited retainer is re-scanned.
         _lastRetainerScope = null;
 
+        // Learn which consumables to also report (materials/tokens for the active tier), so a later
+        // inventory sync uploads their counts and "have / need" can be answered server-side.
+        RefreshTrackedItems();
+
         // Upload owned items once per session start so the web app reflects this character on login.
         if (_config is { Enabled: true, TosAccepted: true, SyncInventory: true } && _store.HasKey && CurrentCharacterAllowed())
         {
-            _inventorySync.RequestCharacterSync(InventoryTrigger.Login);
+            RequestCharacterInventorySync(InventoryTrigger.Login);
         }
 
         // Sync the weekly checklist on login. If this character's server id isn't known yet, the sync
@@ -438,6 +781,12 @@ public sealed class Plugin : IDalamudPlugin
             // the normal/alliance state via the invisible Duty-Finder refresh (staggered after it).
             _hiddenRefreshDueTicks = Environment.TickCount64 + 10_000;
             _contentsRefreshDueTicks = Environment.TickCount64 + 12_000;
+        }
+
+        // Poll the Teams companion once the session settles (soon after login).
+        if (_config is { Enabled: true, TosAccepted: true, SyncTeams: true } && _store.HasKey)
+        {
+            _nextTeamsPollTicks = Environment.TickCount64 + 8_000;
         }
 
         // Auto-load BiS for the new session so the window/overlay have current data without a manual
@@ -459,6 +808,13 @@ public sealed class Plugin : IDalamudPlugin
     {
         var now = Environment.TickCount64;
 
+        // First frame in the world after an install/update: show what changed, exactly once.
+        if (_whatsNewPending && _clientState.IsLoggedIn)
+        {
+            _whatsNewPending = false;
+            _whatsNewWindow.Open();
+        }
+
         // Hidden-refresh drivers (no-op while idle): the Raid-Finder (Savage) and Duty-Finder
         // (normal/alliance) background reads.
         _weeklySource.PumpHiddenRefresh();
@@ -474,6 +830,14 @@ public sealed class Plugin : IDalamudPlugin
         {
             _nextCharRecordTicks = now + 30_000;
             RecordCurrentCharacter();
+        }
+
+        // Teams companion polls the calendar + notifications on an account level (independent of the
+        // per-character push opt-in). The service itself throttles to ≥ 5 min and backs off on errors.
+        if (_config is { Enabled: true, TosAccepted: true, SyncTeams: true } && _store.HasKey && now >= _nextTeamsPollTicks)
+        {
+            _nextTeamsPollTicks = now + 300_000;
+            _teamsService.RequestPoll();
         }
 
         if (_config is not { Enabled: true, TosAccepted: true } || !_store.HasKey || !CurrentCharacterAllowed())
@@ -504,7 +868,7 @@ public sealed class Plugin : IDalamudPlugin
             if (now >= _nextInventoryAutoTicks)
             {
                 _nextInventoryAutoTicks = now + 300_000;
-                _inventorySync.RequestCharacterSync(InventoryTrigger.Auto);
+                RequestCharacterInventorySync(InventoryTrigger.Auto);
             }
 
             if (_config.SyncRetainers)
@@ -607,6 +971,15 @@ public sealed class Plugin : IDalamudPlugin
             return; // already uploaded this retainer for the current visit
         }
 
+        // The retainer scope is replaced wholesale too, so uploading before the tracked-items list is
+        // in would delete whatever materials that retainer is holding for us.
+        if (!_trackedItems.IsLoaded)
+        {
+            _log.Info("Retainer sync deferred: the tracked-items list has not loaded yet.");
+            RefreshTrackedItems();
+            return;
+        }
+
         _lastRetainerScope = scope;
         _inventorySync.RequestScopeSync(data);
     }
@@ -662,6 +1035,11 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         var hash = CidHash.Compute(_playerState.ContentId);
+
+        // Remembered on the framework thread so background reads can resolve the character without
+        // touching game state (the id itself comes from a thread-safe dictionary lookup).
+        _currentCidHash = hash;
+
         var world = _playerState.HomeWorld.ValueNullable?.Name.ExtractText() ?? string.Empty;
         if (_config.RecordCharacter(hash, _playerState.CharacterName, world))
         {
@@ -683,12 +1061,18 @@ public sealed class Plugin : IDalamudPlugin
     {
         UpdateDtr();
 
-        // A successful push just recorded this character's server id — sync the weekly checklist now
-        // (covers a first-time character whose id was not yet known at login).
-        if (report.Outcome == PushOutcome.Sent &&
-            _config is { Enabled: true, TosAccepted: true, SyncWeekly: true } && _store.HasKey)
+        if (report.Outcome == PushOutcome.Sent)
         {
-            _weeklySync.RequestSync(WeeklyTrigger.GearPush);
+            // The advisor ranks against the gear the server has on file, which just changed — drop the
+            // cached advice so a job switch does not keep showing the previous set's next step.
+            _advisorService.InvalidateOptions();
+
+            // A successful push just recorded this character's server id — sync the weekly checklist
+            // now (covers a first-time character whose id was not yet known at login).
+            if (_config is { Enabled: true, TosAccepted: true, SyncWeekly: true } && _store.HasKey)
+            {
+                _weeklySync.RequestSync(WeeklyTrigger.GearPush);
+            }
         }
 
         var message = PushReportFormatter.Describe(report, _localizer);
@@ -697,10 +1081,19 @@ public sealed class Plugin : IDalamudPlugin
             return; // quiet "skipped" outcomes
         }
 
-        // On failure, append the target server host so a base-URL mismatch (e.g. an old key sent
-        // to the wrong server) is immediately obvious. The host is not a secret (R22).
-        var chatMessage = report.Outcome == PushOutcome.Failed ? $"{message} ({ServerHost()})" : message;
-        Chat(chatMessage);
+        // Same rule as the other syncs: an automatic push (login, gearset change, timer) reports to the
+        // log, not to the chat. On failure, append the target server host so a base-URL mismatch (e.g.
+        // an old key sent to the wrong server) is immediately obvious. The host is not a secret (R22).
+        var failed = report.Outcome == PushOutcome.Failed;
+        var announce = failed || _announcePush;
+        _announcePush = false;
+        if (!announce)
+        {
+            _log.Info($"Gear push (background): {message}");
+            return;
+        }
+
+        Chat(failed ? $"{message} ({ServerHost()})" : message);
         if (_config.UseToasts)
         {
             _toastGui.ShowNormal(message);
@@ -710,14 +1103,35 @@ public sealed class Plugin : IDalamudPlugin
     /// <summary>Reports inventory upload outcomes to chat/toast; stays quiet for skipped/no-op runs.</summary>
     private void OnInventoryCompleted(InventoryReport report)
     {
+        // New items reached the server, so the cached owned counts are stale — drop them. The advisor's
+        // ranking is computed from those same holdings, so it has to go with them; the stored plans are
+        // untouched, since they are choices rather than derived state.
+        if (report.Outcome == InventoryOutcome.Sent)
+        {
+            _holdingsService.Invalidate();
+            _advisorService.InvalidateOptions();
+        }
+
+        // Piggy-back the capped-tomestone balance on the inventory sync (we just read the game anyway),
+        // so the web purchase advisor stays current without the player retyping it.
+        PushTomeBalance("inventory");
+
         var message = InventoryMessage(report);
         if (message is null)
         {
             return;
         }
 
-        var chatMessage = report.Outcome == InventoryOutcome.Failed ? $"{message} ({ServerHost()})" : message;
-        Chat(chatMessage);
+        var failed = report.Outcome == InventoryOutcome.Failed;
+        var announce = failed || _announceInventory;
+        _announceInventory = false;
+        if (!announce)
+        {
+            _log.Info($"Inventory sync (background): {message}");
+            return;
+        }
+
+        Chat(failed ? $"{message} ({ServerHost()})" : message);
         if (_config.UseToasts)
         {
             _toastGui.ShowNormal(message);
@@ -772,8 +1186,18 @@ public sealed class Plugin : IDalamudPlugin
             return;
         }
 
-        var chatMessage = report.Outcome == WeeklyOutcome.Failed ? $"{message} ({ServerHost()})" : message;
-        Chat(chatMessage);
+        // The weekly sync also runs after each hidden Duty-Finder refresh, which happens on its own
+        // schedule — announcing those would print several lines the player never asked for.
+        var failed = report.Outcome == WeeklyOutcome.Failed;
+        var announce = failed || _announceWeekly;
+        _announceWeekly = false;
+        if (!announce)
+        {
+            _log.Info($"Weekly sync (background): {message}");
+            return;
+        }
+
+        Chat(failed ? $"{message} ({ServerHost()})" : message);
         if (_config.UseToasts)
         {
             _toastGui.ShowNormal(message);
@@ -800,11 +1224,99 @@ public sealed class Plugin : IDalamudPlugin
         _ => _localizer.Get(LocKeys.ErrorUnexpected),
     };
 
+    /// <summary>
+    /// A new team notification arrived (loot / reminder / planned event). Shows a game toast with a
+    /// sound and prints a clickable chat line that opens the deep link in the browser. Marshals to the
+    /// framework thread (game calls); fires only for genuinely-new items (deduped in the service).
+    /// </summary>
+    private void OnTeamToast(TeamToast toast) => _ = _framework.RunOnFrameworkThread(() => ShowTeamToast(toast));
+
+    private unsafe void ShowTeamToast(TeamToast toast)
+    {
+        try
+        {
+            var text = string.IsNullOrEmpty(toast.Body) ? toast.Title : $"{toast.Title}: {toast.Body}";
+            if (_config.UseToasts)
+            {
+                _toastGui.ShowNormal(text);
+            }
+
+            try
+            {
+                UIGlobals.PlaySoundEffect(6); // a soft in-game chime so the toast is noticed
+            }
+            catch (Exception ex)
+            {
+                _log.Warning($"Toast sound failed: {ex.GetType().Name}.");
+            }
+
+            var url = TeamLinkUrl(toast.Link);
+            if (string.IsNullOrEmpty(url))
+            {
+                Chat(text);
+                return;
+            }
+
+            // A clickable chat line that opens the deep link (Dalamud toasts themselves aren't clickable).
+            var id = _nextTeamsLinkId++;
+            var payload = _chatGui.AddChatLinkHandler(id, (_, _) => OpenExternalLink(url));
+            var message = new SeStringBuilder()
+                .AddText($"{ChatPrefix}{text}  ")
+                .Add(payload)
+                .AddText($"[{_localizer.Get(LocKeys.OpenWebApp)}]")
+                .Add(RawPayload.LinkTerminator)
+                .Build();
+            _chatGui.Print(message);
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Team toast failed: {ex.GetType().Name}.");
+        }
+    }
+
+    /// <summary>Turns a relative notification link (<c>/teams/…</c>) into an absolute web-app URL.</summary>
+    private string? TeamLinkUrl(string? relative)
+    {
+        if (string.IsNullOrEmpty(relative))
+        {
+            return null;
+        }
+
+        var baseUrl = WebAppBase();
+        return relative.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? relative : baseUrl + relative;
+    }
+
+    private string WebAppBase()
+    {
+        if (!string.IsNullOrWhiteSpace(_config.WebAppUrl))
+        {
+            return _config.WebAppUrl.Trim().TrimEnd('/');
+        }
+
+        var baseUrl = _store.BaseUrl;
+        var idx = baseUrl.IndexOf("/api/", StringComparison.OrdinalIgnoreCase);
+        return idx > 0 ? baseUrl[..idx] : baseUrl.TrimEnd('/');
+    }
+
+    /// <summary>Opens an absolute http(s) URL in the browser; ignores any other scheme (P8).</summary>
+    private void OpenExternalLink(string url)
+    {
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            Util.OpenLink(url);
+        }
+    }
+
     /// <summary>Persists the learned <c>cid_hash → character_id</c> map (best-effort; runs off-thread).</summary>
     private void OnCharacterDirectoryChanged()
     {
         _config.CharacterIds = new Dictionary<string, string>(_characterDirectory.Snapshot(), StringComparer.Ordinal);
         Save();
+
+        // The character's server id is now known (learned from a push) — a balance push that no-opped
+        // earlier for lack of it can go through.
+        PushTomeBalance("character-id");
     }
 
     private string ServerHost()

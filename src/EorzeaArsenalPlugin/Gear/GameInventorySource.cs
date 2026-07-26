@@ -1,5 +1,6 @@
 using Dalamud.Plugin.Services;
 using EorzeaArsenal.Abstractions;
+using EorzeaArsenal.Core;
 using EorzeaArsenal.Gear;
 using EorzeaArsenal.Model;
 using FFXIVClientStructs.FFXIV.Client.Game;
@@ -8,18 +9,32 @@ using LuminaItem = Lumina.Excel.Sheets.Item;
 namespace EorzeaArsenal.Plugin.Gear;
 
 /// <summary>
-/// Reads the player's <i>owned, equippable</i> items from the game and maps them to the inventory
+/// Reads the player's <i>owned</i> gear (and gear coffers) from the game and maps them to the inventory
 /// wire model. The <c>character</c> scope is scanned as one snapshot across every locally readable
 /// storage (equipped, armoury, bags, saddlebag, glamour dresser) so moving an item between them is
 /// harmless; the armoire is intentionally skipped (it holds only non-tradeable seasonal/unique gear
 /// you cannot sell, and needs a different, heavier API). Retainer storages are scanned separately,
 /// only while a retainer is open. All game-memory access happens on the framework thread (P1) behind
 /// logged-in/null guards (P4); every read is wrapped so no exception ever reaches the game (P2).
+/// <para>
+/// Besides equippable gear, the loose storages (bags, saddlebag, retainer) also report <b>savage gear
+/// coffers</b> (so the web can show "you own this coffer ×N") and the active tier's <b>tracked
+/// consumables</b> — the books/tokens/materials the server names via <c>/gear/tracked-items</c> — so
+/// its holdings can answer the sourcing view's "have / need". A coffer is identified the same way the
+/// web derives them (a usable item whose name contains "Coffer"/"Kiste"); the tracked set is the
+/// server's bounded list, so neither needs a hard-coded id list. Everything else (potions, food, other
+/// materials) stays filtered out: the server's inventory store must not be flooded.
+/// </para>
 /// </summary>
 public sealed class GameInventorySource : IInventorySource
 {
     // Filter to weapons/armour/accessories (and soul crystals): Item.EquipSlotCategory > 0.
     private const int MaxRealItemId = 9_999_999;
+
+    // Substrings that mark a gear coffer's name in the two UI languages the plugin supports. The
+    // in-game name is client-locale, so on a non-DE/EN client coffers are simply not recognised (the
+    // gear scan is unaffected). Paired with a usable-item gate to exclude housing "coffers".
+    private static readonly string[] CofferNameMarkers = ["coffer", "kiste"];
 
     private static readonly InventoryType[] ArmouryTypes =
     [
@@ -51,6 +66,7 @@ public sealed class GameInventorySource : IInventorySource
     private readonly IPlayerState _playerState;
     private readonly IFramework _framework;
     private readonly IDataManager _data;
+    private readonly TrackedItemsStore _tracked;
     private readonly ILog _log;
 
     /// <summary>Creates the game inventory source.</summary>
@@ -58,13 +74,15 @@ public sealed class GameInventorySource : IInventorySource
     /// <param name="playerState">Local character identity (name, world, ContentId).</param>
     /// <param name="framework">Framework thread marshaller.</param>
     /// <param name="data">Excel data (for the equippable filter).</param>
+    /// <param name="tracked">The tier's tracked consumables to also report (materials/tokens).</param>
     /// <param name="log">Diagnostics sink.</param>
-    public GameInventorySource(IClientState clientState, IPlayerState playerState, IFramework framework, IDataManager data, ILog log)
+    public GameInventorySource(IClientState clientState, IPlayerState playerState, IFramework framework, IDataManager data, TrackedItemsStore tracked, ILog log)
     {
         _clientState = clientState;
         _playerState = playerState;
         _framework = framework;
         _data = data;
+        _tracked = tracked;
         _log = log;
     }
 
@@ -74,6 +92,46 @@ public sealed class GameInventorySource : IInventorySource
     /// <inheritdoc />
     public Task<InventoryData?> ReadCharacterAsync(CancellationToken ct) =>
         _framework.RunOnFrameworkThread(ReadCharacterOnFramework);
+
+    /// <summary>
+    /// Whether the chocobo saddlebag can be read right now. The game only fills those containers once
+    /// the player has opened the saddlebag in this session.
+    /// </summary>
+    /// <remarks>
+    /// This matters because the saddlebag belongs to the <c>character</c> scope, and the upload
+    /// declares that scope <b>fully observed</b> — the server then replaces it entirely. Syncing while
+    /// the saddlebag is unreadable therefore tells the server "there is nothing in it", and everything
+    /// stored there is deleted. Callers must not sync the character scope until this is true.
+    /// </remarks>
+    public unsafe bool IsSaddlebagReadable
+    {
+        get
+        {
+            try
+            {
+                var inventory = InventoryManager.Instance();
+                if (inventory == null)
+                {
+                    return false;
+                }
+
+                foreach (var type in SaddlebagTypes)
+                {
+                    var container = inventory->GetInventoryContainer(type);
+                    if (container != null && container->IsLoaded)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
 
     private InventoryData? ReadCharacterOnFramework()
     {
@@ -94,20 +152,35 @@ public sealed class GameInventorySource : IInventorySource
 
             foreach (var t in BagTypes)
             {
-                AddContainer(items, t, InventoryContainers.Bags);
+                AddContainer(items, t, InventoryContainers.Bags, includeCoffers: true);
             }
 
-            foreach (var t in SaddlebagTypes)
+            // The saddlebag is its own scope and is only declared when it was actually read. Reporting
+            // it unread would say "it is empty" — the containers read as empty, not as unavailable,
+            // until the player has opened the bag once in this session.
+            var scopes = new List<string> { InventoryProtocol.ScopeCharacter };
+            if (IsSaddlebagReadable)
             {
-                AddContainer(items, t, InventoryContainers.Saddlebag);
+                foreach (var t in SaddlebagTypes)
+                {
+                    AddContainer(items, t, InventoryContainers.Saddlebag, includeCoffers: true);
+                }
+
+                scopes.Add(InventoryProtocol.ScopeSaddlebag);
             }
 
-            AddGlamourDresser(items);
+            // The dresser has the same trap and no "loaded" flag to check, so finding at least one
+            // piece is the only evidence it was read. That makes an emptied dresser keep its last
+            // known contents — the harmless direction, and the one the server's contract expects.
+            if (AddGlamourDresser(items) > 0)
+            {
+                scopes.Add(InventoryProtocol.ScopeGlamour);
+            }
 
             return new InventoryData
             {
                 Character = character,
-                Scopes = [InventoryProtocol.ScopeCharacter],
+                Scopes = scopes,
                 Items = items,
             };
         }
@@ -165,14 +238,23 @@ public sealed class GameInventorySource : IInventorySource
             var items = new List<InventoryItemDto>();
             foreach (var t in RetainerTypes)
             {
-                AddContainer(items, t, InventoryContainers.Retainer, sourceId);
+                AddContainer(items, t, InventoryContainers.Retainer, sourceId, includeCoffers: true);
             }
+
+            // The name is only readable here, at the bell. Sending it lets the server's holdings
+            // breakdown say "2× at Nanamo" instead of quoting a numeric retainer id; a later sync may
+            // omit it and the stored name stays.
+            var scope = InventoryProtocol.RetainerScope(sourceId);
+            var name = RetainerName(manager);
 
             return new InventoryData
             {
                 Character = character,
-                Scopes = [InventoryProtocol.RetainerScope(sourceId)],
+                Scopes = [scope],
                 Items = items,
+                ScopeNames = string.IsNullOrEmpty(name)
+                    ? null
+                    : new Dictionary<string, string>(StringComparer.Ordinal) { [scope] = name },
             };
         }
         catch (Exception ex)
@@ -180,6 +262,17 @@ public sealed class GameInventorySource : IInventorySource
             _log.Error($"Retainer read failed: {ex.GetType().Name}.");
             return null;
         }
+    }
+
+    /// <summary>
+    /// The open retainer's display name, or <c>""</c> when the game does not hand one over. Only the
+    /// active retainer is asked for — this runs while its window is open, which is the same condition
+    /// that makes its bags readable at all.
+    /// </summary>
+    private static unsafe string RetainerName(RetainerManager* manager)
+    {
+        var retainer = manager->GetActiveRetainer();
+        return retainer == null ? string.Empty : retainer->NameString;
     }
 
     private CharacterDto? ReadCharacter()
@@ -203,7 +296,7 @@ public sealed class GameInventorySource : IInventorySource
         };
     }
 
-    private unsafe void AddContainer(List<InventoryItemDto> items, InventoryType type, string container, string sourceId = "")
+    private unsafe void AddContainer(List<InventoryItemDto> items, InventoryType type, string container, string sourceId = "", bool includeCoffers = false)
     {
         var inventory = InventoryManager.Instance();
         if (inventory == null)
@@ -226,7 +319,7 @@ public sealed class GameInventorySource : IInventorySource
             }
 
             var id = (int)slot->ItemId;
-            if (id is <= 0 or > MaxRealItemId || !IsEquippable(id))
+            if (id is <= 0 or > MaxRealItemId || !(IsEquippable(id) || (includeCoffers && (IsGearCoffer(id) || _tracked.Contains(id)))))
             {
                 continue;
             }
@@ -242,12 +335,16 @@ public sealed class GameInventorySource : IInventorySource
         }
     }
 
-    private unsafe void AddGlamourDresser(List<InventoryItemDto> items)
+    /// <summary>Adds the glamour dresser's gear and reports how many pieces were found.</summary>
+    /// <param name="items">The scan being built.</param>
+    /// <returns>The number of dresser pieces added — zero also means "could not read it".</returns>
+    private unsafe int AddGlamourDresser(List<InventoryItemDto> items)
     {
+        var added = 0;
         var mirage = MirageManager.Instance();
         if (mirage == null)
         {
-            return;
+            return 0;
         }
 
         var ids = mirage->PrismBoxItemIds;
@@ -274,12 +371,42 @@ public sealed class GameInventorySource : IInventorySource
                 Hq = hq,
                 Qty = 1,
             });
+            added++;
         }
+
+        return added;
     }
 
     private bool IsEquippable(int itemId)
     {
         var sheet = _data.GetExcelSheet<LuminaItem>();
         return sheet is not null && sheet.TryGetRow((uint)itemId, out var row) && row.EquipSlotCategory.RowId > 0;
+    }
+
+    /// <summary>
+    /// Whether an item is a gear coffer: a usable item (<c>ItemAction != 0</c>, which rules out housing
+    /// "coffers" and other name collisions) whose name carries a coffer marker. The server only keeps
+    /// the coffer ids it actually knows (via its tier config), so a rare false positive is harmless;
+    /// the real risk — missing a real coffer — cannot happen, as every gear coffer's name contains the
+    /// marker. Locale-bound: only recognised on a DE/EN client (see <see cref="CofferNameMarkers"/>).
+    /// </summary>
+    private bool IsGearCoffer(int itemId)
+    {
+        var sheet = _data.GetExcelSheet<LuminaItem>();
+        if (sheet is null || !sheet.TryGetRow((uint)itemId, out var row) || row.ItemAction.RowId == 0)
+        {
+            return false;
+        }
+
+        var name = row.Name.ExtractText();
+        foreach (var marker in CofferNameMarkers)
+        {
+            if (name.Contains(marker, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
