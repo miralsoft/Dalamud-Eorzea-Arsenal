@@ -25,6 +25,32 @@ public sealed class HoldingsServiceTests
         Assert.Equal([49757L, 49763L, 44549L], tracked!.Data);
     }
 
+    /// <summary>
+    /// The server sends the game's instance ids beside the English duty names, but omits any it could
+    /// not resolve — so the two lists only correspond when there is one id per name. Anything else has
+    /// to fall back, or a fight gets labelled with another fight's name.
+    /// </summary>
+    [Fact]
+    public void DutyContentIdsAreOptionalAndNotIndexAligned()
+    {
+        var aligned = JsonSerializer.Deserialize<FarmRoute>(
+            """{"kind":"drop","duties":["AAC Heavyweight M3 (Savage)"],"duty_content_ids":[30159]}""",
+            EorzeaJson.Options)!;
+        Assert.Equal([30159L], aligned.DutyContentIds);
+        Assert.Equal(aligned.Duties!.Count, aligned.DutyContentIds!.Count);
+
+        // Two fights, one resolvable id: the lists no longer correspond and must not be paired.
+        var partial = JsonSerializer.Deserialize<FarmRoute>(
+            """{"kind":"drop","duties":["A (Savage)","B (Savage)"],"duty_content_ids":[30159]}""",
+            EorzeaJson.Options)!;
+        Assert.NotEqual(partial.Duties!.Count, partial.DutyContentIds!.Count);
+
+        // An older server sends no ids at all, which must stay harmless.
+        var legacy = JsonSerializer.Deserialize<FarmRoute>(
+            """{"kind":"drop","duties":["A (Savage)"]}""", EorzeaJson.Options)!;
+        Assert.Null(legacy.DutyContentIds);
+    }
+
     [Fact]
     public void PieceCostCarriesBaseIds()
     {

@@ -95,6 +95,14 @@ public static class ReleaseNotes
                 "Dieser Bereich: 'Was ist neu' fasst nach jedem Update die wichtigsten Änderungen zusammen.",
                 "This very page: 'What's new' sums up the important changes after each update."),
             new ReleaseNoteItem(
+                ReleaseNoteKind.Fixed,
+                "Bezugswege sprechen jetzt deine Sprache: Koffer, Material, Bücher, Händler, Zonen und Kampfnamen kommen aus den Spieldaten statt auf Englisch vom Server.",
+                "Sourcing now speaks your language: coffers, materials, books, vendors, zones and fight names come from the game's own data instead of arriving in English."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Fixed,
+                "In der Gruppen-Farm wurde der Bedarf jedes Mitglieds gegen deine eigenen Bestände gerechnet. Bei anderen steht jetzt, was das Set braucht — ihr Bestand ist für das Plugin nicht sichtbar und wird nicht mehr geraten.",
+                "The group farm measured every member's remaining cost against your own stock. A teammate's row now states what the set requires — their stock is not visible to the plugin and is no longer guessed at."),
+            new ReleaseNoteItem(
                 ReleaseNoteKind.Improved,
                 "Der Chat-Befehl heißt jetzt /xivarsenal (vorher /bisexport) — das Plugin kann längst mehr als BiS-Export.",
                 "The chat command is now /xivarsenal (was /bisexport) — the plugin long outgrew a pure BiS export."),

@@ -47,9 +47,9 @@ public interface IWorldActions
     /// English; the game holds every language, so anything it can identify by id is shown the way the
     /// player sees it in game.
     /// </summary>
-    /// <param name="npcId">The NPC's resident row id as the server sends it.</param>
-    /// <param name="englishName">The server's English name, used to confirm the row really is that NPC.</param>
-    /// <returns>The localized name, or <see langword="null"/> when it cannot be confirmed.</returns>
+    /// <param name="npcId">The NPC's <c>ENpcResident</c> row id, as the server sends it.</param>
+    /// <param name="englishName">The server's English name (kept for the caller's fallback).</param>
+    /// <returns>The localized name, or <see langword="null"/> when the id is unknown.</returns>
     string? LocalizedNpcName(long npcId, string? englishName);
 
     /// <summary>The game's own name for an item, in the client's language.</summary>
@@ -65,6 +65,15 @@ public interface IWorldActions
     /// <param name="englishName">The duty name as the server sends it.</param>
     /// <returns>The localized name, or <see langword="null"/> when it cannot be matched.</returns>
     string? LocalizedDutyName(string? englishName);
+
+    /// <summary>
+    /// The game's own name for a duty, found by its <c>InstanceContent</c> id — the exact way, with no
+    /// spelling to match. The id names the instance; the name the player knows lives on the Duty Finder
+    /// row that points at it.
+    /// </summary>
+    /// <param name="instanceContentId">The instance's game id, as the server now sends it.</param>
+    /// <returns>The localized name, or <see langword="null"/> when the id is unknown.</returns>
+    string? LocalizedDutyNameById(long instanceContentId);
 
     /// <summary>The game's own name for a zone, in the client's language.</summary>
     /// <param name="territoryId">The territory id, when the server sent one.</param>
@@ -86,6 +95,10 @@ public sealed class WorldActions : IWorldActions
     // English duty name (lower-case) -> ContentFinderCondition row. Built once, lazily; the server
     // sends duty names as plain text with no id, so the English name is the only handle we have.
     private Dictionary<string, uint>? _dutyByEnglishName;
+
+    // InstanceContent id -> Duty Finder row. Built once, lazily; the exact path once the server sends
+    // the game's own id for a fight.
+    private Dictionary<uint, uint>? _dutyByContentId;
 
     /// <summary>Creates the world-actions seam.</summary>
     /// <param name="gameGui">Dalamud game GUI (opens the map).</param>
@@ -206,25 +219,11 @@ public sealed class WorldActions : IWorldActions
 
         try
         {
+            // Confirmed with the server: this is an ENpcResident row, so the lookup is direct — no
+            // cross-check against the English name needed, and no second sheet read per vendor.
+            _ = englishName;
             var localized = _data.GetExcelSheet<LuminaENpc>()?.GetRowOrDefault((uint)npcId)?.Singular.ExtractText();
-            if (string.IsNullOrEmpty(localized))
-            {
-                return null;
-            }
-
-            // The id's meaning is the server's word, so confirm it: the same row read in English has to
-            // be the name the server sent. A mismatch means the id is not this NPC, and showing the
-            // wrong vendor is worse than showing an English one.
-            if (!string.IsNullOrEmpty(englishName))
-            {
-                var english = _data.GetExcelSheet<LuminaENpc>(ClientLanguage.English)?.GetRowOrDefault((uint)npcId)?.Singular.ExtractText();
-                if (!string.Equals(english?.Trim(), englishName.Trim(), StringComparison.OrdinalIgnoreCase))
-                {
-                    return null;
-                }
-            }
-
-            return localized;
+            return string.IsNullOrEmpty(localized) ? null : localized;
         }
         catch
         {
@@ -270,6 +269,62 @@ public sealed class WorldActions : IWorldActions
         {
             return null;
         }
+    }
+
+    /// <inheritdoc />
+    public string? LocalizedDutyNameById(long instanceContentId)
+    {
+        if (instanceContentId is <= 0 or > uint.MaxValue)
+        {
+            return null;
+        }
+
+        try
+        {
+            return DutyByContent().TryGetValue((uint)instanceContentId, out var rowId)
+                && _data.GetExcelSheet<LuminaDuty>()?.GetRowOrDefault(rowId)?.Name.ExtractText() is { Length: > 0 } name
+                ? name
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Builds (once) the <c>InstanceContent</c> id → Duty Finder row index. The server sends the
+    /// instance id, but the name a player recognises sits on the Duty Finder row pointing at it.
+    /// </summary>
+    private Dictionary<uint, uint> DutyByContent()
+    {
+        if (_dutyByContentId is not null)
+        {
+            return _dutyByContentId;
+        }
+
+        var index = new Dictionary<uint, uint>();
+        try
+        {
+            if (_data.GetExcelSheet<LuminaDuty>() is { } duties)
+            {
+                foreach (var duty in duties)
+                {
+                    var contentId = duty.Content.RowId;
+                    if (contentId != 0)
+                    {
+                        index.TryAdd(contentId, duty.RowId);
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Without the index the English name simply stays.
+        }
+
+        _dutyByContentId = index;
+        return index;
     }
 
     /// <summary>Builds (once) the English-duty-name → row index used to localize the server's duty text.</summary>

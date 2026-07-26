@@ -479,6 +479,14 @@ public sealed class FarmRoute
     /// <summary>The fights it drops in (<c>drop</c>).</summary>
     public List<string>? Duties { get; init; }
 
+    /// <summary>
+    /// The game's own <c>InstanceContent</c> ids for those fights, so a client can name each one in the
+    /// player's language instead of matching English spellings. <b>Not</b> index-aligned with
+    /// <see cref="Duties"/>: a duty the server has no id for is simply absent, so this list can be
+    /// shorter or missing entirely.
+    /// </summary>
+    public List<long>? DutyContentIds { get; init; }
+
     /// <summary>The price components (<c>trade</c>/<c>craft</c>).</summary>
     public List<FarmCostPart>? Cost { get; init; }
 

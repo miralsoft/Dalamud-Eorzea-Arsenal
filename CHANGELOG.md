@@ -83,6 +83,21 @@ All notable changes to this project are documented here. The format is based on
   section is opened.
 
 ### Fixed
+- **The sourcing speaks the client's language.** Coffers, materials, books, vendors, zones and fight
+  names were English throughout, because the server names things in English while the game carries
+  every language itself. Anything the server identifies by id is now named by the game — items,
+  coffers, vendor NPCs (`ENpcResident`), zones (`TerritoryType` → `PlaceName`) and fights (the
+  server's new `duty_content_ids`, paired only when there is one id per name, since it omits the ones
+  it cannot resolve). Every lookup falls back to the server's English text, so nothing can read worse
+  than before. Shop labels stay English on purpose: they are the data source's own wording and have no
+  game row to look up.
+- **A teammate's row no longer answers from your bags.** The team farm measured every member's
+  remaining cost against the player's own holdings, so someone else's line claimed they were short
+  materials — or already owned a base piece — purely because the player was. The plugin can see
+  nobody else's bags, retainers or tomestones (`/me/holdings` is caller-only and now pinned to the
+  character on screen; the farm endpoint carries only shared gear). A teammate's row now states what
+  the set requires and says plainly that their stock is not visible; only the player's own row is
+  measured. The equipped check stays for everyone — what a member wears comes from the team data.
 - **Owned counts no longer read 0 for anything the server does not track.** The server's holdings won
   unconditionally, but a server `0` means "no record", not "you own none": the weekly tomestone is a
   currency and is never part of the inventory sync at all, so a player holding 1109 was shown `0/495`.

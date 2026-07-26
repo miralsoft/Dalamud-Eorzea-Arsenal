@@ -366,7 +366,14 @@ internal sealed class SourcingView
             case "drop":
                 // The coffer carries an item id, so it can be named in the player's language.
                 var coffer = route.Via is { } via ? ItemName(via.Id, via.Name) : null;
-                steps.Add(new SourceStep(StepKind.Fight, [], route.Npc?.FirstOrDefault(), null, coffer, route.Duties ?? [], null));
+                steps.Add(new SourceStep(
+                    StepKind.Fight,
+                    [],
+                    route.Npc?.FirstOrDefault(),
+                    null,
+                    coffer,
+                    LocalizeDuties(route.Duties, route.DutyContentIds),
+                    null));
                 break;
 
             case "retired":
@@ -650,14 +657,39 @@ internal sealed class SourcingView
     private string DutyName(string englishName) =>
         _world.LocalizedDutyName(englishName) ?? englishName;
 
+    /// <summary>
+    /// The fight names in the player's language. The server sends the game's own instance ids
+    /// alongside the English names, which is the exact way — but it omits the ones it could not
+    /// resolve, so the ids only line up with the names when there is one for each. Anything else falls
+    /// back to matching the English spelling, which is approximate but never mislabels a fight.
+    /// </summary>
+    /// <param name="names">The English duty names.</param>
+    /// <param name="contentIds">The parallel instance ids, when the server knew all of them.</param>
+    /// <returns>The names to display.</returns>
+    private IReadOnlyList<string> LocalizeDuties(List<string>? names, List<long>? contentIds)
+    {
+        if (names is not { Count: > 0 })
+        {
+            return [];
+        }
+
+        if (contentIds is { Count: > 0 } ids && ids.Count == names.Count)
+        {
+            return [.. names.Select((name, i) => _world.LocalizedDutyNameById(ids[i]) ?? DutyName(name))];
+        }
+
+        return [.. names.Select(DutyName)];
+    }
+
     private string StepWhere(SourceStep step)
     {
         if (step.Kind == StepKind.Fight)
         {
             // Prefer the fight name(s); if the server did not link one, the coffer name is the fallback.
+            // They are already in the player's language — see LocalizeDuties.
             if (step.Duties is { Count: > 0 } d)
             {
-                return string.Join(", ", d.Select(DutyName));
+                return string.Join(", ", d);
             }
 
             return step.Coffer is { Length: > 0 } coffer ? $"{T(LocKeys.TeamsFarmCoffer)}: {coffer}" : string.Empty;
