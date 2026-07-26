@@ -9,6 +9,7 @@ using Dalamud.Plugin.Services;
 using Dalamud.Utility;
 using EorzeaArsenal.Abstractions;
 using EorzeaArsenal.Core;
+using EorzeaArsenal.Gear;
 using EorzeaArsenal.Localization;
 using EorzeaArsenal.Model;
 using EorzeaArsenal.Plugin.Configuration;
@@ -1028,7 +1029,7 @@ public sealed class TeamsWindow : Window
             var isSelf = _myCharacterId() is { } me && entry.CharacterId == me;
 
             var notWorn = target
-                .Where(kv => kv.Value.Id != 0 && (entry.Equipped is null || !entry.Equipped.TryGetValue(kv.Key, out var eq) || eq.Id != kv.Value.Id))
+                .Where(kv => kv.Value.Id != 0 && !IsTargetWorn(entry, kv.Key, kv.Value.Id))
                 .Select(kv => (Slot: kv.Key, Item: kv.Value, Sourcing: EnrichedSourcing(kv.Value), Equipped: EquippedId(entry, kv.Key)))
                 .OrderBy(m => SourcingView.SourceRank(m.Sourcing.Source))
                 .ThenBy(m => _sourcing.SlotName(m.Slot), StringComparer.CurrentCultureIgnoreCase)
@@ -1061,6 +1062,13 @@ public sealed class TeamsWindow : Window
 
     private static long EquippedId(FarmEntry entry, string slot) =>
         entry.Equipped is not null && entry.Equipped.TryGetValue(slot, out var eq) ? eq.Id : 0;
+
+    /// <summary>
+    /// Whether a slot's target piece is already being worn, using the shared slot rule so rings count
+    /// as interchangeable — a swapped pair is not two missing rings.
+    /// </summary>
+    private static bool IsTargetWorn(FarmEntry entry, string slot, long targetItemId) =>
+        SlotMatching.IsWorn(slot, targetItemId, s => EquippedId(entry, s));
 
     /// <summary>Warms the owned counts for a set's target pieces, so "already yours" can be told.</summary>
     private void PrefetchFarmHoldings(IEnumerable<long> itemIds)
