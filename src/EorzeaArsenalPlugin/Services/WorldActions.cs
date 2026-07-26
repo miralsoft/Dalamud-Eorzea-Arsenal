@@ -364,28 +364,49 @@ public sealed class WorldActions : IWorldActions
     {
         try
         {
-            var territory = territoryId is > 0 and <= uint.MaxValue ? (uint)territoryId.Value : 0u;
+            var id = territoryId is > 0 and <= uint.MaxValue ? (uint)territoryId.Value : 0u;
 
-            // Without an id the English name still identifies the zone — the same index the map pin uses.
-            if (territory == 0 && !string.IsNullOrEmpty(englishName)
-                && ZoneIndex().TryGetValue(englishName.ToLowerInvariant(), out var byName))
-            {
-                territory = byName.Territory;
-            }
-
-            if (territory == 0 || _data.GetExcelSheet<LuminaTerritory>()?.GetRowOrDefault(territory) is not { } row)
-            {
-                return null;
-            }
-
-            var name = _data.GetExcelSheet<LuminaPlaceName>()?.GetRowOrDefault(row.PlaceName.RowId)?.Name.ExtractText();
-            return string.IsNullOrEmpty(name) ? null : name;
+            // Three ways to the same name, tried in order of certainty. The id's meaning is the
+            // server's to define and has been a territory so far, but a zone id that turns out to be a
+            // place name — or a row without a name on it — must not cost the player their language.
+            return NameOfTerritory(id)
+                ?? NameOfPlace(id)
+                ?? NameOfTerritory(TerritoryForEnglishName(englishName));
         }
         catch
         {
             return null;
         }
     }
+
+    /// <summary>The localized zone name behind a <c>TerritoryType</c> row.</summary>
+    private string? NameOfTerritory(uint territoryId)
+    {
+        if (territoryId == 0 || _data.GetExcelSheet<LuminaTerritory>()?.GetRowOrDefault(territoryId) is not { } row)
+        {
+            return null;
+        }
+
+        return NameOfPlace(row.PlaceName.RowId);
+    }
+
+    /// <summary>The localized name on a <c>PlaceName</c> row.</summary>
+    private string? NameOfPlace(uint placeId)
+    {
+        if (placeId == 0)
+        {
+            return null;
+        }
+
+        var name = _data.GetExcelSheet<LuminaPlaceName>()?.GetRowOrDefault(placeId)?.Name.ExtractText();
+        return string.IsNullOrEmpty(name) ? null : name;
+    }
+
+    /// <summary>The territory an English zone name belongs to — the same index the map pin uses.</summary>
+    private uint TerritoryForEnglishName(string? englishName) =>
+        !string.IsNullOrEmpty(englishName) && ZoneIndex().TryGetValue(englishName.Trim().ToLowerInvariant(), out var hit)
+            ? hit.Territory
+            : 0u;
 
     /// <summary>Builds (once) the English-zone-name → (territory, map) index used as the last-resort resolver.</summary>
     private Dictionary<string, (uint Territory, uint Map)> ZoneIndex()

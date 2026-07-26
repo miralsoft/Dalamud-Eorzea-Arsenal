@@ -971,6 +971,9 @@ public static class LocKeys
     /// <summary>Advisor: nothing deterministic left to do.</summary>
     public const string AdvisorNothingToDo = "advisor.nothingtodo";
 
+    /// <summary>Advisor: slots are still open, but none of them is a step you can plan for.</summary>
+    public const string AdvisorNoSteps = "advisor.nosteps";
+
     /// <summary>Advisor: heading of the remaining material/book needs.</summary>
     public const string AdvisorNeeds = "advisor.needs";
 
@@ -1024,6 +1027,9 @@ public static class LocKeys
 
     /// <summary>BiS: nothing left to buy or collect for this set.</summary>
     public const string BisNeedsNothing = "bis.needs.nothing";
+
+    /// <summary>BiS: slots are still open, but nothing is known about what they cost.</summary>
+    public const string BisNeedsUnknown = "bis.needs.unknown";
 
     /// <summary>Config: purchase-advisor text size.</summary>
     public const string AdvisorScale = "advisor.scale";

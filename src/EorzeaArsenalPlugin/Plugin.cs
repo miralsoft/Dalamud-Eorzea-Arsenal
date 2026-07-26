@@ -487,6 +487,7 @@ public sealed class Plugin : IDalamudPlugin
                         + $" coffer='{(route?.Via is { } via ? _worldActions.LocalizedItemName(via.Id) ?? "(miss)" : "(none)")}'"
                         + $" npc='{(route?.Npc is { Count: > 0 } np ? _worldActions.LocalizedNpcName(np[0].Id, np[0].Name) ?? "(miss)" : "(none)")}'"
                         + $" zone='{(route?.Npc is { Count: > 0 } nz ? _worldActions.LocalizedZoneName(nz[0].ZoneId, nz[0].Zone) ?? "(miss)" : "(none)")}'"
+                        + $" zoneRaw='{(route?.Npc is { Count: > 0 } nr ? $"{nr[0].Zone ?? "(null)"}/id={nr[0].ZoneId?.ToString() ?? "(null)"}/map={nr[0].MapId?.ToString() ?? "(null)"}" : "(none)")}'"
                         + $" dutyIds={(route?.DutyContentIds is { Count: > 0 } di ? string.Join("|", di) : "(none)")}"
                         + $" dutyByName='{(route?.Duties is { Count: > 0 } dn ? _worldActions.LocalizedDutyName(dn[0]) ?? "(miss)" : "(none)")}'");
                 }

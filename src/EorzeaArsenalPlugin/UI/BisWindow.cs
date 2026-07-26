@@ -394,7 +394,22 @@ public sealed class BisWindow : Window
         var materials = options.TargetNeeds?.Materials ?? [];
         if (tomes <= 0 && materials.Count == 0)
         {
-            ImGui.TextColored(Green, T(LocKeys.BisNeedsNothing));
+            // "Nothing to get" is only true when the set is actually complete. With slots still open it
+            // means the opposite: the remaining pieces have no purchase behind them (an Ultimate weapon
+            // is won, not bought), so saying "nothing left" would claim the set was done when it isn't.
+            var open = comparison.Slots.Count(s => s.Status != SlotMatch.Match);
+            if (open > 0)
+            {
+                using (ImRaii.PushColor(ImGuiCol.Text, Muted))
+                {
+                    ImGui.TextWrapped(_localizer.Get(LocKeys.BisNeedsUnknown, open));
+                }
+            }
+            else
+            {
+                ImGui.TextColored(Green, T(LocKeys.BisNeedsNothing));
+            }
+
             return;
         }
 

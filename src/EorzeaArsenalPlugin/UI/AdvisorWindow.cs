@@ -362,7 +362,19 @@ public sealed class AdvisorWindow : Window
         var steps = options.Steps ?? [];
         if (steps.Count == 0)
         {
-            ImGui.TextColored(Green, T(LocKeys.AdvisorNothingToDo));
+            // No steps does not mean the set is done: a slot whose BiS cannot be bought — an Ultimate
+            // weapon, a relic — is open with nothing to plan for it. Saying "nothing to do" there would
+            // claim the set was finished while a slot still sits red in the grid.
+            var slots = options.Slots ?? [];
+            var open = slots.Count(kv => !IsOnBis(kv.Key, kv.Value, slots));
+            if (open > 0)
+            {
+                Wrapped(Muted, _localizer.Get(LocKeys.AdvisorNoSteps, open));
+            }
+            else
+            {
+                ImGui.TextColored(Green, T(LocKeys.AdvisorNothingToDo));
+            }
         }
 
         for (var i = 0; i < steps.Count; i++)
