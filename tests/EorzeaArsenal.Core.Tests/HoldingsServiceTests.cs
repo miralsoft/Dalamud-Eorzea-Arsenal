@@ -51,6 +51,33 @@ public sealed class HoldingsServiceTests
         Assert.Null(legacy.DutyContentIds);
     }
 
+    /// <summary>
+    /// The farm's <c>owned</c> map is the fact a reader cannot get from <c>equipped</c>: a member who
+    /// owns the augmented piece but still wears the base looks, from outside, like one who owns
+    /// nothing. Slots the target does not name are absent — "no goal" is not "not reached".
+    /// </summary>
+    [Fact]
+    public void FarmEntryCarriesWhatAMemberOwns()
+    {
+        const string body = """
+        {"data":[{"character_id":42,"job":"DRK","name":"2.50",
+          "equipped":{"Neck":{"id":49643}},
+          "target":{"Neck":{"id":49647},"Weapon":{"id":49668}},
+          "owned":{"Neck":true,"Weapon":false}}]}
+        """;
+
+        var entry = JsonSerializer.Deserialize<FarmResponse>(body, EorzeaJson.Options)!.Data![0];
+
+        Assert.True(entry.Owned!["Neck"]);      // has the augmented piece, just not worn
+        Assert.False(entry.Owned["Weapon"]);
+        Assert.DoesNotContain("Body", entry.Owned.Keys);
+
+        // An older server sends none, which has to stay harmless.
+        var legacy = JsonSerializer.Deserialize<FarmResponse>(
+            """{"data":[{"job":"DRK","target":{"Neck":{"id":49647}}}]}""", EorzeaJson.Options)!.Data![0];
+        Assert.Null(legacy.Owned);
+    }
+
     [Fact]
     public void PieceCostCarriesBaseIds()
     {

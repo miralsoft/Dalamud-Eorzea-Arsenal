@@ -89,7 +89,18 @@ All notable changes to this project are documented here. The format is based on
   so one sitting on a retainer counts. A teammate's row is never re-ordered — their stock is not
   visible, so there is nothing to rank by.
 
+- **The farm knows what a member owns, not just what they wear.** The server now answers that per
+  slot (worn, ticked off by the team, or marked as an upgraded tier), so a teammate holding the
+  augmented neck while still wearing the base is no longer told to buy the upgrade — and the counts
+  match the web tracker instead of reading high. Your own row adds what the plugin can see itself, so
+  a piece bought since the last sync counts immediately.
+
 ### Fixed
+- **The glamour dresser no longer clears itself.** Like the saddlebag it only reads after the player
+  has opened it — and unlike the saddlebag the client exposes no "loaded" flag at all, so an unopened
+  dresser is indistinguishable from an emptied one. It is now its own reconciliation scope, declared
+  only when pieces were actually found; an emptied dresser therefore keeps its last known contents,
+  which is the harmless direction.
 - **A swapped ring pair is no longer two missing rings.** The farm compared finger by finger, so
   wearing both BiS rings the other way round listed them as still to get. The rule (rings are
   interchangeable) now lives once in the core, tested, instead of being re-derived per view.

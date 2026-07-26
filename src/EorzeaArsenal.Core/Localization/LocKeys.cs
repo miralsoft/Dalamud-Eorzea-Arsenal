@@ -1016,6 +1016,9 @@ public static class LocKeys
     /// <summary>Farm: the piece is already in a bag, only waiting to be put on.</summary>
     public const string TeamsFarmJustEquip = "teams.farm.justequip";
 
+    /// <summary>Farm: a member already has the piece — neutral wording, since it is not the player.</summary>
+    public const string TeamsFarmAlreadyHas = "teams.farm.alreadyhas";
+
     /// <summary>Farm: how many pieces are only waiting to be put on.</summary>
     public const string TeamsFarmJustEquipCount = "teams.farm.justequip.count";
 

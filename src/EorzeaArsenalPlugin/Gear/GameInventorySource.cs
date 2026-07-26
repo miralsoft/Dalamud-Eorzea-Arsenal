@@ -155,8 +155,6 @@ public sealed class GameInventorySource : IInventorySource
                 AddContainer(items, t, InventoryContainers.Bags, includeCoffers: true);
             }
 
-            AddGlamourDresser(items);
-
             // The saddlebag is its own scope and is only declared when it was actually read. Reporting
             // it unread would say "it is empty" — the containers read as empty, not as unavailable,
             // until the player has opened the bag once in this session.
@@ -169,6 +167,14 @@ public sealed class GameInventorySource : IInventorySource
                 }
 
                 scopes.Add(InventoryProtocol.ScopeSaddlebag);
+            }
+
+            // The dresser has the same trap and no "loaded" flag to check, so finding at least one
+            // piece is the only evidence it was read. That makes an emptied dresser keep its last
+            // known contents — the harmless direction, and the one the server's contract expects.
+            if (AddGlamourDresser(items) > 0)
+            {
+                scopes.Add(InventoryProtocol.ScopeGlamour);
             }
 
             return new InventoryData
@@ -329,12 +335,16 @@ public sealed class GameInventorySource : IInventorySource
         }
     }
 
-    private unsafe void AddGlamourDresser(List<InventoryItemDto> items)
+    /// <summary>Adds the glamour dresser's gear and reports how many pieces were found.</summary>
+    /// <param name="items">The scan being built.</param>
+    /// <returns>The number of dresser pieces added — zero also means "could not read it".</returns>
+    private unsafe int AddGlamourDresser(List<InventoryItemDto> items)
     {
+        var added = 0;
         var mirage = MirageManager.Instance();
         if (mirage == null)
         {
-            return;
+            return 0;
         }
 
         var ids = mirage->PrismBoxItemIds;
@@ -361,7 +371,10 @@ public sealed class GameInventorySource : IInventorySource
                 Hq = hq,
                 Qty = 1,
             });
+            added++;
         }
+
+        return added;
     }
 
     private bool IsEquippable(int itemId)

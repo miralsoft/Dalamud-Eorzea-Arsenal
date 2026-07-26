@@ -128,6 +128,14 @@ public static class InventoryProtocol
     /// </summary>
     public const string ScopeSaddlebag = "saddlebag";
 
+    /// <summary>
+    /// The glamour dresser's own scope, for the same reason as the saddlebag: the game fills the prism
+    /// box only after the player has opened it, and it reads as <i>empty</i> until then. Worse than the
+    /// saddlebag, in fact — the client structures expose no "loaded" flag at all, so an unopened
+    /// dresser is indistinguishable from an emptied one and the scope must simply not be declared.
+    /// </summary>
+    public const string ScopeGlamour = "glamour";
+
     /// <summary>The user's manual website markings — the plugin must <b>never</b> send this scope.</summary>
     public const string ScopeManual = "manual";
 
@@ -152,6 +160,7 @@ public static class InventoryProtocol
     {
         InventoryContainers.Retainer => RetainerScope(item.SourceId),
         InventoryContainers.Saddlebag => ScopeSaddlebag,
+        InventoryContainers.Glamour => ScopeGlamour,
         _ => ScopeCharacter,
     };
 }
@@ -181,10 +190,12 @@ public static class InventoryContainers
     public const string Retainer = "retainer";
 
     /// <summary>
-    /// The containers that together form the <c>character</c> scope. The saddlebag is deliberately not
-    /// among them — it has its own scope, because it only reads after the player has opened it.
+    /// The containers that together form the <c>character</c> scope. The saddlebag and the glamour
+    /// dresser are deliberately not among them — both have their own scope, because both only read
+    /// after the player has opened them. The armoire stays: it is read from a structure that is always
+    /// available.
     /// </summary>
     public static readonly IReadOnlySet<string> CharacterContainers = new HashSet<string>(
-        [Equipped, Armoury, Bags, Glamour, Armoire],
+        [Equipped, Armoury, Bags, Armoire],
         StringComparer.Ordinal);
 }

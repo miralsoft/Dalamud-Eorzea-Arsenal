@@ -1035,17 +1035,16 @@ public sealed class TeamsWindow : Window
                 .ThenBy(m => _sourcing.SlotName(m.Slot), StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
 
-            // "Not worn" is not the same as "still to farm": a piece can be sitting in a bag. For the
-            // player's own character the plugin can tell the two apart, so it does — otherwise the farm
-            // list sends them after something they already own. For a teammate it cannot, and the whole
-            // list stays as-is rather than guessing.
+            // "Not worn" is not the same as "still to farm": a piece can be sitting in a bag, or the
+            // team may have ticked it off. The server answers that per slot for everyone now; for the
+            // player's own character the plugin can additionally see the bags themselves.
             if (isSelf)
             {
                 PrefetchFarmHoldings(notWorn.Select(m => m.Item.Id));
             }
 
-            var owned = isSelf ? notWorn.Where(m => OwnsPiece(m.Item.Id)).ToList() : [];
-            var missing = isSelf ? notWorn.Where(m => !OwnsPiece(m.Item.Id)).ToList() : notWorn;
+            var owned = notWorn.Where(m => HasPiece(entry, m.Slot, m.Item.Id, isSelf)).ToList();
+            var missing = notWorn.Where(m => !HasPiece(entry, m.Slot, m.Item.Id, isSelf)).ToList();
 
             if (missing.Count == 0 && owned.Count == 0)
             {
@@ -1086,6 +1085,25 @@ public sealed class TeamsWindow : Window
     /// </summary>
     private bool OwnsPiece(long itemId) =>
         itemId > 0 && (_holdings.TryGet(itemId, out var stored) && stored > 0 || _world.OwnedCount((uint)itemId) > 0);
+
+    /// <summary>
+    /// Whether a member already has a slot's target piece, whether or not they are wearing it.
+    /// </summary>
+    /// <remarks>
+    /// The server answers this for every member (worn, ticked off by the team, or marked as an
+    /// upgraded tier) — the fact that turns "eleven open" into the five the web tracker shows. For the
+    /// player's own character the plugin adds what it can see itself: a piece bought since the last
+    /// sync is in the bag before the server hears about it. An older server sends no such map, and
+    /// then only the player's own row can be answered at all.
+    /// </remarks>
+    /// <param name="entry">The member's farm row.</param>
+    /// <param name="slot">The contract slot key.</param>
+    /// <param name="itemId">The slot's target item.</param>
+    /// <param name="isSelf">Whether this row is the player's own character.</param>
+    /// <returns><see langword="true"/> when the piece needs no farming.</returns>
+    private bool HasPiece(FarmEntry entry, string slot, long itemId, bool isSelf) =>
+        (entry.Owned is { } owned && owned.TryGetValue(slot, out var held) && held)
+        || (isSelf && OwnsPiece(itemId));
 
     /// <summary>The (source, routes) a farm piece renders from — the chain-complete obtain data when it
     /// has loaded, else the farm's own chain-less routes as a fallback.</summary>
@@ -1269,7 +1287,7 @@ public sealed class TeamsWindow : Window
 
                 ImGui.TableNextColumn();
                 ImGui.AlignTextToFramePadding();
-                ImGui.TextColored(Green, T(LocKeys.TeamsFarmJustEquip));
+                ImGui.TextColored(Green, T(isSelf ? LocKeys.TeamsFarmJustEquip : LocKeys.TeamsFarmAlreadyHas));
             }
 
             foreach (var (slot, _, sourcing, equipped) in missing)

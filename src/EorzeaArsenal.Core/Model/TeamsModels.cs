@@ -428,6 +428,20 @@ public sealed class FarmEntry
     /// <summary>Equipped items, slot → { id }.</summary>
     public Dictionary<string, FarmSlot>? Equipped { get; init; }
 
+    /// <summary>
+    /// Per target slot: does this member already <b>have</b> the piece, worn or not. The one fact
+    /// <see cref="Equipped"/> cannot give — someone who owns the augmented neck but still wears the
+    /// base looks from outside exactly like someone who owns nothing.
+    /// </summary>
+    /// <remarks>
+    /// Held means worn (rings count as a pair), ticked off by the team, or marked as a
+    /// <c>tomeplus</c>/<c>raid</c> tier. Deliberately not held: the <c>tome</c> tier, which says the
+    /// base is there and the upgrade is not — the one case where "upgrade it" is the right advice.
+    /// Slots the target does not name are absent rather than <see langword="false"/>. Says nothing
+    /// about bags, materials or tomestones, and only appears for sets already shared with the team.
+    /// </remarks>
+    public Dictionary<string, bool>? Owned { get; init; }
+
     /// <summary>Target (BiS) items, slot → { id }; <see langword="null"/> if no BiS resolved.</summary>
     public Dictionary<string, FarmSlot>? Target { get; init; }
 

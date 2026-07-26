@@ -37,6 +37,34 @@ public sealed class InventorySanitizerTests
         Assert.DoesNotContain(InventoryProtocol.ScopeSaddlebag, clean.Scopes);
     }
 
+    /// <summary>
+    /// The glamour dresser has the saddlebag's problem and no "loaded" flag to check, so it too
+    /// reconciles on its own. The armoire stays in the character scope — it reads from a structure
+    /// that is always there.
+    /// </summary>
+    [Fact]
+    public void The_dresser_reconciles_on_its_own_but_the_armoire_does_not()
+    {
+        var dresser = new InventoryItemDto { ItemId = 49671, Container = InventoryContainers.Glamour };
+        var armoire = new InventoryItemDto { ItemId = 49672, Container = InventoryContainers.Armoire };
+
+        Assert.Equal(InventoryProtocol.ScopeGlamour, InventoryProtocol.ScopeForItem(dresser));
+        Assert.Equal(InventoryProtocol.ScopeCharacter, InventoryProtocol.ScopeForItem(armoire));
+        Assert.DoesNotContain(InventoryContainers.Glamour, InventoryContainers.CharacterContainers);
+        Assert.Contains(InventoryContainers.Armoire, InventoryContainers.CharacterContainers);
+
+        // An undeclared dresser drops its items rather than clearing the stored ones.
+        var undeclared = InventorySanitizer.Sanitize(Data([InventoryProtocol.ScopeCharacter], [dresser, armoire]));
+        Assert.Single(undeclared.Items);
+        Assert.Equal(InventoryContainers.Armoire, undeclared.Items[0].Container);
+
+        // A declared one is sent and passes validation.
+        var declared = InventorySanitizer.Sanitize(Data(
+            [InventoryProtocol.ScopeCharacter, InventoryProtocol.ScopeGlamour], [dresser, armoire]));
+        Assert.Equal(2, declared.Items.Count);
+        Assert.Empty(InventoryValidator.Validate(InventoryPayload.From(declared)).Errors);
+    }
+
     /// <summary>A scanned saddlebag is declared and kept — that is the whole point of the split.</summary>
     [Fact]
     public void A_declared_saddlebag_scope_keeps_its_items()
