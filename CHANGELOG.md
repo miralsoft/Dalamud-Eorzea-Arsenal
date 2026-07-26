@@ -82,7 +82,17 @@ All notable changes to this project are documented here. The format is based on
   alternative to a savage drop exactly as the advisor ranks it, and the read only fires when the
   section is opened.
 
+- **The farm leads with what you can actually do.** For your own characters the ways in are ordered by
+  what you hold rather than by what the piece's source suggests: a coffer already in your bag reads
+  *"Coffer in hand — just open it"* instead of sending you to the fight, and a book trade you can
+  afford comes before the drop, marked *"you can do this now"*. Coffers are counted server-side too,
+  so one sitting on a retainer counts. A teammate's row is never re-ordered — their stock is not
+  visible, so there is nothing to rank by.
+
 ### Fixed
+- **A swapped ring pair is no longer two missing rings.** The farm compared finger by finger, so
+  wearing both BiS rings the other way round listed them as still to get. The rule (rings are
+  interchangeable) now lives once in the core, tested, instead of being re-derived per view.
 - **The language setting now governs game names too.** Item, vendor, zone and duty names were read in
   the game client's language regardless of what the plugin was set to, so switching the plugin to
   English left them German. They follow the plugin's setting now — which is also the only way to use

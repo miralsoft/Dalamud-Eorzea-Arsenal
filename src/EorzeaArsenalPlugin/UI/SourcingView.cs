@@ -71,6 +71,9 @@ internal sealed class SourcingView
         Market,
         Retired,
         BaseOwned,
+
+        /// <summary>The coffer this piece drops in is already in the bag — nothing left to farm.</summary>
+        CofferOwned,
     }
 
     private string T(string key) => _localizer.Get(key);
@@ -134,6 +137,13 @@ internal sealed class SourcingView
 
         foreach (var route in routes)
         {
+            // The coffer counts too: one sitting on a retainer is invisible to the live read, and it is
+            // exactly what turns "go and fight for it" into "you already have it".
+            if (route.Via is { Id: > 0 } via)
+            {
+                into.Add(via.Id);
+            }
+
             foreach (var cost in route.Cost ?? [])
             {
                 if (cost.Id is { } id && id > 0)
@@ -208,6 +218,14 @@ internal sealed class SourcingView
 
             var (ready, _) = StepStatus(steps[i]);
             ImGui.TextColored(StepColor(steps[i], ready), CompactStep(steps[i]));
+        }
+
+        // Say plainly when the way on screen is one the player can take right now — that is the whole
+        // reason it was moved to the front.
+        if (_ownershipKnown && IsDoableNow(steps))
+        {
+            ImGui.SameLine(0f, 6f);
+            ImGui.TextColored(Green, $"· {T(LocKeys.SourceDoableNow)}");
         }
 
         // There is another way in (e.g. a savage piece can also be traded for books) — name it briefly
@@ -323,8 +341,23 @@ internal sealed class SourcingView
             }
         }
 
+        // A way the player can take right now beats the one the source suggests. Holding the coffer, or
+        // having the books for the trade, is worth more than being told to go and fight for it — and
+        // seeing that without opening anything is the point. Stable, so equally-doable ways keep the
+        // server's order, and skipped entirely for a teammate, whose stock is not ours to rank by.
+        if (_ownershipKnown && methods.Count > 1)
+        {
+            return [.. methods.OrderByDescending(IsDoableNow)];
+        }
+
         return methods;
     }
+
+    /// <summary>Whether every step of a way is satisfied by what the player already holds.</summary>
+    private bool IsDoableNow(List<SourceStep> steps) =>
+        steps.Count > 0
+        && steps.All(s => s.Kind != StepKind.Retired && StepStatus(s).Ready)
+        && steps.Any(s => s.Kind is StepKind.CofferOwned or StepKind.BaseOwned or StepKind.Buy or StepKind.Augment or StepKind.Craft);
 
     /// <summary>The routes, the source's primary one first, then the rest in their given order.</summary>
     private static IEnumerable<FarmRoute> OrderedRoutes(string? source, List<FarmRoute>? routes)
@@ -367,8 +400,13 @@ internal sealed class SourcingView
             case "drop":
                 // The coffer carries an item id, so it can be named in the player's language.
                 var coffer = route.Via is { } via ? ItemName(via.Id, via.Name) : null;
+
+                // A coffer already in the bag is not a drop to chase — it is one right-click away.
+                // Only ever asked for the player's own character; a teammate's bags are not visible.
+                var haveCoffer = _ownershipKnown && route.Via is { Id: > 0 } held && Owned(held.Id) > 0;
+
                 steps.Add(new SourceStep(
-                    StepKind.Fight,
+                    haveCoffer ? StepKind.CofferOwned : StepKind.Fight,
                     [],
                     route.Npc?.FirstOrDefault(),
                     null,
@@ -582,7 +620,7 @@ internal sealed class SourcingView
     /// <summary>Whether a step is satisfied by what the player owns, plus the total items still short.</summary>
     private (bool Ready, int Short) StepStatus(SourceStep step)
     {
-        if (step.Kind is StepKind.Fight or StepKind.Market or StepKind.BaseOwned)
+        if (step.Kind is StepKind.Fight or StepKind.Market or StepKind.BaseOwned or StepKind.CofferOwned)
         {
             return (true, 0); // an action, or already done
         }
@@ -626,6 +664,9 @@ internal sealed class SourcingView
         // An activity: there is nothing to hold for it, so readiness does not apply to anyone.
         StepKind.Fight => Blue,
 
+        // You are holding the chest — as "now" as it gets.
+        StepKind.CofferOwned => Green,
+
         // A fact about the world, not about a person.
         StepKind.Retired => Red,
 
@@ -647,6 +688,7 @@ internal sealed class SourcingView
         StepKind.Market => T(LocKeys.TeamsFarmMarket),
         StepKind.Retired => T(LocKeys.TeamsFarmRetired),
         StepKind.BaseOwned => T(LocKeys.SourceBaseOwned),
+        StepKind.CofferOwned => T(LocKeys.SourceCofferOwned),
         _ => step.HandInSlot is not null && step.Costs.Count == 0 ? T(LocKeys.SourceStepBase) : T(LocKeys.SourceStepBuy),
     };
 
@@ -661,6 +703,8 @@ internal sealed class SourcingView
                 return T(LocKeys.TeamsFarmRetired);
             case StepKind.BaseOwned:
                 return T(LocKeys.SourceBaseOwned);
+            case StepKind.CofferOwned:
+                return T(LocKeys.SourceCofferOwned);
             default:
                 var headline = step.Costs.FirstOrDefault();
                 var verb = StepVerb(step);

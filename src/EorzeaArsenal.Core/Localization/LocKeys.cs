@@ -840,6 +840,12 @@ public static class LocKeys
     /// <summary>Sourcing: the base piece is already owned (equipped), so only the upgrade remains.</summary>
     public const string SourceBaseOwned = "source.baseowned";
 
+    /// <summary>Sourcing: the coffer this piece drops in is already in the bag.</summary>
+    public const string SourceCofferOwned = "source.cofferowned";
+
+    /// <summary>Sourcing: this way is doable right now with what you hold.</summary>
+    public const string SourceDoableNow = "source.doablenow";
+
     /// <summary>Sourcing: separates alternative acquisition ways ("or").</summary>
     public const string SourceOr = "source.or";
 

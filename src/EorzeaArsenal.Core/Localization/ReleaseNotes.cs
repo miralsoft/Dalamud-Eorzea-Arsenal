@@ -99,6 +99,10 @@ public static class ReleaseNotes
                 "Bezugswege sprechen jetzt deine Sprache: Koffer, Material, Bücher, Händler, Zonen und Kampfnamen kommen aus den Spieldaten statt auf Englisch vom Server.",
                 "Sourcing now speaks your language: coffers, materials, books, vendors, zones and fight names come from the game's own data instead of arriving in English."),
             new ReleaseNoteItem(
+                ReleaseNoteKind.Improved,
+                "In der Gruppen-Farm steht bei deinen eigenen Charakteren der Weg vorn, den du jetzt gehen kannst: Koffer schon in der Tasche, Bücher für den Tausch beisammen, Teil längst da — statt dich zum Kampf zu schicken.",
+                "In the group farm, your own characters lead with the way you can actually take now: the coffer already in your bag, the books for the trade in hand, the piece already yours — instead of being sent to fight for it."),
+            new ReleaseNoteItem(
                 ReleaseNoteKind.Fixed,
                 "In der Gruppen-Farm wurde der Bedarf jedes Mitglieds gegen deine eigenen Bestände gerechnet. Bei anderen steht jetzt, was das Set braucht — ihr Bestand ist für das Plugin nicht sichtbar und wird nicht mehr geraten.",
                 "The group farm measured every member's remaining cost against your own stock. A teammate's row now states what the set requires — their stock is not visible to the plugin and is no longer guessed at."),
