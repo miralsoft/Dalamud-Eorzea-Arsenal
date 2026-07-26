@@ -1007,6 +1007,12 @@ public static class LocKeys
     /// <summary>Inventory: the saddlebag has to be opened once before it can be read.</summary>
     public const string InventorySaddlebagClosed = "inventory.saddlebagclosed";
 
+    /// <summary>Farm: the piece is already in a bag, only waiting to be put on.</summary>
+    public const string TeamsFarmJustEquip = "teams.farm.justequip";
+
+    /// <summary>Farm: how many pieces are only waiting to be put on.</summary>
+    public const string TeamsFarmJustEquipCount = "teams.farm.justequip.count";
+
     /// <summary>Farm: what the step colours mean.</summary>
     public const string TeamsFarmLegend = "teams.farm.legend";
 

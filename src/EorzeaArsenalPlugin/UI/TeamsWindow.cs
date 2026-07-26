@@ -1023,32 +1023,61 @@ public sealed class TeamsWindow : Window
                 continue;
             }
 
-            var missing = target
+            // Only the player's own row may be measured against what the plugin can see. For everyone
+            // else the requirement is shown, but never a have/need — see DrawMemberNeeds.
+            var isSelf = _myCharacterId() is { } me && entry.CharacterId == me;
+
+            var notWorn = target
                 .Where(kv => kv.Value.Id != 0 && (entry.Equipped is null || !entry.Equipped.TryGetValue(kv.Key, out var eq) || eq.Id != kv.Value.Id))
                 .Select(kv => (Slot: kv.Key, Item: kv.Value, Sourcing: EnrichedSourcing(kv.Value), Equipped: EquippedId(entry, kv.Key)))
                 .OrderBy(m => SourcingView.SourceRank(m.Sourcing.Source))
                 .ThenBy(m => _sourcing.SlotName(m.Slot), StringComparer.CurrentCultureIgnoreCase)
                 .ToList();
 
-            if (missing.Count == 0)
+            // "Not worn" is not the same as "still to farm": a piece can be sitting in a bag. For the
+            // player's own character the plugin can tell the two apart, so it does — otherwise the farm
+            // list sends them after something they already own. For a teammate it cannot, and the whole
+            // list stays as-is rather than guessing.
+            if (isSelf)
+            {
+                PrefetchFarmHoldings(notWorn.Select(m => m.Item.Id));
+            }
+
+            var owned = isSelf ? notWorn.Where(m => OwnsPiece(m.Item.Id)).ToList() : [];
+            var missing = isSelf ? notWorn.Where(m => !OwnsPiece(m.Item.Id)).ToList() : notWorn;
+
+            if (missing.Count == 0 && owned.Count == 0)
             {
                 ImGui.TextColored(Green, T(LocKeys.TeamsComplete));
                 ImGui.Separator();
                 continue;
             }
 
-            // Only the player's own row may be measured against what the plugin can see. For everyone
-            // else the requirement is shown, but never a have/need — see DrawMemberNeeds.
-            var isSelf = _myCharacterId() is { } me && entry.CharacterId == me;
-
-            DrawMemberNeeds(missing, isSelf);
-            DrawFarmMissing(missing, isSelf);
+            DrawMemberNeeds(missing, owned.Count, isSelf);
+            DrawFarmMissing(missing, owned, isSelf);
             ImGui.Separator();
         }
     }
 
     private static long EquippedId(FarmEntry entry, string slot) =>
         entry.Equipped is not null && entry.Equipped.TryGetValue(slot, out var eq) ? eq.Id : 0;
+
+    /// <summary>Warms the owned counts for a set's target pieces, so "already yours" can be told.</summary>
+    private void PrefetchFarmHoldings(IEnumerable<long> itemIds)
+    {
+        var todo = itemIds.Where(id => id > 0 && !_holdings.TryGet(id, out _)).Distinct().ToList();
+        if (todo.Count > 0)
+        {
+            _ = _holdings.PrefetchAsync(todo, CancellationToken.None);
+        }
+    }
+
+    /// <summary>
+    /// Whether the player holds a piece anywhere — server holdings (retainers included) or the live
+    /// game count. Only ever asked about the player's own character.
+    /// </summary>
+    private bool OwnsPiece(long itemId) =>
+        itemId > 0 && (_holdings.TryGet(itemId, out var stored) && stored > 0 || _world.OwnedCount((uint)itemId) > 0);
 
     /// <summary>The (source, routes) a farm piece renders from — the chain-complete obtain data when it
     /// has loaded, else the farm's own chain-less routes as a fallback.</summary>
@@ -1100,8 +1129,10 @@ public sealed class TeamsWindow : Window
     /// held — the plugin can see nobody else's bags, retainers or tomestones, so for a teammate it
     /// states the full requirement instead of subtracting the player's own stock from it.
     /// </param>
+    /// <param name="ownedCount">Pieces already owned and only waiting to be put on (own character only).</param>
     private void DrawMemberNeeds(
         List<(string Slot, FarmSlot Item, (string? Source, List<FarmRoute>? Routes) Sourcing, long Equipped)> missing,
+        int ownedCount,
         bool isSelf)
     {
         // Sum the farmable cost items (materials + tokens, not the tier's tomestone) across every piece.
@@ -1140,6 +1171,12 @@ public sealed class TeamsWindow : Window
         using (ImRaii.PushColor(ImGuiCol.Text, Yellow))
         {
             ImGui.TextUnformatted($"{T(LocKeys.TeamsMissing)}: {missing.Count}");
+        }
+
+        if (ownedCount > 0)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(Green, $"·  {_localizer.Get(LocKeys.TeamsFarmJustEquipCount, ownedCount)}");
         }
 
         if (parts.Count == 0)
@@ -1188,8 +1225,10 @@ public sealed class TeamsWindow : Window
     }
 
     /// <summary>Renders the still-missing pieces as a slot/source/steps table (R8: display only).</summary>
+    /// <param name="owned">Pieces already held, listed apart because they need no farming at all.</param>
     private void DrawFarmMissing(
         List<(string Slot, FarmSlot Item, (string? Source, List<FarmRoute>? Routes) Sourcing, long Equipped)> missing,
+        List<(string Slot, FarmSlot Item, (string? Source, List<FarmRoute>? Routes) Sourcing, long Equipped)> owned,
         bool isSelf)
     {
         if (!ImGui.BeginTable("##farmMissing", 3, ImGuiTableFlags.NoSavedSettings | ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.RowBg))
@@ -1203,6 +1242,25 @@ public sealed class TeamsWindow : Window
             ImGui.TableSetupColumn(T(LocKeys.TeamsFarmColSource), ImGuiTableColumnFlags.WidthFixed, 70f);
             ImGui.TableSetupColumn(T(LocKeys.TeamsFarmColHow), ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableHeadersRow();
+
+            // Pieces already in a bag come first and say so: sending someone farming for something
+            // they own is the one wrong answer this table can give.
+            foreach (var (slot, _, sourcing, _) in owned)
+            {
+                using var rowId = ImRaii.PushId($"own_{slot}");
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                ImGui.AlignTextToFramePadding();
+                ImGui.TextUnformatted(_sourcing.SlotName(slot));
+
+                ImGui.TableNextColumn();
+                var (ownLabel, ownColor) = _sourcing.SourceBadge(sourcing.Source);
+                ImGui.TextColored(ownColor, ownLabel);
+
+                ImGui.TableNextColumn();
+                ImGui.AlignTextToFramePadding();
+                ImGui.TextColored(Green, T(LocKeys.TeamsFarmJustEquip));
+            }
 
             foreach (var (slot, _, sourcing, equipped) in missing)
             {
