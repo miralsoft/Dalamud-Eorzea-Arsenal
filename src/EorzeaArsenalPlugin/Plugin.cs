@@ -648,18 +648,12 @@ public sealed class Plugin : IDalamudPlugin
     /// <param name="trigger">What asked for the sync.</param>
     private void RequestCharacterInventorySync(InventoryTrigger trigger)
     {
-        // The saddlebag is part of the character scope but only readable once the player has opened it
-        // this session. Syncing without it would tell the server the saddlebag is empty, and everything
-        // stored there would be deleted — the same class of loss as syncing before the tracked list.
-        if (!_inventorySource.IsSaddlebagReadable)
+        // The saddlebag no longer blocks the sync: it is its own scope now, so an unread one is simply
+        // left undeclared and keeps whatever the server last knew. Worth saying once on a manual sync,
+        // since its contents will not be up to date until the player has opened it.
+        if (trigger == InventoryTrigger.Manual && !_inventorySource.IsSaddlebagReadable)
         {
-            _log.Info("Inventory sync skipped: the saddlebag is not readable yet (open it once).");
-            if (trigger == InventoryTrigger.Manual)
-            {
-                Chat(_localizer.Get(LocKeys.InventorySaddlebagClosed));
-            }
-
-            return;
+            Chat(_localizer.Get(LocKeys.InventorySaddlebagClosed));
         }
 
         if (_trackedItems.IsLoaded)

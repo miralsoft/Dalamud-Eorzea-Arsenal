@@ -155,17 +155,26 @@ public sealed class GameInventorySource : IInventorySource
                 AddContainer(items, t, InventoryContainers.Bags, includeCoffers: true);
             }
 
-            foreach (var t in SaddlebagTypes)
-            {
-                AddContainer(items, t, InventoryContainers.Saddlebag, includeCoffers: true);
-            }
-
             AddGlamourDresser(items);
+
+            // The saddlebag is its own scope and is only declared when it was actually read. Reporting
+            // it unread would say "it is empty" — the containers read as empty, not as unavailable,
+            // until the player has opened the bag once in this session.
+            var scopes = new List<string> { InventoryProtocol.ScopeCharacter };
+            if (IsSaddlebagReadable)
+            {
+                foreach (var t in SaddlebagTypes)
+                {
+                    AddContainer(items, t, InventoryContainers.Saddlebag, includeCoffers: true);
+                }
+
+                scopes.Add(InventoryProtocol.ScopeSaddlebag);
+            }
 
             return new InventoryData
             {
                 Character = character,
-                Scopes = [InventoryProtocol.ScopeCharacter],
+                Scopes = scopes,
                 Items = items,
             };
         }

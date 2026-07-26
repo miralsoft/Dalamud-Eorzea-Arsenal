@@ -74,7 +74,9 @@ public static class InventoryValidator
                 continue;
             }
 
-            var isKnown = scope == InventoryProtocol.ScopeCharacter || InventoryProtocol.IsRetainerScope(scope);
+            var isKnown = scope == InventoryProtocol.ScopeCharacter
+                || scope == InventoryProtocol.ScopeSaddlebag
+                || InventoryProtocol.IsRetainerScope(scope);
             if (!isKnown)
             {
                 result.Add($"Unknown scope '{scope}'.");

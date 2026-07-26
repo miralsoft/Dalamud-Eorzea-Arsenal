@@ -117,8 +117,16 @@ public static class InventoryProtocol
     /// <summary>The scope/least-privilege the key must carry for <c>POST /inventory</c> (R17).</summary>
     public const string RequiredScope = "inventory:write";
 
-    /// <summary>Scope covering all locally readable storages together (umzieh-safe single scan).</summary>
+    /// <summary>Scope covering all always-readable storages together (umzieh-safe single scan).</summary>
     public const string ScopeCharacter = "character";
+
+    /// <summary>
+    /// The chocobo saddlebag's own scope. It cannot ride along with <see cref="ScopeCharacter"/>: the
+    /// game only fills those containers once the player has opened the bag in a session, and before
+    /// that they read as <i>empty</i> rather than <i>unavailable</i> — declaring them would tell the
+    /// server the saddlebag is empty. Same rule as a retainer: report it when you have seen it.
+    /// </summary>
+    public const string ScopeSaddlebag = "saddlebag";
 
     /// <summary>The user's manual website markings — the plugin must <b>never</b> send this scope.</summary>
     public const string ScopeManual = "manual";
@@ -140,8 +148,12 @@ public static class InventoryProtocol
     /// <summary>The scope an item belongs to, derived from its container/source (mirrors the server).</summary>
     /// <param name="item">The item.</param>
     /// <returns><c>retainer:&lt;source_id&gt;</c> for retainer items, otherwise <c>character</c>.</returns>
-    public static string ScopeForItem(InventoryItemDto item) =>
-        item.Container == InventoryContainers.Retainer ? RetainerScope(item.SourceId) : ScopeCharacter;
+    public static string ScopeForItem(InventoryItemDto item) => item.Container switch
+    {
+        InventoryContainers.Retainer => RetainerScope(item.SourceId),
+        InventoryContainers.Saddlebag => ScopeSaddlebag,
+        _ => ScopeCharacter,
+    };
 }
 
 /// <summary>The display tags for the storage location an owned item was scanned from.</summary>
@@ -168,8 +180,11 @@ public static class InventoryContainers
     /// <summary>A retainer's storage (requires <see cref="InventoryItemDto.SourceId"/>).</summary>
     public const string Retainer = "retainer";
 
-    /// <summary>The local containers that together form the <c>character</c> scope.</summary>
+    /// <summary>
+    /// The containers that together form the <c>character</c> scope. The saddlebag is deliberately not
+    /// among them — it has its own scope, because it only reads after the player has opened it.
+    /// </summary>
     public static readonly IReadOnlySet<string> CharacterContainers = new HashSet<string>(
-        [Equipped, Armoury, Bags, Saddlebag, Glamour, Armoire],
+        [Equipped, Armoury, Bags, Glamour, Armoire],
         StringComparer.Ordinal);
 }
