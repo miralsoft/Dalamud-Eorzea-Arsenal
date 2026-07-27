@@ -4,9 +4,31 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0] - 2026-07-27
+## [1.0.0] - 2026-07-27
+
+The plugin leaves its trial phase. `0.x` in SemVer means "anything may change"; that is no longer
+true — the server contract is settled and covered by tests, and from here on every change is
+announced rather than arriving silently. Nothing about the existing behaviour changes with this
+number.
 
 ### Added
+- **Write to the developers from inside the game.** A topic, a subject, a message, a send button —
+  into the same inbox the website's contact form feeds (`POST /contact`, scope `contact:write`, which
+  an existing key gains on its next sync). The four topics match the website's (report a bug,
+  suggestion, feedback, something else) and are built from what the server says is currently open, so
+  a switched-off one is never offered — otherwise the report would fail after the text was already
+  written. Who is reporting and how to answer them comes from the API key, so there is no name or
+  address to fill in; character, world and the game, Dalamud and plugin versions travel as separate
+  fields, and the window shows exactly what it is about to send — a field that is not on that line is
+  not in the request. Every main window carries a bug button in its title bar, and it says which
+  window the report came from: "it does not work" from the purchase advisor is a different search
+  than the same sentence from Teams, and that is the one piece of context a player should never have
+  to type out. There is also a way round the form: the
+  maintainer's character and a Discord invite, for anyone who would rather just talk to a person.
+  Nothing is ever sent automatically — no exception handler, no background collection — because an
+  inbox shared with real player mail must not fill with machine noise. A failed delivery is shown
+  rather than swallowed and leaves the text in the window: the server stores nothing on the way, so a
+  silent "thank you" would be a lie.
 - **A machine-readable changelog** at `changelog.json` in the repo root, generated from the in-game
   release notes so the same sentence reaches the "what's new" window, the website's news page and
   Discord without three copies drifting apart. Each note line carries a permanent `Id`; the web side
@@ -16,6 +38,20 @@ All notable changes to this project are documented here. The format is based on
   inventory, weekly, tome balance and advisor plans), so a "it stopped working" report says which build
   produced it.
 
+### Fixed
+- **The saddlebag no longer empties itself on login.** 0.4.0 gave the saddlebag its own scope so an
+  unread one would be left alone, but decided "unread" from the containers reporting themselves as
+  loaded — which they do for a saddlebag nobody has opened this session; they are simply empty. The
+  scope was therefore declared with nothing in it and the server dutifully cleared it, so a stock of
+  books and materials read as `0` until the bag was opened once. Finding something in it is now the
+  only evidence that counts as having looked. The trade is deliberate: a genuinely emptied saddlebag
+  keeps its last known contents until something is in it again — a stale count can be corrected on
+  the website, a deleted one cannot be recovered.
+- **Retainer stock was exposed to the same fault.** The retainer scan runs on a timer and leaned on
+  the same flag to decide whether the player was standing at the summoning bell, so a retainer
+  visited in an earlier session could be uploaded as empty without anyone opening it. It now reports
+  only what it actually found, with the same trade-off.
+
 ### Changed
 - **API keys are held per address.** The base URL has always been configurable; what was missing is
   that one key served every address, so pointing the plugin at a test server would have sent it the
@@ -24,7 +60,7 @@ All notable changes to this project are documented here. The format is based on
   key is filed under the address it was actually issued for. The settings screen says plainly when the
   plugin is not talking to the live server.
 
-## [0.4.0] - 2026-07-27
+## [0.4.0] - 2026-07-26
 
 ### Added
 - **"How to get it" on BiS pieces.** Hovering a BiS target — in the list, the grid tile or the

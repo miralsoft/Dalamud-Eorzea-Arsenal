@@ -103,34 +103,42 @@ public sealed class GameInventorySource : IInventorySource
     /// the saddlebag is unreadable therefore tells the server "there is nothing in it", and everything
     /// stored there is deleted. Callers must not sync the character scope until this is true.
     /// </remarks>
-    public unsafe bool IsSaddlebagReadable
+    public bool IsSaddlebagReadable => ScanSaddlebag().Count > 0;
+
+    /// <summary>
+    /// The saddlebag's contents, or an empty list when it cannot be read.
+    /// </summary>
+    /// <remarks>
+    /// <b>Finding something is the only trustworthy evidence that we looked inside.</b> The obvious
+    /// test — <c>IsLoaded</c> on the containers — reports <see langword="true"/> for a saddlebag the
+    /// player has not opened this session: the containers exist, they are simply empty. Declaring the
+    /// scope on that basis told the server "the saddlebag is empty" and it dutifully deleted what was
+    /// in it, which is exactly the loss the separate scope was introduced to prevent.
+    /// <para>
+    /// The cost of this rule is that a genuinely emptied saddlebag keeps its last known contents until
+    /// something is in it again. That is the harmless direction — a stale count can be corrected on
+    /// the website, a deleted one cannot be recovered — and it is the same rule the glamour dresser
+    /// uses, for the same reason.
+    /// </para>
+    /// </remarks>
+    /// <returns>The equippable gear, coffers and tracked consumables found in the saddlebag.</returns>
+    private unsafe List<InventoryItemDto> ScanSaddlebag()
     {
-        get
+        var items = new List<InventoryItemDto>();
+        try
         {
-            try
+            foreach (var type in SaddlebagTypes)
             {
-                var inventory = InventoryManager.Instance();
-                if (inventory == null)
-                {
-                    return false;
-                }
-
-                foreach (var type in SaddlebagTypes)
-                {
-                    var container = inventory->GetInventoryContainer(type);
-                    if (container != null && container->IsLoaded)
-                    {
-                        return true;
-                    }
-                }
-
-                return false;
-            }
-            catch
-            {
-                return false;
+                AddContainer(items, type, InventoryContainers.Saddlebag, includeCoffers: true);
             }
         }
+        catch (Exception ex)
+        {
+            _log.Error($"Saddlebag read failed: {ex.GetType().Name}.");
+            return [];
+        }
+
+        return items;
     }
 
     private InventoryData? ReadCharacterOnFramework()
@@ -155,18 +163,18 @@ public sealed class GameInventorySource : IInventorySource
                 AddContainer(items, t, InventoryContainers.Bags, includeCoffers: true);
             }
 
-            // The saddlebag is its own scope and is only declared when it was actually read. Reporting
-            // it unread would say "it is empty" — the containers read as empty, not as unavailable,
-            // until the player has opened the bag once in this session.
+            // The saddlebag is its own scope and is only declared when something was actually found in
+            // it — see ScanSaddlebag for why "the containers look loaded" is not evidence enough.
             var scopes = new List<string> { InventoryProtocol.ScopeCharacter };
-            if (IsSaddlebagReadable)
+            var saddlebag = ScanSaddlebag();
+            if (saddlebag.Count > 0)
             {
-                foreach (var t in SaddlebagTypes)
-                {
-                    AddContainer(items, t, InventoryContainers.Saddlebag, includeCoffers: true);
-                }
-
+                items.AddRange(saddlebag);
                 scopes.Add(InventoryProtocol.ScopeSaddlebag);
+            }
+            else
+            {
+                _log.Info("Saddlebag not declared: nothing readable in it (open it once to sync its contents).");
             }
 
             // The dresser has the same trap and no "loaded" flag to check, so finding at least one
@@ -193,9 +201,16 @@ public sealed class GameInventorySource : IInventorySource
 
     /// <summary>
     /// Reads the currently-open retainer's storage as a <c>retainer:&lt;id&gt;</c> snapshot, or
-    /// <see langword="null"/> if no retainer inventory is loaded. Must be called on the framework
-    /// thread (it is driven from the framework tick). Reports an empty scope when the retainer owns
-    /// no equippable items, so selling everything there reconciles on the next visit.
+    /// <see langword="null"/> when nothing was readable. Must be called on the framework thread (it
+    /// is driven from the framework tick).
+    /// <para>
+    /// As with the saddlebag, finding something is the only trustworthy evidence that we looked
+    /// inside: this runs on a timer, <c>LastSelectedRetainerId</c> outlives the visit that set it,
+    /// and <c>IsLoaded</c> is true for containers that merely exist. An empty snapshot would
+    /// therefore be uploaded for a retainer nobody has been to, and the server would delete its
+    /// stock. The cost is the same and is accepted for the same reason: a retainer emptied down to
+    /// the last item keeps its last known contents until something is in it again.
+    /// </para>
     /// </summary>
     /// <returns>The retainer snapshot, or <see langword="null"/>.</returns>
     public unsafe InventoryData? TryReadActiveRetainer()
@@ -220,25 +235,18 @@ public sealed class GameInventorySource : IInventorySource
                 return null;
             }
 
-            // Only treat the retainer as "scanned" once its bag is actually loaded (i.e. the player
-            // is at the summoning bell), so we never report a stale/empty scope and wipe its items.
-            var inventory = InventoryManager.Instance();
-            if (inventory == null)
-            {
-                return null;
-            }
-
-            var firstPage = inventory->GetInventoryContainer(InventoryType.RetainerPage1);
-            if (firstPage == null || !firstPage->IsLoaded)
-            {
-                return null;
-            }
-
             var sourceId = retainerId.ToString(System.Globalization.CultureInfo.InvariantCulture);
             var items = new List<InventoryItemDto>();
             foreach (var t in RetainerTypes)
             {
                 AddContainer(items, t, InventoryContainers.Retainer, sourceId, includeCoffers: true);
+            }
+
+            // Nothing found means we are not at the bell, not that the retainer is empty — see the
+            // remarks above. Uploading here would hand the server an empty snapshot to act on.
+            if (items.Count == 0)
+            {
+                return null;
             }
 
             // The name is only readable here, at the bell. Sending it lets the server's holdings

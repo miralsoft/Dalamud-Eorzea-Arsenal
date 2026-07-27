@@ -298,6 +298,29 @@ public sealed class ApiClient : IApiClient
     }
 
     /// <inheritdoc />
+    public async Task<ApiResult<ContactInfoResponse>> GetContactInfoAsync(string? apiKey, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, Url("/contact"));
+        if (!string.IsNullOrEmpty(apiKey))
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        }
+
+        return await SendAsync<ContactInfoResponse>(request, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiResult<StatusAck>> PostContactAsync(string apiKey, ContactRequest request, CancellationToken ct)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Post, Url("/contact"))
+        {
+            Content = JsonBody(request),
+        };
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<StatusAck>(message, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public Task<ApiResult<NotificationsResponse>> GetNotificationsAsync(string apiKey, CancellationToken ct) =>
         GetAsync<NotificationsResponse>("/notifications", apiKey, ct);
 
@@ -484,6 +507,7 @@ public sealed class ApiClient : IApiClient
             Kind = kind,
             StatusCode = (int)response.StatusCode,
             Message = problem?.Title ?? $"HTTP {(int)response.StatusCode}",
+            Detail = problem?.Detail,
             RequestId = problem?.RequestId,
             Endpoint = endpoint,
             RetryAfter = retryAfter is { Ticks: > 0 } ? retryAfter : null,

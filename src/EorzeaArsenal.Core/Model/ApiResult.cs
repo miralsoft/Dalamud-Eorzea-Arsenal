@@ -46,6 +46,13 @@ public sealed class ApiError
     /// <summary>A short, user-safe message (already free of secrets).</summary>
     public required string Message { get; init; }
 
+    /// <summary>
+    /// The problem body's <c>detail</c> — the explanation written for this one occurrence, where
+    /// <see cref="Message"/> only names the class of problem. Worth showing verbatim when the server
+    /// knows something the plugin cannot infer (which field was rejected, and why).
+    /// </summary>
+    public string? Detail { get; init; }
+
     /// <summary>Server correlation id from the problem body, if any — safe to log/show.</summary>
     public string? RequestId { get; init; }
 

@@ -42,7 +42,26 @@ public static class ReleaseNotes
     /// <summary>Every release worth telling the user about, newest first.</summary>
     public static IReadOnlyList<ReleaseNote> All { get; } =
     [
-        new ReleaseNote("0.4.0", "2026-07-27",
+        new ReleaseNote("1.0.0", "2026-07-27",
+        [
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "report-a-problem-from-inside",
+                "Schreib uns direkt aus dem Spiel: Thema wählen (Fehler, Vorschlag, Feedback, Sonstiges), Betreff, Text, senden — fertig. Wer du bist und wie man dir antwortet, kommt aus deiner Verbindung, du musst also weder Namen noch Adresse eintippen. Der Käfer-Knopf in der Titelleiste jedes Fensters meldet gleich mit, wo du gerade warst.",
+                "Write to us from inside the game: pick a topic (bug, suggestion, feedback, something else), subject, text, send. Who you are and how to reply comes from your connection, so there is no name or address to type. The bug button in each window's title bar also says which window you were in."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Fixed,
+                "saddlebag-stock-no-longer-empties",
+                "Deine Vorräte in der Chocobo-Satteltasche verschwinden nicht mehr beim Einloggen. Bisher wurden Bücher und Material auf 0 gesetzt, bis du die Satteltasche einmal geöffnet hattest. Gehilfen konnten aus demselben Grund leer gemeldet werden, ohne dass du bei ihnen warst.",
+                "Your stock in the chocobo saddlebag no longer disappears when you log in. Books and materials used to read as 0 until you had opened the saddlebag once. Retainers could be reported as empty for the same reason, without you having visited them."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "version-1-0-the-plugin",
+                "Version 1.0: Das Plugin verlässt die Erprobungsphase. Ausrüstungs-Abgleich, Kaufberater, Teams-Begleiter und wöchentliche Checkliste stehen — und ab hier gibt es zu jeder Neuerung eine Ankündigung statt einer stillen Aktualisierung.",
+                "Version 1.0: the plugin leaves its trial phase. Gear comparison, purchase advisor, teams companion and the weekly checklist are all in place — and from here on every change is announced instead of arriving silently."),
+        ]),
+
+        new ReleaseNote("0.4.0", "2026-07-26",
         [
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,

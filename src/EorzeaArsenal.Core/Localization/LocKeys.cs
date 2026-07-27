@@ -1010,6 +1010,87 @@ public static class LocKeys
     /// <summary>Advisor: the layout has unsaved edits.</summary>
     public const string AdvisorUnsaved = "advisor.unsaved";
 
+    /// <summary>Menu/command: open the report window.</summary>
+    public const string ReportOpen = "report.open";
+
+    /// <summary>Report: window title.</summary>
+    public const string ReportWindowTitle = "report.title";
+
+    /// <summary>Report: what this window is for.</summary>
+    public const string ReportIntro = "report.intro";
+
+    /// <summary>Report: the subject line label.</summary>
+    public const string ReportSubject = "report.subject";
+
+    /// <summary>Report: the message body label.</summary>
+    public const string ReportMessage = "report.message";
+
+    /// <summary>Report: send it.</summary>
+    public const string ReportSend = "report.send";
+
+    /// <summary>Report: in flight.</summary>
+    public const string ReportSending = "report.sending";
+
+    /// <summary>Report: it arrived.</summary>
+    public const string ReportSent = "report.sent";
+
+    /// <summary>Report: what gets sent along with the text.</summary>
+    public const string ReportContext = "report.context";
+
+    /// <summary>Report: the message is still too short to send.</summary>
+    public const string ReportTooShort = "report.tooshort";
+
+    /// <summary>Report: no key at all.</summary>
+    public const string ReportNotConnected = "report.notconnected";
+
+    /// <summary>Report: the key does not carry the contact permission yet.</summary>
+    public const string ReportNoScope = "report.noscope";
+
+    /// <summary>Report: too many reports this hour.</summary>
+    public const string ReportRateLimited = "report.ratelimited";
+
+    /// <summary>Report: the server could not deliver it — nothing was stored.</summary>
+    public const string ReportUndelivered = "report.undelivered";
+
+    /// <summary>Report: anything else went wrong.</summary>
+    public const string ReportFailed = "report.failed";
+
+    /// <summary>Report: reminder that logs do not belong in the text.</summary>
+    public const string ReportNoLogs = "report.nologs";
+
+    /// <summary>Report: pick a topic so it lands in the right channel.</summary>
+    public const string ReportTopic = "report.topic";
+
+    /// <summary>Report topic: something is broken.</summary>
+    public const string ReportKindBug = "report.kind.bug";
+
+    /// <summary>Report topic: a wish or an improvement.</summary>
+    public const string ReportKindFeature = "report.kind.feature";
+
+    /// <summary>Report topic: praise, criticism, impressions.</summary>
+    public const string ReportKindFeedback = "report.kind.feedback";
+
+    /// <summary>Report topic: everything else, questions included.</summary>
+    public const string ReportKindOther = "report.kind.other";
+
+    /// <summary>Report: what the chosen topic is for.</summary>
+    public const string ReportHintBug = "report.hint.bug";
+
+    /// <summary>Report: what the chosen topic is for.</summary>
+    public const string ReportHintFeature = "report.hint.feature";
+
+    /// <summary>Report: what the chosen topic is for.</summary>
+    public const string ReportHintFeedback = "report.hint.feedback";
+
+    /// <summary>Report: what the chosen topic is for.</summary>
+    public const string ReportHintOther = "report.hint.other";
+
+    /// <summary>Report: the direct ways to get in touch instead.</summary>
+    public const string ReportDirect = "report.direct";
+
+    /// <summary>Report: open the Discord invite.</summary>
+    public const string ReportDiscord = "report.discord";
+
     /// <summary>Connection: the plugin is pointed at a non-production address.</summary>
     public const string BaseUrlCustom = "config.baseurl.custom";
 
