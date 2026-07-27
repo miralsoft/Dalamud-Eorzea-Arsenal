@@ -34,6 +34,16 @@ number.
   inventory, weekly, tome balance and advisor plans), so a "it stopped working" report says which build
   produced it.
 
+### Fixed
+- **The saddlebag no longer empties itself on login.** 0.4.0 gave the saddlebag its own scope so an
+  unread one would be left alone, but decided "unread" from the containers reporting themselves as
+  loaded — which they do for a saddlebag nobody has opened this session; they are simply empty. The
+  scope was therefore declared with nothing in it and the server dutifully cleared it, so a stock of
+  books and materials read as `0` until the bag was opened once. Finding something in it is now the
+  only evidence that counts as having looked. The trade is deliberate: a genuinely emptied saddlebag
+  keeps its last known contents until something is in it again — a stale count can be corrected on
+  the website, a deleted one cannot be recovered.
+
 ### Changed
 - **API keys are held per address.** The base URL has always been configurable; what was missing is
   that one key served every address, so pointing the plugin at a test server would have sent it the

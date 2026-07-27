@@ -103,34 +103,42 @@ public sealed class GameInventorySource : IInventorySource
     /// the saddlebag is unreadable therefore tells the server "there is nothing in it", and everything
     /// stored there is deleted. Callers must not sync the character scope until this is true.
     /// </remarks>
-    public unsafe bool IsSaddlebagReadable
+    public bool IsSaddlebagReadable => ScanSaddlebag().Count > 0;
+
+    /// <summary>
+    /// The saddlebag's contents, or an empty list when it cannot be read.
+    /// </summary>
+    /// <remarks>
+    /// <b>Finding something is the only trustworthy evidence that we looked inside.</b> The obvious
+    /// test — <c>IsLoaded</c> on the containers — reports <see langword="true"/> for a saddlebag the
+    /// player has not opened this session: the containers exist, they are simply empty. Declaring the
+    /// scope on that basis told the server "the saddlebag is empty" and it dutifully deleted what was
+    /// in it, which is exactly the loss the separate scope was introduced to prevent.
+    /// <para>
+    /// The cost of this rule is that a genuinely emptied saddlebag keeps its last known contents until
+    /// something is in it again. That is the harmless direction — a stale count can be corrected on
+    /// the website, a deleted one cannot be recovered — and it is the same rule the glamour dresser
+    /// uses, for the same reason.
+    /// </para>
+    /// </remarks>
+    /// <returns>The equippable gear, coffers and tracked consumables found in the saddlebag.</returns>
+    private unsafe List<InventoryItemDto> ScanSaddlebag()
     {
-        get
+        var items = new List<InventoryItemDto>();
+        try
         {
-            try
+            foreach (var type in SaddlebagTypes)
             {
-                var inventory = InventoryManager.Instance();
-                if (inventory == null)
-                {
-                    return false;
-                }
-
-                foreach (var type in SaddlebagTypes)
-                {
-                    var container = inventory->GetInventoryContainer(type);
-                    if (container != null && container->IsLoaded)
-                    {
-                        return true;
-                    }
-                }
-
-                return false;
-            }
-            catch
-            {
-                return false;
+                AddContainer(items, type, InventoryContainers.Saddlebag, includeCoffers: true);
             }
         }
+        catch (Exception ex)
+        {
+            _log.Error($"Saddlebag read failed: {ex.GetType().Name}.");
+            return [];
+        }
+
+        return items;
     }
 
     private InventoryData? ReadCharacterOnFramework()
@@ -155,18 +163,18 @@ public sealed class GameInventorySource : IInventorySource
                 AddContainer(items, t, InventoryContainers.Bags, includeCoffers: true);
             }
 
-            // The saddlebag is its own scope and is only declared when it was actually read. Reporting
-            // it unread would say "it is empty" — the containers read as empty, not as unavailable,
-            // until the player has opened the bag once in this session.
+            // The saddlebag is its own scope and is only declared when something was actually found in
+            // it — see ScanSaddlebag for why "the containers look loaded" is not evidence enough.
             var scopes = new List<string> { InventoryProtocol.ScopeCharacter };
-            if (IsSaddlebagReadable)
+            var saddlebag = ScanSaddlebag();
+            if (saddlebag.Count > 0)
             {
-                foreach (var t in SaddlebagTypes)
-                {
-                    AddContainer(items, t, InventoryContainers.Saddlebag, includeCoffers: true);
-                }
-
+                items.AddRange(saddlebag);
                 scopes.Add(InventoryProtocol.ScopeSaddlebag);
+            }
+            else
+            {
+                _log.Info("Saddlebag not declared: nothing readable in it (open it once to sync its contents).");
             }
 
             // The dresser has the same trap and no "loaded" flag to check, so finding at least one

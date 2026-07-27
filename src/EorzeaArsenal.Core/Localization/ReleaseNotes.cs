@@ -50,6 +50,11 @@ public static class ReleaseNotes
                 "Schreib uns direkt aus dem Spiel: Thema wählen (Fehler, Vorschlag, Feedback, Sonstiges), Betreff, Text, senden — fertig. Wer du bist und wie man dir antwortet, kommt aus deiner Verbindung, du musst also weder Namen noch Adresse eintippen.",
                 "Write to us from inside the game: pick a topic (bug, suggestion, feedback, something else), subject, text, send. Who you are and how to reply comes from your connection, so there is no name or address to type."),
             new ReleaseNoteItem(
+                ReleaseNoteKind.Fixed,
+                "saddlebag-stock-no-longer-empties",
+                "Deine Vorräte in der Chocobo-Satteltasche verschwinden nicht mehr beim Einloggen. Bisher wurden Bücher und Material auf 0 gesetzt, bis du die Satteltasche einmal geöffnet hattest.",
+                "Your stock in the chocobo saddlebag no longer disappears when you log in. Books and materials used to read as 0 until you had opened the saddlebag once."),
+            new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "version-1-0-the-plugin",
                 "Version 1.0: Das Plugin verlässt die Erprobungsphase. Ausrüstungs-Abgleich, Kaufberater, Teams-Begleiter und wöchentliche Checkliste stehen — und ab hier gibt es zu jeder Neuerung eine Ankündigung statt einer stillen Aktualisierung.",

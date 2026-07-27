@@ -16,6 +16,21 @@
       }
     },
     {
+      "id": "saddlebag-stock-no-longer-empties",
+      "version": "1.0.0",
+      "date": "2026-07-27",
+      "kind": "fix",
+      "source": "plugin",
+      "de": {
+        "title": "Deine Vorräte in der Chocobo-Satteltasche verschwinden nicht mehr beim Einloggen. Bisher wurden Bücher und Material auf 0 gesetzt, bis du die Satteltasche einmal geöffnet hattest.",
+        "body": "<p>Deine Vorräte in der Chocobo-Satteltasche verschwinden nicht mehr beim Einloggen. Bisher wurden Bücher und Material auf 0 gesetzt, bis du die Satteltasche einmal geöffnet hattest.</p>"
+      },
+      "en": {
+        "title": "Your stock in the chocobo saddlebag no longer disappears when you log in. Books and materials used to read as 0 until you had opened the saddlebag once.",
+        "body": "<p>Your stock in the chocobo saddlebag no longer disappears when you log in. Books and materials used to read as 0 until you had opened the saddlebag once.</p>"
+      }
+    },
+    {
       "id": "version-1-0-the-plugin",
       "version": "1.0.0",
       "date": "2026-07-27",
