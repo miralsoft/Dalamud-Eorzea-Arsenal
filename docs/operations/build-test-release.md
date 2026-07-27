@@ -58,14 +58,33 @@ Users add this stable URL under Dalamud → Settings → Experimental → Custom
 
 ### Cutting a release
 
-1. Bump `<Version>` in `EorzeaArsenalPlugin.csproj` and update `CHANGELOG.md`.
+> **The release preparation belongs in the same PR as the work it ships.** `main` is branch-protected,
+> so every change needs a PR anyway — and a separate "prepare the release" PR afterwards is a second
+> review round for the same action. Worse, two open branches that each pass alone can fail once merged
+> (a date change in `ReleaseNotes.cs` invalidates the generated `changelog.json`). One PR per release.
+
+1. In the feature branch, alongside the work: bump `<Version>` in `EorzeaArsenalPlugin.csproj`, turn
+   `[Unreleased]` in `CHANGELOG.md` into the new dated version section.
 2. Add the user-facing lines to `ReleaseNotes.cs` (each with a **new, hand-written, kebab-case `Id`**
    — see below) and regenerate the public changelog:
    ```bash
    EORZEA_UPDATE_CHANGELOG=1 dotnet test --filter FullyQualifiedName~ChangelogJsonTests
    ```
-3. Commit (conventional commit, no AI author — R34) and tag: `git tag vX.Y.Z && git push --tags`.
-4. The release workflow does the rest.
+3. Verify from clean — an incremental build hides warnings:
+   ```bash
+   dotnet clean -c Release && dotnet build -c Release && dotnet test && dotnet format --verify-no-changes
+   ```
+4. Open the PR. **CI is the quality gate** — the release workflow only builds and packages, it does not
+   test. A tag must therefore only ever sit on a commit CI has already passed, i.e. on merged `main`.
+5. The maintainer tests in game and merges.
+6. Tag the merge commit and push it:
+   ```bash
+   git checkout main && git pull
+   git tag -a vX.Y.Z -m "vX.Y.Z - what it is" && git push origin vX.Y.Z
+   ```
+   Never tag unasked, and never before the merge: the tag has to point at the commit that is actually
+   on `main`, and that commit does not exist until the PR is merged.
+7. The release workflow does the rest.
 
 ### `changelog.json` — the public feed
 
