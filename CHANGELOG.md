@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-07-27
 
 ### Added
 - **"How to get it" on BiS pieces.** Hovering a BiS target — in the list, the grid tile or the
@@ -94,60 +94,6 @@ All notable changes to this project are documented here. The format is based on
   augmented neck while still wearing the base is no longer told to buy the upgrade — and the counts
   match the web tracker instead of reading high. Your own row adds what the plugin can see itself, so
   a piece bought since the last sync counts immediately.
-
-### Fixed
-- **The glamour dresser no longer clears itself.** Like the saddlebag it only reads after the player
-  has opened it — and unlike the saddlebag the client exposes no "loaded" flag at all, so an unopened
-  dresser is indistinguishable from an emptied one. It is now its own reconciliation scope, declared
-  only when pieces were actually found; an emptied dresser therefore keeps its last known contents,
-  which is the harmless direction.
-- **A swapped ring pair is no longer two missing rings.** The farm compared finger by finger, so
-  wearing both BiS rings the other way round listed them as still to get. The rule (rings are
-  interchangeable) now lives once in the core, tested, instead of being re-derived per view.
-- **The language setting now governs game names too.** Item, vendor, zone and duty names were read in
-  the game client's language regardless of what the plugin was set to, so switching the plugin to
-  English left them German. They follow the plugin's setting now — which is also the only way to use
-  the plugin in English on a German client.
-- **The inventory sync no longer empties the saddlebag.** Its containers only read once the player has
-  opened the saddlebag in a session — and until then they read as *empty*, not *unavailable*. It used
-  to ride along in the `character` scope, which the upload declares fully observed, so syncing
-  beforehand told the server the saddlebag was empty and it deleted what was stored there. The
-  saddlebag is now its own reconciliation scope (like a retainer): it is declared only when it was
-  actually read, and left alone otherwise. A manual sync says once when it could not be read, so the
-  player knows those counts are not current — nothing is lost either way.
-- **The sourcing speaks the client's language.** Coffers, materials, books, vendors, zones and fight
-  names were English throughout, because the server names things in English while the game carries
-  every language itself. Anything the server identifies by id is now named by the game — items,
-  coffers, vendor NPCs (`ENpcResident`), zones (`TerritoryType` → `PlaceName`) and fights (the
-  server's new `duty_content_ids`, paired only when there is one id per name, since it omits the ones
-  it cannot resolve). Every lookup falls back to the server's English text, so nothing can read worse
-  than before. Shop labels stay English on purpose: they are the data source's own wording and have no
-  game row to look up.
-- **A teammate's row no longer answers from your bags.** The team farm measured every member's
-  remaining cost against the player's own holdings, so someone else's line claimed they were short
-  materials — or already owned a base piece — purely because the player was. The plugin can see
-  nobody else's bags, retainers or tomestones (`/me/holdings` is caller-only and now pinned to the
-  character on screen; the farm endpoint carries only shared gear). A teammate's row now states what
-  the set requires and says plainly that their stock is not visible; only the player's own row is
-  measured. The equipped check stays for everyone — what a member wears comes from the team data.
-- **Owned counts no longer read 0 for anything the server does not track.** The server's holdings won
-  unconditionally, but a server `0` means "no record", not "you own none": the weekly tomestone is a
-  currency and is never part of the inventory sync at all, so a player holding 1109 was shown `0/495`.
-  The count is now the higher of the server's number and the game's — the server still wins for
-  retainer stock, the game still wins for anything not synced yet. Holdings are also pinned to the
-  character on screen (`&character_id=`), instead of whichever one the account last made active.
-- **Automatic syncs no longer talk in chat.** Only a sync you asked for reports there; logins, the
-  periodic timer, retainer visits and the hidden Duty-Finder refresh (which produced the duplicate
-  "2 weekly fields" lines) go to the log instead. Failures still always speak.
-- The hidden Duty-Finder refresh (the `normal`/`alliance` weekly read) no longer leaves the finder on
-  the raid it loaded. It now remembers the duty you had selected and re-selects it before closing, so
-  reopening the Duty Finder puts you back where you were — including a **roulette** (Duty Roulette /
-  daily), which the game stores in the same field as a regular duty but restores through a different
-  call. Nothing selected beforehand means nothing is restored.
-
-## [0.4.0] - 2026-07-17
-
-### Added
 - **Teams companion (opt-in).** A new in-game window (hub button, `/xivarsenal teams`) that mirrors your
   teams from the web app — read-only rendering; the server owns all logic. Off by default; needs a key
   with **`teams:read`** (+ **`teams:write`** for the two writes). Existing keys auto-upgrade on the next
@@ -206,6 +152,56 @@ All notable changes to this project are documented here. The format is based on
 - A failed team/parse response now surfaces the concrete cause (HTTP status or the JSON path of a
   shape mismatch) instead of a generic "could not load", to make diagnosis quick.
 
+### Fixed
+- **The glamour dresser no longer clears itself.** Like the saddlebag it only reads after the player
+  has opened it — and unlike the saddlebag the client exposes no "loaded" flag at all, so an unopened
+  dresser is indistinguishable from an emptied one. It is now its own reconciliation scope, declared
+  only when pieces were actually found; an emptied dresser therefore keeps its last known contents,
+  which is the harmless direction.
+- **A swapped ring pair is no longer two missing rings.** The farm compared finger by finger, so
+  wearing both BiS rings the other way round listed them as still to get. The rule (rings are
+  interchangeable) now lives once in the core, tested, instead of being re-derived per view.
+- **The language setting now governs game names too.** Item, vendor, zone and duty names were read in
+  the game client's language regardless of what the plugin was set to, so switching the plugin to
+  English left them German. They follow the plugin's setting now — which is also the only way to use
+  the plugin in English on a German client.
+- **The inventory sync no longer empties the saddlebag.** Its containers only read once the player has
+  opened the saddlebag in a session — and until then they read as *empty*, not *unavailable*. It used
+  to ride along in the `character` scope, which the upload declares fully observed, so syncing
+  beforehand told the server the saddlebag was empty and it deleted what was stored there. The
+  saddlebag is now its own reconciliation scope (like a retainer): it is declared only when it was
+  actually read, and left alone otherwise. A manual sync says once when it could not be read, so the
+  player knows those counts are not current — nothing is lost either way.
+- **The sourcing speaks the client's language.** Coffers, materials, books, vendors, zones and fight
+  names were English throughout, because the server names things in English while the game carries
+  every language itself. Anything the server identifies by id is now named by the game — items,
+  coffers, vendor NPCs (`ENpcResident`), zones (`TerritoryType` → `PlaceName`) and fights (the
+  server's new `duty_content_ids`, paired only when there is one id per name, since it omits the ones
+  it cannot resolve). Every lookup falls back to the server's English text, so nothing can read worse
+  than before. Shop labels stay English on purpose: they are the data source's own wording and have no
+  game row to look up.
+- **A teammate's row no longer answers from your bags.** The team farm measured every member's
+  remaining cost against the player's own holdings, so someone else's line claimed they were short
+  materials — or already owned a base piece — purely because the player was. The plugin can see
+  nobody else's bags, retainers or tomestones (`/me/holdings` is caller-only and now pinned to the
+  character on screen; the farm endpoint carries only shared gear). A teammate's row now states what
+  the set requires and says plainly that their stock is not visible; only the player's own row is
+  measured. The equipped check stays for everyone — what a member wears comes from the team data.
+- **Owned counts no longer read 0 for anything the server does not track.** The server's holdings won
+  unconditionally, but a server `0` means "no record", not "you own none": the weekly tomestone is a
+  currency and is never part of the inventory sync at all, so a player holding 1109 was shown `0/495`.
+  The count is now the higher of the server's number and the game's — the server still wins for
+  retainer stock, the game still wins for anything not synced yet. Holdings are also pinned to the
+  character on screen (`&character_id=`), instead of whichever one the account last made active.
+- **Automatic syncs no longer talk in chat.** Only a sync you asked for reports there; logins, the
+  periodic timer, retainer visits and the hidden Duty-Finder refresh (which produced the duplicate
+  "2 weekly fields" lines) go to the log instead. Failures still always speak.
+- The hidden Duty-Finder refresh (the `normal`/`alliance` weekly read) no longer leaves the finder on
+  the raid it loaded. It now remembers the duty you had selected and re-selects it before closing, so
+  reopening the Duty Finder puts you back where you were — including a **roulette** (Duty Roulette /
+  daily), which the game stores in the same field as a regular duty but restores through a different
+  call. Nothing selected beforehand means nothing is restored.
+
 ## [0.3.0] - 2026-07-05
 
 ### Added
@@ -226,6 +222,7 @@ All notable changes to this project are documented here. The format is based on
     ever sent, so a manual web-app entry is never overwritten.
 
   All four decodes were validated in-game against before/after captures.
+
 
 ### Changed
 - The manual **Sync weekly** action now also kicks off the hidden Savage + Duty-Finder refreshes, so a
@@ -255,6 +252,7 @@ All notable changes to this project are documented here. The format is based on
   **`characters:write`** + **`gear:read`** (a 403 shows a reconnect hint). The per-character server
   id is learned from the gear/inventory push response and cached.
 
+
 ### Changed
 - **Reworked the plugin windows for clarity.**
   - The **main window is now a hub**: large single-per-row action buttons with icons, grouped into
@@ -269,6 +267,7 @@ All notable changes to this project are documented here. The format is based on
 ### Added
 - **Plugin icon in the Dalamud installer** via the manifest `IconUrl` (a 512×512 PNG served from
   `xivarsenal.app`), shown both in the available list and, after install, in the installed list.
+
 
 ### Changed
 - **Plugin author is now "Sanaka"** (the name shown in the installer); the company field was removed.
@@ -335,6 +334,7 @@ First public release.
 - **Bilingual DE/EN UI**, a third-party-tool **ToS opt-in** notice, and a versioned + migrated
   config. Interface-based core (`EorzeaArsenal.Core`) with a thin Dalamud host (R8/R9/R11) and unit
   tests for the API client, device flow, gear/inventory mapping, validation, chunking and `cid_hash`.
+
 
 ### Changed
 - **Default API base URL is the production server** `https://xivarsenal.app/api/v1`. New installs
