@@ -1,6 +1,36 @@
 {
   "entries": [
     {
+      "id": "report-a-problem-from-inside",
+      "version": "1.0.0",
+      "date": "2026-07-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Problem melden, ohne das Spiel zu verlassen",
+        "body": "<p>Betreff, Text, senden — fertig. Wer du bist und wie man dir antwortet, kommt aus deiner Verbindung, du musst also weder Namen noch Adresse eintippen.</p>"
+      },
+      "en": {
+        "title": "Report a problem from inside the game",
+        "body": "<p>Subject, text, send. Who you are and how to reply comes from your connection, so there is no name or address to type.</p>"
+      }
+    },
+    {
+      "id": "version-1-0-the-plugin",
+      "version": "1.0.0",
+      "date": "2026-07-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Version 1.0",
+        "body": "<p>Das Plugin verlässt die Erprobungsphase. Ausrüstungs-Abgleich, Kaufberater, Teams-Begleiter und wöchentliche Checkliste stehen — und ab hier gibt es zu jeder Neuerung eine Ankündigung statt einer stillen Aktualisierung.</p>"
+      },
+      "en": {
+        "title": "Version 1.0",
+        "body": "<p>The plugin leaves its trial phase. Gear comparison, purchase advisor, teams companion and the weekly checklist are all in place — and from here on every change is announced instead of arriving silently.</p>"
+      }
+    },
+    {
       "id": "teams-companion-opt-in-your",
       "version": "0.4.0",
       "date": "2026-07-27",

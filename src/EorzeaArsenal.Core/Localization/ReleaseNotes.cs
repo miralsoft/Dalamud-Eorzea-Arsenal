@@ -42,6 +42,20 @@ public static class ReleaseNotes
     /// <summary>Every release worth telling the user about, newest first.</summary>
     public static IReadOnlyList<ReleaseNote> All { get; } =
     [
+        new ReleaseNote("1.0.0", "2026-07-27",
+        [
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "report-a-problem-from-inside",
+                "Problem melden, ohne das Spiel zu verlassen: Betreff, Text, senden — fertig. Wer du bist und wie man dir antwortet, kommt aus deiner Verbindung, du musst also weder Namen noch Adresse eintippen.",
+                "Report a problem from inside the game: subject, text, send. Who you are and how to reply comes from your connection, so there is no name or address to type."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "version-1-0-the-plugin",
+                "Version 1.0: Das Plugin verlässt die Erprobungsphase. Ausrüstungs-Abgleich, Kaufberater, Teams-Begleiter und wöchentliche Checkliste stehen — und ab hier gibt es zu jeder Neuerung eine Ankündigung statt einer stillen Aktualisierung.",
+                "Version 1.0: the plugin leaves its trial phase. Gear comparison, purchase advisor, teams companion and the weekly checklist are all in place — and from here on every change is announced instead of arriving silently."),
+        ]),
+
         new ReleaseNote("0.4.0", "2026-07-27",
         [
             new ReleaseNoteItem(

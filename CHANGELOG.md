@@ -4,9 +4,23 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2026-07-27
+
+The plugin leaves its trial phase. `0.x` in SemVer means "anything may change"; that is no longer
+true — the server contract is settled and covered by tests, and from here on every change is
+announced rather than arriving silently. Nothing about the existing behaviour changes with this
+number.
 
 ### Added
+- **Report a problem from inside the game.** A subject, a message, a send button — sent to the same
+  inbox the website's contact form feeds (`POST /contact`, scope `contact:write`, which an existing
+  key gains on its next sync). Who is reporting and how to answer them comes from the API key, so
+  there is no name, address or topic to fill in; the report carries character, world, game and plugin
+  version as separate fields, and the window shows exactly what it is about to send. Nothing is ever
+  sent automatically — no exception handler, no background collection — because an inbox shared with
+  real player mail must not fill with machine noise. A failed delivery is shown rather than swallowed
+  and leaves the text in the window: the server stores nothing on the way, so a silent "thank you"
+  would be a lie.
 - **A machine-readable changelog** at `changelog.json` in the repo root, generated from the in-game
   release notes so the same sentence reaches the "what's new" window, the website's news page and
   Discord without three copies drifting apart. Each note line carries a permanent `Id`; the web side

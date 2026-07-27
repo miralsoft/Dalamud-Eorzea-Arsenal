@@ -352,6 +352,19 @@ public sealed class FakeApiClient : IApiClient
     public Task<ApiResult<bool>> DeleteAbsenceAsync(string apiKey, long teamId, long absenceId, CancellationToken ct) =>
         Task.FromResult(DeleteAbsenceResult);
 
+    /// <summary>Result returned by <see cref="PostContactAsync"/>.</summary>
+    public ApiResult<StatusAck> ContactResult { get; set; } = ApiResult<StatusAck>.Ok(new StatusAck { Status = "sent" });
+
+    /// <summary>The reports sent via <see cref="PostContactAsync"/>, in order.</summary>
+    public List<ContactRequest> ContactRequests { get; } = [];
+
+    /// <inheritdoc />
+    public Task<ApiResult<StatusAck>> PostContactAsync(string apiKey, ContactRequest request, CancellationToken ct)
+    {
+        ContactRequests.Add(request);
+        return Task.FromResult(ContactResult);
+    }
+
     /// <inheritdoc />
     public Task<ApiResult<NotificationsResponse>> GetNotificationsAsync(string apiKey, CancellationToken ct)
     {

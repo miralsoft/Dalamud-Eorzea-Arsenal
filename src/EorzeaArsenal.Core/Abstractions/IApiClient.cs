@@ -258,6 +258,21 @@ public interface IApiClient
     /// <returns>Success (2xx), or a classified error (403/404).</returns>
     Task<ApiResult<bool>> DeleteAbsenceAsync(string apiKey, long teamId, long absenceId, CancellationToken ct);
 
+    /// <summary>
+    /// Sends a player-written report via <c>POST /contact</c> (bearer + <c>contact:write</c>) — the
+    /// same inbox the website's contact form feeds.
+    /// </summary>
+    /// <remarks>
+    /// Nothing is stored on the way: the report is delivered or it is not, so a failure must reach the
+    /// player rather than being swallowed behind a "thank you". Only ever called because someone wrote
+    /// something — never from an exception handler.
+    /// </remarks>
+    /// <param name="apiKey">The API key (must carry <c>contact:write</c>).</param>
+    /// <param name="request">Subject, message, and the client's own account of its situation.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>An ack, or a classified error (401/403/400/429/503).</returns>
+    Task<ApiResult<StatusAck>> PostContactAsync(string apiKey, ContactRequest request, CancellationToken ct);
+
     /// <summary>Reads the notification feed via <c>GET /notifications</c> (bearer).</summary>
     /// <param name="apiKey">The API key.</param>
     /// <param name="ct">Cancellation token.</param>

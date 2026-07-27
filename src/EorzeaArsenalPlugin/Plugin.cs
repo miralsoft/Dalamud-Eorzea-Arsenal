@@ -39,6 +39,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ICondition _condition;
     private readonly IChatGui _chatGui;
     private readonly IToastGui _toastGui;
+    private readonly IDataManager _dataManager;
     private readonly LogBuffer _logBuffer;
     private readonly ILog _log;
 
@@ -75,6 +76,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly LogWindow _logWindow;
     private readonly PreviewWindow _previewWindow;
     private readonly WhatsNewWindow _whatsNewWindow;
+    private readonly ReportWindow _reportWindow;
     private bool _whatsNewPending;
     private readonly BisTooltip _bisTooltip;
     private readonly IDtrBarEntry _dtrEntry;
@@ -152,6 +154,7 @@ public sealed class Plugin : IDalamudPlugin
         _condition = condition;
         _chatGui = chatGui;
         _toastGui = toastGui;
+        _dataManager = dataManager;
 
         _config = pluginInterface.GetPluginConfig() as PluginConfig ?? new PluginConfig();
         if (_config.Migrate())
@@ -207,7 +210,8 @@ public sealed class Plugin : IDalamudPlugin
         _previewWindow = new PreviewWindow(_gearSource, _localizer, _log);
         _imageWindow = new ImageWindow(_teamsService, textureProvider, _localizer, _log);
         _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew);
+        _reportWindow = new ReportWindow(_store, _localizer, api, _log, DescribeClient);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReport, OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew);
         _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save);
@@ -222,6 +226,7 @@ public sealed class Plugin : IDalamudPlugin
         _windowSystem.AddWindow(_statusWindow);
         _windowSystem.AddWindow(_configWindow);
         _windowSystem.AddWindow(_whatsNewWindow);
+        _windowSystem.AddWindow(_reportWindow);
 
         // Show what changed once per new version. Deferred rather than opened here: a plugin usually
         // loads at the title screen, where the window would be dismissed unseen. OnFrameworkUpdate
@@ -323,6 +328,63 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OpenWhatsNew() => _whatsNewWindow.Open();
 
+    private void OpenReport() => _reportWindow.Open();
+
+    /// <summary>
+    /// The situation a report is written in: who is playing, on what, with which versions.
+    /// </summary>
+    /// <remarks>
+    /// Sent as separate fields rather than one pre-joined line — parts can always be composed again,
+    /// but a world name with a space in it cannot be taken apart afterwards. Every part is optional:
+    /// what cannot be read is left out rather than guessed at, and none of it decides anything
+    /// server-side, it is only shown.
+    /// </remarks>
+    /// <param name="where">Which part of the plugin the report was written from, if known.</param>
+    /// <returns>The client block for <c>POST /contact</c>.</returns>
+    private ContactClient DescribeClient(string? where)
+    {
+        string? character = null;
+        string? world = null;
+        try
+        {
+            if (_playerState.IsLoaded)
+            {
+                character = _playerState.CharacterName;
+                world = _playerState.HomeWorld.ValueNullable?.Name.ExtractText();
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Info($"Report context: character unreadable ({ex.GetType().Name}).");
+        }
+
+        return new ContactClient
+        {
+            Character = string.IsNullOrWhiteSpace(character) ? null : character,
+            World = string.IsNullOrWhiteSpace(world) ? null : world,
+            GameVersion = GameVersion(),
+            PluginVersion = ProtocolConstants.PluginVersion,
+
+            // Not the API address: a report arrives at the server it was sent to, so which environment
+            // this is needs no field of its own.
+            Where = string.IsNullOrWhiteSpace(where) ? null : where,
+        };
+    }
+
+    /// <summary>The game's data version, or <see langword="null"/> when it cannot be read.</summary>
+    private string? GameVersion()
+    {
+        try
+        {
+            var version = _dataManager.GameData.Repositories.TryGetValue("ffxiv", out var repo) ? repo.Version : null;
+            return string.IsNullOrWhiteSpace(version) ? null : version;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     private void OpenImage(long teamId, long resourceId, string? title) => _imageWindow.Open(teamId, resourceId, title);
 
     private void OpenCalendar()
@@ -384,6 +446,9 @@ public sealed class Plugin : IDalamudPlugin
                 break;
             case "advisor":
                 OpenAdvisor();
+                break;
+            case "report":
+                OpenReport();
                 break;
             case "log":
                 OpenLog();

@@ -36,6 +36,7 @@ public sealed class StatusWindow : Window
     private readonly Action _openBis;
     private readonly Action _openAdvisor;
     private readonly Action _openLog;
+    private readonly Action _openReport;
     private readonly Action _openTeams;
     private readonly Action _openCalendar;
     private readonly Action _openPreview;
@@ -55,6 +56,7 @@ public sealed class StatusWindow : Window
     /// <param name="openBis">Callback to open the BiS comparison window.</param>
     /// <param name="openAdvisor">Callback to open the purchase-advisor window.</param>
     /// <param name="openLog">Callback to open the diagnostics log window.</param>
+    /// <param name="openReport">Callback to open the "report a problem" window.</param>
     /// <param name="openTeams">Callback to open the Teams companion window.</param>
     /// <param name="openCalendar">Callback to open the calendar window.</param>
     /// <param name="openPreview">Callback to open the preview window.</param>
@@ -73,6 +75,7 @@ public sealed class StatusWindow : Window
         Action openBis,
         Action openAdvisor,
         Action openLog,
+        Action openReport,
         Action openTeams,
         Action openCalendar,
         Action openPreview,
@@ -92,6 +95,7 @@ public sealed class StatusWindow : Window
         _openBis = openBis;
         _openAdvisor = openAdvisor;
         _openLog = openLog;
+        _openReport = openReport;
         _openTeams = openTeams;
         _openCalendar = openCalendar;
         _openPreview = openPreview;
@@ -207,6 +211,13 @@ public sealed class StatusWindow : Window
         if (MenuButton(FontAwesomeIcon.ClipboardList, T(LocKeys.OpenLog)))
         {
             _openLog();
+        }
+
+        // Reporting from in game is the whole point — by the time someone has left the instance and
+        // found the website, the detail that mattered is gone.
+        if (MenuButton(FontAwesomeIcon.Bug, T(LocKeys.ReportOpen)))
+        {
+            _openReport();
         }
     }
 
