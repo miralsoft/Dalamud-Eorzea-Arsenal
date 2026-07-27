@@ -682,6 +682,9 @@ public sealed class TomeBalanceRequest
 
     /// <summary>The character the balance belongs to (must be the caller's own).</summary>
     public long CharacterId { get; init; }
+
+    /// <summary>The plugin build that produced this write (see <see cref="ProtocolConstants.PluginVersion"/>).</summary>
+    public string PluginVersion { get; init; } = ProtocolConstants.PluginVersion;
 }
 
 /// <summary>Response of <c>GET/PUT /me/tome-balance</c>: the stored balance echo.</summary>

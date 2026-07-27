@@ -125,6 +125,9 @@ public sealed class WeeklyPayload
 {
     /// <summary>The known fields to merge, keyed by their literal camelCase names (e.g. <c>tomesHave</c>).</summary>
     public required IReadOnlyDictionary<string, object> Items { get; init; }
+
+    /// <summary>The plugin build that produced this write (see <see cref="ProtocolConstants.PluginVersion"/>).</summary>
+    public string PluginVersion { get; init; } = ProtocolConstants.PluginVersion;
 }
 
 /// <summary>

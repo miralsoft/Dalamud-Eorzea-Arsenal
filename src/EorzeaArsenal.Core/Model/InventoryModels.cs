@@ -59,6 +59,9 @@ public sealed class InventoryPayload
     /// <summary>Protocol version the plugin speaks for inventory (always <c>2</c>).</summary>
     public int ProtocolVersion { get; init; } = InventoryProtocol.ProtocolVersion;
 
+    /// <summary>The plugin build that produced this payload (see <see cref="ProtocolConstants.PluginVersion"/>).</summary>
+    public string PluginVersion { get; init; } = ProtocolConstants.PluginVersion;
+
     /// <summary>The character block.</summary>
     public required CharacterDto Character { get; init; }
 

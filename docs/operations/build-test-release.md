@@ -59,8 +59,29 @@ Users add this stable URL under Dalamud → Settings → Experimental → Custom
 ### Cutting a release
 
 1. Bump `<Version>` in `EorzeaArsenalPlugin.csproj` and update `CHANGELOG.md`.
-2. Commit (conventional commit, no AI author — R34) and tag: `git tag vX.Y.Z && git push --tags`.
-3. The release workflow does the rest.
+2. Add the user-facing lines to `ReleaseNotes.cs` (each with a **new, hand-written, kebab-case `Id`**
+   — see below) and regenerate the public changelog:
+   ```bash
+   EORZEA_UPDATE_CHANGELOG=1 dotnet test --filter FullyQualifiedName~ChangelogJsonTests
+   ```
+3. Commit (conventional commit, no AI author — R34) and tag: `git tag vX.Y.Z && git push --tags`.
+4. The release workflow does the rest.
+
+### `changelog.json` — the public feed
+
+The web side polls `changelog.json` from the repo root and announces new entries on its `/neu` page
+and in Discord. It is **generated** from `ReleaseNotes.cs`, so the same sentence reaches the in-game
+"what's new", the site and Discord without three copies drifting apart. A test fails when the
+committed file is stale.
+
+Two rules it depends on:
+
+- **An `Id` is permanent.** It is what the web side remembers as "already announced". Changing one
+  re-announces the entry; reusing one silently swallows it. Write ids by hand — never derive them from
+  the text, or fixing a typo would mint a new entry. (The pre-0.5.0 ids were slugged once from their
+  English text and are frozen.)
+- **It is stamped in the release commit, not by a workflow.** `main` is branch-protected and nothing
+  pushes to it, so the file is regenerated locally in step 2 and travels with the release PR.
 
 ## In-game smoke test (operator)
 
