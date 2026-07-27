@@ -121,4 +121,43 @@ public static class ContactKinds
 
     /// <summary>Longest message the server accepts.</summary>
     public const int MaxMessage = 3000;
+
+    /// <summary>Longest version string the server stores (game, Dalamud, plugin).</summary>
+    public const int MaxVersion = 32;
+
+    /// <summary>Longest <c>where</c> label the server stores.</summary>
+    public const int MaxWhere = 80;
+
+    /// <summary>
+    /// Trims a context value to what the server will store, or <see langword="null"/> when there is
+    /// nothing to say.
+    /// </summary>
+    /// <remarks>
+    /// The context block is background information, never the report itself, so a value too long for
+    /// its column must not cost the player the message they just wrote. Dalamud's <c>ScmVersion</c> is
+    /// the realistic case: a <c>git describe</c> on a non-stable build, plus a beta track, outgrows 32
+    /// characters easily. A shortened build string still identifies the build; a rejected request
+    /// helps nobody. Cutting stops short of splitting a surrogate pair, so the result is never
+    /// malformed text.
+    /// </remarks>
+    /// <param name="value">The raw value.</param>
+    /// <param name="max">The column's limit.</param>
+    /// <returns>The trimmed value, or <see langword="null"/>.</returns>
+    public static string? Clip(string? value, int max)
+    {
+        if (max <= 0 || string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.Length <= max)
+        {
+            return trimmed;
+        }
+
+        var cut = char.IsHighSurrogate(trimmed[max - 1]) ? max - 1 : max;
+        var clipped = trimmed[..cut].TrimEnd();
+        return clipped.Length == 0 ? null : clipped;
+    }
 }

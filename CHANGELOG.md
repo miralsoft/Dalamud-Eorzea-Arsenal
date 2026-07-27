@@ -18,8 +18,12 @@ number.
   suggestion, feedback, something else) and are built from what the server says is currently open, so
   a switched-off one is never offered — otherwise the report would fail after the text was already
   written. Who is reporting and how to answer them comes from the API key, so there is no name or
-  address to fill in; character, world and the game and plugin versions travel as separate fields,
-  and the window shows exactly what it is about to send. There is also a way round the form: the
+  address to fill in; character, world and the game, Dalamud and plugin versions travel as separate
+  fields, and the window shows exactly what it is about to send — a field that is not on that line is
+  not in the request. Every main window carries a bug button in its title bar, and it says which
+  window the report came from: "it does not work" from the purchase advisor is a different search
+  than the same sentence from Teams, and that is the one piece of context a player should never have
+  to type out. There is also a way round the form: the
   maintainer's character and a Discord invite, for anyone who would rather just talk to a person.
   Nothing is ever sent automatically — no exception handler, no background collection — because an
   inbox shared with real player mail must not fill with machine noise. A failed delivery is shown

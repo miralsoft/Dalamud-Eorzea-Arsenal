@@ -26,16 +26,22 @@ public sealed class ContactRequestTests
                     Character = "Sanaka Sundream",
                     World = "Twintania",
                     GameVersion = "7.4",
+                    DalamudVersion = "15.0.2.3",
                     PluginVersion = "1.0.0",
-                    Where = "Farm",
+                    Where = "Advisor",
                 },
             },
             EorzeaJson.Options);
 
         Assert.Contains("\"kind\":\"bug\"", body, StringComparison.Ordinal);
         Assert.Contains("\"game_version\":\"7.4\"", body, StringComparison.Ordinal);
+        Assert.Contains("\"dalamud_version\":\"15.0.2.3\"", body, StringComparison.Ordinal);
         Assert.Contains("\"plugin_version\":\"1.0.0\"", body, StringComparison.Ordinal);
         Assert.Contains("\"world\":\"Twintania\"", body, StringComparison.Ordinal);
+
+        // Which window the report was written from — the one piece of context a player should never
+        // have to type out, and the difference between a searchable report and a vague one.
+        Assert.Contains("\"where\":\"Advisor\"", body, StringComparison.Ordinal);
 
         // A world name with a space in it is exactly why this is not one joined string.
         Assert.Contains("\"character\":\"Sanaka Sundream\"", body, StringComparison.Ordinal);
@@ -122,6 +128,56 @@ public sealed class ContactRequestTests
         Assert.Equal(140, ContactKinds.MaxSubject);
         Assert.Equal(10, ContactKinds.MinMessage);
         Assert.Equal(3000, ContactKinds.MaxMessage);
+        Assert.Equal(32, ContactKinds.MaxVersion);
+        Assert.Equal(80, ContactKinds.MaxWhere);
+    }
+
+    /// <summary>
+    /// The context block must never be the reason a report is refused. Dalamud's <c>ScmVersion</c> is
+    /// the realistic case: a <c>git describe</c> on a non-stable build outgrows 32 characters, and
+    /// losing the player's written message over a background detail would be absurd.
+    /// </summary>
+    [Fact]
+    public void AnOverlongContextValueIsShortenedRatherThanCostingTheReport()
+    {
+        const string scm = "v15.0.2.3-14-g91ad60c88cde1932bb1a1d9c931ff9d4a670c1ef (stg)";
+        var clipped = ContactKinds.Clip(scm, ContactKinds.MaxVersion);
+
+        Assert.NotNull(clipped);
+        Assert.Equal(ContactKinds.MaxVersion, clipped!.Length);
+        Assert.StartsWith("v15.0.2.3-14-g", clipped, StringComparison.Ordinal);
+
+        // A value that already fits is handed through untouched apart from stray whitespace.
+        Assert.Equal("7.4", ContactKinds.Clip("  7.4  ", ContactKinds.MaxVersion));
+    }
+
+    /// <summary>
+    /// Nothing to say stays nothing: an empty or blank value is omitted rather than sent as an empty
+    /// string the server would have to render as a blank field.
+    /// </summary>
+    [Fact]
+    public void ThereIsNoSuchThingAsAnEmptyContextValue()
+    {
+        Assert.Null(ContactKinds.Clip(null, ContactKinds.MaxVersion));
+        Assert.Null(ContactKinds.Clip("", ContactKinds.MaxVersion));
+        Assert.Null(ContactKinds.Clip("   ", ContactKinds.MaxVersion));
+        Assert.Null(ContactKinds.Clip("anything", 0));
+    }
+
+    /// <summary>
+    /// Cutting must not produce malformed text. A "where" label is translated prose in the general
+    /// case, so the cut stops short of splitting a surrogate pair rather than trusting it to be ASCII.
+    /// </summary>
+    [Fact]
+    public void CuttingNeverSplitsACharacterInHalf()
+    {
+        // Each emoji is one surrogate pair, so the limit falls exactly between the two halves of one.
+        var text = string.Concat(Enumerable.Repeat("🐛", 10));
+        var clipped = ContactKinds.Clip(text, 5);
+
+        Assert.NotNull(clipped);
+        Assert.Equal(4, clipped!.Length);                  // stepped back rather than cutting mid-pair
+        Assert.Equal("🐛🐛", clipped);
     }
 
     /// <summary>

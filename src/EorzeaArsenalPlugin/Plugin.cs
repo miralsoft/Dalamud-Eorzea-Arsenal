@@ -1,9 +1,12 @@
+using System.Numerics;
+using Dalamud.Bindings.ImGui;
 using Dalamud.Game;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Command;
 using Dalamud.Game.Gui.Dtr;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
+using Dalamud.Interface;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
@@ -211,7 +214,7 @@ public sealed class Plugin : IDalamudPlugin
         _imageWindow = new ImageWindow(_teamsService, textureProvider, _localizer, _log);
         _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
         _reportWindow = new ReportWindow(_store, _localizer, api, _log, DescribeClient);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReport, OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew);
         _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save);
@@ -227,6 +230,18 @@ public sealed class Plugin : IDalamudPlugin
         _windowSystem.AddWindow(_configWindow);
         _windowSystem.AddWindow(_whatsNewWindow);
         _windowSystem.AddWindow(_reportWindow);
+
+        // Report from where it went wrong. The label is what turns a report into something that can be
+        // acted on: "it does not work" from the Advisor is a different search than the same sentence
+        // from Teams. The window the player is looking at is the one piece of that context they should
+        // not have to type out — and they cannot get it wrong.
+        AddReportButton(_bisWindow, "BiS");
+        AddReportButton(_advisorWindow, "Advisor");
+        AddReportButton(_teamsWindow, "Teams");
+        AddReportButton(_calendarWindow, "Calendar");
+        AddReportButton(_configWindow, "Settings");
+        AddReportButton(_previewWindow, "Preview");
+        AddReportButton(_logWindow, "Log");
 
         // Show what changed once per new version. Deferred rather than opened here: a plugin usually
         // loads at the title screen, where the window would be dismissed unseen. OnFrameworkUpdate
@@ -328,7 +343,29 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OpenWhatsNew() => _whatsNewWindow.Open();
 
-    private void OpenReport() => _reportWindow.Open();
+    /// <summary>Opens the report window, noting which part of the plugin it was opened from.</summary>
+    /// <param name="where">A stable label, e.g. <c>Advisor</c>.</param>
+    private void OpenReport(string? where) => _reportWindow.Open(where);
+
+    /// <summary>
+    /// Puts a "report a problem" button in a window's title bar, labelled with that window.
+    /// </summary>
+    /// <remarks>
+    /// The label is deliberately a fixed English word rather than the translated window title: it is
+    /// read by whoever triages the report, and reports from German and English players should land in
+    /// the same bucket instead of splitting in two. The tooltip is looked up on every draw so it
+    /// follows the plugin's language setting like everything else.
+    /// </remarks>
+    /// <param name="window">The window to add the button to.</param>
+    /// <param name="where">The label sent with the report.</param>
+    private void AddReportButton(Window window, string where) =>
+        window.TitleBarButtons.Add(new TitleBarButton
+        {
+            Icon = FontAwesomeIcon.Bug,
+            IconOffset = new Vector2(2f, 1f),
+            Click = _ => OpenReport(where),
+            ShowTooltip = () => ImGui.SetTooltip(_localizer.Get(LocKeys.ReportOpen)),
+        });
 
     /// <summary>
     /// The situation a report is written in: who is playing, on what, with which versions.
@@ -362,13 +399,47 @@ public sealed class Plugin : IDalamudPlugin
         {
             Character = string.IsNullOrWhiteSpace(character) ? null : character,
             World = string.IsNullOrWhiteSpace(world) ? null : world,
-            GameVersion = GameVersion(),
-            PluginVersion = ProtocolConstants.PluginVersion,
+            GameVersion = ContactKinds.Clip(GameVersion(), ContactKinds.MaxVersion),
+            DalamudVersion = ContactKinds.Clip(DalamudVersion(), ContactKinds.MaxVersion),
+            PluginVersion = ContactKinds.Clip(ProtocolConstants.PluginVersion, ContactKinds.MaxVersion),
 
             // Not the API address: a report arrives at the server it was sent to, so which environment
             // this is needs no field of its own.
-            Where = string.IsNullOrWhiteSpace(where) ? null : where,
+            Where = ContactKinds.Clip(where, ContactKinds.MaxWhere),
         };
+    }
+
+    /// <summary>
+    /// The Dalamud build this plugin is loaded into, or <see langword="null"/> when it cannot be read.
+    /// </summary>
+    /// <remarks>
+    /// <c>ScmVersion</c> is preferred because it is the <c>git describe</c> output — the same string
+    /// Dalamud shows about itself, so a report can be matched against a build without arithmetic. It
+    /// reads "Local Build" for a self-compiled Dalamud, which is worth knowing rather than hiding.
+    /// The plain version is the fallback. A beta track is appended when there is one: a bug that only
+    /// happens on a staging branch is a different bug, and nothing else in the report would say so.
+    /// </remarks>
+    private string? DalamudVersion()
+    {
+        try
+        {
+            var info = _pluginInterface.GetDalamudVersion();
+            var version = string.IsNullOrWhiteSpace(info.ScmVersion)
+                ? info.Version?.ToString()
+                : info.ScmVersion;
+
+            if (string.IsNullOrWhiteSpace(version))
+            {
+                return null;
+            }
+
+            return string.IsNullOrWhiteSpace(info.BetaTrack) ? version : $"{version} ({info.BetaTrack})";
+        }
+        catch (Exception ex)
+        {
+            _log.Info($"Report context: Dalamud version unreadable ({ex.GetType().Name}).");
+            return null;
+        }
     }
 
     /// <summary>The game's data version, or <see langword="null"/> when it cannot be read.</summary>
@@ -448,7 +519,7 @@ public sealed class Plugin : IDalamudPlugin
                 OpenAdvisor();
                 break;
             case "report":
-                OpenReport();
+                OpenReport("Command");
                 break;
             case "log":
                 OpenLog();

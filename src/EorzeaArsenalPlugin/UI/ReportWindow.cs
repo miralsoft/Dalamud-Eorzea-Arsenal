@@ -283,7 +283,14 @@ public sealed class ReportWindow : Window
     private string Describe()
     {
         var client = _describeClient(_where);
-        var parts = new[] { client.Character, client.World, client.PluginVersion, client.GameVersion, client.Where }
+        // Everything that travels is listed, in the order it is worth reading. The point of this line
+        // is that nothing is sent the player was not shown — so a new field in the block belongs here
+        // the same day it is added.
+        var parts = new[]
+            {
+                client.Character, client.World, client.PluginVersion,
+                client.GameVersion, client.DalamudVersion, client.Where,
+            }
             .Where(p => !string.IsNullOrWhiteSpace(p));
 
         return string.Join(" · ", parts);

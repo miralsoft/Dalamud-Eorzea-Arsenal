@@ -47,8 +47,8 @@ public static class ReleaseNotes
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "report-a-problem-from-inside",
-                "Schreib uns direkt aus dem Spiel: Thema wählen (Fehler, Vorschlag, Feedback, Sonstiges), Betreff, Text, senden — fertig. Wer du bist und wie man dir antwortet, kommt aus deiner Verbindung, du musst also weder Namen noch Adresse eintippen.",
-                "Write to us from inside the game: pick a topic (bug, suggestion, feedback, something else), subject, text, send. Who you are and how to reply comes from your connection, so there is no name or address to type."),
+                "Schreib uns direkt aus dem Spiel: Thema wählen (Fehler, Vorschlag, Feedback, Sonstiges), Betreff, Text, senden — fertig. Wer du bist und wie man dir antwortet, kommt aus deiner Verbindung, du musst also weder Namen noch Adresse eintippen. Der Käfer-Knopf in der Titelleiste jedes Fensters meldet gleich mit, wo du gerade warst.",
+                "Write to us from inside the game: pick a topic (bug, suggestion, feedback, something else), subject, text, send. Who you are and how to reply comes from your connection, so there is no name or address to type. The bug button in each window's title bar also says which window you were in."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Fixed,
                 "saddlebag-stock-no-longer-empties",
