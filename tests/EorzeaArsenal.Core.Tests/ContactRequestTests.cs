@@ -74,6 +74,47 @@ public sealed class ContactRequestTests
         Assert.DoesNotContain("client", body, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The topic keys are exactly the four the endpoint knows — anything else is a <c>400</c>, and
+    /// they are keys, not labels, so they stay lower case whatever the UI shows.
+    /// </summary>
+    [Fact]
+    public void TheFourTopicsAreKeysNotLabels()
+    {
+        Assert.Equal(["bug", "feature", "feedback", "other"], ContactKinds.All);
+        Assert.All(ContactKinds.All, k => Assert.Equal(k.ToLowerInvariant(), k));
+
+        Assert.True(ContactKinds.IsKnown("feature"));
+        Assert.False(ContactKinds.IsKnown("Bug"));      // case matters — it is a key
+        Assert.False(ContactKinds.IsKnown("question"));
+        Assert.False(ContactKinds.IsKnown(null));
+    }
+
+    /// <summary>
+    /// The picker is built from what the server says is open. A topic can be switched off, and
+    /// offering it anyway would fail the report with a 503 after the player wrote their text.
+    /// </summary>
+    [Fact]
+    public void OpenTopicsAndDirectContactAreRead()
+    {
+        const string body = """
+        {"data":{"character":"Sanaka Sundream","world":"Twintania","discord":"sanaka",
+          "discord_invite":"https://discord.gg/abc","kinds":["feedback","bug","feature","other"]}}
+        """;
+
+        var info = JsonSerializer.Deserialize<ContactInfoResponse>(body, EorzeaJson.Options)!.Data!;
+
+        Assert.Equal(["feedback", "bug", "feature", "other"], info.Kinds);
+        Assert.Equal("https://discord.gg/abc", info.DiscordInvite);
+        Assert.Equal("Sanaka Sundream", info.Character);
+
+        // A server that offers fewer topics narrows the picker rather than widening it.
+        var reduced = JsonSerializer.Deserialize<ContactInfoResponse>(
+            """{"data":{"kinds":["bug"]}}""", EorzeaJson.Options)!.Data!;
+        Assert.Equal(["bug"], reduced.Kinds);
+        Assert.Null(reduced.DiscordInvite);
+    }
+
     /// <summary>The limits are mirrored so the window can stop before the request does.</summary>
     [Fact]
     public void TheServersLimitsAreMirrored()

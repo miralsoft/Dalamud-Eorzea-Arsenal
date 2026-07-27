@@ -259,6 +259,19 @@ public interface IApiClient
     Task<ApiResult<bool>> DeleteAbsenceAsync(string apiKey, long teamId, long absenceId, CancellationToken ct);
 
     /// <summary>
+    /// Reads what the inbox currently accepts via <c>GET /contact</c> — the topics that have a channel
+    /// behind them, plus the direct contact details. No auth required.
+    /// </summary>
+    /// <remarks>
+    /// Worth asking before offering a choice: a topic that has been switched off still looks fine to
+    /// the player, and their report would fail with a <c>503</c> although they did nothing wrong.
+    /// </remarks>
+    /// <param name="apiKey">Optional key; the endpoint answers without one.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The open topics and contact details, or a classified error.</returns>
+    Task<ApiResult<ContactInfoResponse>> GetContactInfoAsync(string? apiKey, CancellationToken ct);
+
+    /// <summary>
     /// Sends a player-written report via <c>POST /contact</c> (bearer + <c>contact:write</c>) — the
     /// same inbox the website's contact form feeds.
     /// </summary>

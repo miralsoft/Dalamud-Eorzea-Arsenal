@@ -358,6 +358,14 @@ public sealed class FakeApiClient : IApiClient
     /// <summary>The reports sent via <see cref="PostContactAsync"/>, in order.</summary>
     public List<ContactRequest> ContactRequests { get; } = [];
 
+    /// <summary>Result returned by <see cref="GetContactInfoAsync"/>.</summary>
+    public ApiResult<ContactInfoResponse> ContactInfoResult { get; set; } =
+        ApiResult<ContactInfoResponse>.Ok(new ContactInfoResponse { Data = new ContactInfo { Kinds = ["bug", "feature", "feedback", "other"] } });
+
+    /// <inheritdoc />
+    public Task<ApiResult<ContactInfoResponse>> GetContactInfoAsync(string? apiKey, CancellationToken ct) =>
+        Task.FromResult(ContactInfoResult);
+
     /// <inheritdoc />
     public Task<ApiResult<StatusAck>> PostContactAsync(string apiKey, ContactRequest request, CancellationToken ct)
     {

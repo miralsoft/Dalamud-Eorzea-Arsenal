@@ -53,6 +53,39 @@ public sealed class ContactClient
     public string? Where { get; init; }
 }
 
+/// <summary>Response of <c>GET /contact</c>: what the inbox currently accepts, and how to reach a human.</summary>
+public sealed class ContactInfoResponse
+{
+    /// <summary>The info block.</summary>
+    public ContactInfo? Data { get; init; }
+}
+
+/// <summary>
+/// Which topics are actually open right now, plus the direct ways to get in touch.
+/// </summary>
+/// <remarks>
+/// A topic can be switched off — there is then no channel behind it, and a report chosen from it
+/// fails with <c>503</c> although the player did nothing wrong. So the picker is built from
+/// <see cref="Kinds"/> rather than from a hard-coded list.
+/// </remarks>
+public sealed class ContactInfo
+{
+    /// <summary>The maintainer's character name, for someone who would rather write in game.</summary>
+    public string? Character { get; init; }
+
+    /// <summary>That character's world.</summary>
+    public string? World { get; init; }
+
+    /// <summary>The Discord handle.</summary>
+    public string? Discord { get; init; }
+
+    /// <summary>Invite link to the Discord server.</summary>
+    public string? DiscordInvite { get; init; }
+
+    /// <summary>The topic keys currently accepted, in display order.</summary>
+    public List<string>? Kinds { get; init; }
+}
+
 /// <summary>The report kinds the endpoint accepts.</summary>
 public static class ContactKinds
 {
@@ -65,8 +98,20 @@ public static class ContactKinds
     /// <summary>A wish.</summary>
     public const string Feature = "feature";
 
-    /// <summary>Anything else — also what a deliberate test should use.</summary>
+    /// <summary>Anything else, questions included.</summary>
     public const string Other = "other";
+
+    /// <summary>
+    /// All four, in display order, as the fallback when <c>GET /contact</c> cannot be reached — better
+    /// to offer them and let a switched-off one fail loudly than to offer nothing.
+    /// </summary>
+    public static readonly IReadOnlyList<string> All = [Bug, Feature, Feedback, Other];
+
+    /// <summary>Whether a key is one the endpoint knows (an unknown one is a <c>400</c>).</summary>
+    /// <param name="kind">The topic key.</param>
+    /// <returns><see langword="true"/> when it is one of the four.</returns>
+    public static bool IsKnown(string? kind) =>
+        kind is not null && All.Contains(kind, StringComparer.Ordinal);
 
     /// <summary>Server-side length limits, mirrored so the UI can stop before the request does.</summary>
     public const int MaxSubject = 140;

@@ -47,8 +47,8 @@ public static class ReleaseNotes
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "report-a-problem-from-inside",
-                "Problem melden, ohne das Spiel zu verlassen: Betreff, Text, senden — fertig. Wer du bist und wie man dir antwortet, kommt aus deiner Verbindung, du musst also weder Namen noch Adresse eintippen.",
-                "Report a problem from inside the game: subject, text, send. Who you are and how to reply comes from your connection, so there is no name or address to type."),
+                "Schreib uns direkt aus dem Spiel: Thema wählen (Fehler, Vorschlag, Feedback, Sonstiges), Betreff, Text, senden — fertig. Wer du bist und wie man dir antwortet, kommt aus deiner Verbindung, du musst also weder Namen noch Adresse eintippen.",
+                "Write to us from inside the game: pick a topic (bug, suggestion, feedback, something else), subject, text, send. Who you are and how to reply comes from your connection, so there is no name or address to type."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "version-1-0-the-plugin",

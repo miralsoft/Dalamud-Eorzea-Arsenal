@@ -43,6 +43,16 @@ public sealed class ReportWindow : Window
     private bool _failed;
     private bool _sending;
 
+    // A report opens because something broke, so that is the preselection.
+    private string _kind = ContactKinds.Bug;
+
+    // Which topics actually have a channel behind them, and how to reach a human instead. Asked once
+    // per opening; until it answers (or if it never does) all four are offered — better to let a
+    // switched-off topic fail loudly than to silently offer nothing.
+    private IReadOnlyList<string> _kinds = ContactKinds.All;
+    private ContactInfo? _info;
+    private bool _infoRequested;
+
     /// <summary>Creates the report window.</summary>
     /// <param name="store">Token store — the key is what identifies the reporter.</param>
     /// <param name="localizer">UI string resolver.</param>
@@ -75,9 +85,53 @@ public sealed class ReportWindow : Window
         _status = null;
         _failed = false;
         IsOpen = true;
+        LoadContactInfo();
     }
 
     private string? _where;
+
+    /// <summary>
+    /// Asks once what the inbox currently accepts. A topic that has been switched off would otherwise
+    /// still be offered, and the player's report would fail with a 503 through no fault of theirs.
+    /// </summary>
+    private void LoadContactInfo()
+    {
+        if (_infoRequested)
+        {
+            return;
+        }
+
+        _infoRequested = true;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var result = await _api.GetContactInfoAsync(_store.ApiKey, CancellationToken.None).ConfigureAwait(false);
+                if (!result.IsSuccess || result.Value?.Data is not { } info)
+                {
+                    return; // unreachable: keep all four and let the error case speak
+                }
+
+                _info = info;
+                if (info.Kinds is { Count: > 0 } kinds)
+                {
+                    var open = kinds.Where(ContactKinds.IsKnown).ToList();
+                    if (open.Count > 0)
+                    {
+                        _kinds = open;
+                        if (!open.Contains(_kind, StringComparer.Ordinal))
+                        {
+                            _kind = open[0];
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.Info($"Contact info unavailable: {ex.GetType().Name}. Offering all topics.");
+            }
+        });
+    }
 
     /// <inheritdoc />
     public override void Draw()
@@ -97,6 +151,9 @@ public sealed class ReportWindow : Window
             return;
         }
 
+        DrawTopics();
+
+        ImGui.Spacing();
         ImGui.TextUnformatted(T(LocKeys.ReportSubject));
         ImGui.SetNextItemWidth(-1);
         ImGui.InputText("##reportSubject", ref _subject, ContactKinds.MaxSubject);
@@ -148,6 +205,78 @@ public sealed class ReportWindow : Window
         // Say what travels with the text — the player should never have to guess what they just sent.
         ImGui.Spacing();
         ImGui.TextDisabled(_localizer.Get(LocKeys.ReportContext, Describe()));
+
+        DrawDirectContact();
+    }
+
+    /// <summary>
+    /// The topic buttons, built from what the server says is open — never from a hard-coded list, so a
+    /// switched-off topic is not offered at all rather than failing after the player wrote their text.
+    /// </summary>
+    private void DrawTopics()
+    {
+        using (ImRaii.PushColor(ImGuiCol.Text, Muted))
+        {
+            ImGui.TextWrapped(T(LocKeys.ReportTopic));
+        }
+
+        for (var i = 0; i < _kinds.Count; i++)
+        {
+            if (i > 0)
+            {
+                ImGui.SameLine();
+            }
+
+            if (ImGui.RadioButton(KindLabel(_kinds[i]), _kind == _kinds[i]))
+            {
+                _kind = _kinds[i];
+                _status = null;
+            }
+        }
+
+        using (ImRaii.PushColor(ImGuiCol.Text, Muted))
+        {
+            ImGui.TextWrapped(KindHint(_kind));
+        }
+    }
+
+    private string KindLabel(string kind) => kind switch
+    {
+        ContactKinds.Bug => T(LocKeys.ReportKindBug),
+        ContactKinds.Feature => T(LocKeys.ReportKindFeature),
+        ContactKinds.Feedback => T(LocKeys.ReportKindFeedback),
+        ContactKinds.Other => T(LocKeys.ReportKindOther),
+        _ => kind,
+    };
+
+    private string KindHint(string kind) => kind switch
+    {
+        ContactKinds.Bug => T(LocKeys.ReportHintBug),
+        ContactKinds.Feature => T(LocKeys.ReportHintFeature),
+        ContactKinds.Feedback => T(LocKeys.ReportHintFeedback),
+        _ => T(LocKeys.ReportHintOther),
+    };
+
+    /// <summary>The way round the form, for someone who would rather just talk to a person.</summary>
+    private void DrawDirectContact()
+    {
+        if (_info?.DiscordInvite is not { Length: > 0 } invite
+            || !Uri.TryCreate(invite, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            return;
+        }
+
+        var who = new[] { _info.Character, _info.World }.Where(p => !string.IsNullOrWhiteSpace(p));
+        var directly = string.Join(" · ", who);
+
+        ImGui.Spacing();
+        ImGui.TextDisabled(_localizer.Get(LocKeys.ReportDirect, directly));
+        ImGui.SameLine();
+        if (ImGui.SmallButton(T(LocKeys.ReportDiscord)))
+        {
+            Dalamud.Utility.Util.OpenLink(invite);
+        }
     }
 
     /// <summary>The context line, exactly as it will be sent.</summary>
@@ -170,7 +299,7 @@ public sealed class ReportWindow : Window
 
         var request = new ContactRequest
         {
-            Kind = ContactKinds.Bug,
+            Kind = _kind,
             Subject = _subject.Trim(),
             Message = _message.Trim(),
             Client = _describeClient(_where),

@@ -7,12 +7,12 @@
       "kind": "feature",
       "source": "plugin",
       "de": {
-        "title": "Problem melden, ohne das Spiel zu verlassen",
-        "body": "<p>Betreff, Text, senden — fertig. Wer du bist und wie man dir antwortet, kommt aus deiner Verbindung, du musst also weder Namen noch Adresse eintippen.</p>"
+        "title": "Schreib uns direkt aus dem Spiel",
+        "body": "<p>Thema wählen (Fehler, Vorschlag, Feedback, Sonstiges), Betreff, Text, senden — fertig. Wer du bist und wie man dir antwortet, kommt aus deiner Verbindung, du musst also weder Namen noch Adresse eintippen.</p>"
       },
       "en": {
-        "title": "Report a problem from inside the game",
-        "body": "<p>Subject, text, send. Who you are and how to reply comes from your connection, so there is no name or address to type.</p>"
+        "title": "Write to us from inside the game",
+        "body": "<p>Pick a topic (bug, suggestion, feedback, something else), subject, text, send. Who you are and how to reply comes from your connection, so there is no name or address to type.</p>"
       }
     },
     {

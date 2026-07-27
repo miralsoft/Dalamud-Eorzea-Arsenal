@@ -284,6 +284,9 @@ public sealed class GearSyncServiceTests
         public Task<ApiResult<StatusAck>> PostContactAsync(string apiKey, ContactRequest request, CancellationToken ct) =>
             throw new NotSupportedException();
 
+        public Task<ApiResult<ContactInfoResponse>> GetContactInfoAsync(string? apiKey, CancellationToken ct) =>
+            throw new NotSupportedException();
+
         public Task<ApiResult<StatusAck>> PostAttendanceAsync(string apiKey, long teamId, long eventId, AttendanceRequest request, CancellationToken ct) =>
             throw new NotSupportedException();
 

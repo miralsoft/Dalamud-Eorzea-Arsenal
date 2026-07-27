@@ -298,6 +298,18 @@ public sealed class ApiClient : IApiClient
     }
 
     /// <inheritdoc />
+    public async Task<ApiResult<ContactInfoResponse>> GetContactInfoAsync(string? apiKey, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, Url("/contact"));
+        if (!string.IsNullOrEmpty(apiKey))
+        {
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        }
+
+        return await SendAsync<ContactInfoResponse>(request, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async Task<ApiResult<StatusAck>> PostContactAsync(string apiKey, ContactRequest request, CancellationToken ct)
     {
         using var message = new HttpRequestMessage(HttpMethod.Post, Url("/contact"))

@@ -1058,6 +1058,39 @@ public static class LocKeys
     /// <summary>Report: reminder that logs do not belong in the text.</summary>
     public const string ReportNoLogs = "report.nologs";
 
+    /// <summary>Report: pick a topic so it lands in the right channel.</summary>
+    public const string ReportTopic = "report.topic";
+
+    /// <summary>Report topic: something is broken.</summary>
+    public const string ReportKindBug = "report.kind.bug";
+
+    /// <summary>Report topic: a wish or an improvement.</summary>
+    public const string ReportKindFeature = "report.kind.feature";
+
+    /// <summary>Report topic: praise, criticism, impressions.</summary>
+    public const string ReportKindFeedback = "report.kind.feedback";
+
+    /// <summary>Report topic: everything else, questions included.</summary>
+    public const string ReportKindOther = "report.kind.other";
+
+    /// <summary>Report: what the chosen topic is for.</summary>
+    public const string ReportHintBug = "report.hint.bug";
+
+    /// <summary>Report: what the chosen topic is for.</summary>
+    public const string ReportHintFeature = "report.hint.feature";
+
+    /// <summary>Report: what the chosen topic is for.</summary>
+    public const string ReportHintFeedback = "report.hint.feedback";
+
+    /// <summary>Report: what the chosen topic is for.</summary>
+    public const string ReportHintOther = "report.hint.other";
+
+    /// <summary>Report: the direct ways to get in touch instead.</summary>
+    public const string ReportDirect = "report.direct";
+
+    /// <summary>Report: open the Discord invite.</summary>
+    public const string ReportDiscord = "report.discord";
+
     /// <summary>Connection: the plugin is pointed at a non-production address.</summary>
     public const string BaseUrlCustom = "config.baseurl.custom";
 
