@@ -1,0 +1,424 @@
+{
+  "entries": [
+    {
+      "id": "teams-companion-opt-in-your",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Teams-Begleiter (optional)",
+        "body": "<p>Kalender, Mit-Pläne, Inhalte, Gruppen-Farm und FFLogs deiner Teams direkt im Spiel.</p>"
+      },
+      "en": {
+        "title": "Teams companion (opt-in)",
+        "body": "<p>Your teams' calendar, mit plans, content, group farm and FFLogs right in the game.</p>"
+      }
+    },
+    {
+      "id": "rsvp-to-events-and-report",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Termine zu- und absagen sowie Abwesenheiten eintragen, ohne das Spiel zu verlassen.",
+        "body": "<p>Termine zu- und absagen sowie Abwesenheiten eintragen, ohne das Spiel zu verlassen.</p>"
+      },
+      "en": {
+        "title": "RSVP to events and report absences without leaving the game.",
+        "body": "<p>RSVP to events and report absences without leaving the game.</p>"
+      }
+    },
+    {
+      "id": "mit-plans-as-a-timeline",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Mit-Pläne als Zeitstrahl",
+        "body": "<p>Mechaniken links, Cooldowns pro Job daneben, mit Skill-Icons und dem gewohnten Spiel-Tooltip. Phasen und Mechanik-Typen sind filterbar.</p>"
+      },
+      "en": {
+        "title": "Mit plans as a timeline",
+        "body": "<p>Mechanics on the left, cooldowns per job beside them, with skill icons and the familiar in-game tooltip. Phases and mechanic types can be filtered.</p>"
+      }
+    },
+    {
+      "id": "a-toast-with-a-sound",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Hinweis mit Ton und anklickbarem Chat-Link bei neuem Loot, Termin-Erinnerungen und neu geplanten Terminen.",
+        "body": "<p>Hinweis mit Ton und anklickbarem Chat-Link bei neuem Loot, Termin-Erinnerungen und neu geplanten Terminen.</p>"
+      },
+      "en": {
+        "title": "A toast with a sound and a clickable chat link for new loot, event reminders and newly planned events.",
+        "body": "<p>A toast with a sound and a clickable chat link for new loot, event reminders and newly planned events.</p>"
+      }
+    },
+    {
+      "id": "group-farm-shows-for-every",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Die Gruppen-Farm zeigt zu jedem fehlenden Teil, woher es kommt (Savage / Tome+ / Tome), den Bezugsweg in einer Zeile und alle Wege beim Drüberfahren (Koffer, Abgabe-Teil, Händler mit Koordinaten).",
+        "body": "<p>Die Gruppen-Farm zeigt zu jedem fehlenden Teil, woher es kommt (Savage / Tome+ / Tome), den Bezugsweg in einer Zeile und alle Wege beim Drüberfahren (Koffer, Abgabe-Teil, Händler mit Koordinaten).</p>"
+      },
+      "en": {
+        "title": "Group farm shows for every missing piece where it comes from (savage / Tome+ / Tome), the way to get it on one line, and every route on hover (coffer, hand-in piece, vendor with coordinates).",
+        "body": "<p>Group farm shows for every missing piece where it comes from (savage / Tome+ / Tome), the way to get it on one line, and every route on hover (coffer, hand-in piece, vendor with coordinates).</p>"
+      }
+    },
+    {
+      "id": "owned-gear-coffers-are-uploaded",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Besessene Ausrüstungs-Koffer werden mit hochgeladen, damit die Koffer-Seite im Web zeigt, wie viele du hast und wie viele Teile du sofort erstellen kannst.",
+        "body": "<p>Besessene Ausrüstungs-Koffer werden mit hochgeladen, damit die Koffer-Seite im Web zeigt, wie viele du hast und wie viele Teile du sofort erstellen kannst.</p>"
+      },
+      "en": {
+        "title": "Owned gear coffers are uploaded too, so a coffer's web page shows how many you own and how many pieces you can make now.",
+        "body": "<p>Owned gear coffers are uploaded too, so a coffer's web page shows how many you own and how many pieces you can make now.</p>"
+      }
+    },
+    {
+      "id": "in-the-bis-window-hovering",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Im BiS-Fenster zeigt das Überfahren eines Teils jetzt auch 'Bezug'",
+        "body": "<p>Woher es kommt und was es kostet — wie in der Gruppen-Farm.</p>"
+      },
+      "en": {
+        "title": "In the BiS window, hovering a piece now also shows 'how to get it' — where it comes from and what it costs, just like the group farm.",
+        "body": "<p>In the BiS window, hovering a piece now also shows 'how to get it' — where it comes from and what it costs, just like the group farm.</p>"
+      }
+    },
+    {
+      "id": "sourcing-is-now-shown-as",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Der Bezug wird jetzt als nummerierte Schritte gezeigt (Erspielen / Kaufen / Aufwerten) — bei Tome+ also 'zuerst Basis, dann aufwerten' — mit 'hast du / brauchst du' pro Schritt und 'NPC auf Karte anzeigen' per Rechtsklick.",
+        "body": "<p>Der Bezug wird jetzt als nummerierte Schritte gezeigt (Erspielen / Kaufen / Aufwerten) — bei Tome+ also 'zuerst Basis, dann aufwerten' — mit 'hast du / brauchst du' pro Schritt und 'NPC auf Karte anzeigen' per Rechtsklick.</p>"
+      },
+      "en": {
+        "title": "Sourcing is now shown as numbered steps (Fight / Buy / Upgrade) — so a Tome+ piece reads 'base first, then augment' — with a have/need count per step and a right-click 'Show NPC on map'.",
+        "body": "<p>Sourcing is now shown as numbered steps (Fight / Buy / Upgrade) — so a Tome+ piece reads 'base first, then augment' — with a have/need count per step and a right-click 'Show NPC on map'.</p>"
+      }
+    },
+    {
+      "id": "in-the-group-farm-each",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "In der Gruppen-Farm steht neben jedem Mitglied, welche Materialien ihm insgesamt noch fehlen.",
+        "body": "<p>In der Gruppen-Farm steht neben jedem Mitglied, welche Materialien ihm insgesamt noch fehlen.</p>"
+      },
+      "en": {
+        "title": "In the group farm, each member now has a one-line summary of the materials they still need in total.",
+        "body": "<p>In the group farm, each member now has a one-line summary of the materials they still need in total.</p>"
+      }
+    },
+    {
+      "id": "have-need-now-counts-retainer",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "'Hast du / brauchst du' zählt jetzt auch Gehilfen-Bestände mit (vom letzten Besuch), und 'Basis vorhanden' greift, egal ob die Basis getragen wird oder in Tasche/Gehilfe liegt.",
+        "body": "<p>'Hast du / brauchst du' zählt jetzt auch Gehilfen-Bestände mit (vom letzten Besuch), und 'Basis vorhanden' greift, egal ob die Basis getragen wird oder in Tasche/Gehilfe liegt.</p>"
+      },
+      "en": {
+        "title": "'Have / need' now counts retainer stock too (as of the last visit), and 'Base owned' applies whether the base is equipped or sitting in a bag/retainer.",
+        "body": "<p>'Have / need' now counts retainer stock too (as of the last visit), and 'Base owned' applies whether the base is equipped or sitting in a bag/retainer.</p>"
+      }
+    },
+    {
+      "id": "open-in-web-jumps-straight",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "'Im Web öffnen' springt direkt auf den Plan, den Termin oder den Inhalt, den du gerade ansiehst.",
+        "body": "<p>'Im Web öffnen' springt direkt auf den Plan, den Termin oder den Inhalt, den du gerade ansiehst.</p>"
+      },
+      "en": {
+        "title": "'Open in web' jumps straight to the plan, event or content you are looking at.",
+        "body": "<p>'Open in web' jumps straight to the plan, event or content you are looking at.</p>"
+      }
+    },
+    {
+      "id": "new-purchase-advisor-what-to",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Neuer Kaufberater",
+        "body": "<p>Was als Nächstes zu kaufen ist — mit Preis in Steinen, ob es jetzt oder erst in N Wochen reicht, Händler und Material pro Schritt. Dein Set als Raster wie im BiS-Vergleich, dazu deine eigene Aufstellung, die du im Spiel bearbeiten und speichern kannst.</p>"
+      },
+      "en": {
+        "title": "New purchase advisor",
+        "body": "<p>What to buy next — with its tomestone price, whether you can afford it now or in N weeks, the vendor and the material per step. Your set as a grid like the BiS view, plus your own layout, editable and saveable in game.</p>"
+      }
+    },
+    {
+      "id": "in-the-bis-view-each",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Im BiS-Vergleich klappt unter jedem Set 'Noch nötig für dieses Set' auf",
+        "body": "<p>Wie viele Steine die restlichen Käufe zusammen kosten (und wie viele Wochen das noch sind) sowie jedes Material und jedes Buch, das noch fehlt — inklusive der Bücher als Alternative zum Kistendrop.</p>"
+      },
+      "en": {
+        "title": "In the BiS view, each set folds out 'Still needed for this set'",
+        "body": "<p>What the remaining purchases add up to in tomestones (and how many weeks that is), plus every material and raid book still missing — books included as the alternative to a coffer drop.</p>"
+      }
+    },
+    {
+      "id": "this-very-page-what-s",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Dieser Bereich",
+        "body": "<p>'Was ist neu' fasst nach jedem Update die wichtigsten Änderungen zusammen.</p>"
+      },
+      "en": {
+        "title": "This very page",
+        "body": "<p>'What's new' sums up the important changes after each update.</p>"
+      }
+    },
+    {
+      "id": "sourcing-now-speaks-your-language",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "fix",
+      "source": "plugin",
+      "de": {
+        "title": "Bezugswege sprechen jetzt deine Sprache",
+        "body": "<p>Koffer, Material, Bücher, Händler, Zonen und Kampfnamen kommen aus den Spieldaten statt auf Englisch vom Server.</p>"
+      },
+      "en": {
+        "title": "Sourcing now speaks your language",
+        "body": "<p>Coffers, materials, books, vendors, zones and fight names come from the game's own data instead of arriving in English.</p>"
+      }
+    },
+    {
+      "id": "in-the-group-farm-your",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "change",
+      "source": "plugin",
+      "de": {
+        "title": "In der Gruppen-Farm steht bei deinen eigenen Charakteren der Weg vorn, den du jetzt gehen kannst: Koffer schon in der Tasche, Bücher für den Tausch beisammen, Teil längst da — statt dich zum Kampf zu schicken.",
+        "body": "<p>In der Gruppen-Farm steht bei deinen eigenen Charakteren der Weg vorn, den du jetzt gehen kannst: Koffer schon in der Tasche, Bücher für den Tausch beisammen, Teil längst da — statt dich zum Kampf zu schicken.</p>"
+      },
+      "en": {
+        "title": "In the group farm, your own characters lead with the way you can actually take now: the coffer already in your bag, the books for the trade in hand, the piece already yours — instead of being sent to fight for it.",
+        "body": "<p>In the group farm, your own characters lead with the way you can actually take now: the coffer already in your bag, the books for the trade in hand, the piece already yours — instead of being sent to fight for it.</p>"
+      }
+    },
+    {
+      "id": "the-group-farm-measured-every",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "fix",
+      "source": "plugin",
+      "de": {
+        "title": "In der Gruppen-Farm wurde der Bedarf jedes Mitglieds gegen deine eigenen Bestände gerechnet. Bei anderen steht jetzt, was das Set braucht — ihr Bestand ist für das Plugin nicht sichtbar und wird nicht mehr geraten.",
+        "body": "<p>In der Gruppen-Farm wurde der Bedarf jedes Mitglieds gegen deine eigenen Bestände gerechnet. Bei anderen steht jetzt, was das Set braucht — ihr Bestand ist für das Plugin nicht sichtbar und wird nicht mehr geraten.</p>"
+      },
+      "en": {
+        "title": "The group farm measured every member's remaining cost against your own stock. A teammate's row now states what the set requires — their stock is not visible to the plugin and is no longer guessed at.",
+        "body": "<p>The group farm measured every member's remaining cost against your own stock. A teammate's row now states what the set requires — their stock is not visible to the plugin and is no longer guessed at.</p>"
+      }
+    },
+    {
+      "id": "the-chat-command-is-now",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "change",
+      "source": "plugin",
+      "de": {
+        "title": "Der Chat-Befehl heißt jetzt /xivarsenal (vorher /bisexport) — das Plugin kann längst mehr als BiS-Export.",
+        "body": "<p>Der Chat-Befehl heißt jetzt /xivarsenal (vorher /bisexport) — das Plugin kann längst mehr als BiS-Export.</p>"
+      },
+      "en": {
+        "title": "The chat command is now /xivarsenal (was /bisexport) — the plugin long outgrew a pure BiS export.",
+        "body": "<p>The chat command is now /xivarsenal (was /bisexport) — the plugin long outgrew a pure BiS export.</p>"
+      }
+    },
+    {
+      "id": "the-main-window-is-now",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "change",
+      "source": "plugin",
+      "de": {
+        "title": "Das Hauptfenster ist ein reines Menü; die Vorschau 'was wird gesendet' hat ein eigenes Fenster.",
+        "body": "<p>Das Hauptfenster ist ein reines Menü; die Vorschau 'was wird gesendet' hat ein eigenes Fenster.</p>"
+      },
+      "en": {
+        "title": "The main window is now a pure menu; the 'what will be sent' preview moved into its own window.",
+        "body": "<p>The main window is now a pure menu; the 'what will be sent' preview moved into its own window.</p>"
+      }
+    },
+    {
+      "id": "a-failed-team-request-now",
+      "version": "0.4.0",
+      "date": "2026-07-27",
+      "kind": "fix",
+      "source": "plugin",
+      "de": {
+        "title": "Fehlgeschlagene Team-Abrufe nennen jetzt die konkrete Ursache statt eines allgemeinen Fehlers.",
+        "body": "<p>Fehlgeschlagene Team-Abrufe nennen jetzt die konkrete Ursache statt eines allgemeinen Fehlers.</p>"
+      },
+      "en": {
+        "title": "A failed team request now names the concrete cause instead of a generic error.",
+        "body": "<p>A failed team request now names the concrete cause instead of a generic error.</p>"
+      }
+    },
+    {
+      "id": "the-weekly-checklist-now-also",
+      "version": "0.3.0",
+      "date": "2026-07-05",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Die Wochenliste füllt jetzt auch Unreal, das Tagebuch der Abenteuer, den normalen Raid und den Allianz-Raid automatisch.",
+        "body": "<p>Die Wochenliste füllt jetzt auch Unreal, das Tagebuch der Abenteuer, den normalen Raid und den Allianz-Raid automatisch.</p>"
+      },
+      "en": {
+        "title": "The weekly checklist now also fills Unreal, Wondrous Tails, the normal raid and the alliance raid automatically.",
+        "body": "<p>The weekly checklist now also fills Unreal, Wondrous Tails, the normal raid and the alliance raid automatically.</p>"
+      }
+    },
+    {
+      "id": "sync-weekly-now-picks-up",
+      "version": "0.3.0",
+      "date": "2026-07-05",
+      "kind": "change",
+      "source": "plugin",
+      "de": {
+        "title": "'Woche synchronisieren' holt die Raid- und Duty-Finder-Werte gleich mit, statt sie erst beim nächsten Login zu sehen.",
+        "body": "<p>'Woche synchronisieren' holt die Raid- und Duty-Finder-Werte gleich mit, statt sie erst beim nächsten Login zu sehen.</p>"
+      },
+      "en": {
+        "title": "'Sync weekly' now picks up the raid and Duty Finder values too, instead of waiting for the next login.",
+        "body": "<p>'Sync weekly' now picks up the raid and Duty Finder values too, instead of waiting for the next login.</p>"
+      }
+    },
+    {
+      "id": "a-completed-wondrous-tails-book",
+      "version": "0.3.0",
+      "date": "2026-07-05",
+      "kind": "fix",
+      "source": "plugin",
+      "de": {
+        "title": "Ein abgeschlossenes Tagebuch aus der Vorwoche wird nicht mehr fälschlich als diese Woche erledigt gemeldet.",
+        "body": "<p>Ein abgeschlossenes Tagebuch aus der Vorwoche wird nicht mehr fälschlich als diese Woche erledigt gemeldet.</p>"
+      },
+      "en": {
+        "title": "A completed Wondrous Tails book from last week is no longer mis-reported as done this week.",
+        "body": "<p>A completed Wondrous Tails book from last week is no longer mis-reported as done this week.</p>"
+      }
+    },
+    {
+      "id": "weekly-checklist-auto-fill-opt",
+      "version": "0.2.0",
+      "date": "2026-07-02",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Wochenliste automatisch füllen (optional)",
+        "body": "<p>Steine, Sonderaufträge und die Savage-Ebenen. Es wird nur gesendet, was sicher erkannt wurde — deine manuellen Einträge bleiben unangetastet.</p>"
+      },
+      "en": {
+        "title": "Weekly checklist auto-fill (opt-in)",
+        "body": "<p>Tomestones, custom deliveries and the savage floors. Only values read with certainty are sent — your manual entries are never overwritten.</p>"
+      }
+    },
+    {
+      "id": "reworked-windows-the-main-window",
+      "version": "0.2.0",
+      "date": "2026-07-02",
+      "kind": "change",
+      "source": "plugin",
+      "de": {
+        "title": "Fenster überarbeitet",
+        "body": "<p>Hauptfenster als Menü mit großen Schaltflächen, Einstellungen in Reitern.</p>"
+      },
+      "en": {
+        "title": "Reworked windows",
+        "body": "<p>The main window is a menu with large buttons, settings are organised into tabs.</p>"
+      }
+    },
+    {
+      "id": "plugin-icon-in-the-dalamud",
+      "version": "0.1.1",
+      "date": "2026-06-21",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Plugin-Symbol im Dalamud-Installer.",
+        "body": "<p>Plugin-Symbol im Dalamud-Installer.</p>"
+      },
+      "en": {
+        "title": "Plugin icon in the Dalamud installer.",
+        "body": "<p>Plugin icon in the Dalamud installer.</p>"
+      }
+    },
+    {
+      "id": "the-repo-index-is-generated",
+      "version": "0.1.1",
+      "date": "2026-06-21",
+      "kind": "fix",
+      "source": "plugin",
+      "de": {
+        "title": "Der Repo-Index wird korrekt erzeugt, sodass Updates zuverlässig angeboten werden.",
+        "body": "<p>Der Repo-Index wird korrekt erzeugt, sodass Updates zuverlässig angeboten werden.</p>"
+      },
+      "en": {
+        "title": "The repo index is generated correctly, so updates are offered reliably.",
+        "body": "<p>The repo index is generated correctly, so updates are offered reliably.</p>"
+      }
+    },
+    {
+      "id": "first-public-release-push-gearsets",
+      "version": "0.1.0",
+      "date": "2026-06-21",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Erste öffentliche Version",
+        "body": "<p>Gearsets an die Web-App senden, Inventar-Upload (optional) und der BiS-Vergleich im Spiel.</p>"
+      },
+      "en": {
+        "title": "First public release",
+        "body": "<p>Push gearsets to the web app, inventory upload (opt-in) and the in-game BiS comparison.</p>"
+      }
+    }
+  ]
+}

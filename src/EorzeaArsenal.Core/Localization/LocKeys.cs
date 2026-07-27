@@ -1010,6 +1010,9 @@ public static class LocKeys
     /// <summary>Advisor: the layout has unsaved edits.</summary>
     public const string AdvisorUnsaved = "advisor.unsaved";
 
+    /// <summary>Connection: the plugin is pointed at a non-production address.</summary>
+    public const string BaseUrlCustom = "config.baseurl.custom";
+
     /// <summary>Inventory: the saddlebag has to be opened once before it can be read.</summary>
     public const string InventorySaddlebagClosed = "inventory.saddlebagclosed";
 

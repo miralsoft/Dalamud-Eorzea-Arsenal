@@ -58,9 +58,49 @@ Users add this stable URL under Dalamud → Settings → Experimental → Custom
 
 ### Cutting a release
 
-1. Bump `<Version>` in `EorzeaArsenalPlugin.csproj` and update `CHANGELOG.md`.
-2. Commit (conventional commit, no AI author — R34) and tag: `git tag vX.Y.Z && git push --tags`.
-3. The release workflow does the rest.
+> **The release preparation belongs in the same PR as the work it ships.** `main` is branch-protected,
+> so every change needs a PR anyway — and a separate "prepare the release" PR afterwards is a second
+> review round for the same action. Worse, two open branches that each pass alone can fail once merged
+> (a date change in `ReleaseNotes.cs` invalidates the generated `changelog.json`). One PR per release.
+
+1. In the feature branch, alongside the work: bump `<Version>` in `EorzeaArsenalPlugin.csproj`, turn
+   `[Unreleased]` in `CHANGELOG.md` into the new dated version section.
+2. Add the user-facing lines to `ReleaseNotes.cs` (each with a **new, hand-written, kebab-case `Id`**
+   — see below) and regenerate the public changelog:
+   ```bash
+   EORZEA_UPDATE_CHANGELOG=1 dotnet test --filter FullyQualifiedName~ChangelogJsonTests
+   ```
+3. Verify from clean — an incremental build hides warnings:
+   ```bash
+   dotnet clean -c Release && dotnet build -c Release && dotnet test && dotnet format --verify-no-changes
+   ```
+4. Open the PR. **CI is the quality gate** — the release workflow only builds and packages, it does not
+   test. A tag must therefore only ever sit on a commit CI has already passed, i.e. on merged `main`.
+5. The maintainer tests in game and merges.
+6. Tag the merge commit and push it:
+   ```bash
+   git checkout main && git pull
+   git tag -a vX.Y.Z -m "vX.Y.Z - what it is" && git push origin vX.Y.Z
+   ```
+   Never tag unasked, and never before the merge: the tag has to point at the commit that is actually
+   on `main`, and that commit does not exist until the PR is merged.
+7. The release workflow does the rest.
+
+### `changelog.json` — the public feed
+
+The web side polls `changelog.json` from the repo root and announces new entries on its `/neu` page
+and in Discord. It is **generated** from `ReleaseNotes.cs`, so the same sentence reaches the in-game
+"what's new", the site and Discord without three copies drifting apart. A test fails when the
+committed file is stale.
+
+Two rules it depends on:
+
+- **An `Id` is permanent.** It is what the web side remembers as "already announced". Changing one
+  re-announces the entry; reusing one silently swallows it. Write ids by hand — never derive them from
+  the text, or fixing a typo would mint a new entry. (The pre-0.5.0 ids were slugged once from their
+  English text and are frozen.)
+- **It is stamped in the release commit, not by a workflow.** `main` is branch-protected and nothing
+  pushes to it, so the file is regenerated locally in step 2 and travels with the release PR.
 
 ## In-game smoke test (operator)
 

@@ -7,6 +7,26 @@ All notable changes to this project are documented here. The format is based on
 ## [0.4.0] - 2026-07-27
 
 ### Added
+- **A machine-readable changelog** at `changelog.json` in the repo root, generated from the in-game
+  release notes so the same sentence reaches the "what's new" window, the website's news page and
+  Discord without three copies drifting apart. Each note line carries a permanent `Id`; the web side
+  remembers it as "already announced", so changing one re-announces the entry and reusing one swallows
+  it. A test fails when the committed file is stale — see *Cutting a release*.
+- **The plugin version travels with every write** (`plugin_version` beside `protocol_version` on gear,
+  inventory, weekly, tome balance and advisor plans), so a "it stopped working" report says which build
+  produced it.
+
+### Changed
+- **API keys are held per address.** The base URL has always been configurable; what was missing is
+  that one key served every address, so pointing the plugin at a test server would have sent it the
+  production key. Each address now keeps its own, and an address with no key of its own reads as
+  disconnected rather than borrowing one — without that rule the split would be decoration. An existing
+  key is filed under the address it was actually issued for. The settings screen says plainly when the
+  plugin is not talking to the live server.
+
+## [0.4.0] - 2026-07-27
+
+### Added
 - **"How to get it" on BiS pieces.** Hovering a BiS target — in the list, the grid tile or the
   shopping list — now also shows where the piece comes from and what it costs (the same route detail
   as the team farm: the fight it drops in with its coffer, or what to trade and with which vendor,

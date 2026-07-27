@@ -294,10 +294,20 @@ public sealed class ConfigWindow : Window, IDisposable
         if (ImGui.InputText("##baseUrl", ref _baseUrl, 256))
         {
             _config.BaseUrl = _baseUrl;
-            _save();
+
+            // Keys belong to an address. Pointing somewhere else must not carry this one along, so the
+            // store re-resolves: the key filed for the new host, or none.
+            _store.OnAddressChanged();
         }
 
         Hint(T(LocKeys.BaseUrlHint));
+
+        // Say plainly when the plugin is not talking to production — otherwise a bug gets reported
+        // against live that only exists on a test server.
+        if (_store.IsCustomAddress)
+        {
+            ImGui.TextColored(Yellow, _localizer.Get(LocKeys.BaseUrlCustom, _store.AddressKey));
+        }
 
         if (ImGui.Button(T(LocKeys.TestConnection)))
         {
@@ -593,7 +603,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private void RunTestConnection()
     {
         _config.BaseUrl = _baseUrl;
-        _save();
+        _store.OnAddressChanged();
         _testStatus = "…";
 
         _ = Task.Run(async () =>

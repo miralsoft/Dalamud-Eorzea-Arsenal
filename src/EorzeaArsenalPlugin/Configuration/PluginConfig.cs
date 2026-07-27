@@ -27,8 +27,23 @@ public sealed class PluginConfig : IPluginConfiguration
     /// <summary>The full API base URL including <c>/api/v1</c> (P9). User-configurable.</summary>
     public string BaseUrl { get; set; } = DefaultBaseUrl;
 
-    /// <summary>The stored API key (secret). <see langword="null"/> when disconnected.</summary>
+    /// <summary>
+    /// The stored API key (secret) for the <b>current</b> <see cref="BaseUrl"/>.
+    /// <see langword="null"/> when this address has no key.
+    /// </summary>
+    /// <remarks>
+    /// Kept for the config format and as the live value; the per-address keys live in
+    /// <see cref="ApiKeys"/>. Reading this directly is what the store does after resolving the host.
+    /// </remarks>
     public string? ApiKey { get; set; }
+
+    /// <summary>
+    /// One key per API address, keyed by host. A key issued by one environment is meaningless — and
+    /// dangerous — on another: a test key must never reach production, and a production key must never
+    /// be sent to a test server. There is deliberately <b>no fallback</b> for an unknown host; without
+    /// that rule the map would be decoration and the first switch would leak the live key.
+    /// </summary>
+    public Dictionary<string, string> ApiKeys { get; set; } = [];
 
     /// <summary>Master opt-in: while false the plugin never contacts the API (R36).</summary>
     public bool Enabled { get; set; }

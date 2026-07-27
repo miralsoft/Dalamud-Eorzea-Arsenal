@@ -274,4 +274,7 @@ public sealed class AdvisorPlanDeleteRequest
 
     /// <summary>The target set's apiPath / shortlink.</summary>
     public required string Target { get; init; }
+
+    /// <summary>The plugin build that produced this write (see <see cref="ProtocolConstants.PluginVersion"/>).</summary>
+    public string PluginVersion { get; init; } = ProtocolConstants.PluginVersion;
 }

@@ -85,6 +85,9 @@ public sealed class GearPayload
     /// <summary>Protocol version the plugin speaks. Always <c>1</c> today (R14).</summary>
     public int ProtocolVersion { get; init; } = ProtocolConstants.ProtocolVersion;
 
+    /// <summary>The plugin build that produced this payload (see <see cref="ProtocolConstants.PluginVersion"/>).</summary>
+    public string PluginVersion { get; init; } = ProtocolConstants.PluginVersion;
+
     /// <summary>The character block.</summary>
     public required CharacterDto Character { get; init; }
 
@@ -119,6 +122,17 @@ public static class ProtocolConstants
 {
     /// <summary>The gear protocol version this plugin implements.</summary>
     public const int ProtocolVersion = 1;
+
+    /// <summary>
+    /// The plugin's own version, sent alongside <see cref="ProtocolVersion"/> on every write so a
+    /// "it stopped working" report says which build produced it — and, once a test environment exists,
+    /// whether someone synced to the wrong one. Purely informational; the server ignores it if unknown.
+    /// </summary>
+    /// <remarks>
+    /// Taken from the release notes, whose newest entry is pinned by test to the version in the
+    /// plugin's csproj — so this cannot drift from what Dalamud installs.
+    /// </remarks>
+    public static string PluginVersion => Localization.ReleaseNotes.Latest.Version;
 
     /// <summary>Maximum number of gearsets accepted in one push.</summary>
     public const int MaxGearsets = 200;
