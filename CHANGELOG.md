@@ -60,7 +60,7 @@ number.
   key is filed under the address it was actually issued for. The settings screen says plainly when the
   plugin is not talking to the live server.
 
-## [0.4.0] - 2026-07-27
+## [0.4.0] - 2026-07-26
 
 ### Added
 - **"How to get it" on BiS pieces.** Hovering a BiS target — in the list, the grid tile or the

@@ -61,7 +61,7 @@ public static class ReleaseNotes
                 "Version 1.0: the plugin leaves its trial phase. Gear comparison, purchase advisor, teams companion and the weekly checklist are all in place — and from here on every change is announced instead of arriving silently."),
         ]),
 
-        new ReleaseNote("0.4.0", "2026-07-27",
+        new ReleaseNote("0.4.0", "2026-07-26",
         [
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
