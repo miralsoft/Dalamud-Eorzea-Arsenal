@@ -22,12 +22,12 @@
       "kind": "fix",
       "source": "plugin",
       "de": {
-        "title": "Deine Vorräte in der Chocobo-Satteltasche verschwinden nicht mehr beim Einloggen. Bisher wurden Bücher und Material auf 0 gesetzt, bis du die Satteltasche einmal geöffnet hattest.",
-        "body": "<p>Deine Vorräte in der Chocobo-Satteltasche verschwinden nicht mehr beim Einloggen. Bisher wurden Bücher und Material auf 0 gesetzt, bis du die Satteltasche einmal geöffnet hattest.</p>"
+        "title": "Deine Vorräte in der Chocobo-Satteltasche verschwinden nicht mehr beim Einloggen. Bisher wurden Bücher und Material auf 0 gesetzt, bis du die Satteltasche einmal geöffnet hattest. Gehilfen konnten aus demselben Grund leer gemeldet werden, ohne dass du bei ihnen warst.",
+        "body": "<p>Deine Vorräte in der Chocobo-Satteltasche verschwinden nicht mehr beim Einloggen. Bisher wurden Bücher und Material auf 0 gesetzt, bis du die Satteltasche einmal geöffnet hattest. Gehilfen konnten aus demselben Grund leer gemeldet werden, ohne dass du bei ihnen warst.</p>"
       },
       "en": {
-        "title": "Your stock in the chocobo saddlebag no longer disappears when you log in. Books and materials used to read as 0 until you had opened the saddlebag once.",
-        "body": "<p>Your stock in the chocobo saddlebag no longer disappears when you log in. Books and materials used to read as 0 until you had opened the saddlebag once.</p>"
+        "title": "Your stock in the chocobo saddlebag no longer disappears when you log in. Books and materials used to read as 0 until you had opened the saddlebag once. Retainers could be reported as empty for the same reason, without you having visited them.",
+        "body": "<p>Your stock in the chocobo saddlebag no longer disappears when you log in. Books and materials used to read as 0 until you had opened the saddlebag once. Retainers could be reported as empty for the same reason, without you having visited them.</p>"
       }
     },
     {

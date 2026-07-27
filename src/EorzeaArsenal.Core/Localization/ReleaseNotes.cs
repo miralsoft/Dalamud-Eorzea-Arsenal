@@ -52,8 +52,8 @@ public static class ReleaseNotes
             new ReleaseNoteItem(
                 ReleaseNoteKind.Fixed,
                 "saddlebag-stock-no-longer-empties",
-                "Deine Vorräte in der Chocobo-Satteltasche verschwinden nicht mehr beim Einloggen. Bisher wurden Bücher und Material auf 0 gesetzt, bis du die Satteltasche einmal geöffnet hattest.",
-                "Your stock in the chocobo saddlebag no longer disappears when you log in. Books and materials used to read as 0 until you had opened the saddlebag once."),
+                "Deine Vorräte in der Chocobo-Satteltasche verschwinden nicht mehr beim Einloggen. Bisher wurden Bücher und Material auf 0 gesetzt, bis du die Satteltasche einmal geöffnet hattest. Gehilfen konnten aus demselben Grund leer gemeldet werden, ohne dass du bei ihnen warst.",
+                "Your stock in the chocobo saddlebag no longer disappears when you log in. Books and materials used to read as 0 until you had opened the saddlebag once. Retainers could be reported as empty for the same reason, without you having visited them."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "version-1-0-the-plugin",

@@ -201,9 +201,16 @@ public sealed class GameInventorySource : IInventorySource
 
     /// <summary>
     /// Reads the currently-open retainer's storage as a <c>retainer:&lt;id&gt;</c> snapshot, or
-    /// <see langword="null"/> if no retainer inventory is loaded. Must be called on the framework
-    /// thread (it is driven from the framework tick). Reports an empty scope when the retainer owns
-    /// no equippable items, so selling everything there reconciles on the next visit.
+    /// <see langword="null"/> when nothing was readable. Must be called on the framework thread (it
+    /// is driven from the framework tick).
+    /// <para>
+    /// As with the saddlebag, finding something is the only trustworthy evidence that we looked
+    /// inside: this runs on a timer, <c>LastSelectedRetainerId</c> outlives the visit that set it,
+    /// and <c>IsLoaded</c> is true for containers that merely exist. An empty snapshot would
+    /// therefore be uploaded for a retainer nobody has been to, and the server would delete its
+    /// stock. The cost is the same and is accepted for the same reason: a retainer emptied down to
+    /// the last item keeps its last known contents until something is in it again.
+    /// </para>
     /// </summary>
     /// <returns>The retainer snapshot, or <see langword="null"/>.</returns>
     public unsafe InventoryData? TryReadActiveRetainer()
@@ -228,25 +235,18 @@ public sealed class GameInventorySource : IInventorySource
                 return null;
             }
 
-            // Only treat the retainer as "scanned" once its bag is actually loaded (i.e. the player
-            // is at the summoning bell), so we never report a stale/empty scope and wipe its items.
-            var inventory = InventoryManager.Instance();
-            if (inventory == null)
-            {
-                return null;
-            }
-
-            var firstPage = inventory->GetInventoryContainer(InventoryType.RetainerPage1);
-            if (firstPage == null || !firstPage->IsLoaded)
-            {
-                return null;
-            }
-
             var sourceId = retainerId.ToString(System.Globalization.CultureInfo.InvariantCulture);
             var items = new List<InventoryItemDto>();
             foreach (var t in RetainerTypes)
             {
                 AddContainer(items, t, InventoryContainers.Retainer, sourceId, includeCoffers: true);
+            }
+
+            // Nothing found means we are not at the bell, not that the retainer is empty — see the
+            // remarks above. Uploading here would hand the server an empty snapshot to act on.
+            if (items.Count == 0)
+            {
+                return null;
             }
 
             // The name is only readable here, at the bell. Sending it lets the server's holdings

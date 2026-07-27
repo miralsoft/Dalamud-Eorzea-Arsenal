@@ -43,6 +43,10 @@ number.
   only evidence that counts as having looked. The trade is deliberate: a genuinely emptied saddlebag
   keeps its last known contents until something is in it again — a stale count can be corrected on
   the website, a deleted one cannot be recovered.
+- **Retainer stock was exposed to the same fault.** The retainer scan runs on a timer and leaned on
+  the same flag to decide whether the player was standing at the summoning bell, so a retainer
+  visited in an earlier session could be uploaded as empty without anyone opening it. It now reports
+  only what it actually found, with the same trade-off.
 
 ### Changed
 - **API keys are held per address.** The base URL has always been configurable; what was missing is
