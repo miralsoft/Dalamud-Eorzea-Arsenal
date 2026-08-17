@@ -3,9 +3,18 @@
 > The complete in-repo memory so an AI/contributor on another machine can continue without losing
 > context (R3). Keep this current **in the same commit** as the change it describes.
 
-_Last updated: 2026-06-12._
+_Last updated: 2026-08-17._
 
-## Status: first implementation complete (pre-release, not yet in-game verified)
+## Status: 1.0.0 released and in-game verified
+
+`v1.0.0` was tagged on `10fc8cc` and published on 2026-08-03. The release workflow built, packaged,
+regenerated `pluginmaster.json` and published the GitHub Release; the operator confirmed the build
+works in game.
+
+The sections below are the running history, oldest first. **Start with "Where things stand" at the
+bottom** if you only need the current picture.
+
+## History
 
 ### Done
 - Repo scaffolding: `.slnx`, two projects + tests, `.editorconfig` (CRLF, naming), `global.json`
@@ -62,17 +71,70 @@ _Last updated: 2026-06-12._
   (`GameGearSource.GetCurrentGearsetIndex`).
 - **Feature B (inventory) stays deferred** to `protocol_version: 2` (see agent memory).
 
-### Next / open
-- **In-game verification (operator):** load the dev build, run `/xivarsenal`, confirm gearsets,
-  materia ids, world name and `cid_hash` are correct. The `GameGearSource` mapping
-  (materia resolution via the `Materia` Excel sheet, HQ-offset stripping) is **best-effort and
-  not yet validated in-game** — most likely place for adjustments.
+### Released since (see `CHANGELOG.md` for the full text)
+- **0.3.0** — weekly checklist (Unreal, Wondrous Tails, normal/alliance fields, hidden Duty-Finder
+  refresh).
+- **0.4.0** (2026-07-26) — teams companion (calendar, mit plans, resources, FFLogs, absences,
+  notifications with toast + clickable chat link) and the purchase advisor (server-computed
+  recommendation, editable own plan, sourcing, holdings).
+- **1.0.0** (2026-08-03) — report a problem from in game (`POST /contact`, four topics built from
+  `GET /contact`, bug button in every window's title bar reporting *which* window it came from, game
+  / Dalamud / plugin versions as separate fields); generated `changelog.json` consumed by the website
+  and Discord; API keys held per address with no fallback to another address's key. Fixed: the
+  saddlebag and retainer scopes were declared empty when nobody had opened them, so the server
+  deleted the stored stock — **finding something is now the only evidence of having looked**, which
+  is the rule to keep in mind for any future storage that is only readable sometimes.
+
+## Where things stand
+
+### The plugin family and the one address
+Plugins are installed from **one** Dalamud repository address:
+
+```
+https://xivarsenal.app/plugin.json
+```
+
+The website serves that route. What it serves is being moved to a dedicated index repository,
+**`miralsoft/Dalamud-Plugins`**, which builds `pluginmaster.json` from a list of source repositories:
+for each it reads the *newest release*, takes the manifest out of the released zip and pins the
+download link to that exact tag. Adding a plugin is one line in its `plugins.json`; the source
+repository needs no workflow and no knowledge that the index exists. Its `docs/` explains the rest.
+
+Two rules there are load-bearing and look like sloppiness if you do not know why: links are pinned to
+a **tag** (never `/releases/latest/`, which means "newest release in the whole repository" and breaks
+as soon as a repository holds more than one plugin), and a repository that cannot be reached **keeps
+its previous entry** rather than being dropped — the same "not observed is not gone" rule as the
+saddlebag fix.
+
+### Open, in rough order of readiness
+- **Website:** point `/plugin.json` at the index repository, and add `/plugins.json` as a permanent
+  second name. Briefing: [`prompts/website-plugin-json-source.md`](prompts/website-plugin-json-source.md).
+  Until then everything keeps working unchanged — the old source is still correct.
+- **This repository's `README.md` still advertises the old GitHub address**
+  (`releases/latest/download/pluginmaster.json`). It should become the domain address, so there is
+  one link rather than two. Offered to the operator, not yet decided.
+- **`dev.xivarsenal.app`** — a test environment on the server side. Nothing to prepare here: keys are
+  already held per address and deliberately do not fall back to another address's key. Once the
+  address exists, that separation is what to test.
+- **Gearset switcher** — a *separate* plugin, not started. It needs no account and no server, which
+  is precisely why it is not folded in here. Later, Arsenal is to offer it a small IPC gate
+  (`EorzeaArsenal.GearsetBis.V1`, `Func<uint, string?>` returning a short JSON object) so it can show
+  how far a gearset is from BiS. **That contract is Arsenal-side work and is not built yet**; agree
+  it with the other side before either party implements it. Briefing and full reasoning:
+  [`prompts/gearset-plugin-briefing.md`](prompts/gearset-plugin-briefing.md).
+
+### Notes that still apply
 - **CI:** workflows run on `windows-latest` with the Dalamud distrib download. **CodeQL** is active
-  (`codeql.yml`, free on the now-public repo); actions are SHA-pinned + Dependabot-managed.
-- **Custom repo:** the release workflow ships `pluginmaster.json` + `latest.zip` as **release
-  assets** (no push to `main`); users add `releases/latest/download/pluginmaster.json`.
-- **Deferred (design only, do not build yet):** pairing-code connect path. (Inventory upload is
-  implemented — opt-in, Phase 2b.)
+  (`codeql.yml`); actions are SHA-pinned + Dependabot-managed. CI on the PR is the quality gate —
+  the release workflow does not run tests.
+- **Release assets:** the release workflow ships `pluginmaster.json` + `latest.zip` as release assets
+  and never pushes to `main` (which is why `main` can stay fully branch-protected). The
+  `pluginmaster.json` committed in this repository therefore lags behind on purpose — the one users
+  receive is the release asset, and soon the index repository's file.
+- **Deferred (design only, do not build):** pairing-code connect path.
+- `dalamud_version` in reports comes from `IDalamudPluginInterface.GetDalamudVersion()`; `ScmVersion`
+  is preferred over the bare version because it is the `git describe` output Dalamud shows about
+  itself, and it says "Local Build" for a self-compiled one.
 
 ## Key facts
 - Build needs **.NET 10 SDK** + local Dalamud dev libs (`%AppData%\XIVLauncher\addon\Hooks\dev`,
