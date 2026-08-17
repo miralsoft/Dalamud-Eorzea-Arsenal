@@ -7,6 +7,9 @@ New agent or contributor? Read in this order:
 3. **`docs/architecture/overview.md`** — the module map and data flow.
 4. **`docs/decisions/`** — ADRs for *why* (license, core/host split, API client, cid_hash).
 5. **`docs/operations/build-test-release.md`** — how to build, test, format, and release.
+6. **`docs/agents/prompts/`** — the briefings given to the other agents in this plugin family (the
+   plugin index, the web app, the planned gearset plugin). Read these before touching anything that
+   crosses a repository boundary.
 
 ## Orientation
 
