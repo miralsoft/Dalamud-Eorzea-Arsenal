@@ -91,3 +91,31 @@ No `identity` field, no matching ladder of our own, no map we maintain — the s
 this sees one. No richer per-set fields yet either (glamour plate, dye channels, `GlamourSetLink`,
 `BannerIndex`, glasses): agreed as a later phase, and it goes into the contract before it goes into the
 code (R25/R27).
+
+## Testing it in game
+
+The mapping is invisible by design, so verifying it needs a way to see it. `/xivarsenal gearsets` dumps
+the live list with the identity each set resolves to, the rung the server matched it on, and whether the
+mapping could be read at all — read-only, and kept for the same reason the weekly probes are kept.
+
+```
+gearsets: 12 live, mapping known, server mints uids: True
+  #0   DRK 3f9c1a2b exact           2.50
+  #1   WHM a71bc0d4 name_ambiguous  Heal
+  #2   SGE —        unknown         New set
+gearsets: 11/12 identified, 0 ambiguous, 1 the server was unsure about
+```
+
+The run to make, once a server that mints identities is reachable:
+
+1. `/xivarsenal gearsets`, note the uids.
+2. Reorder several gearsets in game, push, `/xivarsenal gearsets` again — every uid stays with its set
+   and only the position changed.
+3. Do the same with the plugin **disabled**, restart, push: identical result.
+4. Rename a set without touching its items: the dump shows it unresolved, the push repairs it on the
+   `items` rung, and the next dump has the same uid with the new name.
+5. Open the BiS window before and after: every comparison is on the set it belongs to.
+
+Against a server without `/gear/sets` the dump says `mapping unavailable` and `server mints uids: False`.
+That is the fallback path, and it is worth confirming too — it is what every user is on until the server
+side ships.

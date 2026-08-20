@@ -535,6 +535,9 @@ public sealed class Plugin : IDalamudPlugin
             case "whatsnew":
                 OpenWhatsNew();
                 break;
+            case "gearsets":
+                RunGearsetProbe();
+                break;
             case "obtainprobe":
                 RunObtainProbe();
                 break;
@@ -583,6 +586,68 @@ public sealed class Plugin : IDalamudPlugin
     /// so a "base owned" mismatch can be told apart — a plugin one (slot naming) from a server one
     /// (the base not classified as tome, or no info returned). Written to <c>/xivarsenal log</c>.
     /// </summary>
+    /// <summary>
+    /// Read-only dump of the gearset identity mapping: what the live list looks like, which
+    /// <c>set_uid</c> each set resolves to, and on which rung the server matched it. Hidden and kept on
+    /// purpose — verifying "reorder, push, every pin still right" needs the uids visible before and
+    /// after, and a support answer needs the rung. Never writes; a mapping read is a read.
+    /// </summary>
+    private void RunGearsetProbe()
+    {
+        if (!_store.HasKey)
+        {
+            Chat(_localizer.Get(LocKeys.PushNotConnected));
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var snapshot = await _gearSource.ReadAsync(CancellationToken.None).ConfigureAwait(false);
+                if (snapshot is null)
+                {
+                    Chat("gearsets: not logged in.");
+                    return;
+                }
+
+                var clean = GearSanitizer.Sanitize(snapshot);
+                var cid = clean.Character.CidHash;
+
+                var read = await _gearsetMapping.EnsureMappingAsync(cid, CancellationToken.None).ConfigureAwait(false);
+                Chat($"gearsets: {clean.Gearsets.Count} live, mapping {(read ? "known" : "unavailable")}, " +
+                     $"server mints uids: {_gearsetMapping.ServerMintsUids}.");
+
+                var resolved = 0;
+                var ambiguous = 0;
+                foreach (var set in clean.Gearsets)
+                {
+                    var match = _gearsetMapping.Resolve(cid, set);
+                    var uid = match.IsResolved ? match.SetUid![..Math.Min(8, match.SetUid!.Length)] : "—";
+                    var rung = match.MatchedBy ?? (match.WasAmbiguous ? "ambiguous" : "unknown");
+
+                    if (match.IsResolved)
+                    {
+                        resolved++;
+                    }
+                    else if (match.WasAmbiguous)
+                    {
+                        ambiguous++;
+                    }
+
+                    Chat($"  #{set.GearIndex,-3} {set.Job} {uid,-9} {rung,-15} {set.Name}");
+                }
+
+                Chat($"gearsets: {resolved}/{clean.Gearsets.Count} identified, {ambiguous} ambiguous, " +
+                     $"{_gearsetMapping.UncertainMatches.Count} the server was unsure about.");
+            }
+            catch (Exception ex)
+            {
+                Chat($"gearsets: probe failed ({ex.GetType().Name}).");
+            }
+        });
+    }
+
     private void RunObtainProbe()
     {
         if (!_store.HasKey)
