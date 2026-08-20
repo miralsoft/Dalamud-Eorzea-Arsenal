@@ -155,3 +155,33 @@ The run to make, once a server that mints identities is reachable:
 Against a server without `/gear/sets` the dump says `mapping unavailable` and `server mints uids: False`.
 That is the fallback path, and it is worth confirming too — it is what every user is on until the server
 side ships.
+
+## When `complete: true` arrives, it must mean "unabridged"
+
+Pruning is Phase 3 on the server, and the flag that licenses it does not exist in this code yet — on
+purpose. When it is built, one property decides whether it is safe, and it is not obvious from the
+outside:
+
+**What this plugin sends is not "every gearset the character has". It is "every gearset it can
+report."** Three things are left out between the game and the payload:
+
+- **jobs outside the 21-job whitelist** — crafters and gatherers are skipped by `JobMap.ToCode`. They
+  are the gaps in a sorted list (`#0, #4, #8, #10, …` were all DoH/DoL sets in the 2026-08-20 test run);
+- **anything `GearSanitizer` drops** — an unknown job code, or a position outside 0–99;
+- **everything past `MaxGearsets`**, where the sanitizer stops.
+
+If `complete: true` means "delete what you do not see here", each of those becomes a deletion. The first
+is harmless only because such sets were never sent in the first place. The other two are not: a set the
+sanitizer quietly drops would disappear from the website while still existing in game, and the player
+would have no way to tell why.
+
+So the flag is **not** a constant and not a configuration option. It is computed where the list is
+produced, and it is `true` only when nothing was dropped on the way — the sanitizer has to say whether
+it abridged anything, and any doubt means `false` or absent, which the server treats as "merge". A wrong
+`true` is a request to delete a player's data.
+
+Cleaning up rows that are already orphaned is a **different problem** and a forced full push is the
+wrong first instrument for it: the plugin can only push, while the website can show what would go and
+ask. Orphans are also identifiable more precisely than "not in the list" — a row whose position was
+claimed sits in the 100–999 band, carries `source = 'plugin'`, and went unmatched by the most recent
+push. `source = 'manual'` must never be touched by either mechanism.
