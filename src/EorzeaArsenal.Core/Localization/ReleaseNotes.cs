@@ -25,8 +25,13 @@ public enum ReleaseNoteKind
 /// into a new one. Written by hand for exactly that reason; the existing ones were slugged from their
 /// English text once and are frozen from here on.
 /// </param>
-/// <param name="De">German text.</param>
-/// <param name="En">English text.</param>
+/// <param name="De">
+/// German text, written as <c>"Headline: detail"</c>. The colon is what the public changelog splits on
+/// (see <see cref="ChangelogJson.HeadlineLimit"/>): the part before it becomes the heading on the
+/// website, the rest the paragraph. Without it the whole line becomes the heading — a test holds new
+/// releases to this, and the ones shipped up to 1.0.0 are frozen as they are.
+/// </param>
+/// <param name="En">English text, same shape as <paramref name="De"/>.</param>
 public sealed record ReleaseNoteItem(ReleaseNoteKind Kind, string Id, string De, string En);
 
 /// <summary>One shipped version and what it changed for the user.</summary>

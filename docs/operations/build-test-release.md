@@ -72,8 +72,9 @@ Users add this stable URL under Dalamud → Settings → Experimental → Custom
    patch for fixes only; a branch is cheap to rename if the content turns out otherwise.
 2. Feature and fix branches open their PRs **against the release branch**, never against `main`.
 3. In the release branch, alongside the work: bump `<Version>` in `EorzeaArsenalPlugin.csproj`, keep the
-   version's section in `CHANGELOG.md` current, and add the user-facing lines to `ReleaseNotes.cs` (each
-   with a **new, hand-written, kebab-case `Id`**, see below). Regenerate the public changelog:
+   version's section in `CHANGELOG.md` current, and add the user-facing lines to `ReleaseNotes.cs`, each
+   written as **`Headline: detail`** and with a **new, hand-written, kebab-case `Id`** (see below).
+   Regenerate the public changelog:
    ```bash
    EORZEA_UPDATE_CHANGELOG=1 dotnet test --filter FullyQualifiedName~ChangelogJsonTests
    ```
@@ -113,8 +114,15 @@ and in Discord. It is **generated** from `ReleaseNotes.cs`, so the same sentence
 "what's new", the site and Discord without three copies drifting apart. A test fails when the
 committed file is stale.
 
-Two rules it depends on:
+Three rules it depends on:
 
+- **Write every line as `Headline: detail`.** The generator splits on the first `": "` within
+  `ChangelogJson.HeadlineLimit` (80) characters: what precedes it becomes the title on the site, the
+  rest becomes the paragraph. A line without that split becomes *its own title* — the whole text lands
+  where a headline belongs. That is how 24 of the titles shipped up to 1.0.0 ended up over 100
+  characters long. `ChangelogJsonTests.NewNotesCarryAHeadlineTheSiteCanUse` enforces it and names the
+  offending line; the releases up to 1.0.0 are listed as frozen there and stay as they are, because
+  rewriting a published line would announce it a second time. **Never add a version to that list.**
 - **An `Id` is permanent.** It is what the web side remembers as "already announced". Changing one
   re-announces the entry; reusing one silently swallows it. Write ids by hand — never derive them from
   the text, or fixing a typo would mint a new entry. (The pre-0.5.0 ids were slugged once from their

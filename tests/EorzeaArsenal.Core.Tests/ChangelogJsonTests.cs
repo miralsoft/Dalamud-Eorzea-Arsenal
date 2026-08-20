@@ -132,4 +132,43 @@ public sealed class ChangelogJsonTests
             missingFromNotes.Count == 0,
             $"In CHANGELOG.md but announced to nobody: {string.Join(", ", missingFromNotes)}");
     }
+
+    /// <summary>
+    /// Every release whose notes were written before the headline rule existed. Their text is
+    /// <b>frozen</b>: the site keys an announcement on the <c>id</c>, so rewriting one of those lines
+    /// would announce it a second time to everyone who has already seen it. Nothing is ever added to
+    /// this list — a new release is written to the rule instead.
+    /// </summary>
+    private static readonly string[] FrozenVersions =
+        ["0.1.0", "0.1.1", "0.2.0", "0.3.0", "0.4.0", "1.0.0"];
+
+    /// <summary>
+    /// A note line has to read <c>"Headline: detail"</c>, because that is what the generator splits on
+    /// and what the site renders as a heading over a paragraph. A line without that split becomes its
+    /// own title, and the whole paragraph lands where a headline belongs — which is how 24 of the
+    /// pre-1.1.0 titles ended up over 100 characters long. Checked on the source line rather than on
+    /// the generated file, so a failure names the line that needs rewriting.
+    /// </summary>
+    [Fact]
+    public void NewNotesCarryAHeadlineTheSiteCanUse()
+    {
+        var fresh = ReleaseNotes.All
+            .Where(n => !FrozenVersions.Contains(n.Version, StringComparer.Ordinal));
+
+        foreach (var note in fresh)
+        {
+            foreach (var item in note.Items)
+            {
+                foreach (var (language, line) in (ValueTuple<string, string>[])[("de", item.De), ("en", item.En)])
+                {
+                    var cut = line.Trim().IndexOf(": ", StringComparison.Ordinal);
+                    Assert.True(
+                        cut is > 0 and <= ChangelogJson.HeadlineLimit,
+                        $"{note.Version} '{item.Id}' ({language}) needs a headline: write it as " +
+                        $"\"Headline: detail\" with the colon within {ChangelogJson.HeadlineLimit} characters. " +
+                        "Without it the entire text becomes the title on the website.");
+                }
+            }
+        }
+    }
 }
