@@ -207,9 +207,14 @@ Three things it needs, and the first is the one that can lose data:
   (hand) and `MIN BTN FSH` (land), same uppercase three-letter shape as the combat codes. The server has
   to accept them *before* the plugin sends them — `GearValidator` rejects an unknown code locally too, so
   this is a coordinated change in that order.
-- **Nothing may pretend a crafter set has a BiS target.** `GET /gear/bis` already omits gearsets with no
-  resolvable target, so it takes care of itself; the advisor and the hover overlay must not offer
-  anything for them either.
+- **Hand and land have BiS too**, so almost nothing about the comparison changes: same slots (the tool
+  pair lands in `Weapon` and `OffHand`, which the map already has), same item ids, same materia.
+  `BisComparer` needs no change at all — it knows a job only as a string. What differs is where a piece
+  *comes from*: crafted or farmed rather than dropped, which is the sourcing side and already
+  server-computed. What does need work is **keeping them apart in the interface**: combat jobs and
+  hand/land are not browsed together, so the gearset lists in the BiS and advisor windows have to group
+  or filter by role rather than presenting one list of thirty-two. That is a view decision only —
+  grouping must never reorder what is sent, because `gear_index` is the player's own order.
 
 It also widens what leaves the machine (R25/R27) — eleven more jobs' worth of item ids. The
 justification is stated rather than assumed: it is what makes the deletion path honest. And there is an
