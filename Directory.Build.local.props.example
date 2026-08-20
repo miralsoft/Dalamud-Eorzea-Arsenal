@@ -1,0 +1,27 @@
+<Project>
+
+  <!--
+    Developer tools: copy this file to `Directory.Build.local.props` (same folder, drop the `.example`)
+    and rebuild. That copy is git-ignored and CI refuses a commit that contains it, because it is the
+    only route by which a published build could carry developer surfaces.
+
+    What the symbol adds:
+      * a wrench button in the status window's title bar, opening the diagnostics window;
+      * the live "gearset identity" panel in that window — server state, cached rows, and the uid plus
+        the matched_by rung per gearset.
+
+    What it does not change: the log itself, and `/xivarsenal gearsets`. A player's problem has to stay
+    diagnosable in a released build, so the log and the chat dump are there for everyone. Only the
+    interactive developer surface is absent.
+
+    Verify it worked, from the repository root:
+      dotnet build -c Release
+      grep -c GearsetIdentityPanel src/EorzeaArsenalPlugin/bin/Release/EorzeaArsenalPlugin.dll
+    One or more with this file in place, zero without it. Checking the built assembly rather than the
+    source is the only check that actually answers the question.
+  -->
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);EORZEA_ARSENAL_DEVTOOLS</DefineConstants>
+  </PropertyGroup>
+
+</Project>

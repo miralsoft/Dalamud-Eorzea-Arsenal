@@ -1,0 +1,16 @@
+<Project>
+
+  <!--
+    Shared build settings for every project in the repository.
+
+    Its one job today is to pull in the developer-tools switch, which lives in a file git ignores. The
+    import is conditional so a clean checkout — CI, and the release build — simply has no such file and
+    therefore no developer surfaces compiled in. That absence is the point: a guarded runtime flag would
+    leave the windows in the assembly with an "off" somebody could go looking for.
+
+    See Directory.Build.local.props.example for how to switch them on locally.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)Directory.Build.local.props"
+          Condition="Exists('$(MSBuildThisFileDirectory)Directory.Build.local.props')" />
+
+</Project>

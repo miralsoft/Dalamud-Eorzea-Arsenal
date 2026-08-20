@@ -218,7 +218,13 @@ public sealed class Plugin : IDalamudPlugin
 
         _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, _obtainService, _worldActions, _holdingsService, _advisorService, ServerCharacterId, Save, LinkItemInChat);
         _advisorWindow = new AdvisorWindow(_config, _store, _localizer, _bisService, _advisorService, _trackedItems, _holdingsService, _obtainService, _gearSource, _worldActions, textureProvider, ServerCharacterId, LinkItemInChat);
-        _logWindow = new LogWindow(_logBuffer, _localizer, _gearsetMapping, _gearsetDebug, () => SampleGearsetIdentity(toChat: false), () => _currentCidHash);
+#if EORZEA_ARSENAL_DEVTOOLS
+        var gearsetPanel = new GearsetIdentityPanel(
+            _localizer, _gearsetMapping, _gearsetDebug, () => SampleGearsetIdentity(toChat: false), () => _currentCidHash);
+        _logWindow = new LogWindow(_logBuffer, _localizer, gearsetPanel.Draw);
+#else
+        _logWindow = new LogWindow(_logBuffer, _localizer);
+#endif
         _previewWindow = new PreviewWindow(_gearSource, _localizer, _log);
         _imageWindow = new ImageWindow(_teamsService, textureProvider, _localizer, _log);
         _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
@@ -251,6 +257,12 @@ public sealed class Plugin : IDalamudPlugin
         AddReportButton(_configWindow, "Settings");
         AddReportButton(_previewWindow, "Preview");
         AddReportButton(_logWindow, "Log");
+
+#if EORZEA_ARSENAL_DEVTOOLS
+        // Only in a developer build: a shortcut from the main window to the diagnostics window, where
+        // the gearset identity panel lives. Players reach the log through the settings as before.
+        AddDevToolsButton(_statusWindow);
+#endif
 
         // Show what changed once per new version. Deferred rather than opened here: a plugin usually
         // loads at the title screen, where the window would be dismissed unseen. OnFrameworkUpdate
@@ -375,6 +387,23 @@ public sealed class Plugin : IDalamudPlugin
             Click = _ => OpenReport(where),
             ShowTooltip = () => ImGui.SetTooltip(_localizer.Get(LocKeys.ReportOpen)),
         });
+
+#if EORZEA_ARSENAL_DEVTOOLS
+    /// <summary>
+    /// Puts a wrench in a window's title bar that opens the diagnostics window. Compiled in only with
+    /// the developer-tools symbol, which comes from a git-ignored local props file — a released build
+    /// does not have this method, rather than having it behind a flag somebody could find.
+    /// </summary>
+    /// <param name="window">The window to add the button to.</param>
+    private void AddDevToolsButton(Window window) =>
+        window.TitleBarButtons.Add(new TitleBarButton
+        {
+            Icon = FontAwesomeIcon.Wrench,
+            IconOffset = new Vector2(2f, 1f),
+            Click = _ => OpenLog(),
+            ShowTooltip = () => ImGui.SetTooltip("Diagnostics (developer build)"),
+        });
+#endif
 
     /// <summary>
     /// The situation a report is written in: who is playing, on what, with which versions.

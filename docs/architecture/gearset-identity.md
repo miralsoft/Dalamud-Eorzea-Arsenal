@@ -116,6 +116,32 @@ Sampling is behind a button rather than per frame on purpose: resolving hashes e
 that thirty times a frame would put real work on the framework thread (P1). The button and
 `/xivarsenal gearsets` run the same code, so the window and the chat dump cannot come to disagree.
 
+### The developer build
+
+The panel and the wrench are **absent from a released build**, not switched off in it: they are compiled
+in only when `EORZEA_ARSENAL_DEVTOOLS` is defined, and that comes from `Directory.Build.local.props` —
+a file git ignores and CI refuses to see in a checkout. A runtime flag would leave the panel in the
+assembly with an "off" somebody could go looking for; absent is not something anyone can switch.
+
+Switch it on:
+
+```bash
+cp Directory.Build.local.props.example Directory.Build.local.props
+```
+
+Then rebuild. Verify it against the **built assembly** rather than the source, which is the only check
+that answers the question:
+
+```bash
+grep -c GearsetIdentityPanel src/EorzeaArsenalPlugin/bin/Release/EorzeaArsenalPlugin.dll
+```
+
+One or more with the file in place, zero without it (measured both ways when this landed).
+
+What stays in every build: the log window itself and `/xivarsenal gearsets`. A player's problem has to
+remain diagnosable, so the log and the chat dump belong to everyone — only the interactive developer
+surface goes.
+
 The run to make, once a server that mints identities is reachable:
 
 1. `/xivarsenal gearsets`, note the uids.
