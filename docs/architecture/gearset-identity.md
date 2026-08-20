@@ -106,6 +106,16 @@ gearsets: 12 live, mapping known, server mints uids: True
 gearsets: 11/12 identified, 0 ambiguous, 1 the server was unsure about
 ```
 
+There is also a live view of the same thing in the diagnostics window (**Log → "Set-Zuordnung
+(Diagnose)"**, collapsed by default, local only): whether this server mints identities at all, what the
+last mapping read did, how many rows are cached, and a table of the current sample with the uid and the
+rung per gearset. Colour carries the message — a column of green means every set was recognised, yellow
+marks the rows where the server guessed or this side declined to.
+
+Sampling is behind a button rather than per frame on purpose: resolving hashes every gearset, and doing
+that thirty times a frame would put real work on the framework thread (P1). The button and
+`/xivarsenal gearsets` run the same code, so the window and the chat dump cannot come to disagree.
+
 The run to make, once a server that mints identities is reachable:
 
 1. `/xivarsenal gearsets`, note the uids.

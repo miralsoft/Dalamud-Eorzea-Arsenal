@@ -180,6 +180,10 @@ public sealed class Localizer : ILocalizer
         [LocKeys.LogCopy] = "Copy",
         [LocKeys.LogClear] = "Clear",
         [LocKeys.LogEmpty] = "No messages yet.",
+        [LocKeys.LogGearsetIdentity] = "Gearset identity (diagnostics)",
+        [LocKeys.LogGearsetSample] = "Read the state now",
+        [LocKeys.LogGearsetNone] = "Nothing read yet — use the button above.",
+        [LocKeys.LogGearsetCopy] = "Copy the table",
 
         ["slot.weapon"] = "Weapon",
         ["slot.offhand"] = "Off Hand",
@@ -633,6 +637,10 @@ public sealed class Localizer : ILocalizer
         [LocKeys.LogCopy] = "Kopieren",
         [LocKeys.LogClear] = "Leeren",
         [LocKeys.LogEmpty] = "Noch keine Meldungen.",
+        [LocKeys.LogGearsetIdentity] = "Set-Zuordnung (Diagnose)",
+        [LocKeys.LogGearsetSample] = "Zustand jetzt auslesen",
+        [LocKeys.LogGearsetNone] = "Noch nichts ausgelesen — Knopf darüber benutzen.",
+        [LocKeys.LogGearsetCopy] = "Tabelle kopieren",
 
         ["slot.weapon"] = "Waffe",
         ["slot.offhand"] = "Nebenhand",

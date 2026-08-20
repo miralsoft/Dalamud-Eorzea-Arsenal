@@ -444,6 +444,18 @@ public static class LocKeys
     /// <summary>"Clear" button.</summary>
     public const string LogClear = "log.clear";
 
+    /// <summary>Diagnostics: the gearset identity section header.</summary>
+    public const string LogGearsetIdentity = "log.gearset.identity";
+
+    /// <summary>Diagnostics: button that samples the current mapping.</summary>
+    public const string LogGearsetSample = "log.gearset.sample";
+
+    /// <summary>Diagnostics: nothing sampled yet.</summary>
+    public const string LogGearsetNone = "log.gearset.none";
+
+    /// <summary>Diagnostics: copy the sampled table.</summary>
+    public const string LogGearsetCopy = "log.gearset.copy";
+
     /// <summary>Empty-log placeholder.</summary>
     public const string LogEmpty = "log.empty";
 

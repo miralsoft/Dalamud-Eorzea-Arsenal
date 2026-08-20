@@ -70,6 +70,47 @@ public sealed class GearsetMappingService
     public bool ServerMintsUids { get; private set; }
 
     /// <summary>
+    /// What the last attempt to read the mapping did, in one short line for the diagnostics view. This
+    /// is what separates the two states that look identical from outside: a server that mints no
+    /// identities, and one that does but could not be reached.
+    /// </summary>
+    public string MappingStatus { get; private set; } = "not read yet";
+
+    /// <summary>When the mapping was last read from the server, or <see langword="null"/>.</summary>
+    public DateTimeOffset? LastMappingReadUtc { get; private set; }
+
+    /// <summary>How many rows are cached for a character.</summary>
+    /// <param name="cidHash">The character.</param>
+    /// <returns>The row count, zero when nothing is cached.</returns>
+    public int CachedCount(string? cidHash) =>
+        cidHash is not null && _store.Identities.TryGetValue(cidHash, out var rows) ? rows.Count : 0;
+
+    /// <summary>
+    /// Resolves a whole list at once for the diagnostics view. Hashes every set, so it belongs off the
+    /// framework thread — the caller reads the game, hands the list over, and only displays the result.
+    /// </summary>
+    /// <param name="cidHash">The character the gearsets belong to.</param>
+    /// <param name="sets">The live gearsets.</param>
+    /// <returns>One row per gearset, in the order given.</returns>
+    public IReadOnlyList<GearsetIdentityRow> Snapshot(string cidHash, IReadOnlyList<GearsetDto> sets)
+    {
+        var rows = new List<GearsetIdentityRow>(sets.Count);
+        foreach (var set in sets)
+        {
+            var match = Resolve(cidHash, set);
+            rows.Add(new GearsetIdentityRow(
+                set.GearIndex,
+                set.Job,
+                set.Name,
+                match.SetUid,
+                match.MatchedBy,
+                match.WasAmbiguous));
+        }
+
+        return rows;
+    }
+
+    /// <summary>
     /// The gearsets whose mapping the server reported on an uncertain rung — it guessed between
     /// identical candidates, or fell back to the position. Keyed by <c>set_uid</c>, with the rung as
     /// the value. Worth showing in the interface and worth quoting in a bug report.
@@ -148,6 +189,8 @@ public sealed class GearsetMappingService
 
         Replace(cidHash, rows);
         _nextRefreshUtc[cidHash] = _clock.UtcNow + RefreshInterval;
+        LastMappingReadUtc = _clock.UtcNow;
+        MappingStatus = $"learned from a push, {rows.Count} row(s), {uncertain} uncertain";
         WarnAboutUncertainty(uncertain);
     }
 
@@ -235,6 +278,9 @@ public sealed class GearsetMappingService
                 // A server that does not know the route answers 404. That is a fact about the server,
                 // not an error to shout about, and the old comparison path still works.
                 _nextRefreshUtc[cidHash] = _clock.UtcNow + FailureBackoff;
+                MappingStatus = result.Error!.Kind == ApiErrorKind.NotFound
+                    ? "route unknown to this server"
+                    : $"unavailable ({result.Error!.Kind})";
                 _log.Info($"Gearset mapping unavailable ({result.Error!.Kind}); keeping what is cached.");
                 return _store.Identities.TryGetValue(cidHash, out var stale) && stale.Count > 0;
             }
@@ -261,6 +307,8 @@ public sealed class GearsetMappingService
             }
 
             _nextRefreshUtc[cidHash] = _clock.UtcNow + RefreshInterval;
+            LastMappingReadUtc = _clock.UtcNow;
+            MappingStatus = $"read ok, {rows.Count} row(s) from the server";
 
             if (rows.Count == 0)
             {
@@ -280,6 +328,7 @@ public sealed class GearsetMappingService
         catch (Exception ex)
         {
             _nextRefreshUtc[cidHash] = _clock.UtcNow + FailureBackoff;
+            MappingStatus = $"read failed ({ex.GetType().Name})";
             _log.Warning($"Gearset mapping refresh failed: {ex.GetType().Name}.");
             return false;
         }

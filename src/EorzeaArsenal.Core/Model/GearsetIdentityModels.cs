@@ -37,6 +37,37 @@ public sealed class CachedGearsetIdentity
 }
 
 /// <summary>
+/// One line of the diagnostics view over the mapping: a live gearset next to the identity it resolves
+/// to. Built off the framework thread — resolving hashes every set — and then only read.
+/// </summary>
+/// <param name="GearIndex">The live position.</param>
+/// <param name="Job">Job code.</param>
+/// <param name="Name">The gearset name, as the game holds it.</param>
+/// <param name="SetUid">The resolved identity, or <see langword="null"/> on a miss.</param>
+/// <param name="MatchedBy">The rung the server reported, when it said.</param>
+/// <param name="WasAmbiguous">Whether the cache declined because more than one row matched.</param>
+public readonly record struct GearsetIdentityRow(
+    int GearIndex,
+    string Job,
+    string? Name,
+    string? SetUid,
+    string? MatchedBy,
+    bool WasAmbiguous)
+{
+    /// <summary>Whether an identity was resolved for this gearset.</summary>
+    public bool IsResolved => !string.IsNullOrEmpty(SetUid);
+
+    /// <summary>
+    /// A short form of the uid for display. The full 32 characters say nothing a human needs; the first
+    /// eight are enough to see that two dumps agree, which is the whole point of looking.
+    /// </summary>
+    public string ShortUid => SetUid is null or "" ? "—" : SetUid[..Math.Min(8, SetUid.Length)];
+
+    /// <summary>How the mapping came about, in one word, including the two kinds of miss.</summary>
+    public string Rung => MatchedBy ?? (WasAmbiguous ? "ambiguous" : IsResolved ? "cached" : "unknown");
+}
+
+/// <summary>
 /// What resolving a live gearset against the cache produced. A miss is a first-class answer here: the
 /// caller is expected to show nothing rather than fall back to a guess.
 /// </summary>

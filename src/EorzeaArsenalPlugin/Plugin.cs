@@ -63,6 +63,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly TeamsSeenStore _teamsSeenStore;
     private readonly GearsetIdentityStore _gearsetIdentityStore;
     private readonly GearsetMappingService _gearsetMapping;
+    private readonly GearsetDebugView _gearsetDebug = new();
     private readonly BisService _bisService;
     private readonly ObtainService _obtainService;
     private readonly HoldingsService _holdingsService;
@@ -217,7 +218,7 @@ public sealed class Plugin : IDalamudPlugin
 
         _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, _obtainService, _worldActions, _holdingsService, _advisorService, ServerCharacterId, Save, LinkItemInChat);
         _advisorWindow = new AdvisorWindow(_config, _store, _localizer, _bisService, _advisorService, _trackedItems, _holdingsService, _obtainService, _gearSource, _worldActions, textureProvider, ServerCharacterId, LinkItemInChat);
-        _logWindow = new LogWindow(_logBuffer, _localizer);
+        _logWindow = new LogWindow(_logBuffer, _localizer, _gearsetMapping, _gearsetDebug, () => SampleGearsetIdentity(toChat: false), () => _currentCidHash);
         _previewWindow = new PreviewWindow(_gearSource, _localizer, _log);
         _imageWindow = new ImageWindow(_teamsService, textureProvider, _localizer, _log);
         _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
@@ -592,14 +593,33 @@ public sealed class Plugin : IDalamudPlugin
     /// purpose — verifying "reorder, push, every pin still right" needs the uids visible before and
     /// after, and a support answer needs the rung. Never writes; a mapping read is a read.
     /// </summary>
-    private void RunGearsetProbe()
+    private void RunGearsetProbe() => SampleGearsetIdentity(toChat: true);
+
+    /// <summary>
+    /// Samples the mapping into <see cref="GearsetDebugView"/>, and optionally prints it to chat. Both
+    /// the command and the diagnostics window go through here, so the two cannot come to disagree about
+    /// what the state is.
+    /// </summary>
+    /// <param name="toChat">Whether to also print each line to chat.</param>
+    private void SampleGearsetIdentity(bool toChat)
     {
-        if (!_store.HasKey)
+        if (_gearsetDebug.IsSampling)
         {
-            Chat(_localizer.Get(LocKeys.PushNotConnected));
             return;
         }
 
+        if (!_store.HasKey)
+        {
+            _gearsetDebug.Set([], DateTimeOffset.UtcNow, "not connected");
+            if (toChat)
+            {
+                Chat(_localizer.Get(LocKeys.PushNotConnected));
+            }
+
+            return;
+        }
+
+        _gearsetDebug.IsSampling = true;
         _ = Task.Run(async () =>
         {
             try
@@ -607,43 +627,52 @@ public sealed class Plugin : IDalamudPlugin
                 var snapshot = await _gearSource.ReadAsync(CancellationToken.None).ConfigureAwait(false);
                 if (snapshot is null)
                 {
-                    Chat("gearsets: not logged in.");
+                    _gearsetDebug.Set([], DateTimeOffset.UtcNow, "not logged in");
+                    if (toChat)
+                    {
+                        Chat("gearsets: not logged in.");
+                    }
+
                     return;
                 }
 
                 var clean = GearSanitizer.Sanitize(snapshot);
                 var cid = clean.Character.CidHash;
 
+                // A read, never a push: asking the server what it already knows must not write.
                 var read = await _gearsetMapping.EnsureMappingAsync(cid, CancellationToken.None).ConfigureAwait(false);
-                Chat($"gearsets: {clean.Gearsets.Count} live, mapping {(read ? "known" : "unavailable")}, " +
-                     $"server mints uids: {_gearsetMapping.ServerMintsUids}.");
 
-                var resolved = 0;
-                var ambiguous = 0;
-                foreach (var set in clean.Gearsets)
+                // Hashing every set happens here, off the framework thread (P1).
+                var rows = _gearsetMapping.Snapshot(cid, clean.Gearsets);
+                _gearsetDebug.Set(rows, DateTimeOffset.UtcNow, read ? null : "mapping unavailable");
+
+                if (!toChat)
                 {
-                    var match = _gearsetMapping.Resolve(cid, set);
-                    var uid = match.IsResolved ? match.SetUid![..Math.Min(8, match.SetUid!.Length)] : "—";
-                    var rung = match.MatchedBy ?? (match.WasAmbiguous ? "ambiguous" : "unknown");
-
-                    if (match.IsResolved)
-                    {
-                        resolved++;
-                    }
-                    else if (match.WasAmbiguous)
-                    {
-                        ambiguous++;
-                    }
-
-                    Chat($"  #{set.GearIndex,-3} {set.Job} {uid,-9} {rung,-15} {set.Name}");
+                    return;
                 }
 
-                Chat($"gearsets: {resolved}/{clean.Gearsets.Count} identified, {ambiguous} ambiguous, " +
+                Chat($"gearsets: {rows.Count} live, {_gearsetMapping.MappingStatus}, " +
+                     $"server mints uids: {_gearsetMapping.ServerMintsUids}.");
+                foreach (var row in rows)
+                {
+                    Chat($"  #{row.GearIndex,-3} {row.Job} {row.ShortUid,-9} {row.Rung,-15} {row.Name}");
+                }
+
+                Chat($"gearsets: {_gearsetDebug.Resolved}/{rows.Count} identified, " +
+                     $"{_gearsetDebug.Ambiguous} ambiguous, " +
                      $"{_gearsetMapping.UncertainMatches.Count} the server was unsure about.");
             }
             catch (Exception ex)
             {
-                Chat($"gearsets: probe failed ({ex.GetType().Name}).");
+                _gearsetDebug.Set([], DateTimeOffset.UtcNow, $"probe failed ({ex.GetType().Name})");
+                if (toChat)
+                {
+                    Chat($"gearsets: probe failed ({ex.GetType().Name}).");
+                }
+            }
+            finally
+            {
+                _gearsetDebug.IsSampling = false;
             }
         });
     }
