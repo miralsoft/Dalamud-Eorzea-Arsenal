@@ -168,7 +168,8 @@ report."** Three things are left out between the game and the payload:
 - **jobs outside the 21-job whitelist** — crafters and gatherers are skipped by `JobMap.ToCode`. They
   are the gaps in a sorted list (`#0, #4, #8, #10, …` were all DoH/DoL sets in the 2026-08-20 test run);
 - **anything `GearSanitizer` drops** — an unknown job code, or a position outside 0–99;
-- **everything past `MaxGearsets`**, where the sanitizer stops.
+- **everything past `MaxGearsets`**, where the sanitizer stops — which cannot actually happen: the game
+  allows at most 100 gearsets and the payload cap is 200, so this bound is defence in depth, not a risk.
 
 If `complete: true` means "delete what you do not see here", each of those becomes a deletion. The first
 is harmless only because such sets were never sent in the first place. The other two are not: a set the
@@ -185,3 +186,32 @@ wrong first instrument for it: the plugin can only push, while the website can s
 ask. Orphans are also identifiable more precisely than "not in the list" — a row whose position was
 claimed sits in the 100–999 band, carries `source = 'plugin'`, and went unmatched by the most recent
 push. `source = 'manual'` must never be touched by either mechanism.
+
+### Sending every job, and why it makes deletion safe
+
+Proposed 2026-08-20 and, from this side, the right move — not for convenience but because it removes the
+reason the flag was dangerous. With crafters and gatherers included, the job whitelist stops being a
+filter, and `complete: true` can mean what it says instead of "complete, except for a category we agreed
+not to mention". A destructive operation should not rest on an unstated exception.
+
+What remains as an abridgement is then genuinely exceptional — a `ClassJob` that maps to nothing at all —
+which is exactly the rare `false` a "was this read abridged?" flag is for, rather than a routine one.
+
+Three things it needs, and the first is the one that can lose data:
+
+- **One release, not two.** The plugin version that starts sending `complete: true` must be the same one
+  that sends all 32 jobs. A build that sends the flag while still filtering to the 21 combat jobs would
+  tell a server that already stores crafter sets to delete them. Old builds are safe by accident here:
+  they never send the flag at all.
+- **The codes agreed literally**, so neither side invents a spelling: `CRP BSM ARM GSM LTW WVR ALC CUL`
+  (hand) and `MIN BTN FSH` (land), same uppercase three-letter shape as the combat codes. The server has
+  to accept them *before* the plugin sends them — `GearValidator` rejects an unknown code locally too, so
+  this is a coordinated change in that order.
+- **Nothing may pretend a crafter set has a BiS target.** `GET /gear/bis` already omits gearsets with no
+  resolvable target, so it takes care of itself; the advisor and the hover overlay must not offer
+  anything for them either.
+
+It also widens what leaves the machine (R25/R27) — eleven more jobs' worth of item ids. The
+justification is stated rather than assumed: it is what makes the deletion path honest. And there is an
+upside beyond safety, which is not this repository's call to make: the website could then show crafter
+and gatherer gear at all.
