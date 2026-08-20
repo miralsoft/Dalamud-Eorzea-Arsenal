@@ -192,4 +192,125 @@ public sealed class BisComparerTests
 
         Assert.Equal(2, BisComparer.Compare(live, targets).Count);
     }
+    /// <summary>
+    /// The point of the whole change. Two gearsets swap places in game; the targets are keyed on
+    /// identity, so each still lands on the gearset it was pinned to. Under the old position key this
+    /// compared the tank set against the healer's target and showed plausible, false numbers.
+    /// </summary>
+    [Fact]
+    public void Reordering_the_live_list_does_not_move_the_targets()
+    {
+        var tank = new GearsetDto
+        {
+            GearIndex = 1,
+            Job = "DRK",
+            Name = "2.50",
+            Items = new Dictionary<string, ItemDto> { ["Weapon"] = new() { Id = 100 } },
+        };
+        var healer = new GearsetDto
+        {
+            GearIndex = 0,
+            Job = "WHM",
+            Name = "Heal",
+            Items = new Dictionary<string, ItemDto> { ["Weapon"] = new() { Id = 200 } },
+        };
+
+        var live = new GearData
+        {
+            Character = new CharacterDto { Name = "X", World = "Y", CidHash = TestData.ExampleHash },
+            Gearsets = [healer, tank],
+        };
+
+        // The targets still carry the positions from before the swap — which is exactly the situation
+        // the old key could not survive.
+        var targets = new List<BisGearset>
+        {
+            new()
+            {
+                Job = "DRK", GearIndex = 0, SetUid = "tank", Name = "Tank BiS",
+                Items = new Dictionary<string, ItemDto> { ["Weapon"] = new() { Id = 100 } },
+            },
+            new()
+            {
+                Job = "WHM", GearIndex = 1, SetUid = "healer", Name = "Healer BiS",
+                Items = new Dictionary<string, ItemDto> { ["Weapon"] = new() { Id = 200 } },
+            },
+        };
+
+        var result = BisComparer.Compare(live, targets, set => set.Job == "DRK" ? "tank" : "healer");
+
+        Assert.All(result, c => Assert.True(c.IsComplete));
+        Assert.All(result, c => Assert.True(c.HasLiveGearset));
+    }
+
+    /// <summary>
+    /// A target whose gearset cannot be identified is reported as having no live gearset. Falling back
+    /// to the position here would resurrect the bug: the neighbouring set would be compared instead,
+    /// and the numbers would look reasonable while being about the wrong gearset.
+    /// </summary>
+    [Fact]
+    public void An_unresolvable_identity_shows_nothing_rather_than_the_neighbour()
+    {
+        var live = Live(new Dictionary<string, ItemDto> { ["Weapon"] = new() { Id = 100 } });
+        var targets = new List<BisGearset>
+        {
+            new()
+            {
+                Job = "DRK", GearIndex = 0, SetUid = "somewhere-else",
+                Items = new Dictionary<string, ItemDto> { ["Weapon"] = new() { Id = 100 } },
+            },
+        };
+
+        var result = BisComparer.Compare(live, targets, _ => null);
+
+        Assert.False(result[0].HasLiveGearset);
+    }
+
+    /// <summary>
+    /// A server that does not mint identities yet sends no <c>set_uid</c>, and the old position key has
+    /// to keep working — two machines can talk to a live and a test instance on the same day.
+    /// </summary>
+    [Fact]
+    public void Without_identities_the_position_still_matches()
+    {
+        var live = Live(new Dictionary<string, ItemDto> { ["Weapon"] = new() { Id = 100 } });
+        var targets = new List<BisGearset>
+        {
+            Target(new Dictionary<string, ItemDto> { ["Weapon"] = new() { Id = 100 } }),
+        };
+
+        var result = BisComparer.Compare(live, targets);
+
+        Assert.True(result[0].HasLiveGearset);
+        Assert.True(result[0].IsComplete);
+        Assert.Null(result[0].SetUid);
+    }
+
+    /// <summary>
+    /// A response can carry identities on some rows and not others while the server migrates. The key
+    /// is chosen per target, so each row gets the best one it actually has.
+    /// </summary>
+    [Fact]
+    public void A_mixed_response_uses_the_best_key_per_target()
+    {
+        var live = Live(new Dictionary<string, ItemDto> { ["Weapon"] = new() { Id = 100 } });
+        var targets = new List<BisGearset>
+        {
+            new()
+            {
+                Job = "DRK", GearIndex = 0, SetUid = "known",
+                Items = new Dictionary<string, ItemDto> { ["Weapon"] = new() { Id = 100 } },
+            },
+            new()
+            {
+                Job = "DRK", GearIndex = 0, SetUid = null,
+                Items = new Dictionary<string, ItemDto> { ["Weapon"] = new() { Id = 100 } },
+            },
+        };
+
+        var result = BisComparer.Compare(live, targets, _ => "known");
+
+        Assert.True(result[0].HasLiveGearset);
+        Assert.True(result[1].HasLiveGearset);
+    }
 }

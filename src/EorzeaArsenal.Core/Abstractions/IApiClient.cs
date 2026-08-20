@@ -55,6 +55,20 @@ public interface IApiClient
     Task<ApiResult<BisResponse>> GetBisAsync(string apiKey, string? cidHash, CancellationToken ct);
 
     /// <summary>
+    /// Reads the gearset mapping via <c>GET /gear/sets</c> (requires <c>gear:read</c>): every stored
+    /// gearset with the <c>set_uid</c> the server minted for it. This is how a cache miss is answered —
+    /// pushing to learn the mapping would be a write in order to read.
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>gear:read</c>).</param>
+    /// <param name="cidHash">Optional character hash to narrow to one character; <see langword="null"/> for all.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>
+    /// The stored gearsets, or a classified error. A server that does not know the route answers 404,
+    /// which is not a failure of the plugin: the mapping simply is not available there yet.
+    /// </returns>
+    Task<ApiResult<GearSetsResponse>> GetGearSetsAsync(string apiKey, string? cidHash, CancellationToken ct);
+
+    /// <summary>
     /// Reads the server-stored weekly checklist for a character via
     /// <c>GET /characters/{characterId}/weekly</c> (requires <c>gear:read</c>). Used to send only the
     /// fields that actually changed, so manual web-app entries are never overwritten.

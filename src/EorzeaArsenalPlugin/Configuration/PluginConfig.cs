@@ -1,5 +1,6 @@
 using Dalamud.Configuration;
 using EorzeaArsenal.Localization;
+using EorzeaArsenal.Model;
 
 namespace EorzeaArsenal.Plugin.Configuration;
 
@@ -13,7 +14,7 @@ namespace EorzeaArsenal.Plugin.Configuration;
 public sealed class PluginConfig : IPluginConfiguration
 {
     /// <summary>The current configuration schema version.</summary>
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
     /// <summary>
     /// The default production API base URL; always user-editable (P9). For local development,
@@ -181,6 +182,18 @@ public sealed class PluginConfig : IPluginConfiguration
     /// </summary>
     public Dictionary<string, string> CharacterIds { get; set; } = new();
 
+    /// <summary>
+    /// Cached gearset identities per <c>cid_hash</c>: which <c>set_uid</c> the server gave each gearset,
+    /// learned from push responses and from <c>GET /gear/sets</c>. Persisted so the in-game comparison
+    /// has an answer before the first push of a session.
+    /// </summary>
+    /// <remarks>
+    /// A cache of the server's decisions, never a source of them — the plugin does not mint identities.
+    /// Safe to lose: the next push or read re-establishes it, which is why no migration needs to
+    /// reconstruct it.
+    /// </remarks>
+    public Dictionary<string, List<CachedGearsetIdentity>> GearsetIdentities { get; set; } = new();
+
     /// <summary>Whether the character with the given hash may be pushed (unknown = allowed).</summary>
     /// <param name="cidHash">The character's <c>cid_hash</c>.</param>
     /// <returns><see langword="true"/> unless the character is known and explicitly disabled.</returns>
@@ -216,6 +229,15 @@ public sealed class PluginConfig : IPluginConfiguration
         if (Version < 1)
         {
             Version = 1;
+            changed = true;
+        }
+
+        // v1 → v2: the gearset identity cache arrived. Nothing to convert — an absent map deserialises
+        // as empty and the first push or mapping read fills it. The version is still stamped so a later
+        // migration can tell a config that has been through this step from one that has not.
+        if (Version < 2)
+        {
+            Version = 2;
             changed = true;
         }
 

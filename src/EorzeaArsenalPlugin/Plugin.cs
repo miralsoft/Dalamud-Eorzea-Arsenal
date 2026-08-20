@@ -61,6 +61,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly WeeklySyncService _weeklySync;
     private readonly TeamsService _teamsService;
     private readonly TeamsSeenStore _teamsSeenStore;
+    private readonly GearsetIdentityStore _gearsetIdentityStore;
+    private readonly GearsetMappingService _gearsetMapping;
     private readonly BisService _bisService;
     private readonly ObtainService _obtainService;
     private readonly HoldingsService _holdingsService;
@@ -184,7 +186,13 @@ public sealed class Plugin : IDalamudPlugin
         _characterDirectory = new CharacterDirectory(_config.CharacterIds);
         _characterDirectory.Changed += OnCharacterDirectoryChanged;
 
-        _sync = new GearSyncService(_gearSource, api, _store, new SystemClock(), _log, _characterDirectory)
+        // Remembers which set_uid the server gave each gearset, so the in-game comparison is keyed on
+        // identity instead of on the position — the position moves, and everything hung off it used to
+        // move with it, silently and wrongly.
+        _gearsetIdentityStore = new GearsetIdentityStore(_config, Save);
+        _gearsetMapping = new GearsetMappingService(api, _store, _gearsetIdentityStore, new SystemClock(), _log);
+
+        _sync = new GearSyncService(_gearSource, api, _store, new SystemClock(), _log, _characterDirectory, _gearsetMapping)
         {
             MinAutoPushInterval = TimeSpan.FromMinutes(Math.Max(1, _config.AutoPushIntervalMinutes)),
         };
@@ -198,7 +206,7 @@ public sealed class Plugin : IDalamudPlugin
         _teamsSeenStore = new TeamsSeenStore(_config, Save);
         _teamsService = new TeamsService(api, _store, _teamsSeenStore, new SystemClock(), _log);
         _teamsService.Toast += OnTeamToast;
-        _bisService = new BisService(api, _gearSource, _store, _log);
+        _bisService = new BisService(api, _gearSource, _store, _log, _gearsetMapping);
         _obtainService = new ObtainService(api, _store, _log);
         // Pin the counts to the character actually on screen — without it the server answers for
         // whichever character the account last made active, which on a multi-character account is a
@@ -214,7 +222,7 @@ public sealed class Plugin : IDalamudPlugin
         _imageWindow = new ImageWindow(_teamsService, textureProvider, _localizer, _log);
         _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
         _reportWindow = new ReportWindow(_store, _localizer, api, _log, DescribeClient);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew);
         _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save);

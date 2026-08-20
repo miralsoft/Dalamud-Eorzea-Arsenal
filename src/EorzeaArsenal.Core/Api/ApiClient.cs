@@ -103,6 +103,20 @@ public sealed class ApiClient : IApiClient
     }
 
     /// <inheritdoc />
+    public async Task<ApiResult<GearSetsResponse>> GetGearSetsAsync(string apiKey, string? cidHash, CancellationToken ct)
+    {
+        var path = "/gear/sets";
+        if (!string.IsNullOrEmpty(cidHash))
+        {
+            path += "?cid_hash=" + Uri.EscapeDataString(cidHash);
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, Url(path));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<GearSetsResponse>(request, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async Task<ApiResult<WeeklyResponse>> GetWeeklyAsync(string apiKey, string characterId, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, Url(WeeklyPath(characterId)));

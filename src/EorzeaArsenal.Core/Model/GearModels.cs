@@ -104,6 +104,65 @@ public sealed class GearPayload
     };
 }
 
+/// <summary>
+/// How the server recognised a pushed gearset. Every rung requires the job to agree; a position that
+/// changed jobs is a different gearset, which is what the old <c>gear_index</c> key got wrong. Names
+/// come from the API and are matched case-sensitively — an unknown value is simply passed through.
+/// </summary>
+public static class MatchedBy
+{
+    /// <summary>Same job, same name, same position.</summary>
+    public const string Exact = "exact";
+
+    /// <summary>Same job, same name.</summary>
+    public const string Name = "name";
+
+    /// <summary>
+    /// Same job and name, but more than one candidate on either side, paired in position order. The
+    /// one value where the server <b>guessed</b>: deterministic and harmless to data, but it is what
+    /// to warn about and what to quote in a bug report.
+    /// </summary>
+    public const string NameAmbiguous = "name_ambiguous";
+
+    /// <summary>Same job, identical items — a renamed set.</summary>
+    public const string Items = "items";
+
+    /// <summary>
+    /// Same job, same position; the last resort. It only fires when name <i>and</i> items both failed,
+    /// so after a reorder it is the rung most likely to be wrong — worth a log line of its own.
+    /// </summary>
+    public const string Index = "index";
+
+    /// <summary>Nothing matched: a new gearset with a freshly minted uid.</summary>
+    public const string New = "new";
+
+    /// <summary>Whether a value is one the server guessed rather than established.</summary>
+    /// <param name="matchedBy">The value from the push response; may be <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> for the two rungs that can attach a set to the wrong row.</returns>
+    public static bool IsUncertain(string? matchedBy) =>
+        matchedBy is NameAmbiguous or Index;
+}
+
+/// <summary>
+/// One line of the mapping a push answers with: which gearset the server recognised the entry as, and
+/// on which rung of its ladder. The plugin never mints a <see cref="SetUid"/> — it only reads them.
+/// </summary>
+public sealed class GearsetAssignment
+{
+    /// <summary>The in-game position that was sent. Display order only; not an identity.</summary>
+    public int GearIndex { get; init; }
+
+    /// <summary>
+    /// The server's identity for this gearset: 32 lowercase hex characters, opaque and stable for the
+    /// life of the gearset. <see langword="null"/> on a server that does not mint them yet, which is
+    /// the signal to fall back to the old <c>(gear_index, job)</c> path rather than to show nothing.
+    /// </summary>
+    public string? SetUid { get; init; }
+
+    /// <summary>Which rung matched — see <see cref="MatchedBy"/>. <see langword="null"/> when unsaid.</summary>
+    public string? MatchedBy { get; init; }
+}
+
 /// <summary>Success body of <c>PUT /gear</c>: <c>{ "status": "ok", "character_id": "42", "gearsets": 3 }</c>.</summary>
 public sealed class GearPushResult
 {
@@ -115,6 +174,12 @@ public sealed class GearPushResult
 
     /// <summary>Number of gearsets accepted.</summary>
     public int Gearsets { get; init; }
+
+    /// <summary>
+    /// The mapping, <b>index-aligned with the gearsets that were sent</b>. Empty on a server that does
+    /// not answer with it — the plugin then keeps working the old way rather than losing its bearings.
+    /// </summary>
+    public List<GearsetAssignment> Sets { get; init; } = [];
 }
 
 /// <summary>Protocol-wide constants shared across the core.</summary>

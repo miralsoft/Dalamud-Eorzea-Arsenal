@@ -95,6 +95,20 @@ public sealed class FakeApiClient : IApiClient
     public Task<ApiResult<BisResponse>> GetBisAsync(string apiKey, string? cidHash, CancellationToken ct) =>
         Task.FromResult(BisResult);
 
+    /// <summary>Result returned by <see cref="GetGearSetsAsync"/>.</summary>
+    public ApiResult<GearSetsResponse> GearSetsResult { get; set; } =
+        ApiResult<GearSetsResponse>.Ok(new GearSetsResponse());
+
+    /// <summary>How many times the mapping was read — a read must never be replaced by a push.</summary>
+    public int GearSetsCalls { get; private set; }
+
+    /// <inheritdoc />
+    public Task<ApiResult<GearSetsResponse>> GetGearSetsAsync(string apiKey, string? cidHash, CancellationToken ct)
+    {
+        GearSetsCalls++;
+        return Task.FromResult(GearSetsResult);
+    }
+
     private readonly Queue<ApiResult<WeeklyResponse>> _weeklyGetResults = new();
     private readonly Queue<ApiResult<WeeklyPushResult>> _weeklyPutResults = new();
 

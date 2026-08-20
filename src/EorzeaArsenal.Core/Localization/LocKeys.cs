@@ -170,6 +170,13 @@ public static class LocKeys
     /// <summary>Rate-limited until label (arg: seconds).</summary>
     public const string StatusRateLimited = "status.ratelimited";
 
+    /// <summary>
+    /// Warning that the server could not identify some gearsets with certainty (arg: count). Shown
+    /// because the comparison may then be attached to the wrong set, and because renaming the sets apart
+    /// is something only the player can do.
+    /// </summary>
+    public const string StatusGearsetIdentityUncertain = "status.identity.uncertain";
+
     /// <summary>"Push now" button.</summary>
     public const string PushNow = "status.pushnow";
 

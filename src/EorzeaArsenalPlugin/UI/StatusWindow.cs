@@ -27,6 +27,7 @@ public sealed class StatusWindow : Window
     private readonly ConfigStore _store;
     private readonly Localizer _localizer;
     private readonly GearSyncService _sync;
+    private readonly GearsetMappingService _gearsetMapping;
     private readonly InventorySyncService _inventory;
     private readonly WeeklySyncService _weekly;
     private readonly Action _requestManualPush;
@@ -61,11 +62,13 @@ public sealed class StatusWindow : Window
     /// <param name="openCalendar">Callback to open the calendar window.</param>
     /// <param name="openPreview">Callback to open the preview window.</param>
     /// <param name="openWhatsNew">Callback to open the what's-new window.</param>
+    /// <param name="gearsetMapping">The gearset identity cache, for the uncertain-match warning.</param>
     public StatusWindow(
         PluginConfig config,
         ConfigStore store,
         Localizer localizer,
         GearSyncService sync,
+        GearsetMappingService gearsetMapping,
         InventorySyncService inventory,
         WeeklySyncService weekly,
         Action requestManualPush,
@@ -86,6 +89,7 @@ public sealed class StatusWindow : Window
         _store = store;
         _localizer = localizer;
         _sync = sync;
+        _gearsetMapping = gearsetMapping;
         _inventory = inventory;
         _weekly = weekly;
         _requestManualPush = requestManualPush;
@@ -123,6 +127,16 @@ public sealed class StatusWindow : Window
         {
             var seconds = Math.Max(0, (int)(_sync.BackoffUntilUtc - DateTimeOffset.UtcNow).TotalSeconds);
             ImGui.TextColored(Yellow, _localizer.Get(LocKeys.StatusRateLimited, seconds));
+        }
+
+        // The server guessed on at least one gearset — identical job and name, or the position as a last
+        // resort. Nothing is broken and no data is at risk, but the comparison may sit on the wrong set,
+        // and only the player can take the ambiguity away by naming them apart. A line, not a dialog.
+        var uncertain = _gearsetMapping.UncertainMatches.Count;
+        if (uncertain > 0)
+        {
+            using var wrap = ImRaii.PushColor(ImGuiCol.Text, Yellow);
+            ImGui.TextWrapped(_localizer.Get(LocKeys.StatusGearsetIdentityUncertain, uncertain));
         }
 
         ImGui.Spacing();

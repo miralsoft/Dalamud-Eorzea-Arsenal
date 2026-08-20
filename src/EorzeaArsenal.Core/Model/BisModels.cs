@@ -16,7 +16,14 @@ public sealed class BisGearset
     /// <summary>Uppercase 3-letter job code.</summary>
     public required string Job { get; init; }
 
-    /// <summary>The in-game gearset slot the target maps to (match by this + <see cref="Job"/>).</summary>
+    /// <summary>
+    /// The server's identity for the gearset this target is pinned to: 32 lowercase hex characters,
+    /// opaque and stable. This is what the comparison keys on. <see langword="null"/> on a server that
+    /// does not send it yet — then, and only then, <see cref="GearIndex"/> is used as the key again.
+    /// </summary>
+    public string? SetUid { get; init; }
+
+    /// <summary>The in-game gearset slot the target maps to. <b>Display order</b>, not an identity.</summary>
     public int GearIndex { get; init; }
 
     /// <summary>Optional target name.</summary>

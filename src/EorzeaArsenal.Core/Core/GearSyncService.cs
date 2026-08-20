@@ -89,6 +89,7 @@ public sealed class GearSyncService : IDisposable
     private readonly IClock _clock;
     private readonly ILog _log;
     private readonly CharacterDirectory? _directory;
+    private readonly GearsetMappingService? _mapping;
 
     private readonly Lock _gate = new();
     private bool _running;
@@ -107,7 +108,8 @@ public sealed class GearSyncService : IDisposable
     /// <param name="clock">Time source (injectable for tests).</param>
     /// <param name="log">Diagnostics sink.</param>
     /// <param name="directory">Optional registry that learns this character's server id from the push response.</param>
-    public GearSyncService(IGearSource gearSource, IApiClient api, ITokenStore tokens, IClock clock, ILog? log = null, CharacterDirectory? directory = null)
+    /// <param name="mapping">Optional cache that learns the gearset identities the push response returns.</param>
+    public GearSyncService(IGearSource gearSource, IApiClient api, ITokenStore tokens, IClock clock, ILog? log = null, CharacterDirectory? directory = null, GearsetMappingService? mapping = null)
     {
         _gearSource = gearSource;
         _api = api;
@@ -115,6 +117,7 @@ public sealed class GearSyncService : IDisposable
         _clock = clock;
         _log = log ?? NullLog.Instance;
         _directory = directory;
+        _mapping = mapping;
     }
 
     /// <summary>Raised after each push attempt completes (on a background thread).</summary>
@@ -266,11 +269,12 @@ public sealed class GearSyncService : IDisposable
         }
 
         var result = await _api.PushGearAsync(_tokens.ApiKey!, payload, ct).ConfigureAwait(false);
-        return HandleResult(result, hash, payload.Character.CidHash);
+        return HandleResult(result, hash, payload);
     }
 
-    private PushReport HandleResult(ApiResult<GearPushResult> result, string hash, string cidHash)
+    private PushReport HandleResult(ApiResult<GearPushResult> result, string hash, GearPayload payload)
     {
+        var cidHash = payload.Character.CidHash;
         if (result.IsSuccess)
         {
             _lastPushUtc = _clock.UtcNow;
@@ -278,6 +282,10 @@ public sealed class GearSyncService : IDisposable
 
             // Learn the server's numeric character id so per-character paths (weekly, …) can resolve it.
             _directory?.Record(cidHash, result.Value!.CharacterId);
+
+            // And the gearset identities it minted. This is the cheap path: the answer covers exactly
+            // the list that was just sent, so no extra request is needed to learn the mapping.
+            _mapping?.RecordPush(cidHash, payload.Gearsets, result.Value!.Sets);
 
             var count = result.Value!.Gearsets;
             _log.Info($"Push OK: {count} gearset(s).");

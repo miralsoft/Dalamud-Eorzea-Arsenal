@@ -1,0 +1,363 @@
+using EorzeaArsenal.Abstractions;
+using EorzeaArsenal.Gear;
+using EorzeaArsenal.Model;
+
+namespace EorzeaArsenal.Core;
+
+/// <summary>
+/// Holds the server's gearset mapping — which <c>set_uid</c> belongs to which live gearset — and
+/// answers the one question the rest of the plugin asks: "what is this gearset's identity?".
+/// </summary>
+/// <remarks>
+/// <para>
+/// Identity is minted by the server and only by the server. This service is a cache in front of that
+/// decision, with the two properties that keep it a cache: it <b>never</b> invents a uid, and when it
+/// cannot answer it says so instead of falling back to the position — the position is precisely the
+/// value that is wrong in the case this whole mechanism exists for.
+/// </para>
+/// <para>
+/// It is fed from two places. A push answers with the mapping for the list it just sent, which is the
+/// cheap and complete path. <c>GET /gear/sets</c> fills the gap before the first push of a session —
+/// a read, deliberately, because pushing in order to learn the mapping would be a write in order to
+/// read.
+/// </para>
+/// </remarks>
+public sealed class GearsetMappingService
+{
+    /// <summary>How long a refresh from <c>GET /gear/sets</c> is considered current.</summary>
+    private static readonly TimeSpan RefreshInterval = TimeSpan.FromMinutes(10);
+
+    /// <summary>How long to wait after a failed refresh before trying again.</summary>
+    private static readonly TimeSpan FailureBackoff = TimeSpan.FromMinutes(5);
+
+    private readonly IApiClient _api;
+    private readonly ITokenStore _tokens;
+    private readonly IGearsetIdentityStore _store;
+    private readonly IClock _clock;
+    private readonly ILog _log;
+
+    private readonly Dictionary<string, DateTimeOffset> _nextRefreshUtc = new(StringComparer.Ordinal);
+    private readonly SemaphoreSlim _refreshGate = new(1, 1);
+
+    private bool _warnedAboutUncertainty;
+
+    /// <summary>Creates the service.</summary>
+    /// <param name="api">The API client.</param>
+    /// <param name="tokens">Where the API key comes from.</param>
+    /// <param name="store">Persistence for the cache.</param>
+    /// <param name="clock">Time source.</param>
+    /// <param name="log">Diagnostics sink.</param>
+    public GearsetMappingService(
+        IApiClient api,
+        ITokenStore tokens,
+        IGearsetIdentityStore store,
+        IClock clock,
+        ILog log)
+    {
+        _api = api;
+        _tokens = tokens;
+        _store = store;
+        _clock = clock;
+        _log = log;
+    }
+
+    /// <summary>
+    /// Whether the server this plugin is talking to mints identities at all. <see langword="false"/>
+    /// until something carrying a <c>set_uid</c> has been seen. Detected rather than assumed on
+    /// purpose: two machines can talk to a live and a test instance on the same day, and the old
+    /// <c>(gear_index, job)</c> path has to keep working against the one that does not know uids yet.
+    /// </summary>
+    public bool ServerMintsUids { get; private set; }
+
+    /// <summary>
+    /// The gearsets whose mapping the server reported on an uncertain rung — it guessed between
+    /// identical candidates, or fell back to the position. Keyed by <c>set_uid</c>, with the rung as
+    /// the value. Worth showing in the interface and worth quoting in a bug report.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> UncertainMatches => _uncertain;
+
+    private readonly Dictionary<string, string> _uncertain = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Records the mapping a push answered with. The response is index-aligned with the list that was
+    /// sent, so the sent gearsets supply the keys and the response supplies the identities.
+    /// </summary>
+    /// <param name="cidHash">The character the push was for.</param>
+    /// <param name="sent">The gearsets as they were sent, in order.</param>
+    /// <param name="assignments">The <c>sets</c> array from the response; may be empty or shorter.</param>
+    public void RecordPush(
+        string cidHash,
+        IReadOnlyList<GearsetDto> sent,
+        IReadOnlyList<GearsetAssignment> assignments)
+    {
+        if (string.IsNullOrEmpty(cidHash) || assignments.Count == 0)
+        {
+            // An older server answers without the mapping. That is not a failure and must not clear
+            // what is already cached — nothing was contradicted, it simply was not mentioned.
+            return;
+        }
+
+        var rows = new List<CachedGearsetIdentity>(assignments.Count);
+        var uncertain = 0;
+
+        for (var i = 0; i < assignments.Count && i < sent.Count; i++)
+        {
+            var assignment = assignments[i];
+            if (string.IsNullOrEmpty(assignment.SetUid))
+            {
+                continue;
+            }
+
+            // The response is index-aligned with what was sent. Cross-check the position anyway: if
+            // the server ever answers out of order, silently pairing the wrong rows would write one
+            // gearset's identity onto another, which is the exact bug class this feature removes.
+            var set = sent[i];
+            if (assignment.GearIndex != set.GearIndex)
+            {
+                _log.Warning(
+                    $"Push mapping is out of order at {i} (sent gear_index {set.GearIndex}, " +
+                    $"answered {assignment.GearIndex}); ignoring the mapping for this push.");
+                return;
+            }
+
+            ServerMintsUids = true;
+            rows.Add(new CachedGearsetIdentity
+            {
+                SetUid = assignment.SetUid!,
+                Job = set.Job,
+                Name = set.Name ?? string.Empty,
+                ItemsKey = GearsetFingerprint.Strong(set),
+                MatchedBy = assignment.MatchedBy,
+            });
+
+            if (MatchedBy.IsUncertain(assignment.MatchedBy))
+            {
+                _uncertain[assignment.SetUid!] = assignment.MatchedBy!;
+                uncertain++;
+            }
+            else
+            {
+                _uncertain.Remove(assignment.SetUid!);
+            }
+        }
+
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        Replace(cidHash, rows);
+        _nextRefreshUtc[cidHash] = _clock.UtcNow + RefreshInterval;
+        WarnAboutUncertainty(uncertain);
+    }
+
+    /// <summary>
+    /// Resolves a live gearset to the identity the server gave it. The strong key first (job, name and
+    /// items — survives being moved), then the weak key (job and name — the only one a
+    /// <c>GET /gear/sets</c> row can be matched on). A weak key with more than one candidate is
+    /// reported as ambiguous rather than guessed at.
+    /// </summary>
+    /// <param name="cidHash">The character the gearset belongs to.</param>
+    /// <param name="set">The live gearset.</param>
+    /// <returns>The match, which may be a miss.</returns>
+    public GearsetIdentityMatch Resolve(string cidHash, GearsetDto set)
+    {
+        if (string.IsNullOrEmpty(cidHash) ||
+            !_store.Identities.TryGetValue(cidHash, out var rows) ||
+            rows.Count == 0)
+        {
+            return GearsetIdentityMatch.None;
+        }
+
+        var strong = GearsetFingerprint.Strong(set);
+        foreach (var row in rows)
+        {
+            if (row.ItemsKey is not null && string.Equals(row.ItemsKey, strong, StringComparison.Ordinal))
+            {
+                return new GearsetIdentityMatch(row.SetUid, row.MatchedBy, false);
+            }
+        }
+
+        var weak = GearsetFingerprint.NameKey(set);
+        CachedGearsetIdentity? single = null;
+        foreach (var row in rows)
+        {
+            if (!string.Equals(GearsetFingerprint.NameKey(row.Job, row.Name), weak, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (single is not null)
+            {
+                // Two gearsets share a job and a name. The server pairs them in position order, but the
+                // position is exactly what cannot be trusted here, so this side declines to pick.
+                return GearsetIdentityMatch.Ambiguous;
+            }
+
+            single = row;
+        }
+
+        return single is null
+            ? GearsetIdentityMatch.None
+            : new GearsetIdentityMatch(single.SetUid, single.MatchedBy, false);
+    }
+
+    /// <summary>
+    /// Makes sure the mapping for a character has been read at least once, and refreshes it when it has
+    /// gone stale. Cheap to call repeatedly: it returns immediately while the cache is current, and only
+    /// one refresh runs at a time.
+    /// </summary>
+    /// <param name="cidHash">The character to read the mapping for.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Whether the cache holds something for this character afterwards.</returns>
+    public async Task<bool> EnsureMappingAsync(string cidHash, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(cidHash) || !_tokens.HasKey)
+        {
+            return false;
+        }
+
+        if (_nextRefreshUtc.TryGetValue(cidHash, out var next) && _clock.UtcNow < next)
+        {
+            return _store.Identities.TryGetValue(cidHash, out var cached) && cached.Count > 0;
+        }
+
+        if (!await _refreshGate.WaitAsync(0, ct).ConfigureAwait(false))
+        {
+            return _store.Identities.TryGetValue(cidHash, out var inflight) && inflight.Count > 0;
+        }
+
+        try
+        {
+            var result = await _api.GetGearSetsAsync(_tokens.ApiKey!, cidHash, ct).ConfigureAwait(false);
+            if (!result.IsSuccess)
+            {
+                // A server that does not know the route answers 404. That is a fact about the server,
+                // not an error to shout about, and the old comparison path still works.
+                _nextRefreshUtc[cidHash] = _clock.UtcNow + FailureBackoff;
+                _log.Info($"Gearset mapping unavailable ({result.Error!.Kind}); keeping what is cached.");
+                return _store.Identities.TryGetValue(cidHash, out var stale) && stale.Count > 0;
+            }
+
+            var rows = new List<CachedGearsetIdentity>();
+            foreach (var stored in result.Value!.Data)
+            {
+                if (string.IsNullOrEmpty(stored.SetUid) || !stored.IsFromPlugin)
+                {
+                    // A hand-made set does not exist in game, so it can never match a live gearset.
+                    // Caching it would only add ambiguity to the weak key.
+                    continue;
+                }
+
+                ServerMintsUids = true;
+                rows.Add(new CachedGearsetIdentity
+                {
+                    SetUid = stored.SetUid!,
+                    Job = stored.Job ?? string.Empty,
+                    Name = stored.Name ?? string.Empty,
+                    ItemsKey = null,
+                    MatchedBy = null,
+                });
+            }
+
+            _nextRefreshUtc[cidHash] = _clock.UtcNow + RefreshInterval;
+
+            if (rows.Count == 0)
+            {
+                // The server answered and knows no gearsets for this character. That is information:
+                // there is nothing to attach, and the next push will establish the mapping.
+                Replace(cidHash, rows);
+                return false;
+            }
+
+            Merge(cidHash, rows);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _nextRefreshUtc[cidHash] = _clock.UtcNow + FailureBackoff;
+            _log.Warning($"Gearset mapping refresh failed: {ex.GetType().Name}.");
+            return false;
+        }
+        finally
+        {
+            _refreshGate.Release();
+        }
+    }
+
+    /// <summary>Forgets everything cached for a character, e.g. after disconnecting.</summary>
+    /// <param name="cidHash">The character, or <see langword="null"/> to forget all of them.</param>
+    public void Forget(string? cidHash)
+    {
+        if (string.IsNullOrEmpty(cidHash))
+        {
+            _store.Identities.Clear();
+            _nextRefreshUtc.Clear();
+            _uncertain.Clear();
+        }
+        else
+        {
+            _store.Identities.Remove(cidHash);
+            _nextRefreshUtc.Remove(cidHash);
+        }
+
+        _store.Save();
+    }
+
+    /// <summary>Replaces a character's rows wholesale — used when the source knew the complete list.</summary>
+    private void Replace(string cidHash, List<CachedGearsetIdentity> rows)
+    {
+        _store.Identities[cidHash] = rows;
+        _store.Save();
+    }
+
+    /// <summary>
+    /// Folds rows that carry no items key into what is cached, keeping any stronger row already there.
+    /// A <c>GET /gear/sets</c> row knows the uid but not the items, so it must not overwrite a row a
+    /// push established with the full key — that would downgrade the cache on every refresh.
+    /// </summary>
+    private void Merge(string cidHash, List<CachedGearsetIdentity> rows)
+    {
+        var existing = _store.Identities.TryGetValue(cidHash, out var current)
+            ? current.ToDictionary(r => r.SetUid, StringComparer.Ordinal)
+            : new Dictionary<string, CachedGearsetIdentity>(StringComparer.Ordinal);
+
+        var merged = new List<CachedGearsetIdentity>(rows.Count);
+        foreach (var row in rows)
+        {
+            if (existing.TryGetValue(row.SetUid, out var known) && known.ItemsKey is not null &&
+                string.Equals(known.Job, row.Job, StringComparison.Ordinal) &&
+                string.Equals(known.Name, row.Name, StringComparison.Ordinal))
+            {
+                merged.Add(known);
+                continue;
+            }
+
+            merged.Add(row);
+        }
+
+        // Rows the server no longer lists are gone from the mapping. Dropping them here loses nothing:
+        // the server is the truth, and a stale row could only ever attach a uid that no longer exists.
+        _store.Identities[cidHash] = merged;
+        _store.Save();
+    }
+
+    /// <summary>Says once per session that the server had to guess somewhere, and where to look.</summary>
+    private void WarnAboutUncertainty(int count)
+    {
+        if (count == 0 || _warnedAboutUncertainty)
+        {
+            return;
+        }
+
+        _warnedAboutUncertainty = true;
+        _log.Warning(
+            $"The server could not identify {count} gearset(s) with certainty (identical job and name, " +
+            "or matched on position alone). The comparison may be attached to the wrong set; renaming " +
+            "one of them apart fixes it for good.");
+    }
+}
