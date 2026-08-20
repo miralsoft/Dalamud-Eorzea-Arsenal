@@ -135,9 +135,10 @@ public sealed class ChangelogJsonTests
 
     /// <summary>
     /// Every release whose notes were written before the headline rule existed. Their text is
-    /// <b>frozen</b>: the site keys an announcement on the <c>id</c>, so rewriting one of those lines
-    /// would announce it a second time to everyone who has already seen it. Nothing is ever added to
-    /// this list — a new release is written to the rule instead.
+    /// <b>frozen</b> by the operator's decision of 2026-08-20: it is what players already read, and
+    /// editing it would reach nobody — the web side keys an announcement on the <c>id</c> alone and
+    /// never looks at the text again. Nothing is ever added to this list; a new release is written to
+    /// the rule instead.
     /// </summary>
     private static readonly string[] FrozenVersions =
         ["0.1.0", "0.1.1", "0.2.0", "0.3.0", "0.4.0", "1.0.0"];

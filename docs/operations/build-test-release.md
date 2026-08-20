@@ -121,12 +121,19 @@ Three rules it depends on:
   rest becomes the paragraph. A line without that split becomes *its own title* — the whole text lands
   where a headline belongs. That is how 24 of the titles shipped up to 1.0.0 ended up over 100
   characters long. `ChangelogJsonTests.NewNotesCarryAHeadlineTheSiteCanUse` enforces it and names the
-  offending line; the releases up to 1.0.0 are listed as frozen there and stay as they are, because
-  rewriting a published line would announce it a second time. **Never add a version to that list.**
-- **An `Id` is permanent.** It is what the web side remembers as "already announced". Changing one
-  re-announces the entry; reusing one silently swallows it. Write ids by hand — never derive them from
-  the text, or fixing a typo would mint a new entry. (The pre-0.5.0 ids were slugged once from their
-  English text and are frozen.)
+  offending line. The releases up to 1.0.0 are listed as frozen there by the operator's decision of
+  2026-08-20: they are what players already read, and rewriting them would reach nobody (see the next
+  rule). **Never add a version to that list** — that would switch the rule off rather than satisfy it.
+- **An `Id` is permanent — and it is spent.** Confirmed with the web side on 2026-08-20: neither
+  channel looks at the text. Discord keeps a list of posted `source:id` pairs and skips anything in it;
+  the site's bell only records the last notified *version* and ignores plugin entries entirely. So
+  **editing the text of a published entry announces nothing** — it is safe, and it is silent. Correct a
+  typo, a dead link or a renamed menu path that way; anything a player needs to *know or do* needs a
+  new entry with a new id instead. **Renaming an id is the one thing that must never happen**: the
+  bookkeeping reads it as a new entry, so the same message goes out a second time, and every link to
+  `/neu#<old-id>` breaks. Write ids by hand — never derive them from the text, or fixing a typo would
+  mint a new entry. Ids are namespaced by source (`plugin:<our-id>`), so they cannot collide with the
+  website's own. (The pre-0.5.0 ids were slugged once from their English text and are frozen.)
 - **It is stamped in the release commit, not by a workflow.** `main` is branch-protected and nothing
   pushes to it, so the file is regenerated locally in step 2 and travels with the release PR.
 
