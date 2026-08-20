@@ -359,4 +359,42 @@ public sealed class GearsetMappingServiceTests
         Assert.False(store.Identities.ContainsKey(Cid));
         Assert.True(store.Identities.ContainsKey(other));
     }
+    /// <summary>
+    /// A cached row whose name no longer agrees with the server's is <b>replaced</b>, not trusted. It
+    /// loses its items key in the process — the mapping read cannot supply one — and the next push
+    /// restores it. This happened for real: four names with umlauts were corrupted in the config by a
+    /// stray tool, and the mapping read repaired them without ever handing out a wrong identity. The
+    /// weaker outcome is the correct one here, because the server is the truth about a name it stored.
+    /// </summary>
+    [Fact]
+    public async Task ACachedRowThatDisagreesWithTheServerIsReplaced()
+    {
+        var (service, api, store, _) = Build();
+        var set = Set(0, "WHM", "Weißmagier", 100);
+
+        // As if the cached name had been mangled while the plugin was not running.
+        store.Identities[Cid] =
+        [
+            new CachedGearsetIdentity
+            {
+                SetUid = UidA,
+                Job = "WHM",
+                Name = "WeiÃŸmagier",
+                ItemsKey = "stale",
+                MatchedBy = MatchedBy.Exact,
+            },
+        ];
+
+        api.GearSetsResult = ApiResult<GearSetsResponse>.Ok(new GearSetsResponse
+        {
+            Data = [new StoredGearset { SetUid = UidA, Job = "WHM", Name = "Weißmagier", GearIndex = 0, Source = GearsetSource.Plugin }],
+        });
+
+        await service.EnsureMappingAsync(Cid, CancellationToken.None);
+
+        // Repaired: the server's name, no items key, and the live gearset resolves again.
+        Assert.Equal("Weißmagier", store.Identities[Cid][0].Name);
+        Assert.Null(store.Identities[Cid][0].ItemsKey);
+        Assert.Equal(UidA, service.Resolve(Cid, set).SetUid);
+    }
 }
