@@ -285,13 +285,37 @@ public sealed class GearsetMappingService
                 return _store.Identities.TryGetValue(cidHash, out var stale) && stale.Count > 0;
             }
 
+            // Does this server report a row state at all? Asked of the answer rather than of a version,
+            // and per response rather than per row: a hand-made row legitimately has no state, so only the
+            // whole answer can say "this server does not send the field". Applying the state rule to a
+            // server that sends none would cache nothing and break the mapping outright.
+            var reportsState = false;
+            foreach (var probe in result.Value!.Data)
+            {
+                if (!string.IsNullOrEmpty(probe.State))
+                {
+                    reportsState = true;
+                    break;
+                }
+            }
+
             var rows = new List<CachedGearsetIdentity>();
             foreach (var stored in result.Value!.Data)
             {
-                if (string.IsNullOrEmpty(stored.SetUid) || !stored.IsFromPlugin)
+                if (string.IsNullOrEmpty(stored.SetUid))
                 {
-                    // A hand-made set does not exist in game, so it can never match a live gearset.
-                    // Caching it would only add ambiguity to the weak key.
+                    continue;
+                }
+
+                // What a resolution cache keeps is what is IN GAME, which is not the same as "not made by
+                // hand". A parked row is a plugin row that no live gearset occupies any more, and caching
+                // it puts a second (job, name) candidate in front of the set that actually exists.
+                var keep = reportsState
+                    ? RowState.BelongsInResolutionCache(stored.State)
+                    : stored.IsFromPlugin;
+
+                if (!keep)
+                {
                     continue;
                 }
 
@@ -308,7 +332,9 @@ public sealed class GearsetMappingService
 
             _nextRefreshUtc[cidHash] = _clock.UtcNow + RefreshInterval;
             LastMappingReadUtc = _clock.UtcNow;
-            MappingStatus = $"read ok, {rows.Count} row(s) from the server";
+            MappingStatus = reportsState
+                ? $"read ok, {rows.Count} live row(s) of {result.Value!.Data.Count}"
+                : $"read ok, {rows.Count} row(s) from the server";
 
             if (rows.Count == 0)
             {

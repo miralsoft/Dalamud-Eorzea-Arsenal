@@ -181,6 +181,12 @@ public sealed class GearsetAssignment
 
     /// <summary>Which rung matched — see <see cref="MatchedBy"/>. <see langword="null"/> when unsaid.</summary>
     public string? MatchedBy { get; init; }
+
+    /// <summary>
+    /// What happened to this gearset — see <see cref="PushState"/>. <see langword="null"/> on a server
+    /// that does not report it yet, which is not the same as "resolved" and must not be read as such.
+    /// </summary>
+    public string? State { get; init; }
 }
 
 /// <summary>Success body of <c>PUT /gear</c>: <c>{ "status": "ok", "character_id": "42", "gearsets": 3 }</c>.</summary>
@@ -200,6 +206,16 @@ public sealed class GearPushResult
     /// not answer with it — the plugin then keeps working the old way rather than losing its bearings.
     /// </summary>
     public List<GearsetAssignment> Sets { get; init; } = [];
+
+    /// <summary>
+    /// What is waiting for the player, present on <b>every</b> push including the quiet one.
+    /// </summary>
+    /// <remarks>
+    /// <see langword="null"/> only on a server that does not send it at all. Where it is sent, absence
+    /// never means zero: a missing field and an empty one would have to be told apart by whoever reads
+    /// them, and the reader who guesses wrong shows a badge for a question that does not exist.
+    /// </remarks>
+    public ReviewSummary? Review { get; init; }
 }
 
 /// <summary>Protocol-wide constants shared across the core.</summary>
@@ -239,4 +255,61 @@ public static class ProtocolConstants
 
     /// <summary>The single scope the issued key carries (R17 least privilege).</summary>
     public const string RequiredScope = "gear:write";
+}
+
+/// <summary>
+/// The reconciliation counters a push answers with: how much is waiting, and the token that says which
+/// state those numbers describe.
+/// </summary>
+/// <remarks>
+/// Two different sentences for a player, which is why they are counted apart: "2 sets are waiting for
+/// your decision" is not "10 rows on the site no longer exist in game". One is an attribution question
+/// about a set that exists; the other is an inventory question about one that does not.
+/// </remarks>
+public sealed class ReviewSummary
+{
+    /// <summary>
+    /// Fingerprint of the state these numbers describe, per character. Sent even when nothing is open, so
+    /// a client that arrives after somebody else answered everything can tell "nothing waits" from "I have
+    /// no token".
+    /// </summary>
+    /// <remarks>
+    /// It covers identity per row — uid, state, source, job, name and position — and not item values, so a
+    /// routine push that only writes fresh numbers into known rows leaves an open review valid, and one
+    /// that changes what is being asked invalidates it.
+    /// </remarks>
+    public string? StateToken { get; init; }
+
+    /// <summary>How many sent gearsets are waiting for an attribution decision.</summary>
+    public int Held { get; init; }
+
+    /// <summary>Rows no live gearset occupies, split by whether anybody has put them aside.</summary>
+    public OrphanCounts? Orphans { get; init; }
+
+    /// <summary>Where the player can see all of it. Read back, never composed.</summary>
+    public string? Url { get; init; }
+
+    /// <summary>Whether anything at all is waiting.</summary>
+    public bool HasAnything => Held > 0 || (Orphans?.Open ?? 0) > 0 || (Orphans?.Ignored ?? 0) > 0;
+
+    /// <summary>
+    /// What is worth putting in front of the player unprompted: a question about a set they have, or rows
+    /// they have not looked at yet.
+    /// </summary>
+    /// <remarks>
+    /// Rows already put aside are deliberately not in this. Somebody who said "not this one" ten times
+    /// does not want a badge for it afterwards, and a marker that never clears is one people learn to
+    /// ignore, including when it means something.
+    /// </remarks>
+    public bool NeedsAttention => Held > 0 || (Orphans?.Open ?? 0) > 0;
+}
+
+/// <summary>Orphan rows, counted by whether anybody has decided about them.</summary>
+public sealed class OrphanCounts
+{
+    /// <summary>Rows nobody has put aside, which is what a window should offer first.</summary>
+    public int Open { get; init; }
+
+    /// <summary>Rows put aside. Still reachable, so they can be folded away rather than hidden.</summary>
+    public int Ignored { get; init; }
 }

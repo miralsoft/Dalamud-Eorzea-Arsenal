@@ -3,6 +3,7 @@ using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility.Raii;
 using EorzeaArsenal.Core;
+using EorzeaArsenal.Gear;
 using EorzeaArsenal.Localization;
 using EorzeaArsenal.Model;
 using EorzeaArsenal.Plugin.Services;
@@ -31,6 +32,8 @@ public sealed class GearsetIdentityPanel
     private readonly GearsetDebugView _view;
     private readonly Action _sample;
     private readonly Func<string?> _currentCharacter;
+    private readonly Func<JobPolicy> _policy;
+    private readonly Func<ReviewSummary?> _review;
 
     /// <summary>Creates the panel.</summary>
     /// <param name="localizer">UI string resolver.</param>
@@ -38,18 +41,24 @@ public sealed class GearsetIdentityPanel
     /// <param name="view">The last sample.</param>
     /// <param name="sample">Takes a fresh sample, off the framework thread.</param>
     /// <param name="currentCharacter">The <c>cid_hash</c> of the character on screen, if any.</param>
+    /// <param name="policy">What the next push may send, and the scope it will declare.</param>
+    /// <param name="review">What the last push said is waiting, if it said anything.</param>
     public GearsetIdentityPanel(
         Localizer localizer,
         GearsetMappingService mapping,
         GearsetDebugView view,
         Action sample,
-        Func<string?> currentCharacter)
+        Func<string?> currentCharacter,
+        Func<JobPolicy> policy,
+        Func<ReviewSummary?> review)
     {
         _localizer = localizer;
         _mapping = mapping;
         _view = view;
         _sample = sample;
         _currentCharacter = currentCharacter;
+        _policy = policy;
+        _review = review;
     }
 
     /// <summary>Draws the panel as a collapsed section.</summary>
@@ -70,6 +79,41 @@ public sealed class GearsetIdentityPanel
         if (uncertain > 0)
         {
             ImGui.TextColored(Yellow, $"the server was unsure about {uncertain} set(s)");
+        }
+
+        // What the next push may send, and what it will declare it covered. Worth seeing side by side:
+        // the whole point of the scope field is that these two can disagree with a version number, and
+        // the failure it prevents is invisible from the client otherwise.
+        var policy = _policy();
+        var full = string.Equals(policy.Scope, JobScope.All, StringComparison.Ordinal);
+        ImGui.TextColored(
+            full ? Green : Yellow,
+            $"job table: {policy.AllowedCodes.Count} code(s), sending scope \"{policy.Scope}\"");
+
+        if (!full)
+        {
+            ImGui.TextColored(Muted, "  (no table from this address; reporting the frozen combat floor)");
+        }
+
+        // The third condition: what the server says is waiting. Counted apart because "2 sets are waiting
+        // for your decision" and "10 rows no longer exist in game" are two different sentences.
+        if (_review() is { } review)
+        {
+            var orphans = review.Orphans;
+            var line =
+                $"review: {review.Held} held, {orphans?.Open ?? 0} open orphan(s), " +
+                $"{orphans?.Ignored ?? 0} put aside";
+
+            ImGui.TextColored(review.NeedsAttention ? Yellow : Muted, line);
+
+            if (review.StateToken is { Length: > 0 } token)
+            {
+                ImGui.TextColored(Muted, $"  token {token[..Math.Min(8, token.Length)]}");
+            }
+        }
+        else
+        {
+            ImGui.TextColored(Muted, "review: not reported by this server");
         }
 
         using (ImRaii.Disabled(_view.IsSampling))

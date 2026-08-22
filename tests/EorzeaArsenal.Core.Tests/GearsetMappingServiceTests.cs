@@ -264,6 +264,94 @@ public sealed class GearsetMappingServiceTests
     }
 
     /// <summary>
+    /// What a resolution cache keeps is what is in game, and once the server says so per row, that is one
+    /// condition over one field. A parked row is the case the old source rule got wrong: it came from a
+    /// push, so it looked cacheable, and it is not in the live list any more.
+    /// </summary>
+    [Fact]
+    public async Task OnlyLiveRowsGoIntoTheCacheOnceTheServerReportsState()
+    {
+        var (service, api, _, _) = Build();
+        api.GearSetsResult = ApiResult<GearSetsResponse>.Ok(new GearSetsResponse
+        {
+            Data =
+            [
+                new StoredGearset { SetUid = UidA, Job = "DRK", Name = "live", GearIndex = 0, Source = GearsetSource.Plugin, State = RowState.Active },
+                new StoredGearset { SetUid = UidB, Job = "DRK", Name = "gone", GearIndex = 100, Source = GearsetSource.Plugin, State = RowState.Parked },
+            ],
+        });
+
+        await service.EnsureMappingAsync(Cid, CancellationToken.None);
+
+        Assert.Equal(UidA, service.Resolve(Cid, Set(0, "DRK", "live", 100)).SetUid);
+        Assert.False(service.Resolve(Cid, Set(1, "DRK", "gone", 100)).IsResolved);
+    }
+
+    /// <summary>
+    /// A held row belongs to a live gearset and only its attribution is open, so it goes in. Leaving it out
+    /// would show the player nothing for the very set the window is asking them about.
+    /// </summary>
+    [Fact]
+    public async Task AHeldRowIsCachedBecauseItsGearsetExists()
+    {
+        var (service, api, _, _) = Build();
+        api.GearSetsResult = ApiResult<GearSetsResponse>.Ok(new GearSetsResponse
+        {
+            Data = [new StoredGearset { SetUid = UidA, Job = "DRK", Name = "asked about", GearIndex = 7, Source = GearsetSource.Plugin, State = RowState.Held }],
+        });
+
+        await service.EnsureMappingAsync(Cid, CancellationToken.None);
+
+        Assert.Equal(UidA, service.Resolve(Cid, Set(7, "DRK", "asked about", 100)).SetUid);
+    }
+
+    /// <summary>
+    /// An ignored row is a decision, not a live gearset. It stays a candidate on the server and is offered
+    /// there; it has no business in a cache whose whole job is attaching what is in the list right now.
+    /// </summary>
+    [Fact]
+    public async Task AnIgnoredRowIsNotCached()
+    {
+        var (service, api, _, _) = Build();
+        api.GearSetsResult = ApiResult<GearSetsResponse>.Ok(new GearSetsResponse
+        {
+            Data =
+            [
+                new StoredGearset { SetUid = UidA, Job = "DRK", Name = "live", GearIndex = 0, Source = GearsetSource.Plugin, State = RowState.Active },
+                new StoredGearset { SetUid = UidB, Job = "DRK", Name = "aside", GearIndex = 1000, Source = GearsetSource.Manual, State = RowState.Ignored },
+            ],
+        });
+
+        await service.EnsureMappingAsync(Cid, CancellationToken.None);
+
+        Assert.False(service.Resolve(Cid, Set(1, "DRK", "aside", 100)).IsResolved);
+    }
+
+    /// <summary>
+    /// The compatibility half, and it matters more than it looks: a server that does not send the field at
+    /// all reports null on every row, so the state rule read literally would cache nothing and break the
+    /// mapping outright. Asked of the whole answer, because a hand-made row legitimately has no state and
+    /// one row therefore cannot tell the two apart.
+    /// </summary>
+    [Fact]
+    public async Task AServerThatSendsNoStateFallsBackToTheSourceRule()
+    {
+        var (service, api, _, _) = Build();
+        api.GearSetsResult = ApiResult<GearSetsResponse>.Ok(new GearSetsResponse
+        {
+            Data =
+            [
+                new StoredGearset { SetUid = UidA, Job = "DRK", Name = "2.50", GearIndex = 0, Source = GearsetSource.Plugin },
+                new StoredGearset { SetUid = UidB, Job = "DRK", Name = "2.50", GearIndex = 1000, Source = GearsetSource.Manual },
+            ],
+        });
+
+        await service.EnsureMappingAsync(Cid, CancellationToken.None);
+
+        Assert.Equal(UidA, service.Resolve(Cid, Set(0, "DRK", "2.50", 100)).SetUid);
+    }
+
+    /// <summary>
     /// A hand-made set exists only on the website. Caching it could not help — it will never appear in
     /// the live list — and it could hurt, by making a weak key ambiguous that otherwise resolves.
     /// </summary>

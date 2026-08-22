@@ -68,6 +68,26 @@ public sealed class JobTableCache
         }
     }
 
+
+    /// <summary>
+    /// The policy that governs right now, without asking the server. <see cref="JobPolicy.Floor"/> when no
+    /// table is held for this address.
+    /// </summary>
+    /// <remarks>
+    /// For anything that only wants to display the state — a diagnostics line runs every frame and has no
+    /// business starting a request. Use <see cref="GetPolicyAsync"/> when the answer is going to be acted
+    /// on, since that one fetches and refreshes.
+    /// </remarks>
+    public JobPolicy CurrentPolicy
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _byAddress.TryGetValue(Address, out var entry) ? entry.Policy : JobPolicy.Floor;
+            }
+        }
+    }
     private string Address => _settings.BaseUrl.TrimEnd('/');
 
     /// <summary>

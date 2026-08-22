@@ -227,7 +227,8 @@ public sealed class Plugin : IDalamudPlugin
         _advisorWindow = new AdvisorWindow(_config, _store, _localizer, _bisService, _advisorService, _trackedItems, _holdingsService, _obtainService, _gearSource, _worldActions, textureProvider, ServerCharacterId, LinkItemInChat);
 #if EORZEA_ARSENAL_DEVTOOLS
         var gearsetPanel = new GearsetIdentityPanel(
-            _localizer, _gearsetMapping, _gearsetDebug, () => SampleGearsetIdentity(toChat: false), () => _currentCidHash);
+            _localizer, _gearsetMapping, _gearsetDebug, () => SampleGearsetIdentity(toChat: false), () => _currentCidHash,
+            () => _jobTable.CurrentPolicy, () => _sync.LastReview);
         _logWindow = new LogWindow(_logBuffer, _localizer, gearsetPanel.Draw);
 #else
         _logWindow = new LogWindow(_logBuffer, _localizer);

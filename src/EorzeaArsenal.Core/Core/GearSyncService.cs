@@ -60,12 +60,18 @@ public enum PushOutcome
 /// <param name="ErrorKind">The API error kind (on <see cref="PushOutcome.Failed"/>).</param>
 /// <param name="RequestId">Server correlation id, if any — safe to log/show.</param>
 /// <param name="Detail">Optional extra detail (never a secret/body).</param>
+/// <param name="Review">
+/// What the server says is waiting for the player, when it answers with it. Present on every successful
+/// push from a server that reports it, including the quiet case where every count is zero: absence means
+/// "this server does not say", never "nothing waits".
+/// </param>
 public readonly record struct PushReport(
     PushOutcome Outcome,
     int? GearsetCount = null,
     ApiErrorKind? ErrorKind = null,
     string? RequestId = null,
-    string? Detail = null);
+    string? Detail = null,
+    ReviewSummary? Review = null);
 
 /// <summary>
 /// Orchestrates reading gear and pushing it, enforcing the plugin's hard runtime rules:
@@ -128,6 +134,17 @@ public sealed class GearSyncService : IDisposable
 
     /// <summary>Raised after each push attempt completes (on a background thread).</summary>
     public event Action<PushReport>? PushCompleted;
+
+    /// <summary>
+    /// What the last successful push said is waiting for the player, or <see langword="null"/> when no
+    /// push has succeeded yet or the server does not report it.
+    /// </summary>
+    /// <remarks>
+    /// Kept here rather than recomputed, because the counters and the token come out of one snapshot on
+    /// the server and only mean anything together. A window that combined a fresh count with an older
+    /// token would offer a decision the server has already moved past.
+    /// </remarks>
+    public ReviewSummary? LastReview { get; private set; }
 
     /// <summary>The most recent push report, or <see langword="null"/> if nothing has run yet.</summary>
     public PushReport? LastReport { get; private set; }
@@ -300,8 +317,22 @@ public sealed class GearSyncService : IDisposable
             _mapping?.RecordPush(cidHash, payload.Gearsets, result.Value!.Sets);
 
             var count = result.Value!.Gearsets;
-            _log.Info($"Push OK: {count} gearset(s).");
-            return new PushReport(PushOutcome.Sent, GearsetCount: count);
+            var review = result.Value!.Review;
+            LastReview = review;
+
+            if (review is not null && review.HasAnything)
+            {
+                var orphans = review.Orphans;
+                _log.Info(
+                    $"Push OK: {count} gearset(s). Waiting: {review.Held} question(s), " +
+                    $"{orphans?.Open ?? 0} open row(s), {orphans?.Ignored ?? 0} put aside.");
+            }
+            else
+            {
+                _log.Info($"Push OK: {count} gearset(s).");
+            }
+
+            return new PushReport(PushOutcome.Sent, GearsetCount: count, Review: review);
         }
 
         var error = result.Error!;
