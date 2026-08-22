@@ -125,4 +125,30 @@ public static class JobMap
     /// </remarks>
     public static string? RoleOf(string? code) =>
         code is not null && RoleByCode.TryGetValue(code, out var role) ? role : null;
+
+    // The nine classes a job grows out of. They have gearsets and they are sent, but no catalogue lists
+    // targets for them: a BiS set belongs to the job, and the class is what you are before you have one.
+    private static readonly IReadOnlySet<string> BaseClasses = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "GLA", "MRD", "CNJ", "THM", "ARC", "LNC", "PGL", "ROG", "ACN",
+    };
+
+    /// <summary>Whether a code is one of the nine base classes rather than a job.</summary>
+    /// <param name="code">The uppercase 3-letter code.</param>
+    /// <returns><see langword="true"/> for a base class.</returns>
+    public static bool IsBaseClass(string? code) => code is not null && BaseClasses.Contains(code);
+
+    /// <summary>
+    /// Whether a BiS catalogue can be expected to have lists for this job at all.
+    /// </summary>
+    /// <param name="code">The uppercase 3-letter code.</param>
+    /// <returns><see langword="false"/> for hand, land and the base classes.</returns>
+    /// <remarks>
+    /// This is what separates "nothing is pinned yet", which the player can act on in the web app, from
+    /// "there is nothing to pin", which nobody can. Telling them apart matters because the second is not a
+    /// fault and the first reads like one. Hand and land lose this exemption when that feature lands, and
+    /// then this is the single place that changes.
+    /// </remarks>
+    public static bool HasBisCatalogue(string? code) =>
+        RoleOf(code) == RoleCombat && !IsBaseClass(code);
 }

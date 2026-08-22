@@ -317,17 +317,27 @@ public sealed class BisWindow : Window
         return seen.Count;
     }
     /// <summary>
-    /// A live gearset with no target: named, placed, and explained. It is synced; there is only nothing to
-    /// compare it against, and saying so is what keeps it from being reported as a fault.
+    /// A live gearset with no comparison: named, placed, and told which of the two reasons it is.
     /// </summary>
     /// <param name="set">The live gearset.</param>
     /// <param name="index">Its position in the player list.</param>
+    /// <remarks>
+    /// The two are not the same sentence. A combat job has lists and simply has none pinned, which the
+    /// player can fix in one place; a crafter, a gatherer or a base class has nothing to pin, and saying
+    /// "pin one" there sends somebody looking for a page that does not exist. Both are synced either way,
+    /// and that is the part worth saying out loud so neither gets reported as a fault.
+    /// </remarks>
     private void DrawWithoutTarget(GearsetDto set, int index)
     {
         var name = string.IsNullOrWhiteSpace(set.Name) ? string.Empty : $" — {set.Name}";
         ImGui.TextColored(Accent, $"#{index} {set.Job}{name}");
+
+        var reason = JobMap.HasBisCatalogue(set.Job)
+            ? _localizer.Get(LocKeys.BisNoTarget, index)
+            : T(LocKeys.BisNoCatalogue);
+
         ImGui.SameLine();
-        ImGui.TextDisabled(T(LocKeys.BisNoCatalogue));
+        ImGui.TextDisabled(reason);
         ImGui.Spacing();
     }
 

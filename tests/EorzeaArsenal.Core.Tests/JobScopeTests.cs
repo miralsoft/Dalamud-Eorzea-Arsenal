@@ -85,6 +85,49 @@ public sealed class JobScopeTests
     [Fact]
     public void AnUnknownCodeHasNoRoleRatherThanAGuessedOne() => Assert.Null(JobMap.RoleOf("XYZ"));
 
+
+    /// <summary>
+    /// The distinction the window needs: a combat job has lists and may simply have none pinned, which
+    /// the player can fix; hand, land and the base classes have nothing to pin, and telling somebody to
+    /// pin one there sends them looking for a page that does not exist.
+    /// </summary>
+    [Theory]
+    [InlineData("DRK", true)]
+    [InlineData("WHM", true)]
+    [InlineData("PCT", true)]
+    [InlineData("GLA", false)]
+    [InlineData("ACN", false)]
+    [InlineData("ROG", false)]
+    [InlineData("CRP", false)]
+    [InlineData("MIN", false)]
+    public void OnlyJobsWithListsAreOfferedAPin(string code, bool expected) =>
+        Assert.Equal(expected, JobMap.HasBisCatalogue(code));
+
+    [Fact]
+    public void TheNineBaseClassesAreNamedAsSuch()
+    {
+        string[] expected = ["GLA", "MRD", "CNJ", "THM", "ARC", "LNC", "PGL", "ROG", "ACN"];
+
+        Assert.All(expected, c => Assert.True(JobMap.IsBaseClass(c), c));
+        Assert.Equal(9, JobMap.ValidCodes.Count(JobMap.IsBaseClass));
+        Assert.False(JobMap.IsBaseClass("DRK"));
+        Assert.False(JobMap.IsBaseClass(null));
+    }
+
+    /// <summary>
+    /// Every base class is a battle class, so the role split and the catalogue question are two different
+    /// questions about the same code. Answering one with the other is what made BLU a standing example
+    /// on the other side of this contract.
+    /// </summary>
+    [Fact]
+    public void ABaseClassIsCombatAndStillHasNoCatalogue()
+    {
+        foreach (var code in JobMap.ValidCodes.Where(JobMap.IsBaseClass))
+        {
+            Assert.Equal(JobMap.RoleCombat, JobMap.RoleOf(code));
+            Assert.False(JobMap.HasBisCatalogue(code));
+        }
+    }
     [Fact]
     public void TheRoleGroupsCoverAllFortyTwoAndNothingTwice()
     {
