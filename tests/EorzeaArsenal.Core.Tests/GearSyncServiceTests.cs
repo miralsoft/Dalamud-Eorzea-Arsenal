@@ -117,6 +117,60 @@ public sealed class GearSyncServiceTests
         Assert.Equal(1, api.PushCalls);
     }
 
+    /// <summary>
+    /// A push while somebody is answering questions can move the state token under them and turn their next
+    /// decision into a 409. Automatic triggers hold back for that; a person asking is never held, because
+    /// they can see what happened.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomaticPushHoldsBackWhileTheReviewIsOpen()
+    {
+        var (svc, _, api, _, _) = Make();
+        svc.MinAutoPushInterval = TimeSpan.Zero;
+        svc.PauseAutomatic = () => true;
+
+        var report = await PushAndWait(svc, PushTrigger.GearsetChange);
+
+        Assert.Equal(PushOutcome.SkippedReviewOpen, report.Outcome);
+        Assert.Equal(0, api.PushCalls);
+    }
+
+    [Fact]
+    public async Task AManualPushIsNeverHeldBack()
+    {
+        var (svc, _, api, _, _) = Make();
+        svc.PauseAutomatic = () => true;
+
+        var report = await PushAndWait(svc, PushTrigger.Manual);
+
+        Assert.Equal(PushOutcome.Sent, report.Outcome);
+        Assert.Equal(1, api.PushCalls);
+    }
+
+    /// <summary>
+    /// After a decision the gear has not changed, so the unchanged guard would skip the next push perfectly
+    /// correctly — and that push answer is the cheap way the mapping gets re-learned after a decision
+    /// dropped it. Without dropping the guard the plugin shows nothing for the set just decided about.
+    /// </summary>
+    [Fact]
+    public async Task DroppingTheUnchangedGuardLetsTheNextPushThrough()
+    {
+        var (svc, _, api, _, clock) = Make();
+        svc.MinAutoPushInterval = TimeSpan.Zero;
+
+        await PushAndWait(svc, PushTrigger.Manual);
+        clock.Advance(TimeSpan.FromMinutes(1));
+        var skipped = await PushAndWait(svc, PushTrigger.Auto);
+        Assert.Equal(PushOutcome.SkippedUnchanged, skipped.Outcome);
+
+        svc.ForgetLastSent();
+        clock.Advance(TimeSpan.FromMinutes(1));
+        var again = await PushAndWait(svc, PushTrigger.Auto);
+
+        Assert.Equal(PushOutcome.Sent, again.Outcome);
+        Assert.Equal(2, api.PushCalls);
+    }
+
     [Fact]
     public async Task Gearset_change_bypasses_throttle()
     {

@@ -50,6 +50,9 @@ public enum PushOutcome
     /// <summary>The local data failed client-side validation; nothing was sent (R18).</summary>
     InvalidLocal,
 
+    /// <summary>Somebody has the reconciliation open, so automatic pushes are holding back.</summary>
+    SkippedReviewOpen,
+
     /// <summary>The server rejected the push (see <see cref="PushReport.ErrorKind"/>).</summary>
     Failed,
 }
@@ -145,6 +148,35 @@ public sealed class GearSyncService : IDisposable
     /// token would offer a decision the server has already moved past.
     /// </remarks>
     public ReviewSummary? LastReview { get; private set; }
+
+    /// <summary>
+    /// Asked before every <b>automatic</b> push: while it answers true, the timer, the login and the
+    /// gearset-change trigger hold back. A manual push is never held.
+    /// </summary>
+    /// <remarks>
+    /// Set while a person has the reconciliation open. It carries less than it once did and not nothing:
+    /// the state fingerprint covers the position, reordering in game changes it, and reordering triggers a
+    /// push, so an unlucky moment turns the next decision into a 409. What the narrower fingerprint took
+    /// away is the case that happens while the player does nothing at all.
+    /// </remarks>
+    public Func<bool>? PauseAutomatic { get; set; }
+
+    /// <summary>
+    /// Drops the "nothing changed since the last push" guard, so the next push actually goes out.
+    /// </summary>
+    /// <remarks>
+    /// Called after a reconciliation decision. The gear did not change, so the guard would skip that push
+    /// perfectly correctly — and the push answer is the cheap way the mapping gets re-learned after a
+    /// decision dropped it. Without this the plugin would show nothing for the set that was just decided
+    /// about, until the periodic read came round.
+    /// </remarks>
+    public void ForgetLastSent()
+    {
+        lock (_gate)
+        {
+            _lastSentHash = null;
+        }
+    }
 
     /// <summary>The most recent push report, or <see langword="null"/> if nothing has run yet.</summary>
     public PushReport? LastReport { get; private set; }
@@ -250,6 +282,14 @@ public sealed class GearSyncService : IDisposable
             return new PushReport(PushOutcome.SkippedBackoff);
         }
 
+        // Held back while somebody is answering questions: a push can move the state token under them and
+        // turn their next decision into a 409. Reordering in game is the case that actually happens, and it
+        // arrives as a gearset change rather than on the timer, so this gate is NOT the "force" one. Only a
+        // manual push goes through, because that is a person asking and they can see what happened.
+        if (trigger != PushTrigger.Manual && PauseAutomatic?.Invoke() == true)
+        {
+            return new PushReport(PushOutcome.SkippedReviewOpen);
+        }
         if (!force && now - _lastPushUtc < MinAutoPushInterval)
         {
             return new PushReport(PushOutcome.SkippedThrottled);
