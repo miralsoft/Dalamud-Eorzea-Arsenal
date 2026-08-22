@@ -197,7 +197,14 @@ dismissed question straight back.
 - **A 422 is a bug detector, not a dialog.** Since only `candidates[]` is offered, `job_incompatible` means
   this side offered something it should not have. The body's two uids and two job codes go to the log; the
   player gets a short sentence and a freshly fetched list.
-- **`state == null ⟺ source == "manual"`** on a candidate. Asserted by test, not assumed.
+- **The invariant to test is "a hand-made row is never `active`, `held` or `parked`"** — not the shorter
+  `state == null ⟺ source == "manual"`, which was mine and was wrong. A hand-made row can be `ignored`:
+  putting a row aside is a decision a player makes, not a position in a cycle. The short form holds until
+  the first `ignore` on a hand-made row and then quietly does not. The API side found it while answering
+  something else, before it could become a test that passes for the wrong reason.
+- **A row enters the resolution cache exactly when `state` is `active` or `held`.** One condition over one
+  field: `source` is not needed, because the corrected invariant means a hand-made row can never carry
+  either. The right invariant made the rule simpler rather than more complicated.
 
 ## Every decision, and the alternative that lost
 
