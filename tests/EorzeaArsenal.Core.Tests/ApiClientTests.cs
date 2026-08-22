@@ -83,7 +83,7 @@ public sealed class ApiClientTests
         var handler = new StubHttpMessageHandler().Enqueue(
             HttpStatusCode.OK, """{"status":"ok","character_id":"42","gearsets":1}""");
 
-        var payload = GearPayload.From(TestData.Snapshot(TestData.ExampleHash));
+        var payload = GearPayload.From(TestData.Snapshot(TestData.ExampleHash), JobScope.All);
         var result = await Make(handler).PushGearAsync("ea_secret", payload, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -96,6 +96,53 @@ public sealed class ApiClientTests
         Assert.Contains("\"cid_hash\":", request.Body);
         Assert.Contains("\"gear_index\":0", request.Body);
         Assert.Contains("\"Weapon\":", request.Body); // slot keys stay PascalCase
+        Assert.Contains("\"scope\":\"all\"", request.Body);
+    }
+
+    /// <summary>
+    /// The job table route reads no key, so none is sent. It is fetched before one exists on purpose: the
+    /// role split is then right from the first start, and the shipped copy covers only "no network"
+    /// instead of also "not connected yet".
+    /// </summary>
+    [Fact]
+    public async Task GetJobTable_sends_no_authorization_header()
+    {
+        var handler = new StubHttpMessageHandler().Enqueue(
+            HttpStatusCode.OK,
+            """{"version":"2026-08-22","jobs":[{"code":"PLD","role":"tank","combat":true,"from":["GLA"]}]}""");
+
+        var result = await Make(handler).GetJobTableAsync(CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var job = Assert.Single(result.Value!.Jobs);
+        Assert.Equal("PLD", job.Code);
+        Assert.Equal("tank", job.Role);
+        Assert.True(job.Combat);
+        Assert.Equal(["GLA"], job.From);
+
+        var request = handler.Requests.Single();
+        Assert.Null(request.Authorization);
+        Assert.Contains("/gear/jobs", request.Uri!.ToString());
+    }
+
+    /// <summary>
+    /// A rejected job code arrives as a named cause, not as a bare 422: the rule that discards the cached
+    /// table turns on the cause, or a client would refetch it after every failed push.
+    /// </summary>
+    [Fact]
+    public async Task PushGear_surfaces_the_job_unknown_cause_and_its_codes()
+    {
+        var handler = new StubHttpMessageHandler().Enqueue(
+            HttpStatusCode.UnprocessableEntity,
+            """{"error":"job_unknown","jobs":["CRP","MIN"]}""");
+
+        var payload = GearPayload.From(TestData.Snapshot(TestData.ExampleHash), JobScope.All);
+        var result = await Make(handler).PushGearAsync("ea_secret", payload, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ApiErrorKind.Validation, result.Error!.Kind);
+        Assert.Equal(ApiErrorCodes.JobUnknown, result.Error.Code);
+        Assert.Equal(["CRP", "MIN"], result.Error.Jobs);
     }
 
     [Theory]
@@ -111,7 +158,7 @@ public sealed class ApiClientTests
             """{"type":"about:blank","title":"nope","status":0,"detail":"x","request_id":"req-99"}""",
             contentType: "application/problem+json");
 
-        var payload = GearPayload.From(TestData.Snapshot(TestData.ExampleHash));
+        var payload = GearPayload.From(TestData.Snapshot(TestData.ExampleHash), JobScope.All);
         var result = await Make(handler).PushGearAsync("k", payload, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
@@ -127,7 +174,7 @@ public sealed class ApiClientTests
             """{"title":"slow down","request_id":"req-1"}""",
             retryAfterSeconds: 120);
 
-        var payload = GearPayload.From(TestData.Snapshot(TestData.ExampleHash));
+        var payload = GearPayload.From(TestData.Snapshot(TestData.ExampleHash), JobScope.All);
         var result = await Make(handler).PushGearAsync("k", payload, CancellationToken.None);
 
         Assert.False(result.IsSuccess);

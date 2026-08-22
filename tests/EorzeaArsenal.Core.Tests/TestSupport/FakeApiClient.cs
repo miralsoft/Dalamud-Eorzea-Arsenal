@@ -109,6 +109,20 @@ public sealed class FakeApiClient : IApiClient
         return Task.FromResult(GearSetsResult);
     }
 
+    /// <summary>Result returned by <see cref="GetJobTableAsync"/>. A 404 stands for an old server.</summary>
+    public ApiResult<JobTableResponse> JobTableResult { get; set; } =
+        ApiResult<JobTableResponse>.Ok(new JobTableResponse());
+
+    /// <summary>How many times the job table was read.</summary>
+    public int JobTableCalls { get; private set; }
+
+    /// <inheritdoc />
+    public Task<ApiResult<JobTableResponse>> GetJobTableAsync(CancellationToken ct)
+    {
+        JobTableCalls++;
+        return Task.FromResult(JobTableResult);
+    }
+
     private readonly Queue<ApiResult<WeeklyResponse>> _weeklyGetResults = new();
     private readonly Queue<ApiResult<WeeklyPushResult>> _weeklyPutResults = new();
 

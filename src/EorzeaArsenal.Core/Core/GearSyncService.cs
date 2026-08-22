@@ -90,6 +90,7 @@ public sealed class GearSyncService : IDisposable
     private readonly ILog _log;
     private readonly CharacterDirectory? _directory;
     private readonly GearsetMappingService? _mapping;
+    private readonly JobTableCache? _jobTable;
 
     private readonly Lock _gate = new();
     private bool _running;
@@ -109,7 +110,11 @@ public sealed class GearSyncService : IDisposable
     /// <param name="log">Diagnostics sink.</param>
     /// <param name="directory">Optional registry that learns this character's server id from the push response.</param>
     /// <param name="mapping">Optional cache that learns the gearset identities the push response returns.</param>
-    public GearSyncService(IGearSource gearSource, IApiClient api, ITokenStore tokens, IClock clock, ILog? log = null, CharacterDirectory? directory = null, GearsetMappingService? mapping = null)
+    /// <param name="jobTable">
+    /// Optional holder of the job table this server published. Absent, the push reports the frozen combat
+    /// floor and says so — the same conservative answer as a server that has no table.
+    /// </param>
+    public GearSyncService(IGearSource gearSource, IApiClient api, ITokenStore tokens, IClock clock, ILog? log = null, CharacterDirectory? directory = null, GearsetMappingService? mapping = null, JobTableCache? jobTable = null)
     {
         _gearSource = gearSource;
         _api = api;
@@ -118,6 +123,7 @@ public sealed class GearSyncService : IDisposable
         _log = log ?? NullLog.Instance;
         _directory = directory;
         _mapping = mapping;
+        _jobTable = jobTable;
     }
 
     /// <summary>Raised after each push attempt completes (on a background thread).</summary>
@@ -248,13 +254,19 @@ public sealed class GearSyncService : IDisposable
             return new PushReport(PushOutcome.NotLoggedIn);
         }
 
-        var clean = GearSanitizer.Sanitize(snapshot);
+        // What may leave this machine is decided by the table the server at THIS address published, not
+        // by what the plugin can name. Absent a cache, the frozen floor governs and the push says so.
+        var policy = _jobTable is null
+            ? JobPolicy.Floor
+            : await _jobTable.GetPolicyAsync(ct).ConfigureAwait(false);
+
+        var clean = policy.Apply(GearSanitizer.Sanitize(snapshot));
         if (clean.Gearsets.Count == 0)
         {
             return new PushReport(PushOutcome.Nothing);
         }
 
-        var payload = GearPayload.From(clean);
+        var payload = GearPayload.From(clean, policy.Scope);
         var validation = GearValidator.Validate(payload);
         if (!validation.IsValid)
         {
@@ -293,6 +305,15 @@ public sealed class GearSyncService : IDisposable
         }
 
         var error = result.Error!;
+
+        // A rejected job code means the table in hand is wrong. Discard it, so the next push refetches and
+        // reports the floor until a fresh one arrives. Only this cause: every other 422 leaves it alone, or
+        // a client would refetch after every failed push and write about jobs into a log about item ids.
+        if (error.Code == ApiErrorCodes.JobUnknown)
+        {
+            _jobTable?.Invalidate(error.Jobs);
+        }
+
         if (error.Kind == ApiErrorKind.RateLimited)
         {
             var backoff = error.RetryAfter ?? DefaultBackoff;

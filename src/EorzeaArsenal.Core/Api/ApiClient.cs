@@ -117,6 +117,13 @@ public sealed class ApiClient : IApiClient
     }
 
     /// <inheritdoc />
+    public async Task<ApiResult<JobTableResponse>> GetJobTableAsync(CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, Url("/gear/jobs"));
+        return await SendAsync<JobTableResponse>(request, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public async Task<ApiResult<WeeklyResponse>> GetWeeklyAsync(string apiKey, string characterId, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, Url(WeeklyPath(characterId)));
@@ -525,6 +532,8 @@ public sealed class ApiClient : IApiClient
             RequestId = problem?.RequestId,
             Endpoint = endpoint,
             RetryAfter = retryAfter is { Ticks: > 0 } ? retryAfter : null,
+            Code = problem?.Error,
+            Jobs = problem?.Jobs,
         };
     }
 

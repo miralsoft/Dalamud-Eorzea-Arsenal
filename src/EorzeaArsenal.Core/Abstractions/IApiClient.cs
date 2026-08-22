@@ -69,6 +69,21 @@ public interface IApiClient
     Task<ApiResult<GearSetsResponse>> GetGearSetsAsync(string apiKey, string? cidHash, CancellationToken ct);
 
     /// <summary>
+    /// Reads the job table via <c>GET /gear/jobs</c>: which codes this server accepts, their roles, and
+    /// the base-class relation that decides compatibility. Read-only and cacheable.
+    /// </summary>
+    /// <remarks>
+    /// A <b>404 means an old server</b>, and that is a fact worth acting on rather than an error: the
+    /// plugin then reports only the frozen combat floor and says so with <c>scope</c>. What may be sent
+    /// is governed by the table this server published, never by the copy shipped with the plugin — that
+    /// copy is for display, because assuming what a server accepts is the one thing "on any disagreement
+    /// the server wins" forbids in the send direction too.
+    /// </remarks>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The table, or a classified error — <see cref="ApiErrorKind.NotFound"/> for an old server.</returns>
+    Task<ApiResult<JobTableResponse>> GetJobTableAsync(CancellationToken ct);
+
+    /// <summary>
     /// Reads the server-stored weekly checklist for a character via
     /// <c>GET /characters/{characterId}/weekly</c> (requires <c>gear:read</c>). Used to send only the
     /// fields that actually changed, so manual web-app entries are never overwritten.

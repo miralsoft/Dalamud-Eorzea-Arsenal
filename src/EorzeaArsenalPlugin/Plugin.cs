@@ -63,6 +63,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly TeamsSeenStore _teamsSeenStore;
     private readonly GearsetIdentityStore _gearsetIdentityStore;
     private readonly GearsetMappingService _gearsetMapping;
+    private readonly JobTableCache _jobTable;
     private readonly GearsetDebugView _gearsetDebug = new();
     private readonly BisService _bisService;
     private readonly ObtainService _obtainService;
@@ -193,7 +194,13 @@ public sealed class Plugin : IDalamudPlugin
         _gearsetIdentityStore = new GearsetIdentityStore(_config, Save);
         _gearsetMapping = new GearsetMappingService(api, _store, _gearsetIdentityStore, new SystemClock(), _log);
 
-        _sync = new GearSyncService(_gearSource, api, _store, new SystemClock(), _log, _characterDirectory, _gearsetMapping)
+        // Which job codes may leave this machine is the server's answer, held per address so a test
+        // instance cannot decide what goes to live. Absent or unreachable, the frozen combat floor governs
+        // and the push says so — a narrow push syncs most of it, a wrongly-full one parks rows the game
+        // still has.
+        _jobTable = new JobTableCache(api, _store, new SystemClock(), _log);
+
+        _sync = new GearSyncService(_gearSource, api, _store, new SystemClock(), _log, _characterDirectory, _gearsetMapping, _jobTable)
         {
             MinAutoPushInterval = TimeSpan.FromMinutes(Math.Max(1, _config.AutoPushIntervalMinutes)),
         };

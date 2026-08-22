@@ -38,7 +38,9 @@ public sealed class GearSanitizerTests
     [Fact]
     public void Drops_unmapped_jobs_and_unknown_slots()
     {
-        var blu = new GearsetDto { GearIndex = 1, Job = "BLU", Items = [] };
+        // Not a job the map can name. BLU used to stand here and no longer can: it gained a code with
+        // the widening to 42, and being nameable is what this drop is about.
+        var nameless = new GearsetDto { GearIndex = 1, Job = "XYZ", Items = [] };
         var drk = new GearsetDto
         {
             GearIndex = 0,
@@ -50,7 +52,7 @@ public sealed class GearSanitizerTests
             },
         };
 
-        var clean = GearSanitizer.Sanitize(Wrap(blu, drk));
+        var clean = GearSanitizer.Sanitize(Wrap(nameless, drk));
 
         var only = Assert.Single(clean.Gearsets);
         Assert.Equal("DRK", only.Job);
@@ -95,6 +97,6 @@ public sealed class GearSanitizerTests
     public void Result_passes_validation()
     {
         var clean = GearSanitizer.Sanitize(TestData.Snapshot(TestData.ExampleHash));
-        Assert.True(GearValidator.Validate(GearPayload.From(clean)).IsValid);
+        Assert.True(GearValidator.Validate(GearPayload.From(clean, JobScope.All)).IsValid);
     }
 }

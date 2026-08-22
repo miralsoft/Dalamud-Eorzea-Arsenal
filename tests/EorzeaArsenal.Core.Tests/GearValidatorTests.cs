@@ -55,7 +55,8 @@ public sealed class GearValidatorTests
     [Fact]
     public void Unknown_job_fails()
     {
-        Assert.False(GearValidator.Validate(Payload(ValidSet(job: "BLU"))).IsValid);
+        // "XYZ" rather than "BLU": Blue Mage is one of the 42 now, so it is a valid code and would pass.
+        Assert.False(GearValidator.Validate(Payload(ValidSet(job: "XYZ"))).IsValid);
     }
 
     [Theory]

@@ -91,16 +91,36 @@ public sealed class GearPayload
     /// <summary>The character block.</summary>
     public required CharacterDto Character { get; init; }
 
+    /// <summary>
+    /// What this push covered — <see cref="JobScope.Combat"/> or <see cref="JobScope.All"/>. Sent on
+    /// every push, including when the range is full: only then does its absence mean "an older client"
+    /// rather than "this one held back". See <see cref="JobScope"/> for why a version could not carry
+    /// this.
+    ///
+    /// <para>
+    /// The default is the <i>narrow</i> value on purpose. A path that forgets to state its scope then
+    /// under-claims, which costs a sync for some rows; over-claiming costs the player their rows, because
+    /// the server parks what a full push did not report.
+    /// </para>
+    /// </summary>
+    public string Scope { get; init; } = JobScope.Combat;
+
     /// <summary>All gearsets being upserted (max 200).</summary>
     public required IReadOnlyList<GearsetDto> Gearsets { get; init; }
 
     /// <summary>Wraps a <see cref="GearData"/> snapshot into a sendable payload.</summary>
-    /// <param name="data">The snapshot read from the game.</param>
+    /// <param name="data">The snapshot read from the game, already filtered to what may be sent.</param>
+    /// <param name="scope">
+    /// What this push covers: <see cref="JobScope.Combat"/> or <see cref="JobScope.All"/>. Required and
+    /// never defaulted, because a wrong value here is the one mistake that makes the server park rows the
+    /// game still has. Whoever builds a payload states what went into it.
+    /// </param>
     /// <returns>A payload carrying the current protocol version.</returns>
-    public static GearPayload From(GearData data) => new()
+    public static GearPayload From(GearData data, string scope) => new()
     {
         Character = data.Character,
         Gearsets = data.Gearsets,
+        Scope = scope,
     };
 }
 
