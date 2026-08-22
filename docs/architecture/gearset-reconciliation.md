@@ -181,8 +181,11 @@ dismissed question straight back.
   body (R22). The in-game buffer holds 300 lines and rolls; the same lines reach Dalamud's log on disk,
   which is what a support case three days later needs. Deliberately not gated by the verbosity setting —
   that gate is precisely why they would be missing when they matter.
-- **Parked rows stay out of the resolution cache.** A parked row is by definition not in game and would
-  otherwise make a live set's name key ambiguous, breaking the comparison for its living twin.
+- **Only rows that are in game enter the resolution cache**, which `state` from `GET /gear/sets` now says
+  outright instead of leaving it to be read out of the index band. Cache `active` **and `held`** — a held
+  row belongs to a live gearset and only lacks an attribution, so it must resolve. Exclude `parked`,
+  `ignored`, and `null` (a `manual` row): none of them is in game, and any of them sharing a job and name
+  with a live set would make its weak key ambiguous and break the comparison for the living one.
 - **Decisions enter the push fingerprint**, so the unchanged-skip cannot swallow the request carrying them.
 - **Automatic pushes are suppressed while the review window is open.** The token covers identity, not
   values, so a routine push no longer invalidates a review — but `gear_index` is in it, and a reorder is one
