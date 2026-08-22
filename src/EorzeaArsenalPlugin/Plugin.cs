@@ -64,6 +64,10 @@ public sealed class Plugin : IDalamudPlugin
     private readonly GearsetIdentityStore _gearsetIdentityStore;
     private readonly GearsetMappingService _gearsetMapping;
     private readonly JobTableCache _jobTable;
+
+    // Cancels the fire-and-forget work this class starts, so a reload does not leave a request running
+    // against services that are being torn down.
+    private readonly CancellationTokenSource _shutdown = new();
     private readonly GearsetDebugView _gearsetDebug = new();
     private readonly BisService _bisService;
     private readonly ObtainService _obtainService;
@@ -206,7 +210,21 @@ public sealed class Plugin : IDalamudPlugin
         // now is what makes the role split right from the first start. Left to the push path it would only
         // be read after connecting, so a fresh install would show one flat list until then. Failure is fine
         // and silent — the cache falls back to the frozen floor and heals on the next attempt.
-        _ = Task.Run(() => _jobTable.GetPolicyAsync(CancellationToken.None));
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _jobTable.GetPolicyAsync(_shutdown.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Unloaded before the answer arrived. The floor governs, which is the safe direction.
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"Reading the job table at startup threw: {ex.GetType().Name}.");
+            }
+        });
 
         _sync = new GearSyncService(_gearSource, api, _store, new SystemClock(), _log, _characterDirectory, _gearsetMapping, _jobTable)
         {
@@ -217,7 +235,7 @@ public sealed class Plugin : IDalamudPlugin
         // Where a person answers what a sync could not. Automatic pushes hold back while it is open,
         // because a push moves the state token and would turn their next decision into a 409.
         _review = new ReviewService(api, _store, _characterDirectory, new SystemClock(), _gearsetMapping, _log);
-        _reviewWindow = new ReviewWindow(_review, _localizer, () => _currentCidHash, OnReviewDecision, _gearSource.GetItemName, OpenExternalLink);
+        _reviewWindow = new ReviewWindow(_review, _localizer, () => _currentCidHash, OnReviewDecision, _gearSource.GetItemName, OpenExternalLink, _log);
         _sync.PauseAutomatic = () => _review.IsOpen;
         _inventorySync = new InventorySyncService(_inventorySource, api, _store, new SystemClock(), _log, _characterDirectory);
         _inventorySync.SyncCompleted += OnInventoryCompleted;
@@ -327,8 +345,13 @@ public sealed class Plugin : IDalamudPlugin
         _windowSystem.RemoveAllWindows();
 
         _dtrEntry.Remove();
+        // Cancelled first, so nothing new starts while the rest is being taken down. Disposed at the end,
+        // because a captured token stays usable after its source is gone and a source does not.
+        _shutdown.Cancel();
+
         _sync.PushCompleted -= OnPushCompleted;
         _sync.Dispose();
+        _review.Dispose();
         _inventorySync.SyncCompleted -= OnInventoryCompleted;
         _inventorySync.Dispose();
         _weeklySource.HiddenRefreshCompleted -= OnHiddenRefreshCompleted;
@@ -342,6 +365,7 @@ public sealed class Plugin : IDalamudPlugin
         _characterDirectory.Changed -= OnCharacterDirectoryChanged;
         _configWindow.Dispose();
         _httpClient.Dispose();
+        _shutdown.Dispose();
     }
 
     private void Save() => _pluginInterface.SavePluginConfig(_config);

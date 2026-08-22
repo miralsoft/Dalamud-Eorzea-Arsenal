@@ -27,6 +27,52 @@ public sealed class ReviewServiceTests
     }
 
     /// <summary>
+    /// A plugin reload must not leave a decision running against a world being torn down, and must not
+    /// leak the gate. Dalamud reloads often, so "often" is the right word for how bad a leak here is.
+    /// </summary>
+    [Fact]
+    public async Task AfterDisposeNothingIsSentAnyMore()
+    {
+        var (service, api, _, _) = Build();
+        api.ReviewResult = ApiResult<ReviewState>.Ok(new ReviewState { StateToken = "9f13" });
+        await service.RefreshAsync(Cid, CancellationToken.None);
+        var callsBefore = api.ReviewCalls;
+
+        service.Dispose();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => service.RefreshAsync(Cid, CancellationToken.None));
+        Assert.Equal(callsBefore, api.ReviewCalls);
+    }
+
+    /// <summary>Disposing twice is what a reload racing a shutdown looks like, and it must be harmless.</summary>
+    [Fact]
+    public void DisposingTwiceIsHarmless()
+    {
+        var (service, _, _, _) = Build();
+
+        service.Dispose();
+        service.Dispose();
+    }
+
+    /// <summary>
+    /// A decision in flight when the plugin goes away ends as a cancellation rather than as a result
+    /// written into disposed state.
+    /// </summary>
+    [Fact]
+    public async Task ADecisionInFlightIsCancelledByDispose()
+    {
+        var (service, api, _, _) = Build();
+        api.ReviewResult = ApiResult<ReviewState>.Ok(new ReviewState { StateToken = "9f13" });
+        await service.RefreshAsync(Cid, CancellationToken.None);
+
+        service.Dispose();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => service.DecideAsync(new ReviewDecision { SetUid = "c05e", Action = ReviewAction.New }, CancellationToken.None));
+    }
+
+    /// <summary>
     /// The numeric id is learned from a push answer. Until one has landed there is nothing to ask about,
     /// and asking with a guess would be a request about somebody else.
     /// </summary>

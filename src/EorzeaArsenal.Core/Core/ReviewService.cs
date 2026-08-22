@@ -49,7 +49,7 @@ public enum ReviewOutcome
 /// back. The rules about what may be offered live in <see cref="ReviewRules"/>.
 /// </para>
 /// </remarks>
-public sealed class ReviewService
+public sealed class ReviewService : IDisposable
 {
     private readonly IApiClient _api;
     private readonly ITokenStore _tokens;
@@ -58,6 +58,11 @@ public sealed class ReviewService
     private readonly IClock _clock;
     private readonly ILog _log;
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly CancellationTokenSource _cts = new();
+
+    // Captured once at construction: a token stays usable after its source is disposed, a source does not.
+    private readonly CancellationToken _shutdown;
+    private bool _disposed;
 
     /// <summary>Creates the service.</summary>
     /// <param name="api">The API client.</param>
@@ -83,6 +88,7 @@ public sealed class ReviewService
         _clock = clock;
         _mapping = mapping;
         _log = log ?? NullLog.Instance;
+        _shutdown = _cts.Token;
     }
 
     /// <summary>The questions and the inventory as last read, or <see langword="null"/> before any read.</summary>
@@ -112,6 +118,38 @@ public sealed class ReviewService
     /// <summary>Raised after any call completes, on the calling thread.</summary>
     public event Action? Changed;
 
+    /// <summary>
+    /// Cancels anything in flight and releases the gate, so a plugin reload does not leave a decision
+    /// running against a world that is being torn down.
+    /// </summary>
+    /// <remarks>
+    /// A Dalamud plugin is reloaded often, and every reload used to leak a semaphore and could land a
+    /// continuation in disposed state. The token is handed to the API call rather than only checked here,
+    /// so a request already on the wire is abandoned rather than waited out.
+    /// </remarks>
+    public void Dispose()
+    {
+        // Idempotent: a reload racing a shutdown disposes twice, and cancelling a disposed source throws.
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _cts.Cancel();
+        _cts.Dispose();
+        _gate.Dispose();
+    }
+
+    /// <summary>
+    /// The caller token joined with this service own lifetime, captured once: it stays cancelled after
+    /// <see cref="Dispose"/> and never reads a disposed source.
+    /// </summary>
+    /// <param name="ct">The caller token.</param>
+    /// <returns>A linked source the caller must dispose.</returns>
+    private CancellationTokenSource Linked(CancellationToken ct) =>
+        CancellationTokenSource.CreateLinkedTokenSource(ct, _shutdown);
+
     /// <summary>Reads the open questions for a character.</summary>
     /// <param name="cidHash">The character to ask about.</param>
     /// <param name="ct">Cancellation token.</param>
@@ -136,11 +174,18 @@ public sealed class ReviewService
             return Finish(ReviewOutcome.NotResolved);
         }
 
-        await _gate.WaitAsync(ct).ConfigureAwait(false);
+        // Before the gate, and before the linked source: after Dispose the gate would answer with an
+        // ObjectDisposedException, which callers do not expect and which every reload would log as a fault.
+        // A cancellation is what this actually is, and the window already treats it as nothing to say.
+        _shutdown.ThrowIfCancellationRequested();
+        ct.ThrowIfCancellationRequested();
+
+        using var scope = Linked(ct);
+        await _gate.WaitAsync(scope.Token).ConfigureAwait(false);
         IsBusy = true;
         try
         {
-            var result = await _api.GetReviewAsync(_tokens.ApiKey!, characterId, ct).ConfigureAwait(false);
+            var result = await _api.GetReviewAsync(_tokens.ApiKey!, characterId, scope.Token).ConfigureAwait(false);
             if (!result.IsSuccess)
             {
                 return Record(Classify(result.Error!));
@@ -186,12 +231,19 @@ public sealed class ReviewService
             return Finish(ReviewOutcome.NotResolved);
         }
 
-        await _gate.WaitAsync(ct).ConfigureAwait(false);
+        // Before the gate, and before the linked source: after Dispose the gate would answer with an
+        // ObjectDisposedException, which callers do not expect and which every reload would log as a fault.
+        // A cancellation is what this actually is, and the window already treats it as nothing to say.
+        _shutdown.ThrowIfCancellationRequested();
+        ct.ThrowIfCancellationRequested();
+
+        using var scope = Linked(ct);
+        await _gate.WaitAsync(scope.Token).ConfigureAwait(false);
         IsBusy = true;
         try
         {
             var result = await _api
-                .PostReviewDecisionAsync(_tokens.ApiKey!, characterId, token, decision, ct)
+                .PostReviewDecisionAsync(_tokens.ApiKey!, characterId, token, decision, scope.Token)
                 .ConfigureAwait(false);
 
             if (!result.IsSuccess)
@@ -260,12 +312,19 @@ public sealed class ReviewService
             return Finish(ReviewOutcome.Ok);
         }
 
-        await _gate.WaitAsync(ct).ConfigureAwait(false);
+        // Before the gate, and before the linked source: after Dispose the gate would answer with an
+        // ObjectDisposedException, which callers do not expect and which every reload would log as a fault.
+        // A cancellation is what this actually is, and the window already treats it as nothing to say.
+        _shutdown.ThrowIfCancellationRequested();
+        ct.ThrowIfCancellationRequested();
+
+        using var scope = Linked(ct);
+        await _gate.WaitAsync(scope.Token).ConfigureAwait(false);
         IsBusy = true;
         try
         {
             var result = await _api
-                .AcceptReviewMappingAsync(_tokens.ApiKey!, characterId, token, pairs, ct)
+                .AcceptReviewMappingAsync(_tokens.ApiKey!, characterId, token, pairs, scope.Token)
                 .ConfigureAwait(false);
 
             if (!result.IsSuccess)

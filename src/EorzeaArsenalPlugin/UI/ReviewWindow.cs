@@ -2,6 +2,7 @@ using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
+using EorzeaArsenal.Abstractions;
 using EorzeaArsenal.Core;
 using EorzeaArsenal.Localization;
 using EorzeaArsenal.Model;
@@ -38,6 +39,7 @@ public sealed class ReviewWindow : Window
     private readonly Action _afterDecision;
     private readonly Func<int, string> _itemName;
     private readonly Action<string> _openLink;
+    private readonly ILog _log;
 
     private readonly HashSet<string> _expanded = new(StringComparer.Ordinal);
     private int _alsoSettled;
@@ -62,13 +64,15 @@ public sealed class ReviewWindow : Window
     /// </param>
     /// <param name="itemName">Resolves an item id to its name in the player language.</param>
     /// <param name="openLink">Opens an http(s) url, already guarded against other schemes.</param>
+    /// <param name="log">Diagnostics sink, so an escaped exception is not simply lost.</param>
     public ReviewWindow(
         ReviewService review,
         Localizer localizer,
         Func<string?> currentCharacter,
         Action afterDecision,
         Func<int, string> itemName,
-        Action<string> openLink)
+        Action<string> openLink,
+        ILog log)
         : base("Eorzea Arsenal###EorzeaArsenalReview")
     {
         _review = review;
@@ -77,6 +81,7 @@ public sealed class ReviewWindow : Window
         _afterDecision = afterDecision;
         _itemName = itemName;
         _openLink = openLink;
+        _log = log;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -140,11 +145,36 @@ public sealed class ReviewWindow : Window
     /// <inheritdoc />
     public override void OnClose() => _review.IsOpen = false;
 
+
+    /// <summary>
+    /// Runs a call off the drawing thread and swallows nothing silently.
+    /// </summary>
+    /// <param name="work">The call.</param>
+    /// <remarks>
+    /// A bare fire-and-forget task turns any escaped exception into an unobserved one, which in a plugin
+    /// means it disappears. Cancellation is the ordinary way this ends — the service cancels everything in
+    /// flight when the plugin unloads — so that one is not worth a line in the log.
+    /// </remarks>
+    private void Run(Func<Task> work) => _ = Task.Run(async () =>
+    {
+        try
+        {
+            await work().ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // The plugin is going away, or the window closed. Nothing to say.
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Review call threw: {ex.GetType().Name}.");
+        }
+    });
     private void Refresh()
     {
         if (_currentCharacter() is { Length: > 0 } cid)
         {
-            _ = Task.Run(() => _review.RefreshAsync(cid, CancellationToken.None));
+            Run(() => _review.RefreshAsync(cid, CancellationToken.None));
         }
     }
 
@@ -817,7 +847,7 @@ public sealed class ReviewWindow : Window
 
         return lines;
     }
-    private void Decide(ReviewDecision decision) => _ = Task.Run(async () =>
+    private void Decide(ReviewDecision decision) => Run(async () =>
     {
         var outcome = await _review.DecideAsync(decision, CancellationToken.None).ConfigureAwait(false);
         AfterCall(outcome);
@@ -828,7 +858,7 @@ public sealed class ReviewWindow : Window
         // Copied on the drawing thread before the task starts: handing the live set to a background read
         // while clicks can still change it is the same race from the other side.
         var struckOut = new HashSet<string>(_struckOut, StringComparer.Ordinal);
-        _ = Task.Run(async () =>
+        Run(async () =>
         {
             var outcome = await _review.AcceptMappingAsync(struckOut, CancellationToken.None).ConfigureAwait(false);
             AfterCall(outcome);
