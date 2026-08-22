@@ -427,6 +427,15 @@ public static class LocKeys
     /// <summary>What deleting a row that still exists in game does.</summary>
     public const string ReviewDeleteComesBack = "review.deletecomesback";
 
+    /// <summary>Second click on an irreversible action: what it will do, and the way out.</summary>
+    public const string ReviewConfirmTitle = "review.confirm.title";
+
+    /// <summary>Go through with it.</summary>
+    public const string ReviewConfirmYes = "review.confirm.yes";
+
+    /// <summary>Do not.</summary>
+    public const string ReviewConfirmNo = "review.confirm.no";
+
     /// <summary>"Copy name" context action.</summary>
     public const string BisCopyName = "bis.copyname";
 

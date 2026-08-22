@@ -88,6 +88,22 @@ public static class ReviewRules
         !string.Equals(candidate.Source, GearsetSource.Plugin, StringComparison.Ordinal);
 
     /// <summary>
+    /// Whether a verb takes something away that this endpoint cannot give back, so a window has to ask
+    /// twice.
+    /// </summary>
+    /// <param name="action">The verb.</param>
+    /// <returns><see langword="true"/> for a delete or a release.</returns>
+    /// <remarks>
+    /// A delete removes the row and what hangs on it. A release hands the row to the web editor and freezes
+    /// it for everybody who was following it. Neither has a way back through the deciding endpoint, and the
+    /// contract asks for the warning to come <i>before</i> the click rather than as a label beside it.
+    /// A link is irreversible too, but only onto a hand-made row, where <see cref="IsAdoption"/> says so.
+    /// </remarks>
+    public static bool IsIrreversible(string? action) =>
+        string.Equals(action, ReviewAction.Delete, StringComparison.Ordinal) ||
+        string.Equals(action, ReviewAction.Release, StringComparison.Ordinal);
+
+    /// <summary>
     /// Whether answering this question away leaves something behind that is worth a sentence: a pin, or
     /// other people following the row.
     /// </summary>

@@ -202,6 +202,12 @@ public sealed class Plugin : IDalamudPlugin
         // still has.
         _jobTable = new JobTableCache(api, _store, new SystemClock(), _log);
 
+        // Read once at startup, deliberately before any key exists: this route takes none, and fetching it
+        // now is what makes the role split right from the first start. Left to the push path it would only
+        // be read after connecting, so a fresh install would show one flat list until then. Failure is fine
+        // and silent — the cache falls back to the frozen floor and heals on the next attempt.
+        _ = Task.Run(() => _jobTable.GetPolicyAsync(CancellationToken.None));
+
         _sync = new GearSyncService(_gearSource, api, _store, new SystemClock(), _log, _characterDirectory, _gearsetMapping, _jobTable)
         {
             MinAutoPushInterval = TimeSpan.FromMinutes(Math.Max(1, _config.AutoPushIntervalMinutes)),
@@ -210,7 +216,7 @@ public sealed class Plugin : IDalamudPlugin
 
         // Where a person answers what a sync could not. Automatic pushes hold back while it is open,
         // because a push moves the state token and would turn their next decision into a 409.
-        _review = new ReviewService(api, _store, _characterDirectory, _gearsetMapping, _log);
+        _review = new ReviewService(api, _store, _characterDirectory, new SystemClock(), _gearsetMapping, _log);
         _reviewWindow = new ReviewWindow(_review, _localizer, () => _currentCidHash, OnReviewDecision);
         _sync.PauseAutomatic = () => _review.IsOpen;
         _inventorySync = new InventorySyncService(_inventorySource, api, _store, new SystemClock(), _log, _characterDirectory);

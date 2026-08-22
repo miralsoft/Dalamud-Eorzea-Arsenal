@@ -114,6 +114,31 @@ public sealed class ReviewRulesTests
         Assert.False(ReviewRules.IsAdoption(new ReviewCandidate { Source = GearsetSource.Plugin }));
     }
 
+    /// <summary>
+    /// A delete removes the row and what hangs on it; a release freezes it for everybody who was following
+    /// it. Neither has a way back through this endpoint, so the warning has to come before the click.
+    /// </summary>
+    [Theory]
+    [InlineData(ReviewAction.Delete, true)]
+    [InlineData(ReviewAction.Release, true)]
+    [InlineData(ReviewAction.Ignore, false)]
+    [InlineData(ReviewAction.Reopen, false)]
+    [InlineData(ReviewAction.New, false)]
+    [InlineData(ReviewAction.Link, false)]
+    public void OnlyTheVerbsWithNoWayBackAreAskedTwice(string action, bool expected) =>
+        Assert.Equal(expected, ReviewRules.IsIrreversible(action));
+
+    /// <summary>
+    /// A link is the exception that proves the rule: reversible onto a plugin row, a one-way door onto a
+    /// hand-made one, so the verb alone cannot answer it and the candidate has to.
+    /// </summary>
+    [Fact]
+    public void ALinkNeedsTheCandidateToKnowWhetherItIsAOneWayDoor()
+    {
+        Assert.False(ReviewRules.IsIrreversible(ReviewAction.Link));
+        Assert.True(ReviewRules.IsAdoption(new ReviewCandidate { Source = GearsetSource.Manual }));
+    }
+
     [Fact]
     public void OnlyACandidateWithSomethingOnItEarnsASentence()
     {

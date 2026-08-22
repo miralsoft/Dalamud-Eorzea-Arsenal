@@ -24,6 +24,12 @@ public enum ReviewOutcome
     /// <summary>The route is unknown to this server, which is the normal answer until it ships.</summary>
     Unavailable,
 
+    /// <summary>
+    /// Too many decisions in the hour. The service holds off until <c>Retry-After</c> has passed rather
+    /// than letting a person keep clicking into the same limit.
+    /// </summary>
+    RateLimited,
+
     /// <summary>Something else went wrong; see the log.</summary>
     Failed,
 }
@@ -49,6 +55,7 @@ public sealed class ReviewService
     private readonly ITokenStore _tokens;
     private readonly CharacterDirectory _directory;
     private readonly GearsetMappingService? _mapping;
+    private readonly IClock _clock;
     private readonly ILog _log;
     private readonly SemaphoreSlim _gate = new(1, 1);
 
@@ -56,6 +63,7 @@ public sealed class ReviewService
     /// <param name="api">The API client.</param>
     /// <param name="tokens">Holds the API key.</param>
     /// <param name="directory">Resolves <c>cid_hash</c> to the numeric character id.</param>
+    /// <param name="clock">Time source, for the back-off window.</param>
     /// <param name="mapping">
     /// The identity cache, told to forget a character after a decision that moved identities. Optional
     /// only so the service can be tested on its own.
@@ -65,12 +73,14 @@ public sealed class ReviewService
         IApiClient api,
         ITokenStore tokens,
         CharacterDirectory directory,
+        IClock clock,
         GearsetMappingService? mapping = null,
         ILog? log = null)
     {
         _api = api;
         _tokens = tokens;
         _directory = directory;
+        _clock = clock;
         _mapping = mapping;
         _log = log ?? NullLog.Instance;
     }
@@ -108,6 +118,12 @@ public sealed class ReviewService
     /// <returns>How it went.</returns>
     public async Task<ReviewOutcome> RefreshAsync(string cidHash, CancellationToken ct)
     {
+        if (BackoffRemaining is { } wait)
+        {
+            _log.Info($"Review: still waiting {wait.TotalSeconds:F0}s after a rate limit.");
+            return Finish(ReviewOutcome.RateLimited);
+        }
+
         if (!_tokens.HasKey)
         {
             return Finish(ReviewOutcome.NotConnected);
@@ -159,6 +175,12 @@ public sealed class ReviewService
     /// </returns>
     public async Task<ReviewOutcome> DecideAsync(ReviewDecision decision, CancellationToken ct)
     {
+        if (BackoffRemaining is { } wait)
+        {
+            _log.Info($"Review: still waiting {wait.TotalSeconds:F0}s after a rate limit.");
+            return Finish(ReviewOutcome.RateLimited);
+        }
+
         if (!_tokens.HasKey)
         {
             return Finish(ReviewOutcome.NotConnected);
@@ -225,6 +247,12 @@ public sealed class ReviewService
     /// </remarks>
     public async Task<ReviewOutcome> AcceptMappingAsync(IReadOnlySet<string>? struckOut, CancellationToken ct)
     {
+        if (BackoffRemaining is { } wait)
+        {
+            _log.Info($"Review: still waiting {wait.TotalSeconds:F0}s after a rate limit.");
+            return Finish(ReviewOutcome.RateLimited);
+        }
+
         if (!_tokens.HasKey)
         {
             return Finish(ReviewOutcome.NotConnected);
@@ -296,8 +324,50 @@ public sealed class ReviewService
         }
     }
 
-    private static ReviewOutcome Classify(ApiError error) =>
-        error.Kind == ApiErrorKind.NotFound ? ReviewOutcome.Unavailable : ReviewOutcome.Failed;
+
+    /// <summary>How long to wait when the server did not say.</summary>
+    private static readonly TimeSpan DefaultBackoff = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// Until when this service refuses to call, after the server said there had been enough.
+    /// </summary>
+    /// <remarks>
+    /// The deciding paths have their own bucket, 120 an hour, so clearing a backlog cannot eat somebody
+    /// ability to sync. Reaching it anyway means a person is clicking faster than the limit allows, and the
+    /// honest answer is to say for how long rather than to let them keep clicking into it.
+    /// </remarks>
+    public DateTimeOffset? BackoffUntilUtc { get; private set; }
+
+    /// <summary>How long the caller should wait, when it is waiting.</summary>
+    public TimeSpan? BackoffRemaining =>
+        BackoffUntilUtc is { } until && until > _clock.UtcNow ? until - _clock.UtcNow : null;
+
+    private ReviewOutcome Classify(ApiError error)
+    {
+        if (error.Kind == ApiErrorKind.NotFound)
+        {
+            // Two different things arrive as a 404 and both are answers rather than faults: the route does
+            // not exist on this server yet, or the row is not this caller. Neither is worth alarming about.
+            return ReviewOutcome.Unavailable;
+        }
+
+        if (error.Kind == ApiErrorKind.RateLimited)
+        {
+            var wait = error.RetryAfter ?? DefaultBackoff;
+            BackoffUntilUtc = _clock.UtcNow + wait;
+            _log.Warning($"Review: rate limited, waiting {wait.TotalSeconds:F0}s. request_id={error.RequestId}.");
+            return ReviewOutcome.RateLimited;
+        }
+
+        // A named cause here says the offer was wrong, which is a fault on this side rather than something
+        // to put in front of the player. It belongs in the log, and the window redraws from a fresh read.
+        if (error.Code is { Length: > 0 } code)
+        {
+            _log.Warning($"Review: the server refused it ({code}). The offered actions were wrong; re-reading.");
+        }
+
+        return ReviewOutcome.Failed;
+    }
 
     private ReviewOutcome Finish(ReviewOutcome outcome)
     {

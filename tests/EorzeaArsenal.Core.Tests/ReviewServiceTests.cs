@@ -53,6 +53,59 @@ public sealed class ReviewServiceTests
         Assert.Equal(ReviewOutcome.Unavailable, outcome);
     }
 
+    /// <summary>
+    /// A rate limit is not a fault to report, it is a wait. Reading it as a failure lets somebody keep
+    /// clicking into the same limit, and the Retry-After the server sends says exactly how long.
+    /// </summary>
+    [Fact]
+    public async Task ARateLimitBecomesAWaitRatherThanAFailure()
+    {
+        var (service, api, _, _) = Build();
+        api.ReviewResult = ApiResult<ReviewState>.Fail(new ApiError
+        {
+            Kind = ApiErrorKind.RateLimited,
+            Message = "too many",
+            RetryAfter = TimeSpan.FromSeconds(3600),
+        });
+
+        var outcome = await service.RefreshAsync(Cid, CancellationToken.None);
+
+        Assert.Equal(ReviewOutcome.RateLimited, outcome);
+        Assert.NotNull(service.BackoffRemaining);
+    }
+
+    /// <summary>While the wait is on, nothing is sent: the point is not to spend the limit twice.</summary>
+    [Fact]
+    public async Task NothingIsSentWhileTheWaitIsOn()
+    {
+        var (service, api, _, _) = Build();
+        api.ReviewResult = ApiResult<ReviewState>.Fail(new ApiError
+        {
+            Kind = ApiErrorKind.RateLimited,
+            Message = "too many",
+            RetryAfter = TimeSpan.FromSeconds(600),
+        });
+        await service.RefreshAsync(Cid, CancellationToken.None);
+        var callsAfterFirst = api.ReviewCalls;
+
+        var outcome = await service.RefreshAsync(Cid, CancellationToken.None);
+
+        Assert.Equal(ReviewOutcome.RateLimited, outcome);
+        Assert.Equal(callsAfterFirst, api.ReviewCalls);
+    }
+
+    /// <summary>Without a Retry-After there is still a wait, because guessing zero would be a retry storm.</summary>
+    [Fact]
+    public async Task AWaitIsAssumedWhenTheServerDoesNotSayHowLong()
+    {
+        var (service, api, _, _) = Build();
+        api.ReviewResult = ApiResult<ReviewState>.Fail(new ApiError { Kind = ApiErrorKind.RateLimited, Message = "too many" });
+
+        await service.RefreshAsync(Cid, CancellationToken.None);
+
+        Assert.NotNull(service.BackoffRemaining);
+    }
+
     [Fact]
     public async Task AReadKeepsTheStateAndItsToken()
     {
@@ -250,6 +303,6 @@ public sealed class ReviewServiceTests
         var directory = new CharacterDirectory(known ? [new KeyValuePair<string, string>(Cid, "42")] : null);
         var store = new InMemoryGearsetIdentityStore();
         var mapping = new GearsetMappingService(api, tokens, store, new TestClock(), new CapturingLog());
-        return (new ReviewService(api, tokens, directory, mapping), api, tokens, mapping);
+        return (new ReviewService(api, tokens, directory, new TestClock(), mapping), api, tokens, mapping);
     }
 }

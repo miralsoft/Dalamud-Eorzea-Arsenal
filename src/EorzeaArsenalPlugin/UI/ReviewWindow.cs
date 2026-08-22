@@ -101,6 +101,13 @@ public sealed class ReviewWindow : Window
     {
         DrawHeader();
 
+        // Nothing else is reachable while a second click is waiting: the point of asking is lost if the
+        // rest of the window is still live behind it.
+        if (DrawPending())
+        {
+            return;
+        }
+
         if (_review.LastOutcome == ReviewOutcome.Unavailable)
         {
             ImGui.TextColored(Muted, T(LocKeys.ReviewUnavailable));
@@ -265,12 +272,16 @@ public sealed class ReviewWindow : Window
         {
             if (ImGui.SmallButton(T(LocKeys.ReviewThisIsIt)))
             {
-                Decide(new ReviewDecision
+                var link = new ReviewDecision
                 {
                     SetUid = held.SetUid!,
                     Action = ReviewAction.Link,
                     TargetUid = candidate.SetUid,
-                });
+                };
+
+                // A link onto a plugin row is an ordinary answer. Onto a hand-made one it changes who
+                // governs the row from here on, which is the one-way door the dialog has to name first.
+                Gate(link, ReviewRules.IsAdoption(candidate) ? [T(LocKeys.ReviewAdoption)] : null);
             }
 
             // "Stop asking" is not a third answer to the question: it names the candidate, not the newcomer,
@@ -299,7 +310,9 @@ public sealed class ReviewWindow : Window
             ImGui.SameLine();
             if (ImGui.Button(T(LocKeys.ReviewTakeOut)))
             {
-                Decide(new ReviewDecision { SetUid = held.SetUid!, Action = ReviewAction.Release });
+                Gate(
+                    new ReviewDecision { SetUid = held.SetUid!, Action = ReviewAction.Release },
+                    [T(LocKeys.ReviewTakeOut)]);
             }
         }
 
@@ -319,7 +332,14 @@ public sealed class ReviewWindow : Window
         {
             if (ImGui.Button(T(LocKeys.ReviewAcceptAll, pairs.Count)))
             {
-                AcceptMapping();
+                // One press over eighteen pairings, and every adoption among them is a one-way door of its
+                // own. So the count goes in front of the press rather than beside it.
+                var adopting = ReviewRules.AdoptionCount(state, pairs);
+                _pending = new Pending(
+                    null,
+                    adopting > 0
+                        ? [T(LocKeys.ReviewAcceptAdoptions, adopting), T(LocKeys.ReviewAdoption)]
+                        : [T(LocKeys.ReviewAcceptAll, pairs.Count)]);
             }
         }
 
@@ -409,7 +429,7 @@ public sealed class ReviewWindow : Window
             {
                 if (ImGui.SmallButton(Label(verb)))
                 {
-                    Decide(new ReviewDecision { SetUid = row.SetUid!, Action = verb });
+                    Gate(new ReviewDecision { SetUid = row.SetUid!, Action = verb }, WarningsFor(verb, row));
                 }
 
                 ImGui.SameLine();
@@ -436,6 +456,120 @@ public sealed class ReviewWindow : Window
         _ => T(LocKeys.ReviewIgnore),
     };
 
+
+    /// <summary>
+    /// A decision waiting for a second click, with the sentences that say what it will do.
+    /// </summary>
+    /// <param name="Decision">What will be sent if it is confirmed, or null for the whole mapping.</param>
+    /// <param name="Lines">What the player is told first, most consequential last.</param>
+    private sealed record Pending(ReviewDecision? Decision, IReadOnlyList<string> Lines);
+
+    private Pending? _pending;
+
+    /// <summary>
+    /// Sends a decision, or holds it for a second click when there is no way back through this endpoint.
+    /// </summary>
+    /// <param name="decision">The decision.</param>
+    /// <param name="warnings">
+    /// What to say before it happens. Empty means nothing has to be said, and the decision goes straight
+    /// out: asking twice about a reversible thing is how people learn to click through the dialog that
+    /// matters.
+    /// </param>
+    private void Gate(ReviewDecision decision, IReadOnlyList<string>? warnings = null)
+    {
+        if (warnings is { Count: > 0 })
+        {
+            _pending = new Pending(decision, warnings);
+            return;
+        }
+
+        Decide(decision);
+    }
+
+    /// <summary>Draws the second click, if one is waiting.</summary>
+    /// <returns><see langword="true"/> while it is waiting, so the rest of the window stays out of reach.</returns>
+    private bool DrawPending()
+    {
+        if (_pending is not { } pending)
+        {
+            return false;
+        }
+
+        ImGui.TextColored(Warn, T(LocKeys.ReviewConfirmTitle));
+        foreach (var line in pending.Lines)
+        {
+            ImGui.TextWrapped($"  {line}");
+        }
+
+        ImGui.Spacing();
+        using (ImRaii.Disabled(_review.IsBusy))
+        {
+            if (ImGui.Button(T(LocKeys.ReviewConfirmYes)))
+            {
+                var decision = pending.Decision;
+                _pending = null;
+                if (decision is null)
+                {
+                    AcceptMapping();
+                }
+                else
+                {
+                    Decide(decision);
+                }
+            }
+
+            ImGui.SameLine();
+            if (ImGui.Button(T(LocKeys.ReviewConfirmNo)))
+            {
+                _pending = null;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// What has to be said before a verb is applied to an inventory row, in the order it matters.
+    /// </summary>
+    /// <param name="verb">The verb about to be applied.</param>
+    /// <param name="row">The row.</param>
+    /// <returns>The sentences, empty when there is nothing to say.</returns>
+    private IReadOnlyList<string> WarningsFor(string verb, OrphanRow row)
+    {
+        var lines = new List<string>();
+        if (!ReviewRules.IsIrreversible(verb))
+        {
+            return lines;
+        }
+
+        var name = string.IsNullOrWhiteSpace(row.Name) ? "—" : row.Name;
+
+        // The team comes first: it is the part that affects somebody who is not in the room.
+        if (row.HasTeamShare && row.TeamNames.Count > 0)
+        {
+            lines.Add(T(LocKeys.ReviewKeepsShare, string.Join(", ", row.TeamNames), name));
+        }
+
+        if (row.HasPin)
+        {
+            lines.Add(T(LocKeys.ReviewKeepsPin, name));
+        }
+
+        // Only where it is true: a parked or ignored row was not being reported anyway, and a hand-made one
+        // cannot come back at all, so promising a return there would be a lie.
+        if (string.Equals(verb, ReviewAction.Delete, StringComparison.Ordinal) &&
+            row.IsFromPlugin && !row.IsPutAside)
+        {
+            lines.Add(T(LocKeys.ReviewDeleteComesBack));
+        }
+
+        if (lines.Count == 0)
+        {
+            lines.Add(Label(verb));
+        }
+
+        return lines;
+    }
     private void Decide(ReviewDecision decision) => _ = Task.Run(async () =>
     {
         var outcome = await _review.DecideAsync(decision, CancellationToken.None).ConfigureAwait(false);
