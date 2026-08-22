@@ -200,23 +200,135 @@ public sealed class BisWindow : Window
             return;
         }
 
-        var shownAny = false;
-        foreach (var comparison in scoped)
-        {
-            var slots = comparison.Slots.Where(Included).ToList();
-            if (slots.Count == 0)
-            {
-                continue;
-            }
+        // Materialised once: this runs every frame, and the role loop would otherwise walk the list three
+        // times over and recompute the same heading decision three times with it.
+        var all = scoped.ToList();
+        var label = RolesPresent(all) > 1;
 
-            DrawGearset(comparison, slots);
-            shownAny = true;
+        var shownAny = false;
+        foreach (var role in RoleOrder)
+        {
+            shownAny |= DrawRoleGroup(role, all, currentIndex, label);
         }
 
         if (!shownAny && _bis.Comparisons.Count > 0)
         {
             ImGui.TextDisabled(T(LocKeys.BisNothingShown));
         }
+    }
+
+    /// <summary>
+    /// Battle first, then the crafters, then the gatherers. The groups are fixed; the order <i>inside</i> a
+    /// group is the player order, because that list is theirs and re-sorting it would hide the position
+    /// they navigate by.
+    /// </summary>
+    private static readonly string[] RoleOrder = [JobMap.RoleCombat, JobMap.RoleHand, JobMap.RoleLand];
+
+    private static string RoleLabel(string role) => role switch
+    {
+        JobMap.RoleHand => LocKeys.BisRoleHand,
+        JobMap.RoleLand => LocKeys.BisRoleLand,
+        _ => LocKeys.BisRoleCombat,
+    };
+
+    /// <summary>One line in the list: either a comparison, or a live set that has no target.</summary>
+    /// <param name="Index">The position the player will find it at.</param>
+    /// <param name="Comparison">The comparison, when there is a target.</param>
+    /// <param name="Set">The live gearset, when there is not.</param>
+    private readonly record struct Row(int Index, GearsetComparison? Comparison, GearsetDto? Set);
+
+    /// <summary>
+    /// Draws one role group: the comparisons that belong to it, and the live sets in it that have no
+    /// target at all, both in the player order and interleaved by position.
+    /// </summary>
+    /// <param name="role">The role group to draw.</param>
+    /// <param name="scoped">The comparisons already narrowed by the current-set filter.</param>
+    /// <param name="currentIndex">The gearset the player is wearing.</param>
+    /// <param name="label">Whether the group heading is worth drawing at all.</param>
+    /// <returns>Whether anything was drawn.</returns>
+    private bool DrawRoleGroup(string role, IReadOnlyList<GearsetComparison> scoped, int currentIndex, bool label)
+    {
+        var comparisons = scoped
+            .Where(c => (JobMap.RoleOf(c.Job) ?? JobMap.RoleCombat) == role)
+            .Select(c => new Row(_bis.DisplayIndex(c), c, null))
+            .ToList();
+
+        var orphaned = _bis.WithoutTarget
+            .Where(s => (JobMap.RoleOf(s.Job) ?? JobMap.RoleCombat) == role)
+            .Where(s => _config.BisShowAllSets || s.GearIndex == currentIndex)
+            .Select(s => new Row(s.GearIndex, null, s));
+
+        var rows = comparisons.Concat(orphaned).OrderBy(r => r.Index).ToList();
+        if (rows.Count == 0)
+        {
+            return false;
+        }
+
+        // Only label the groups once there is more than one to tell apart. A player with battle sets only
+        // does not need a heading that says "Battle" over their whole list.
+        if (label)
+        {
+            ImGui.TextDisabled(T(RoleLabel(role)));
+        }
+
+        var drewSomething = false;
+        foreach (var row in rows)
+        {
+            if (row.Comparison is { } comparison)
+            {
+                var slots = comparison.Slots.Where(Included).ToList();
+                if (slots.Count == 0)
+                {
+                    continue;
+                }
+
+                DrawGearset(comparison, slots);
+                drewSomething = true;
+            }
+            else if (row.Set is { } set)
+            {
+                DrawWithoutTarget(set, row.Index);
+                drewSomething = true;
+            }
+        }
+
+        return drewSomething;
+    }
+
+    /// <summary>
+    /// How many role groups have anything in them. Used to decide whether the headings are worth drawing:
+    /// a player with battle sets only does not need one saying "Battle" over their whole list.
+    /// </summary>
+    /// <param name="scoped">The comparisons after the current-set filter.</param>
+    /// <returns>The number of distinct roles present.</returns>
+    private int RolesPresent(IReadOnlyList<GearsetComparison> scoped)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var comparison in scoped)
+        {
+            seen.Add(JobMap.RoleOf(comparison.Job) ?? JobMap.RoleCombat);
+        }
+
+        foreach (var set in _bis.WithoutTarget)
+        {
+            seen.Add(JobMap.RoleOf(set.Job) ?? JobMap.RoleCombat);
+        }
+
+        return seen.Count;
+    }
+    /// <summary>
+    /// A live gearset with no target: named, placed, and explained. It is synced; there is only nothing to
+    /// compare it against, and saying so is what keeps it from being reported as a fault.
+    /// </summary>
+    /// <param name="set">The live gearset.</param>
+    /// <param name="index">Its position in the player list.</param>
+    private void DrawWithoutTarget(GearsetDto set, int index)
+    {
+        var name = string.IsNullOrWhiteSpace(set.Name) ? string.Empty : $" — {set.Name}";
+        ImGui.TextColored(Accent, $"#{index} {set.Job}{name}");
+        ImGui.SameLine();
+        ImGui.TextDisabled(T(LocKeys.BisNoCatalogue));
+        ImGui.Spacing();
     }
 
     private void DrawToolbar()

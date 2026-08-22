@@ -59,6 +59,7 @@ public sealed class BisService
 
     private volatile bool _loading;
     private volatile GearsetComparison[] _comparisons = [];
+    private volatile GearsetDto[] _withoutTarget = [];
     private volatile BisGearset[] _targets = [];
     private DateTimeOffset _fetchedUtc = DateTimeOffset.MinValue;
 
@@ -100,6 +101,14 @@ public sealed class BisService
 
     /// <summary>The live-vs-BiS comparisons from the last successful fetch.</summary>
     public IReadOnlyList<GearsetComparison> Comparisons => _comparisons;
+
+    /// <summary>
+    /// Live gearsets no BiS target claims, in the order the player has them. Not a fault and not a failed
+    /// transfer: a crafter set, a gatherer set or a base class has no catalogue to compare against, and a
+    /// combat set nobody pinned a target for has nothing to compare either. Shown rather than dropped,
+    /// because a set that vanishes from the window gets reported as a bug.
+    /// </summary>
+    public IReadOnlyList<GearsetDto> WithoutTarget => _withoutTarget;
 
     /// <summary>Whether the cache is older than the given age (or never fetched).</summary>
     /// <param name="maxAge">The maximum acceptable age.</param>
@@ -172,6 +181,7 @@ public sealed class BisService
             var targets = result.Value!.Data;
             _targets = targets.ToArray();
             _comparisons = BisComparer.Compare(clean, targets, set => Identify(cidHash, set)).ToArray();
+            _withoutTarget = BisComparer.WithoutTarget(clean, targets, set => Identify(cidHash, set)).ToArray();
             _fetchedUtc = DateTimeOffset.UtcNow;
             SetStatus(targets.Count == 0 ? BisFetchStatus.Empty : BisFetchStatus.Ok);
         }
@@ -186,6 +196,25 @@ public sealed class BisService
         }
     }
 
+
+    /// <summary>
+    /// The position the player will actually find a comparison at, which is not always the one the target
+    /// carries.
+    /// </summary>
+    /// <param name="comparison">The comparison to place.</param>
+    /// <returns>The live gearset index where it is known, the stored one otherwise.</returns>
+    /// <remarks>
+    /// A target index is the last display order the server stored and can sit in the 100 to 999 band,
+    /// which is a number nobody can find in their list. The live list is the truth about position, and the
+    /// identity is what connects the two.
+    /// </remarks>
+    public int DisplayIndex(GearsetComparison comparison)
+    {
+        var indexByUid = _liveIndexByUid;
+        return comparison.SetUid is not null && indexByUid.TryGetValue(comparison.SetUid, out var live)
+            ? live
+            : comparison.GearIndex;
+    }
     /// <summary>Finds the gearset slots whose BiS target item id equals the given item.</summary>
     /// <param name="itemId">A normalized (HQ-stripped) item id.</param>
     /// <returns>Every slot that wants this item as its BiS target (may be empty).</returns>

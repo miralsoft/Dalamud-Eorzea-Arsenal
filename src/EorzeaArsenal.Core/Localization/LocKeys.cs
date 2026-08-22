@@ -323,6 +323,23 @@ public static class LocKeys
     /// <summary>BiS window: nothing matches the current filter.</summary>
     public const string BisNothingShown = "bis.nothingshown";
 
+    /// <summary>BiS window: header of the battle-class group.</summary>
+    public const string BisRoleCombat = "bis.role.combat";
+
+    /// <summary>BiS window: header of the Disciples of the Hand group.</summary>
+    public const string BisRoleHand = "bis.role.hand";
+
+    /// <summary>BiS window: header of the Disciples of the Land group.</summary>
+    public const string BisRoleLand = "bis.role.land";
+
+    /// <summary>
+    /// BiS window: a job the catalogue has no list for at all (hand, land, a base class). Different from
+    /// <see cref="BisNoTarget"/>, which means nothing is pinned yet and is the reader to act on; this one
+    /// is not a fault and nobody can fix it. Shown rather than omitted, because a set that vanishes from
+    /// the list gets reported as a bug, and this one is synced perfectly well.
+    /// </summary>
+    public const string BisNoCatalogue = "bis.nocatalogue";
+
     /// <summary>"Copy name" context action.</summary>
     public const string BisCopyName = "bis.copyname";
 

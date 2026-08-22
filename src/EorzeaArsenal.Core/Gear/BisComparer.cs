@@ -103,37 +103,12 @@ public static class BisComparer
         IReadOnlyList<BisGearset> targets,
         Func<GearsetDto, string?>? identify = null)
     {
-        var liveByUid = new Dictionary<string, GearsetDto>(StringComparer.Ordinal);
-        var liveByPosition = new Dictionary<(int, string), GearsetDto>();
-
-        foreach (var set in live.Gearsets)
-        {
-            liveByPosition[(set.GearIndex, set.Job)] = set;
-
-            var uid = identify?.Invoke(set);
-            if (!string.IsNullOrEmpty(uid))
-            {
-                liveByUid[uid!] = set;
-            }
-        }
+        var index = LiveIndex.Build(live, identify);
 
         var result = new List<GearsetComparison>(targets.Count);
         foreach (var target in targets)
         {
-            // Per target, not per response: a server mid-migration can answer with identities on some
-            // rows and not on others, and each row deserves the best key it actually carries.
-            GearsetDto? liveSet;
-            if (!string.IsNullOrEmpty(target.SetUid))
-            {
-                // The target has an identity, so the position is not consulted at all. A miss here is a
-                // real miss — falling back to the position would resurrect the bug this replaces.
-                liveByUid.TryGetValue(target.SetUid!, out liveSet);
-            }
-            else
-            {
-                liveByPosition.TryGetValue((target.GearIndex, target.Job), out liveSet);
-            }
-
+            var liveSet = index.Claim(target);
             result.Add(new GearsetComparison
             {
                 GearIndex = target.GearIndex,
@@ -148,6 +123,99 @@ public static class BisComparer
         return result;
     }
 
+    /// <summary>
+    /// The live gearsets no target claims, in the order the player has them.
+    /// </summary>
+    /// <param name="live">The player current (sanitized) gear.</param>
+    /// <param name="targets">The BiS targets from the API.</param>
+    /// <param name="identify">Same resolver as <see cref="Compare"/>.</param>
+    /// <returns>The unclaimed live gearsets.</returns>
+    /// <remarks>
+    /// These are not a fault and not a failed transfer. A crafter set, a gatherer set or a base class has
+    /// no catalogue to compare against, and a set whose target nobody pinned has nothing to compare
+    /// either. Both are synced perfectly well, and the reason this exists at all is that
+    /// <see cref="Compare"/> walks the <i>targets</i>: a live set with no target produces no entry, so it
+    /// would simply be absent from the window, and a set that vanishes gets reported as a bug.
+    /// </remarks>
+    public static IReadOnlyList<GearsetDto> WithoutTarget(
+        GearData live,
+        IReadOnlyList<BisGearset> targets,
+        Func<GearsetDto, string?>? identify = null)
+    {
+        var index = LiveIndex.Build(live, identify);
+        foreach (var target in targets)
+        {
+            index.Claim(target);
+        }
+
+        var unclaimed = new List<GearsetDto>();
+        foreach (var set in live.Gearsets)
+        {
+            if (!index.IsClaimed(set))
+            {
+                unclaimed.Add(set);
+            }
+        }
+
+        return unclaimed;
+    }
+
+    /// <summary>
+    /// The live list keyed the two ways a target can point at it, so both callers make the same decision
+    /// rather than two that drift apart.
+    /// </summary>
+    private sealed class LiveIndex
+    {
+        private readonly Dictionary<string, GearsetDto> _byUid = new(StringComparer.Ordinal);
+        private readonly Dictionary<(int, string), GearsetDto> _byPosition = [];
+        private readonly HashSet<GearsetDto> _claimed = [];
+
+        public static LiveIndex Build(GearData live, Func<GearsetDto, string?>? identify)
+        {
+            var index = new LiveIndex();
+            foreach (var set in live.Gearsets)
+            {
+                index._byPosition[(set.GearIndex, set.Job)] = set;
+
+                var uid = identify?.Invoke(set);
+                if (!string.IsNullOrEmpty(uid))
+                {
+                    index._byUid[uid!] = set;
+                }
+            }
+
+            return index;
+        }
+
+        /// <summary>
+        /// The live gearset a target points at, or <see langword="null"/>. Decided per target rather than
+        /// per response: a server mid-migration can answer with identities on some rows and not on others,
+        /// and each row deserves the best key it actually carries.
+        /// </summary>
+        public GearsetDto? Claim(BisGearset target)
+        {
+            GearsetDto? liveSet;
+            if (!string.IsNullOrEmpty(target.SetUid))
+            {
+                // The target has an identity, so the position is not consulted at all. A miss here is a
+                // real miss: falling back to the position would resurrect the bug this replaces.
+                _byUid.TryGetValue(target.SetUid!, out liveSet);
+            }
+            else
+            {
+                _byPosition.TryGetValue((target.GearIndex, target.Job), out liveSet);
+            }
+
+            if (liveSet is not null)
+            {
+                _claimed.Add(liveSet);
+            }
+
+            return liveSet;
+        }
+
+        public bool IsClaimed(GearsetDto set) => _claimed.Contains(set);
+    }
     private static List<SlotComparison> CompareSlots(
         Dictionary<string, ItemDto> targetItems,
         Dictionary<string, ItemDto>? liveItems)
