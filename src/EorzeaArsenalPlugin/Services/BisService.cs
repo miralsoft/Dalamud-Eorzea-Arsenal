@@ -215,6 +215,18 @@ public sealed class BisService
             ? live
             : comparison.GearIndex;
     }
+
+    /// <summary>
+    /// Whether this comparison rests on an attribution the server is still waiting to have confirmed.
+    /// </summary>
+    /// <param name="comparison">The comparison.</param>
+    /// <returns><see langword="true"/> while the question about that gearset is open.</returns>
+    /// <remarks>
+    /// A held gearset gets the job default target like any new row, so it shows real numbers either way.
+    /// The marker is what keeps those numbers from reading as settled: the target may change when the
+    /// question is answered.
+    /// </remarks>
+    public bool IsProvisional(GearsetComparison comparison) => _mapping.IsHeld(comparison.SetUid);
     /// <summary>Finds the gearset slots whose BiS target item id equals the given item.</summary>
     /// <param name="itemId">A normalized (HQ-stripped) item id.</param>
     /// <returns>Every slot that wants this item as its BiS target (may be empty).</returns>

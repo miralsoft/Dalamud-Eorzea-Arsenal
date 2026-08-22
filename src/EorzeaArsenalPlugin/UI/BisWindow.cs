@@ -441,8 +441,21 @@ public sealed class BisWindow : Window
 
     private void DrawSetHeader(GearsetComparison comparison)
     {
+        // A held gearset still shows numbers, because it gets the job default target like any new row. The
+        // marker is what keeps those numbers from looking settled while the question is open.
+        var provisional = _bis.IsProvisional(comparison);
+
         var name = string.IsNullOrEmpty(comparison.Name) ? string.Empty : $" — {comparison.Name}";
-        ImGui.TextColored(Accent, $"#{comparison.GearIndex} {comparison.Job}{name}");
+        ImGui.TextColored(Accent, $"#{_bis.DisplayIndex(comparison)} {comparison.Job}{name}");
+        if (provisional)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(Orange, "?");
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip(T(LocKeys.BisProvisional));
+            }
+        }
         ImGui.SameLine();
 
         var total = comparison.Slots.Count;

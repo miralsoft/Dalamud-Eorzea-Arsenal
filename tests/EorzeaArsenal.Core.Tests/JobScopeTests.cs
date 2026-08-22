@@ -1,3 +1,4 @@
+using EorzeaArsenal.Api;
 using EorzeaArsenal.Gear;
 using EorzeaArsenal.Model;
 using EorzeaArsenal.Tests.TestSupport;
@@ -173,6 +174,20 @@ public sealed class JobScopeTests
         Assert.Equal("all", JobScope.All);
     }
 
+    /// <summary>
+    /// The deciding paths need a scope of their own, and it is deliberately not gear:write: folding "may
+    /// remove a row" into that one would silently widen every key already handed out.
+    /// </summary>
+    [Fact]
+    public void GearReviewIsItsOwnScope()
+    {
+        Assert.Equal("gear:review", ScopeUtil.GearReview);
+        Assert.NotEqual(ScopeUtil.GearWrite, ScopeUtil.GearReview);
+        Assert.True(ScopeUtil.HasGearReview(["gear:write", "gear:review"]));
+        Assert.False(ScopeUtil.HasGearReview(["gear:write", "gear:read"]));
+        Assert.False(ScopeUtil.HasGearReview(null));
+    }
+
     [Fact]
     public void TheFloorPolicyAllowsTheTwentyOneAndSaysCombat()
     {
@@ -284,4 +299,5 @@ public sealed class JobScopeTests
             Items = new Dictionary<string, ItemDto> { ["Weapon"] = new() { Id = 49671 } },
         })],
     };
+
 }

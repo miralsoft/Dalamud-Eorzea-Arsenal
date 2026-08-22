@@ -217,7 +217,7 @@ public sealed class Plugin : IDalamudPlugin
         // Where a person answers what a sync could not. Automatic pushes hold back while it is open,
         // because a push moves the state token and would turn their next decision into a 409.
         _review = new ReviewService(api, _store, _characterDirectory, new SystemClock(), _gearsetMapping, _log);
-        _reviewWindow = new ReviewWindow(_review, _localizer, () => _currentCidHash, OnReviewDecision);
+        _reviewWindow = new ReviewWindow(_review, _localizer, () => _currentCidHash, OnReviewDecision, _gearSource.GetItemName, OpenExternalLink);
         _sync.PauseAutomatic = () => _review.IsOpen;
         _inventorySync = new InventorySyncService(_inventorySource, api, _store, new SystemClock(), _log, _characterDirectory);
         _inventorySync.SyncCompleted += OnInventoryCompleted;

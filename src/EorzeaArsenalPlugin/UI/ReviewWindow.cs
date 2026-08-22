@@ -36,6 +36,11 @@ public sealed class ReviewWindow : Window
     private readonly Localizer _localizer;
     private readonly Func<string?> _currentCharacter;
     private readonly Action _afterDecision;
+    private readonly Func<int, string> _itemName;
+    private readonly Action<string> _openLink;
+
+    private readonly HashSet<string> _expanded = new(StringComparer.Ordinal);
+    private int _alsoSettled;
 
     private readonly HashSet<string> _struckOut = new(StringComparer.Ordinal);
     private int _question;
@@ -50,17 +55,23 @@ public sealed class ReviewWindow : Window
     /// Called after a decision landed, so the sync path can drop its unchanged guard and re-learn the
     /// mapping on the next push.
     /// </param>
+    /// <param name="itemName">Resolves an item id to its name in the player language.</param>
+    /// <param name="openLink">Opens an http(s) url, already guarded against other schemes.</param>
     public ReviewWindow(
         ReviewService review,
         Localizer localizer,
         Func<string?> currentCharacter,
-        Action afterDecision)
+        Action afterDecision,
+        Func<int, string> itemName,
+        Action<string> openLink)
         : base("Eorzea Arsenal###EorzeaArsenalReview")
     {
         _review = review;
         _localizer = localizer;
         _currentCharacter = currentCharacter;
         _afterDecision = afterDecision;
+        _itemName = itemName;
+        _openLink = openLink;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -125,6 +136,19 @@ public sealed class ReviewWindow : Window
             ImGui.TextColored(Warn, T(LocKeys.ReviewStale));
         }
 
+        if (_alsoSettled > 0)
+        {
+            ImGui.TextColored(Good, T(LocKeys.ReviewAlsoSettled, _alsoSettled));
+        }
+
+        // The first sync after a website-first start asks once per hand-made row, before the player has
+        // done anything. Saying what is being asked is what keeps a wall of questions from reading as a
+        // fault, and it is why the bulk door exists at all.
+        if (state.Held.Count >= 3 && state.Held.TrueForAll(EveryCandidateIsHandMade))
+        {
+            ImGui.TextWrapped(T(LocKeys.ReviewWebsiteFirst, state.Held.Count));
+        }
+
         ImGui.Separator();
 
         var anything = state.Held.Count > 0 || state.Orphans.Count > 0;
@@ -143,6 +167,15 @@ public sealed class ReviewWindow : Window
         DrawInventory(state);
     }
 
+
+    /// <summary>
+    /// Whether every answer offered for a question is a row somebody made on the website. True for the
+    /// website-first morning and false as soon as one ordinary plugin row is in the mix.
+    /// </summary>
+    /// <param name="held">The question.</param>
+    /// <returns><see langword="true"/> when all its candidates are hand-made.</returns>
+    private static bool EveryCandidateIsHandMade(HeldGearset held) =>
+        held.Candidates.Count > 0 && held.Candidates.TrueForAll(ReviewRules.IsAdoption);
     private void DrawHeader()
     {
         using (ImRaii.Disabled(_review.IsBusy))
@@ -210,12 +243,15 @@ public sealed class ReviewWindow : Window
         }
 
         ImGui.TextColored(Accent, T(LocKeys.ReviewWhichSet, held.Job ?? "?", held.Name ?? string.Empty));
+
+        // The lived position where it is known: the stored one can sit in a band the player cannot find.
+        DrawItems(held.SetUid ?? string.Empty, held.Items);
         ImGui.Spacing();
 
         var preselected = ReviewRules.Preselected(held);
         foreach (var candidate in held.Candidates)
         {
-            DrawCandidate(held, candidate, ReferenceEquals(candidate, preselected));
+            DrawCandidate(state, held, candidate, ReferenceEquals(candidate, preselected));
         }
 
         ImGui.Spacing();
@@ -230,7 +266,7 @@ public sealed class ReviewWindow : Window
     /// score that is not proposed says so, with the reason, so the player is not left wondering why the
     /// better-looking one is not the suggestion.
     /// </remarks>
-    private void DrawCandidate(HeldGearset held, ReviewCandidate candidate, bool proposed)
+    private void DrawCandidate(ReviewState state, HeldGearset held, ReviewCandidate candidate, bool proposed)
     {
         using var id = ImRaii.PushId(candidate.SetUid ?? string.Empty);
 
@@ -240,15 +276,26 @@ public sealed class ReviewWindow : Window
         ImGui.SameLine();
         ImGui.TextColored(Muted, T(LocKeys.ReviewMatch, candidate.MatchedSlots, candidate.TotalSlots, candidate.Probability));
 
+        // Same job rather than merely compatible: GLA onto PLD and PLD onto PLD are both allowed and read
+        // differently to somebody deciding.
+        if (candidate.SameJob)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(Muted, "· " + T(LocKeys.ReviewSameJob));
+        }
+
         if (candidate.Hidden)
         {
             ImGui.SameLine();
-            ImGui.TextColored(Muted, $"· {T(LocKeys.ReviewHiddenOnSite)}");
+            ImGui.TextColored(Muted, "· " + T(LocKeys.ReviewHiddenOnSite));
         }
 
-        if (!proposed && candidate.BlockedBy is { Length: > 0 })
+        DrawLink(candidate.Url);
+
+        // Named, not vague. The uid comes out of this same answer, so the name is already here.
+        if (!proposed && candidate.BlockedBy is { Length: > 0 } blocker)
         {
-            ImGui.TextColored(Muted, $"    {T(LocKeys.ReviewBlocked)}");
+            ImGui.TextColored(Muted, "    " + T(LocKeys.ReviewBlockedBy, NameOf(state, blocker)));
         }
 
         if (ReviewRules.IsAdoption(candidate))
@@ -267,6 +314,8 @@ public sealed class ReviewWindow : Window
         {
             ImGui.TextColored(Warn, $"    {T(LocKeys.ReviewKeepsShare, string.Join(", ", candidate.TeamNames), name)}");
         }
+
+        DrawItems(candidate.SetUid ?? string.Empty, candidate.Items);
 
         using (ImRaii.Disabled(_review.IsBusy))
         {
@@ -423,6 +472,9 @@ public sealed class ReviewWindow : Window
             ImGui.TextColored(Warn, $"    {T(LocKeys.ReviewKeepsShare, string.Join(", ", row.TeamNames), name)}");
         }
 
+        DrawLink(row.Url);
+        DrawItems(row.SetUid ?? string.Empty, row.Items);
+
         using (ImRaii.Disabled(_review.IsBusy))
         {
             foreach (var verb in ReviewRules.OfferedVerbs(row))
@@ -456,6 +508,99 @@ public sealed class ReviewWindow : Window
         _ => T(LocKeys.ReviewIgnore),
     };
 
+    /// <summary>
+    /// What a set contains, behind a toggle. Item ids come over the wire and are resolved here, because a
+    /// name from the server could only ever be in one language.
+    /// </summary>
+    /// <param name="key">Something stable to remember the toggle by, normally the row uid.</param>
+    /// <param name="items">The gear, by slot.</param>
+    /// <remarks>
+    /// Folded away by default and not omitted: seeing what is in a row is what makes "delete or keep"
+    /// answerable, and a window that shows everything at once is a window nobody reads.
+    /// </remarks>
+    private void DrawItems(string key, Dictionary<string, ItemDto> items)
+    {
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        var open = _expanded.Contains(key);
+        if (ImGui.SmallButton(open ? $"{T(LocKeys.ReviewShowItems)} ▾" : $"{T(LocKeys.ReviewShowItems)} ▸"))
+        {
+            if (!_expanded.Remove(key))
+            {
+                _expanded.Add(key);
+            }
+        }
+
+        if (!open)
+        {
+            return;
+        }
+
+        foreach (var (slot, item) in items)
+        {
+            var materia = item.Materia.Count > 0 ? $"  ·  {item.Materia.Count}× materia" : string.Empty;
+            ImGui.TextColored(Muted, $"      {slot}: {_itemName(item.Id)}{materia}");
+        }
+    }
+
+    /// <summary>Offers the row on the website, where there is a url to offer.</summary>
+    /// <param name="url">The url the server sent. Read back, never composed.</param>
+    private void DrawLink(string? url)
+    {
+        if (url is not { Length: > 0 })
+        {
+            return;
+        }
+
+        ImGui.SameLine();
+        if (ImGui.SmallButton(T(LocKeys.ReviewOpenOnSite)))
+        {
+            _openLink(url);
+        }
+    }
+
+    /// <summary>
+    /// The name of the set a candidate went to instead, so the honest sentence can be concrete.
+    /// </summary>
+    /// <param name="state">The answer both rows came out of.</param>
+    /// <param name="uid">The row named by <c>blocked_by</c>.</param>
+    /// <returns>Its name, or the uid shortened when the name is not in this answer.</returns>
+    /// <remarks>
+    /// The contract points out that this uid comes out of the same answer, so the name is already here and
+    /// no second call is needed. Looking in both lists because the winner can be either a held newcomer or
+    /// another candidate.
+    /// </remarks>
+    private static string NameOf(ReviewState state, string uid)
+    {
+        foreach (var held in state.Held)
+        {
+            if (string.Equals(held.SetUid, uid, StringComparison.Ordinal) && held.Name is { Length: > 0 })
+            {
+                return held.Name;
+            }
+
+            foreach (var candidate in held.Candidates)
+            {
+                if (string.Equals(candidate.SetUid, uid, StringComparison.Ordinal) && candidate.Name is { Length: > 0 })
+                {
+                    return candidate.Name;
+                }
+            }
+        }
+
+        foreach (var orphan in state.Orphans)
+        {
+            if (string.Equals(orphan.SetUid, uid, StringComparison.Ordinal) && orphan.Name is { Length: > 0 })
+            {
+                return orphan.Name;
+            }
+        }
+
+        return uid.Length > 8 ? uid[..8] : uid;
+    }
 
     /// <summary>
     /// A decision waiting for a second click, with the sentences that say what it will do.
@@ -585,6 +730,16 @@ public sealed class ReviewWindow : Window
     private void AfterCall(ReviewOutcome outcome)
     {
         _staleNotice = outcome == ReviewOutcome.Stale;
+
+        // What the click settled beyond the row it named. Read from the answer rather than diffed, because
+        // a held row can also leave the list because its set vanished from the game, and a diff cannot tell
+        // the two apart: it would report a question settling itself over a set just deleted.
+        _alsoSettled = _review.Current switch
+        {
+            ReviewDecisionResponse decided => decided.AlsoResolved.Count,
+            ReviewAcceptResponse accepted => accepted.AlsoResolved.Count,
+            _ => 0,
+        };
 
         if (outcome != ReviewOutcome.Ok)
         {

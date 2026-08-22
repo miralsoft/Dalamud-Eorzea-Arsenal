@@ -61,6 +61,22 @@ public sealed class GearsetMappingService
         _log = log;
     }
 
+    private readonly HashSet<string> _held = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The gearsets the server wrote but could not attribute, by uid, as of the last push that said so.
+    /// </summary>
+    /// <remarks>
+    /// Read from the push answer rather than from the review, because a push happens anyway and the review
+    /// is only read when somebody opens it. A marker that only appeared after opening the window would be
+    /// missing at exactly the moment it is useful.
+    /// </remarks>
+    public IReadOnlySet<string> HeldUids => _held;
+
+    /// <summary>Whether this gearset attribution is still open.</summary>
+    /// <param name="setUid">The identity to ask about.</param>
+    /// <returns><see langword="true"/> while the server is waiting for an answer about it.</returns>
+    public bool IsHeld(string? setUid) => setUid is not null && _held.Contains(setUid);
     /// <summary>
     /// Whether the server this plugin is talking to mints identities at all. <see langword="false"/>
     /// until something carrying a <c>set_uid</c> has been seen. Detected rather than assumed on
@@ -171,6 +187,18 @@ public sealed class GearsetMappingService
                 MatchedBy = assignment.MatchedBy,
             });
 
+
+            // Remember which sets the server could not attribute, so the comparison can say its target is
+            // provisional. A held row DOES get the job default target, so it shows numbers either way, and
+            // without the marker those numbers look settled when the question is still open.
+            if (string.Equals(assignment.State, PushState.Held, StringComparison.Ordinal))
+            {
+                _held.Add(assignment.SetUid!);
+            }
+            else
+            {
+                _held.Remove(assignment.SetUid!);
+            }
             if (MatchedBy.IsUncertain(assignment.MatchedBy))
             {
                 _uncertain[assignment.SetUid!] = assignment.MatchedBy!;

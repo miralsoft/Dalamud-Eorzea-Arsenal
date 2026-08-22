@@ -340,6 +340,12 @@ public static class LocKeys
     /// </summary>
     public const string BisNoCatalogue = "bis.nocatalogue";
 
+    /// <summary>
+    /// BiS window: this comparison target is provisional, because the server is still waiting to be told
+    /// which stored set this gearset is.
+    /// </summary>
+    public const string BisProvisional = "bis.provisional";
+
     /// <summary>Reconciliation window title.</summary>
     public const string ReviewTitle = "review.title";
 
@@ -426,6 +432,26 @@ public static class LocKeys
 
     /// <summary>What deleting a row that still exists in game does.</summary>
     public const string ReviewDeleteComesBack = "review.deletecomesback";
+
+    /// <summary>Second click on an irreversible action: what it will do, and the way out.</summary>
+
+    /// <summary>Opens the row on the website.</summary>
+    public const string ReviewOpenOnSite = "review.openonsite";
+
+    /// <summary>Shows or hides what a set contains.</summary>
+    public const string ReviewShowItems = "review.showitems";
+
+    /// <summary>Questions that settled themselves as a consequence (arg: count).</summary>
+    public const string ReviewAlsoSettled = "review.alsosettled";
+
+    /// <summary>Why a higher-scoring candidate is not the proposal (arg: the set it went to).</summary>
+    public const string ReviewBlockedBy = "review.blockedby";
+
+    /// <summary>A candidate whose job is the same rather than merely compatible.</summary>
+    public const string ReviewSameJob = "review.samejob";
+
+    /// <summary>What the window is asking on a first sync after a website-first start (arg: count).</summary>
+    public const string ReviewWebsiteFirst = "review.websitefirst";
 
     /// <summary>Second click on an irreversible action: what it will do, and the way out.</summary>
     public const string ReviewConfirmTitle = "review.confirm.title";
