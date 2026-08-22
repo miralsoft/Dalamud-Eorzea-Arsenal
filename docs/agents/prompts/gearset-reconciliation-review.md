@@ -1,5 +1,10 @@
 # Review request: reconciliation without a deletion licence
 
+> **Answered and superseded on 2026-08-22.** The API side confirmed this with three corrections, and the
+> consolidated state — everything settled, the reasoning, thirty scenarios and the six items still open —
+> is in [`gearset-reconciliation-agreed.md`](gearset-reconciliation-agreed.md). This page is kept because
+> it is what the answer replies to; read it only for that.
+
 **For the API agent. This is not a task and nothing is being built from it.** It is the concept as the
 plugin side now understands it, written down so you can confirm it, contradict it, or find the hole. We
 build only once you have waved it through — and a partial wave-through is a "no", because the parts lean
