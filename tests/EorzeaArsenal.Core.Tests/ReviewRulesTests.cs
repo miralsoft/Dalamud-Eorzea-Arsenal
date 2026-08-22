@@ -221,6 +221,47 @@ public sealed class ReviewRulesTests
         Assert.Equal(1, ReviewRules.AdoptionCount(state, pairs));
     }
 
+    /// <summary>
+    /// The contract is explicit that one row may be a candidate in any number of questions: two newcomers
+    /// may both point at the same orphan. So the same hand-made row can appear under several held rows, and
+    /// counting it once per appearance overstates the number in front of an irreversible press.
+    /// </summary>
+    [Fact]
+    public void AnAdoptionIsCountedOncePerPairNotOncePerAppearance()
+    {
+        var handMade = () => new ReviewCandidate { SetUid = "shared", Source = GearsetSource.Manual, Proposed = true };
+        var state = new ReviewState
+        {
+            Held =
+            [
+                new()
+                {
+                    SetUid = "a",
+                    Proposal = new ReviewProposal { Action = ReviewAction.Link, TargetUid = "shared" },
+                    Candidates = [handMade()],
+                },
+                // The same row offered again under a different question, which the contract allows.
+                new()
+                {
+                    SetUid = "b",
+                    Proposal = new ReviewProposal { Action = ReviewAction.New },
+                    Candidates = [handMade()],
+                },
+                new()
+                {
+                    SetUid = "c",
+                    Proposal = new ReviewProposal { Action = ReviewAction.New },
+                    Candidates = [handMade()],
+                },
+            ],
+        };
+
+        var pairs = ReviewRules.MappingToAccept(state);
+
+        Assert.Equal(3, pairs.Count);
+        Assert.Equal(1, ReviewRules.AdoptionCount(state, pairs));
+    }
+
     private static ReviewState StateWith(params HeldGearset[] held) => new()
     {
         StateToken = "9f13",

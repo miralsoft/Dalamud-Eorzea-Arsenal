@@ -179,24 +179,29 @@ public static class ReviewRules
     /// <returns>The count of pairs that link onto a hand-made row.</returns>
     public static int AdoptionCount(ReviewState state, IReadOnlyList<ReviewDecision> pairs)
     {
+        // Which offered rows are hand-made, gathered once. One row may be a candidate under any number of
+        // questions — the contract says so outright — so walking the candidate lists per pair and counting
+        // every appearance would say "three" about one adoption, in front of a press that cannot be undone.
+        var handMade = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var held in state.Held)
+        {
+            foreach (var candidate in held.Candidates)
+            {
+                if (candidate.SetUid is { Length: > 0 } uid && IsAdoption(candidate))
+                {
+                    handMade.Add(uid);
+                }
+            }
+        }
+
         var adoptions = 0;
         foreach (var pair in pairs)
         {
-            if (!string.Equals(pair.Action, ReviewAction.Link, StringComparison.Ordinal) || pair.TargetUid is null)
+            if (string.Equals(pair.Action, ReviewAction.Link, StringComparison.Ordinal) &&
+                pair.TargetUid is { Length: > 0 } target &&
+                handMade.Contains(target))
             {
-                continue;
-            }
-
-            foreach (var held in state.Held)
-            {
-                foreach (var candidate in held.Candidates)
-                {
-                    if (string.Equals(candidate.SetUid, pair.TargetUid, StringComparison.Ordinal) &&
-                        IsAdoption(candidate))
-                    {
-                        adoptions++;
-                    }
-                }
+                adoptions++;
             }
         }
 
