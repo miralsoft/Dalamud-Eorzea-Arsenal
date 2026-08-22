@@ -42,6 +42,11 @@ public sealed class ReviewWindow : Window
     private readonly HashSet<string> _expanded = new(StringComparer.Ordinal);
     private int _alsoSettled;
 
+    // Set on a background thread, acted on in Draw. The sets below are touched by the drawing thread only,
+    // and that is the whole safety argument: a Clear() from a task while Draw is asking Contains() is a
+    // race on a HashSet, and an exception on the framework thread breaks the window rather than logging.
+    private volatile bool _resetAfterDecision;
+
     private readonly HashSet<string> _struckOut = new(StringComparer.Ordinal);
     private int _question;
     private bool _showAside;
@@ -80,6 +85,32 @@ public sealed class ReviewWindow : Window
         };
     }
 
+
+    /// <summary>
+    /// Coloured text that is never read as a format string.
+    /// </summary>
+    /// <param name="colour">The colour to draw in.</param>
+    /// <param name="text">The text, which may have come from a server or from another player.</param>
+    /// <remarks>
+    /// Almost everything this window draws contains a name somebody else chose: a gearset name, a team
+    /// name. Whether the binding in use passes those through printf could not be established from here, so
+    /// the window does not depend on the answer — an unformatted call costs nothing and a percent sign in a
+    /// team name stays a percent sign.
+    /// </remarks>
+    private static void Text(Vector4 colour, string text)
+    {
+        using var pushed = ImRaii.PushColor(ImGuiCol.Text, colour);
+        ImGui.TextUnformatted(text);
+    }
+
+    /// <summary>Wrapped text that is never read as a format string, for the longer sentences.</summary>
+    /// <param name="text">The text.</param>
+    private static void TextWrapped(string text)
+    {
+        ImGui.PushTextWrapPos(0f);
+        ImGui.TextUnformatted(text);
+        ImGui.PopTextWrapPos();
+    }
     private string T(string key) => _localizer.Get(key);
 
     private string T(string key, params object[] args) => _localizer.Get(key, args);
@@ -110,7 +141,31 @@ public sealed class ReviewWindow : Window
     /// <inheritdoc />
     public override void Draw()
     {
+        if (_resetAfterDecision)
+        {
+            // The question that was on screen may be gone and the rest have shifted up, so walking back to
+            // the first is the honest thing: the list is re-sorted most likely first, and it is not the same
+            // carousel any more.
+            _resetAfterDecision = false;
+            _question = 0;
+            _struckOut.Clear();
+        }
+
         DrawHeader();
+
+        // The questions belong to one character. Switching in game while this is open would leave somebody
+        // answering about a character they are no longer playing: the answers would still be right for that
+        // character, which is precisely what makes it confusing rather than harmless.
+        var onScreen = _currentCharacter();
+        if (onScreen is { Length: > 0 } &&
+            _review.CurrentCidHash is { Length: > 0 } shown &&
+            !string.Equals(onScreen, shown, StringComparison.Ordinal) &&
+            !_review.IsBusy)
+        {
+            Refresh();
+            Text(Muted, T(LocKeys.ReviewRefresh));
+            return;
+        }
 
         // Nothing else is reachable while a second click is waiting: the point of asking is lost if the
         // rest of the window is still live behind it.
@@ -121,24 +176,24 @@ public sealed class ReviewWindow : Window
 
         if (_review.LastOutcome == ReviewOutcome.Unavailable)
         {
-            ImGui.TextColored(Muted, T(LocKeys.ReviewUnavailable));
+            Text(Muted, T(LocKeys.ReviewUnavailable));
             return;
         }
 
         if (_review.Current is not { } state)
         {
-            ImGui.TextColored(Muted, T(LocKeys.ReviewNothing));
+            Text(Muted, T(LocKeys.ReviewNothing));
             return;
         }
 
         if (_staleNotice)
         {
-            ImGui.TextColored(Warn, T(LocKeys.ReviewStale));
+            Text(Warn, T(LocKeys.ReviewStale));
         }
 
         if (_alsoSettled > 0)
         {
-            ImGui.TextColored(Good, T(LocKeys.ReviewAlsoSettled, _alsoSettled));
+            Text(Good, T(LocKeys.ReviewAlsoSettled, _alsoSettled));
         }
 
         // The first sync after a website-first start asks once per hand-made row, before the player has
@@ -146,7 +201,7 @@ public sealed class ReviewWindow : Window
         // fault, and it is why the bulk door exists at all.
         if (state.Held.Count >= 3 && state.Held.TrueForAll(EveryCandidateIsHandMade))
         {
-            ImGui.TextWrapped(T(LocKeys.ReviewWebsiteFirst, state.Held.Count));
+            TextWrapped(T(LocKeys.ReviewWebsiteFirst, state.Held.Count));
         }
 
         ImGui.Separator();
@@ -154,7 +209,7 @@ public sealed class ReviewWindow : Window
         var anything = state.Held.Count > 0 || state.Orphans.Count > 0;
         if (!anything)
         {
-            ImGui.TextColored(Good, T(LocKeys.ReviewNothing));
+            Text(Good, T(LocKeys.ReviewNothing));
             return;
         }
 
@@ -196,18 +251,18 @@ public sealed class ReviewWindow : Window
         var aside = state.Orphans.Count - open;
 
         ImGui.SameLine();
-        ImGui.TextColored(state.Held.Count > 0 ? Warn : Muted, T(LocKeys.ReviewQuestions, state.Held.Count));
+        Text(state.Held.Count > 0 ? Warn : Muted, T(LocKeys.ReviewQuestions, state.Held.Count));
         ImGui.SameLine();
-        ImGui.TextColored(Muted, "·");
+        Text(Muted, "·");
         ImGui.SameLine();
-        ImGui.TextColored(open > 0 ? Warn : Muted, T(LocKeys.ReviewOrphansOpen, open));
+        Text(open > 0 ? Warn : Muted, T(LocKeys.ReviewOrphansOpen, open));
 
         if (aside > 0)
         {
             ImGui.SameLine();
-            ImGui.TextColored(Muted, "·");
+            Text(Muted, "·");
             ImGui.SameLine();
-            ImGui.TextColored(Muted, T(LocKeys.ReviewOrphansAside, aside));
+            Text(Muted, T(LocKeys.ReviewOrphansAside, aside));
         }
     }
 
@@ -222,7 +277,7 @@ public sealed class ReviewWindow : Window
 
         if (state.Held.Count > 1)
         {
-            ImGui.TextColored(Muted, $"{_question + 1} / {state.Held.Count}");
+            Text(Muted, $"{_question + 1} / {state.Held.Count}");
             ImGui.SameLine();
             using (ImRaii.Disabled(_question == 0))
             {
@@ -242,7 +297,7 @@ public sealed class ReviewWindow : Window
             }
         }
 
-        ImGui.TextColored(Accent, T(LocKeys.ReviewWhichSet, held.Job ?? "?", held.Name ?? string.Empty));
+        Text(Accent, T(LocKeys.ReviewWhichSet, held.Job ?? "?", held.Name ?? string.Empty));
 
         // The lived position where it is known: the stored one can sit in a band the player cannot find.
         DrawItems(held.SetUid ?? string.Empty, held.Items);
@@ -271,23 +326,23 @@ public sealed class ReviewWindow : Window
         using var id = ImRaii.PushId(candidate.SetUid ?? string.Empty);
 
         var name = string.IsNullOrWhiteSpace(candidate.Name) ? "—" : candidate.Name;
-        ImGui.TextColored(proposed ? Good : Muted, proposed ? $"› {candidate.Job} {name}" : $"  {candidate.Job} {name}");
+        Text(proposed ? Good : Muted, proposed ? $"› {candidate.Job} {name}" : $"  {candidate.Job} {name}");
 
         ImGui.SameLine();
-        ImGui.TextColored(Muted, T(LocKeys.ReviewMatch, candidate.MatchedSlots, candidate.TotalSlots, candidate.Probability));
+        Text(Muted, T(LocKeys.ReviewMatch, candidate.MatchedSlots, candidate.TotalSlots, candidate.Probability));
 
         // Same job rather than merely compatible: GLA onto PLD and PLD onto PLD are both allowed and read
         // differently to somebody deciding.
         if (candidate.SameJob)
         {
             ImGui.SameLine();
-            ImGui.TextColored(Muted, "· " + T(LocKeys.ReviewSameJob));
+            Text(Muted, "· " + T(LocKeys.ReviewSameJob));
         }
 
         if (candidate.Hidden)
         {
             ImGui.SameLine();
-            ImGui.TextColored(Muted, "· " + T(LocKeys.ReviewHiddenOnSite));
+            Text(Muted, "· " + T(LocKeys.ReviewHiddenOnSite));
         }
 
         DrawLink(candidate.Url);
@@ -295,24 +350,24 @@ public sealed class ReviewWindow : Window
         // Named, not vague. The uid comes out of this same answer, so the name is already here.
         if (!proposed && candidate.BlockedBy is { Length: > 0 } blocker)
         {
-            ImGui.TextColored(Muted, "    " + T(LocKeys.ReviewBlockedBy, NameOf(state, blocker)));
+            Text(Muted, "    " + T(LocKeys.ReviewBlockedBy, NameOf(state, blocker)));
         }
 
         if (ReviewRules.IsAdoption(candidate))
         {
-            ImGui.TextColored(Warn, $"    {T(LocKeys.ReviewAdoption)}");
+            Text(Warn, $"    {T(LocKeys.ReviewAdoption)}");
         }
 
         // Only where there is something to say. A dialog that appears every time teaches people to click it
         // away, including the times it matters.
         if (candidate.HasPin)
         {
-            ImGui.TextColored(Muted, $"    {T(LocKeys.ReviewKeepsPin, name)}");
+            Text(Muted, $"    {T(LocKeys.ReviewKeepsPin, name)}");
         }
 
         if (candidate.HasTeamShare && candidate.TeamNames.Count > 0)
         {
-            ImGui.TextColored(Warn, $"    {T(LocKeys.ReviewKeepsShare, string.Join(", ", candidate.TeamNames), name)}");
+            Text(Warn, $"    {T(LocKeys.ReviewKeepsShare, string.Join(", ", candidate.TeamNames), name)}");
         }
 
         DrawItems(candidate.SetUid ?? string.Empty, candidate.Items);
@@ -365,6 +420,27 @@ public sealed class ReviewWindow : Window
             }
         }
 
+        // The only lever a player has over the bulk call, and the reason it is safe at all: they may take a
+        // pair out, never add or re-point one. Without this control the button was all-or-nothing, and the
+        // guarantee it rests on had nothing to rest on.
+        if (state.Held.Count >= 3 && held.SetUid is { Length: > 0 } uid)
+        {
+            var struck = _struckOut.Contains(uid);
+            if (ImGui.SmallButton(struck ? T(LocKeys.ReviewPutBack) : T(LocKeys.ReviewStrikeOut)))
+            {
+                if (!_struckOut.Remove(uid))
+                {
+                    _struckOut.Add(uid);
+                }
+            }
+
+            if (_struckOut.Count > 0)
+            {
+                ImGui.SameLine();
+                Text(Muted, T(LocKeys.ReviewStruckCount, _struckOut.Count));
+            }
+        }
+
         if (state.Held.Count < 3)
         {
             return;
@@ -395,7 +471,7 @@ public sealed class ReviewWindow : Window
         var adoptions = ReviewRules.AdoptionCount(state, pairs);
         if (adoptions > 0)
         {
-            ImGui.TextColored(Warn, T(LocKeys.ReviewAcceptAdoptions, adoptions));
+            Text(Warn, T(LocKeys.ReviewAcceptAdoptions, adoptions));
         }
     }
 
@@ -414,7 +490,7 @@ public sealed class ReviewWindow : Window
             return;
         }
 
-        ImGui.TextColored(Accent, T(LocKeys.ReviewInventory));
+        Text(Accent, T(LocKeys.ReviewInventory));
 
         foreach (var row in open)
         {
@@ -452,10 +528,10 @@ public sealed class ReviewWindow : Window
         using var id = ImRaii.PushId(row.SetUid ?? string.Empty);
 
         var name = string.IsNullOrWhiteSpace(row.Name) ? "—" : row.Name;
-        ImGui.TextColored(Muted, $"{row.Job} {name}");
+        Text(Muted, $"{row.Job} {name}");
 
         ImGui.SameLine();
-        ImGui.TextColored(
+        Text(
             Muted,
             row.LastSeenAt is { Length: > 0 } seen
                 ? T(LocKeys.ReviewLastSeen, seen)
@@ -464,12 +540,21 @@ public sealed class ReviewWindow : Window
         if (row.Hidden)
         {
             ImGui.SameLine();
-            ImGui.TextColored(Muted, $"· {T(LocKeys.ReviewHiddenOnSite)}");
+            Text(Muted, $"· {T(LocKeys.ReviewHiddenOnSite)}");
         }
 
         if (row.HasTeamShare && row.TeamNames.Count > 0)
         {
-            ImGui.TextColored(Warn, $"    {T(LocKeys.ReviewKeepsShare, string.Join(", ", row.TeamNames), name)}");
+            Text(Warn, $"    {T(LocKeys.ReviewKeepsShare, string.Join(", ", row.TeamNames), name)}");
+        }
+
+        // A row the server sent without an identity cannot be decided about: every verb needs one to name.
+        // Offering buttons that could only ever come back as a 422 is the same mistake as offering an
+        // incompatible candidate, so the row is shown and the actions are not.
+        if (row.SetUid is not { Length: > 0 })
+        {
+            ImGui.Spacing();
+            return;
         }
 
         DrawLink(row.Url);
@@ -494,7 +579,7 @@ public sealed class ReviewWindow : Window
         // one cannot come back at all, so promising a return there would be a lie.
         if (row.IsFromPlugin && !row.IsPutAside)
         {
-            ImGui.TextColored(Muted, $"    {T(LocKeys.ReviewDeleteComesBack)}");
+            Text(Muted, $"    {T(LocKeys.ReviewDeleteComesBack)}");
         }
 
         ImGui.Spacing();
@@ -542,7 +627,7 @@ public sealed class ReviewWindow : Window
         foreach (var (slot, item) in items)
         {
             var materia = item.Materia.Count > 0 ? $"  ·  {item.Materia.Count}× materia" : string.Empty;
-            ImGui.TextColored(Muted, $"      {slot}: {_itemName(item.Id)}{materia}");
+            Text(Muted, $"      {slot}: {_itemName(item.Id)}{materia}");
         }
     }
 
@@ -640,10 +725,10 @@ public sealed class ReviewWindow : Window
             return false;
         }
 
-        ImGui.TextColored(Warn, T(LocKeys.ReviewConfirmTitle));
+        Text(Warn, T(LocKeys.ReviewConfirmTitle));
         foreach (var line in pending.Lines)
         {
-            ImGui.TextWrapped($"  {line}");
+            TextWrapped($"  {line}");
         }
 
         ImGui.Spacing();
@@ -721,11 +806,17 @@ public sealed class ReviewWindow : Window
         AfterCall(outcome);
     });
 
-    private void AcceptMapping() => _ = Task.Run(async () =>
+    private void AcceptMapping()
     {
-        var outcome = await _review.AcceptMappingAsync(_struckOut, CancellationToken.None).ConfigureAwait(false);
-        AfterCall(outcome);
-    });
+        // Copied on the drawing thread before the task starts: handing the live set to a background read
+        // while clicks can still change it is the same race from the other side.
+        var struckOut = new HashSet<string>(_struckOut, StringComparer.Ordinal);
+        _ = Task.Run(async () =>
+        {
+            var outcome = await _review.AcceptMappingAsync(struckOut, CancellationToken.None).ConfigureAwait(false);
+            AfterCall(outcome);
+        });
+    }
 
     private void AfterCall(ReviewOutcome outcome)
     {
@@ -749,8 +840,9 @@ public sealed class ReviewWindow : Window
         // The question that was on screen may be gone, and the ones after it have shifted up. Walking back
         // to the first is the honest thing: the list was re-sorted most likely first, so it is not the same
         // carousel any more.
-        _question = 0;
-        _struckOut.Clear();
+        // Not touched here: this runs on a task, and both sets belong to the drawing thread. Draw picks the
+        // flag up on its next pass.
+        _resetAfterDecision = true;
         _afterDecision();
     }
 }

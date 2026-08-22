@@ -61,7 +61,11 @@ public sealed class GearsetMappingService
         _log = log;
     }
 
-    private readonly HashSet<string> _held = new(StringComparer.Ordinal);
+    // Swapped whole rather than mutated: IsHeld runs per frame for every gearset in the BiS window while a
+    // push writes this from another thread, and Contains() during Add() on a HashSet is a race that ends as
+    // an exception on the framework thread. A snapshot costs one small allocation per push and nothing per
+    // frame.
+    private volatile IReadOnlySet<string> _held = new HashSet<string>(StringComparer.Ordinal);
 
     /// <summary>
     /// The gearsets the server wrote but could not attribute, by uid, as of the last push that said so.
@@ -155,6 +159,7 @@ public sealed class GearsetMappingService
         }
 
         var rows = new List<CachedGearsetIdentity>(assignments.Count);
+        var held = new HashSet<string>(StringComparer.Ordinal);
         var uncertain = 0;
 
         for (var i = 0; i < assignments.Count && i < sent.Count; i++)
@@ -188,16 +193,12 @@ public sealed class GearsetMappingService
             });
 
 
-            // Remember which sets the server could not attribute, so the comparison can say its target is
-            // provisional. A held row DOES get the job default target, so it shows numbers either way, and
-            // without the marker those numbers look settled when the question is still open.
+            // Which sets the server could not attribute, so the comparison can say its target is provisional.
+            // A held row DOES get the job default target, so it shows numbers either way, and without the
+            // marker those numbers look settled while the question is still open.
             if (string.Equals(assignment.State, PushState.Held, StringComparison.Ordinal))
             {
-                _held.Add(assignment.SetUid!);
-            }
-            else
-            {
-                _held.Remove(assignment.SetUid!);
+                held.Add(assignment.SetUid!);
             }
             if (MatchedBy.IsUncertain(assignment.MatchedBy))
             {
@@ -214,6 +215,10 @@ public sealed class GearsetMappingService
         {
             return;
         }
+
+        // Published as one whole after the loop, so a reader never sees a half-built set. The answer covers
+        // exactly the list that was just sent, so what is not in it is not held any more.
+        _held = held;
 
         Replace(cidHash, rows);
         _nextRefreshUtc[cidHash] = _clock.UtcNow + RefreshInterval;

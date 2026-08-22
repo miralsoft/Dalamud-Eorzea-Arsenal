@@ -453,6 +453,15 @@ public static class LocKeys
     /// <summary>What the window is asking on a first sync after a website-first start (arg: count).</summary>
     public const string ReviewWebsiteFirst = "review.websitefirst";
 
+    /// <summary>Leave this question out of the whole mapping, to answer on its own.</summary>
+    public const string ReviewStrikeOut = "review.strikeout";
+
+    /// <summary>Put a struck question back into the mapping.</summary>
+    public const string ReviewPutBack = "review.putback";
+
+    /// <summary>Marks a question that has been left out (arg: count).</summary>
+    public const string ReviewStruckCount = "review.struckcount";
+
     /// <summary>Second click on an irreversible action: what it will do, and the way out.</summary>
     public const string ReviewConfirmTitle = "review.confirm.title";
 

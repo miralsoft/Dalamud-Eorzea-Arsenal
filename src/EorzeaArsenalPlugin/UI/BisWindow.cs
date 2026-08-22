@@ -330,7 +330,10 @@ public sealed class BisWindow : Window
     private void DrawWithoutTarget(GearsetDto set, int index)
     {
         var name = string.IsNullOrWhiteSpace(set.Name) ? string.Empty : $" — {set.Name}";
-        ImGui.TextColored(Accent, $"#{index} {set.Job}{name}");
+        using (ImRaii.PushColor(ImGuiCol.Text, Accent))
+        {
+            ImGui.TextUnformatted($"#{index} {set.Job}{name}");
+        }
 
         var reason = JobMap.HasBisCatalogue(set.Job)
             ? _localizer.Get(LocKeys.BisNoTarget, index)
@@ -446,7 +449,11 @@ public sealed class BisWindow : Window
         var provisional = _bis.IsProvisional(comparison);
 
         var name = string.IsNullOrEmpty(comparison.Name) ? string.Empty : $" — {comparison.Name}";
-        ImGui.TextColored(Accent, $"#{_bis.DisplayIndex(comparison)} {comparison.Job}{name}");
+        // Unformatted: the target name comes from the server, so a percent sign in it stays one.
+        using (ImRaii.PushColor(ImGuiCol.Text, Accent))
+        {
+            ImGui.TextUnformatted($"#{_bis.DisplayIndex(comparison)} {comparison.Job}{name}");
+        }
         if (provisional)
         {
             ImGui.SameLine();

@@ -143,26 +143,19 @@ public sealed class ReviewService
             var result = await _api.GetReviewAsync(_tokens.ApiKey!, characterId, ct).ConfigureAwait(false);
             if (!result.IsSuccess)
             {
-                return Finish(Classify(result.Error!));
+                return Record(Classify(result.Error!));
             }
 
             Current = result.Value;
             CurrentCidHash = cidHash;
-            return Finish(ReviewOutcome.Ok);
-        }
-        catch (OperationCanceledException)
-        {
-            IsBusy = false;
-            _gate.Release();
-            throw;
+            return Record(ReviewOutcome.Ok);
         }
         finally
         {
-            if (IsBusy)
-            {
-                IsBusy = false;
-                _gate.Release();
-            }
+            // One release, always, and the listeners hear about it only after the gate is free.
+            IsBusy = false;
+            _gate.Release();
+            Notify();
         }
     }
 
@@ -203,7 +196,7 @@ public sealed class ReviewService
 
             if (!result.IsSuccess)
             {
-                return Finish(Classify(result.Error!));
+                return Record(Classify(result.Error!));
             }
 
             var answer = result.Value!;
@@ -212,25 +205,18 @@ public sealed class ReviewService
             if (answer.IsConflict)
             {
                 _log.Info($"Review: the state moved ({answer.Conflicts.Count} row(s)); nothing was applied.");
-                return Finish(ReviewOutcome.Stale);
+                return Record(ReviewOutcome.Stale);
             }
 
             Applied(answer.Result, answer.AlsoResolved, cidHash);
-            return Finish(ReviewOutcome.Ok);
-        }
-        catch (OperationCanceledException)
-        {
-            IsBusy = false;
-            _gate.Release();
-            throw;
+            return Record(ReviewOutcome.Ok);
         }
         finally
         {
-            if (IsBusy)
-            {
-                IsBusy = false;
-                _gate.Release();
-            }
+            // One release, always, and the listeners hear about it only after the gate is free.
+            IsBusy = false;
+            _gate.Release();
+            Notify();
         }
     }
 
@@ -284,7 +270,7 @@ public sealed class ReviewService
 
             if (!result.IsSuccess)
             {
-                return Finish(Classify(result.Error!));
+                return Record(Classify(result.Error!));
             }
 
             var answer = result.Value!;
@@ -293,7 +279,7 @@ public sealed class ReviewService
             if (answer.IsConflict)
             {
                 _log.Info($"Review: the mapping was stale ({answer.Conflicts.Count} row(s)); nothing was applied.");
-                return Finish(ReviewOutcome.Stale);
+                return Record(ReviewOutcome.Stale);
             }
 
             foreach (var applied in answer.Results)
@@ -306,21 +292,14 @@ public sealed class ReviewService
                 _log.Info($"Review: {answer.AlsoResolved.Count} further question(s) settled themselves.");
             }
 
-            return Finish(ReviewOutcome.Ok);
-        }
-        catch (OperationCanceledException)
-        {
-            IsBusy = false;
-            _gate.Release();
-            throw;
+            return Record(ReviewOutcome.Ok);
         }
         finally
         {
-            if (IsBusy)
-            {
-                IsBusy = false;
-                _gate.Release();
-            }
+            // One release, always, and the listeners hear about it only after the gate is free.
+            IsBusy = false;
+            _gate.Release();
+            Notify();
         }
     }
 
@@ -369,9 +348,23 @@ public sealed class ReviewService
         return ReviewOutcome.Failed;
     }
 
-    private ReviewOutcome Finish(ReviewOutcome outcome)
+    /// <summary>Records the outcome without telling anybody. Safe to call while the gate is held.</summary>
+    private ReviewOutcome Record(ReviewOutcome outcome)
     {
         LastOutcome = outcome;
+        return outcome;
+    }
+
+    /// <summary>
+    /// Tells listeners. Called <b>after</b> the gate is released, never while it is held.
+    /// </summary>
+    /// <remarks>
+    /// Nothing subscribes synchronously today, and that is exactly why it is worth getting right now: a
+    /// handler that called back into this service while the semaphore was still held would sit on itself,
+    /// and the fault would look like a hang rather than a mistake in the handler.
+    /// </remarks>
+    private void Notify()
+    {
         try
         {
             Changed?.Invoke();
@@ -380,7 +373,13 @@ public sealed class ReviewService
         {
             _log.Error($"Review Changed handler threw: {ex.GetType().Name}.");
         }
+    }
 
+    /// <summary>Records and tells, for the paths that never took the gate.</summary>
+    private ReviewOutcome Finish(ReviewOutcome outcome)
+    {
+        Record(outcome);
+        Notify();
         return outcome;
     }
 
