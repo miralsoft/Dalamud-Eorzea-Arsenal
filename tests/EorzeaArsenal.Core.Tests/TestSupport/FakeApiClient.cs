@@ -123,6 +123,62 @@ public sealed class FakeApiClient : IApiClient
         return Task.FromResult(JobTableResult);
     }
 
+    /// <summary>Result returned by <see cref="GetReviewAsync"/>.</summary>
+    public ApiResult<ReviewState> ReviewResult { get; set; } = ApiResult<ReviewState>.Ok(new ReviewState());
+
+    /// <summary>Results returned by <see cref="PostReviewDecisionAsync"/>, in order.</summary>
+    public Queue<ApiResult<ReviewDecisionResponse>> DecisionResults { get; } = new();
+
+    /// <summary>Result returned by <see cref="AcceptReviewMappingAsync"/>.</summary>
+    public ApiResult<ReviewAcceptResponse>? AcceptResult { get; set; }
+
+    /// <summary>Every decision that was sent, so a test can assert what the window actually asked for.</summary>
+    public List<ReviewDecision> SentDecisions { get; } = [];
+
+    /// <summary>Every accepted mapping that was sent.</summary>
+    public List<IReadOnlyList<ReviewDecision>> SentMappings { get; } = [];
+
+    /// <summary>The tokens the calls carried, so staleness can be asserted.</summary>
+    public List<string> SentTokens { get; } = [];
+
+    /// <inheritdoc />
+    public Task<ApiResult<ReviewState>> GetReviewAsync(string apiKey, string characterId, CancellationToken ct)
+    {
+        ReviewCalls++;
+        return Task.FromResult(ReviewResult);
+    }
+
+    /// <summary>How many times the review was read.</summary>
+    public int ReviewCalls { get; private set; }
+
+    /// <inheritdoc />
+    public Task<ApiResult<ReviewDecisionResponse>> PostReviewDecisionAsync(
+        string apiKey,
+        string characterId,
+        string stateToken,
+        ReviewDecision decision,
+        CancellationToken ct)
+    {
+        SentDecisions.Add(decision);
+        SentTokens.Add(stateToken);
+        return Task.FromResult(DecisionResults.Count > 0
+            ? DecisionResults.Dequeue()
+            : ApiResult<ReviewDecisionResponse>.Ok(new ReviewDecisionResponse()));
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<ReviewAcceptResponse>> AcceptReviewMappingAsync(
+        string apiKey,
+        string characterId,
+        string stateToken,
+        IReadOnlyList<ReviewDecision> pairs,
+        CancellationToken ct)
+    {
+        SentMappings.Add(pairs);
+        SentTokens.Add(stateToken);
+        return Task.FromResult(AcceptResult ?? ApiResult<ReviewAcceptResponse>.Ok(new ReviewAcceptResponse()));
+    }
+
     private readonly Queue<ApiResult<WeeklyResponse>> _weeklyGetResults = new();
     private readonly Queue<ApiResult<WeeklyPushResult>> _weeklyPutResults = new();
 

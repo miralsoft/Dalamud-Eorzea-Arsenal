@@ -233,6 +233,15 @@ public sealed class GearSyncServiceTests
         public Task<ApiResult<JobTableResponse>> GetJobTableAsync(CancellationToken ct) =>
             throw new NotSupportedException();
 
+        public Task<ApiResult<ReviewState>> GetReviewAsync(string apiKey, string characterId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<ReviewDecisionResponse>> PostReviewDecisionAsync(string apiKey, string characterId, string stateToken, ReviewDecision decision, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<ReviewAcceptResponse>> AcceptReviewMappingAsync(string apiKey, string characterId, string stateToken, IReadOnlyList<ReviewDecision> pairs, CancellationToken ct) =>
+            throw new NotSupportedException();
+
         public Task<ApiResult<WeeklyResponse>> GetWeeklyAsync(string apiKey, string characterId, CancellationToken ct) =>
             throw new NotSupportedException();
 

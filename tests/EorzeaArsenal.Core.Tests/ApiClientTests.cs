@@ -125,6 +125,146 @@ public sealed class ApiClientTests
         Assert.Contains("/gear/jobs", request.Uri!.ToString());
     }
 
+    [Fact]
+    public async Task GetReview_sends_bearer_and_the_character()
+    {
+        var handler = new StubHttpMessageHandler().Enqueue(
+            HttpStatusCode.OK,
+            """{"state_token":"9f13","held":[],"orphans":[]}""");
+
+        var result = await Make(handler).GetReviewAsync("ea_secret", "42", CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("9f13", result.Value!.StateToken);
+        Assert.False(result.Value.IsConflict);
+
+        var request = handler.Requests.Single();
+        Assert.Equal("Bearer ea_secret", request.Authorization);
+        Assert.Contains("character_id=42", request.Uri!.ToString());
+    }
+
+    /// <summary>
+    /// The empty case still carries a token, so a client arriving after somebody else answered everything
+    /// can tell "nothing is open" from "I have no token".
+    /// </summary>
+    [Fact]
+    public async Task GetReview_keeps_the_token_when_nothing_waits()
+    {
+        var handler = new StubHttpMessageHandler().Enqueue(
+            HttpStatusCode.OK,
+            """{"state_token":"empty-but-real","held":[],"orphans":[]}""");
+
+        var result = await Make(handler).GetReviewAsync("ea_secret", "42", CancellationToken.None);
+
+        Assert.Equal("empty-but-real", result.Value!.StateToken);
+        Assert.Empty(result.Value.Held);
+        Assert.Empty(result.Value.Orphans);
+    }
+
+    [Fact]
+    public async Task PostReviewDecision_sends_the_verb_and_the_token()
+    {
+        var handler = new StubHttpMessageHandler().Enqueue(
+            HttpStatusCode.OK,
+            """{"result":{"set_uid":"c05e","action":"link","requested":"link","surviving_uid":"9a1f","state":"active"},"also_resolved":["d18a"],"state_token":"next","held":[],"orphans":[]}""");
+
+        var decision = new ReviewDecision { SetUid = "c05e", Action = ReviewAction.Link, TargetUid = "9a1f" };
+        var result = await Make(handler).PostReviewDecisionAsync("ea_secret", "42", "9f13", decision, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal("9a1f", result.Value!.Result!.SurvivingUid);
+        Assert.Equal(["d18a"], result.Value.AlsoResolved);
+        Assert.Equal("next", result.Value.StateToken);
+        Assert.False(result.Value.Result.WasConverted);
+
+        var body = handler.Requests.Single().Body!;
+        Assert.Contains("\"state_token\":\"9f13\"", body);
+        Assert.Contains("\"set_uid\":\"c05e\"", body);
+        Assert.Contains("\"action\":\"link\"", body);
+        Assert.Contains("\"target_uid\":\"9a1f\"", body);
+    }
+
+    /// <summary>
+    /// A stale token is not an error to report, it is the state to render. The 409 body carries the same
+    /// shape plus what moved, so there is one parser and one renderer, and nothing was applied.
+    /// </summary>
+    [Fact]
+    public async Task PostReviewDecision_returns_a_stale_token_as_a_value()
+    {
+        var handler = new StubHttpMessageHandler().Enqueue(
+            HttpStatusCode.Conflict,
+            """{"state_token":"moved","conflicts":["7bb2"],"held":[],"orphans":[]}""");
+
+        var decision = new ReviewDecision { SetUid = "c05e", Action = ReviewAction.New };
+        var result = await Make(handler).PostReviewDecisionAsync("ea_secret", "42", "old", decision, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.True(result.Value!.IsConflict);
+        Assert.Equal(["7bb2"], result.Value.Conflicts);
+        Assert.Equal("moved", result.Value.StateToken);
+        Assert.Null(result.Value.Result);
+    }
+
+    /// <summary>
+    /// A delete on a shared plugin row is performed as a release. The window shows what happened, not what
+    /// was asked, or it would say "deleted" about a row that is still there.
+    /// </summary>
+    [Fact]
+    public async Task PostReviewDecision_reports_a_converted_action()
+    {
+        var handler = new StubHttpMessageHandler().Enqueue(
+            HttpStatusCode.OK,
+            """{"result":{"set_uid":"7bb2","action":"release","requested":"delete","surviving_uid":"7bb2","state":"ignored"},"also_resolved":[],"state_token":"next","held":[],"orphans":[]}""");
+
+        var decision = new ReviewDecision { SetUid = "7bb2", Action = ReviewAction.Delete };
+        var result = await Make(handler).PostReviewDecisionAsync("ea_secret", "42", "9f13", decision, CancellationToken.None);
+
+        var performed = result.Value!.Result!;
+        Assert.True(performed.WasConverted);
+        Assert.Equal(ReviewAction.Release, performed.Action);
+        Assert.Equal(ReviewAction.Delete, performed.Requested);
+    }
+
+    /// <summary>
+    /// A reopen on a hand-made row leaves it in no state at all, so the field is nullable. Modelled as
+    /// non-nullable, that one call breaks.
+    /// </summary>
+    [Fact]
+    public async Task PostReviewDecision_accepts_a_null_state()
+    {
+        var handler = new StubHttpMessageHandler().Enqueue(
+            HttpStatusCode.OK,
+            """{"result":{"set_uid":"7bb2","action":"reopen","requested":"reopen","surviving_uid":"7bb2","state":null},"also_resolved":[],"state_token":"next","held":[],"orphans":[]}""");
+
+        var decision = new ReviewDecision { SetUid = "7bb2", Action = ReviewAction.Reopen };
+        var result = await Make(handler).PostReviewDecisionAsync("ea_secret", "42", "9f13", decision, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Null(result.Value!.Result!.State);
+    }
+
+    [Fact]
+    public async Task AcceptReviewMapping_sends_every_pair()
+    {
+        var handler = new StubHttpMessageHandler().Enqueue(
+            HttpStatusCode.OK,
+            """{"results":[{"set_uid":"c05e","action":"link","requested":"link","surviving_uid":"9a1f","state":"active"}],"also_resolved":[],"state_token":"next","held":[],"orphans":[]}""");
+
+        ReviewDecision[] pairs =
+        [
+            new() { SetUid = "c05e", Action = ReviewAction.Link, TargetUid = "9a1f" },
+            new() { SetUid = "d18a", Action = ReviewAction.New },
+        ];
+        var result = await Make(handler).AcceptReviewMappingAsync("ea_secret", "42", "9f13", pairs, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Single(result.Value!.Results);
+
+        var body = handler.Requests.Single().Body!;
+        Assert.Contains("\"pairs\":[", body);
+        Assert.Contains("\"d18a\"", body);
+    }
+
     /// <summary>
     /// A rejected job code arrives as a named cause, not as a bare 422: the rule that discards the cached
     /// table turns on the cause, or a client would refetch it after every failed push.
