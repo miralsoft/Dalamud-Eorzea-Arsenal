@@ -382,6 +382,12 @@ public static class LocKeys
     /// <summary>Beside the question: take the set out of the plugin world entirely.</summary>
     public const string ReviewTakeOut = "review.takeout";
 
+    /// <summary>
+    /// What releasing a held gearset actually leaves the player with. The contract asks for this sentence
+    /// by name, because the outcome surprises anybody who was not told: two rows, not one moved.
+    /// </summary>
+    public const string ReviewReleaseTwoRows = "review.releasetworows";
+
     /// <summary>Warning on a link onto a hand-made row, which is a one-way door.</summary>
     public const string ReviewAdoption = "review.adoption";
 
@@ -405,6 +411,9 @@ public static class LocKeys
 
     /// <summary>The state moved while the window was open.</summary>
     public const string ReviewStale = "review.stale";
+
+    /// <summary>Too many decisions in the hour; how long the window is holding off (arg: seconds).</summary>
+    public const string ReviewWaiting = "review.waiting";
 
     /// <summary>Header of the inventory half.</summary>
     public const string ReviewInventory = "review.inventory";

@@ -89,6 +89,16 @@ public sealed class ReviewWindow : Window
     /// <summary>
     /// Coloured text that is never read as a format string.
     /// </summary>
+
+    /// <summary>
+    /// Whether anything is clickable right now: a call in flight, or a rate limit being waited out.
+    /// </summary>
+    /// <remarks>
+    /// The second half matters as much as the first. While the service is holding off, a click would be
+    /// swallowed silently — and a button that looks alive and does nothing is worse feedback than one that
+    /// is plainly greyed out.
+    /// </remarks>
+    private bool Blocked => _review.IsBusy || _review.BackoffRemaining is not null;
     /// <param name="colour">The colour to draw in.</param>
     /// <param name="text">The text, which may have come from a server or from another player.</param>
     /// <remarks>
@@ -160,7 +170,7 @@ public sealed class ReviewWindow : Window
         if (onScreen is { Length: > 0 } &&
             _review.CurrentCidHash is { Length: > 0 } shown &&
             !string.Equals(onScreen, shown, StringComparison.Ordinal) &&
-            !_review.IsBusy)
+            !Blocked)
         {
             Refresh();
             Text(Muted, T(LocKeys.ReviewRefresh));
@@ -184,6 +194,11 @@ public sealed class ReviewWindow : Window
         {
             Text(Muted, T(LocKeys.ReviewNothing));
             return;
+        }
+
+        if (_review.BackoffRemaining is { } waiting)
+        {
+            Text(Warn, T(LocKeys.ReviewWaiting, (int)Math.Ceiling(waiting.TotalSeconds)));
         }
 
         if (_staleNotice)
@@ -233,7 +248,7 @@ public sealed class ReviewWindow : Window
         held.Candidates.Count > 0 && held.Candidates.TrueForAll(ReviewRules.IsAdoption);
     private void DrawHeader()
     {
-        using (ImRaii.Disabled(_review.IsBusy))
+        using (ImRaii.Disabled(Blocked))
         {
             if (ImGui.Button(T(LocKeys.ReviewRefresh)))
             {
@@ -372,7 +387,7 @@ public sealed class ReviewWindow : Window
 
         DrawItems(candidate.SetUid ?? string.Empty, candidate.Items);
 
-        using (ImRaii.Disabled(_review.IsBusy))
+        using (ImRaii.Disabled(Blocked))
         {
             if (ImGui.SmallButton(T(LocKeys.ReviewThisIsIt)))
             {
@@ -403,7 +418,7 @@ public sealed class ReviewWindow : Window
 
     private void DrawQuestionFooter(ReviewState state, HeldGearset held)
     {
-        using (ImRaii.Disabled(_review.IsBusy))
+        using (ImRaii.Disabled(Blocked))
         {
             if (ImGui.Button(T(LocKeys.ReviewItIsNew)))
             {
@@ -414,9 +429,11 @@ public sealed class ReviewWindow : Window
             ImGui.SameLine();
             if (ImGui.Button(T(LocKeys.ReviewTakeOut)))
             {
+                // Named by the contract: the outcome surprises anybody who was not told, because nothing is
+                // moved — the released row stays and the next push writes a second one beside it.
                 Gate(
                     new ReviewDecision { SetUid = held.SetUid!, Action = ReviewAction.Release },
-                    [T(LocKeys.ReviewTakeOut)]);
+                    [T(LocKeys.ReviewReleaseTwoRows)]);
             }
         }
 
@@ -453,7 +470,7 @@ public sealed class ReviewWindow : Window
         }
 
         ImGui.Spacing();
-        using (ImRaii.Disabled(_review.IsBusy))
+        using (ImRaii.Disabled(Blocked))
         {
             if (ImGui.Button(T(LocKeys.ReviewAcceptAll, pairs.Count)))
             {
@@ -560,7 +577,7 @@ public sealed class ReviewWindow : Window
         DrawLink(row.Url);
         DrawItems(row.SetUid ?? string.Empty, row.Items);
 
-        using (ImRaii.Disabled(_review.IsBusy))
+        using (ImRaii.Disabled(Blocked))
         {
             foreach (var verb in ReviewRules.OfferedVerbs(row))
             {
@@ -732,7 +749,7 @@ public sealed class ReviewWindow : Window
         }
 
         ImGui.Spacing();
-        using (ImRaii.Disabled(_review.IsBusy))
+        using (ImRaii.Disabled(Blocked))
         {
             if (ImGui.Button(T(LocKeys.ReviewConfirmYes)))
             {
