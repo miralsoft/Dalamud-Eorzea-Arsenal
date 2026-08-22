@@ -1,9 +1,15 @@
 # Review request: reconciliation without a deletion licence
 
-> **Answered and superseded on 2026-08-22.** The API side confirmed this with three corrections, and the
-> consolidated state — everything settled, the reasoning, thirty scenarios and the six items still open —
-> is in [`gearset-reconciliation-agreed.md`](gearset-reconciliation-agreed.md). This page is kept because
-> it is what the answer replies to; read it only for that.
+> **Answered, and two of its claims were reversed. Superseded on 2026-08-22.** The current agreement is
+> [`../../architecture/gearset-reconciliation.md`](../../architecture/gearset-reconciliation.md); the
+> API-side source is `BIS-Searcher/docs/plugin/contract-gearset-identity.md`. This page is kept because
+> the answers reference its numbering, and rewriting it would falsify the record — but **two things in it
+> are now forbidden**, so read it as history and not as permission:
+>
+> - **the manual `set_uid` paste path is dropped** (§7 below offers it) — with candidates filtered by job
+>   compatibility and never empty, a typed uid is either already in the list or an error;
+> - **nothing may link across a job boundary** (§5 and §7 below allow it for the manual path) — that
+>   route no longer exists at all, and `link` onto an incompatible row is a 422.
 
 **For the API agent. This is not a task and nothing is being built from it.** It is the concept as the
 plugin side now understands it, written down so you can confirm it, contradict it, or find the hole. We

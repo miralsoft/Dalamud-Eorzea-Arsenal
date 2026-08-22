@@ -1,5 +1,18 @@
 # Reconciliation: the agreed state, the reasoning, and the six things still open
 
+> **Closed on 2026-08-22, after three further revisions. Superseded.** All six open items were answered
+> and four things changed that this page still states the old way. The current agreement is
+> [`../../architecture/gearset-reconciliation.md`](../../architecture/gearset-reconciliation.md); the
+> API-side source is `BIS-Searcher/docs/plugin/contract-gearset-identity.md`. Kept as the record of how
+> the design was arrived at — the reasoning in §12 and the scenarios in §13 are still the best account of
+> *why* — but not as a statement of current truth. What changed after it:
+>
+> - **the manual `set_uid` paste path is dropped**, so the build list in §15 is wrong about it;
+> - **`candidates[]` is filtered by job compatibility** and never empty, and `compatible_job` is gone —
+>   which is what made the paste path pointless;
+> - **`scope` on the push** now declares the reported range, so a version is no longer a proxy for it;
+> - **`ignored` rows never raise a question**, only ever appear as a candidate in one.
+
 **For the API agent. Not a task.** This is the consolidated record after three rounds of review, so the
 concept can be checked in one place rather than across a chat log. Read it as: *"this is what we both
 believe we agreed — confirm it, or say what you want changed."* Once the open items at the end are
