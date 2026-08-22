@@ -340,6 +340,93 @@ public static class LocKeys
     /// </summary>
     public const string BisNoCatalogue = "bis.nocatalogue";
 
+    /// <summary>Reconciliation window title.</summary>
+    public const string ReviewTitle = "review.title";
+
+    /// <summary>Nothing is waiting — the normal state for almost everybody.</summary>
+    public const string ReviewNothing = "review.nothing";
+
+    /// <summary>This server has no reconciliation yet, which is an answer rather than a fault.</summary>
+    public const string ReviewUnavailable = "review.unavailable";
+
+    /// <summary>Re-read the questions.</summary>
+    public const string ReviewRefresh = "review.refresh";
+
+    /// <summary>Header count of open questions (arg: count).</summary>
+    public const string ReviewQuestions = "review.questions";
+
+    /// <summary>Header count of rows no live gearset occupies (arg: count).</summary>
+    public const string ReviewOrphansOpen = "review.orphans.open";
+
+    /// <summary>Header count of rows put aside (arg: count).</summary>
+    public const string ReviewOrphansAside = "review.orphans.aside";
+
+    /// <summary>The question itself (args: job, name).</summary>
+    public const string ReviewWhichSet = "review.whichset";
+
+    /// <summary>Answer: it is a new set, not any of these.</summary>
+    public const string ReviewItIsNew = "review.itisnew";
+
+    /// <summary>Answer: this candidate is the one.</summary>
+    public const string ReviewThisIsIt = "review.thisisit";
+
+    /// <summary>Per-candidate: do not offer this row again.</summary>
+    public const string ReviewStopAsking = "review.stopasking";
+
+    /// <summary>Beside the question: take the set out of the plugin world entirely.</summary>
+    public const string ReviewTakeOut = "review.takeout";
+
+    /// <summary>Warning on a link onto a hand-made row, which is a one-way door.</summary>
+    public const string ReviewAdoption = "review.adoption";
+
+    /// <summary>What stays behind on a candidate that is being answered away (arg: name).</summary>
+    public const string ReviewKeepsPin = "review.keepspin";
+
+    /// <summary>What the other people keep seeing (args: names, name).</summary>
+    public const string ReviewKeepsShare = "review.keepsshare";
+
+    /// <summary>How well a candidate matches (args: matched, total, probability).</summary>
+    public const string ReviewMatch = "review.match";
+
+    /// <summary>Why a higher-scoring candidate is not the proposed one.</summary>
+    public const string ReviewBlocked = "review.blocked";
+
+    /// <summary>Accept the whole mapping (arg: count).</summary>
+    public const string ReviewAcceptAll = "review.acceptall";
+
+    /// <summary>How many of those are adoptions (arg: count).</summary>
+    public const string ReviewAcceptAdoptions = "review.acceptadoptions";
+
+    /// <summary>The state moved while the window was open.</summary>
+    public const string ReviewStale = "review.stale";
+
+    /// <summary>Header of the inventory half.</summary>
+    public const string ReviewInventory = "review.inventory";
+
+    /// <summary>Foldable group of rows already put aside (arg: count).</summary>
+    public const string ReviewAsideGroup = "review.asidegroup";
+
+    /// <summary>When a push last reported a row (arg: timestamp).</summary>
+    public const string ReviewLastSeen = "review.lastseen";
+
+    /// <summary>A row no push ever reported, because it was made on the website.</summary>
+    public const string ReviewNeverInGame = "review.neveringame";
+
+    /// <summary>A row its owner hid on the website, which explains why it cannot be found there.</summary>
+    public const string ReviewHiddenOnSite = "review.hiddenonsite";
+
+    /// <summary>Remove a row.</summary>
+    public const string ReviewDelete = "review.delete";
+
+    /// <summary>Undo a putting-aside.</summary>
+    public const string ReviewReopen = "review.reopen";
+
+    /// <summary>Put a row aside.</summary>
+    public const string ReviewIgnore = "review.ignore";
+
+    /// <summary>What deleting a row that still exists in game does.</summary>
+    public const string ReviewDeleteComesBack = "review.deletecomesback";
+
     /// <summary>"Copy name" context action.</summary>
     public const string BisCopyName = "bis.copyname";
 

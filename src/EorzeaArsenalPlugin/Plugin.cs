@@ -82,6 +82,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly AdvisorWindow _advisorWindow;
     private readonly LogWindow _logWindow;
     private readonly PreviewWindow _previewWindow;
+    private readonly ReviewWindow _reviewWindow;
+    private readonly ReviewService _review;
     private readonly WhatsNewWindow _whatsNewWindow;
     private readonly ReportWindow _reportWindow;
     private bool _whatsNewPending;
@@ -205,6 +207,12 @@ public sealed class Plugin : IDalamudPlugin
             MinAutoPushInterval = TimeSpan.FromMinutes(Math.Max(1, _config.AutoPushIntervalMinutes)),
         };
         _sync.PushCompleted += OnPushCompleted;
+
+        // Where a person answers what a sync could not. Automatic pushes hold back while it is open,
+        // because a push moves the state token and would turn their next decision into a 409.
+        _review = new ReviewService(api, _store, _characterDirectory, _gearsetMapping, _log);
+        _reviewWindow = new ReviewWindow(_review, _localizer, () => _currentCidHash, OnReviewDecision);
+        _sync.PauseAutomatic = () => _review.IsOpen;
         _inventorySync = new InventorySyncService(_inventorySource, api, _store, new SystemClock(), _log, _characterDirectory);
         _inventorySync.SyncCompleted += OnInventoryCompleted;
         _weeklySync = new WeeklySyncService(_weeklySource, api, _store, _characterDirectory, new SystemClock(), _log);
@@ -237,12 +245,13 @@ public sealed class Plugin : IDalamudPlugin
         _imageWindow = new ImageWindow(_teamsService, textureProvider, _localizer, _log);
         _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
         _reportWindow = new ReportWindow(_store, _localizer, api, _log, DescribeClient);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReview, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew);
         _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save);
         _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _obtainService, _worldActions, _holdingsService, _log);
         _windowSystem.AddWindow(_previewWindow);
+        _windowSystem.AddWindow(_reviewWindow);
         _windowSystem.AddWindow(_imageWindow);
         _windowSystem.AddWindow(_teamsWindow);
         _windowSystem.AddWindow(_calendarWindow);
@@ -369,6 +378,15 @@ public sealed class Plugin : IDalamudPlugin
     private void OpenLog() => _logWindow.IsOpen = true;
 
     private void OpenPreview() => _previewWindow.Open();
+
+    private void OpenReview() => _reviewWindow.Open();
+
+    /// <summary>
+    /// After a reconciliation decision: the gear did not change, so the unchanged guard would skip the next
+    /// push perfectly correctly — and that push answer is the cheap way the mapping gets re-learned after
+    /// the decision dropped it.
+    /// </summary>
+    private void OnReviewDecision() => _sync.ForgetLastSent();
 
     private void OpenWhatsNew() => _whatsNewWindow.Open();
 

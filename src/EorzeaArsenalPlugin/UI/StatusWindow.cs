@@ -37,6 +37,7 @@ public sealed class StatusWindow : Window
     private readonly Action _openBis;
     private readonly Action _openAdvisor;
     private readonly Action _openLog;
+    private readonly Action _openReview;
     private readonly Action _openReport;
     private readonly Action _openTeams;
     private readonly Action _openCalendar;
@@ -57,6 +58,7 @@ public sealed class StatusWindow : Window
     /// <param name="openBis">Callback to open the BiS comparison window.</param>
     /// <param name="openAdvisor">Callback to open the purchase-advisor window.</param>
     /// <param name="openLog">Callback to open the diagnostics log window.</param>
+    /// <param name="openReview">Opens the reconciliation window. Shown only while something waits.</param>
     /// <param name="openReport">Callback to open the "report a problem" window.</param>
     /// <param name="openTeams">Callback to open the Teams companion window.</param>
     /// <param name="openCalendar">Callback to open the calendar window.</param>
@@ -78,6 +80,7 @@ public sealed class StatusWindow : Window
         Action openBis,
         Action openAdvisor,
         Action openLog,
+        Action openReview,
         Action openReport,
         Action openTeams,
         Action openCalendar,
@@ -99,6 +102,7 @@ public sealed class StatusWindow : Window
         _openBis = openBis;
         _openAdvisor = openAdvisor;
         _openLog = openLog;
+        _openReview = openReview;
         _openReport = openReport;
         _openTeams = openTeams;
         _openCalendar = openCalendar;
@@ -222,6 +226,21 @@ public sealed class StatusWindow : Window
             _openWhatsNew();
         }
 
+
+        // Only when something is actually waiting. A normal player who builds sets in game never sees this
+        // entry at all, which is the whole point of the mechanism behind it: ambiguity raises a question,
+        // unfamiliarity does not. Rows already put aside deliberately do not count towards showing it.
+        if (_sync.LastReview is { NeedsAttention: true } review)
+        {
+            var waiting = review.Held > 0
+                ? _localizer.Get(LocKeys.ReviewQuestions, review.Held)
+                : _localizer.Get(LocKeys.ReviewOrphansOpen, review.Orphans?.Open ?? 0);
+
+            if (MenuButton(FontAwesomeIcon.QuestionCircle, $"{T(LocKeys.ReviewTitle)}   ·   {waiting}", accent: Yellow))
+            {
+                _openReview();
+            }
+        }
         if (MenuButton(FontAwesomeIcon.ClipboardList, T(LocKeys.OpenLog)))
         {
             _openLog();
