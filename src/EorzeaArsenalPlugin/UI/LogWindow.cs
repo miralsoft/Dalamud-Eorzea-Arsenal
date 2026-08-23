@@ -30,7 +30,7 @@ public sealed class LogWindow : Window
     /// up so this window knows nothing about what the section contains.
     /// </param>
     public LogWindow(LogBuffer buffer, Localizer localizer, Action? drawDevSection = null)
-        : base("Eorzea Arsenal — Log###EorzeaArsenalLog")
+        : base("Eorzea Arsenal · Log###EorzeaArsenalLog")
     {
         _buffer = buffer;
         _localizer = localizer;

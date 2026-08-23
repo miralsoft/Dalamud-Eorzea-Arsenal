@@ -592,7 +592,7 @@ public sealed class ConfigWindow : Window, IDisposable
         foreach (var (hash, entry) in _config.Characters)
         {
             var enabled = entry.Enabled;
-            if (ImGui.Checkbox($"{entry.Name} — {entry.World}##{hash}", ref enabled))
+            if (ImGui.Checkbox($"{entry.Name} · {entry.World}##{hash}", ref enabled))
             {
                 entry.Enabled = enabled;
                 _save();

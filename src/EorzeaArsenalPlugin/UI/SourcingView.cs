@@ -196,7 +196,7 @@ internal sealed class SourcingView
         var methods = BuildMethods(source, routes, equippedItemId);
         if (methods.Count == 0)
         {
-            ImGui.TextDisabled("—");
+            ImGui.TextDisabled("-");
             return;
         }
 

@@ -133,14 +133,24 @@ public sealed class StatusWindow : Window
             ImGui.TextColored(Yellow, _localizer.Get(LocKeys.StatusRateLimited, seconds));
         }
 
-        // The server guessed on at least one gearset — identical job and name, or the position as a last
-        // resort. Nothing is broken and no data is at risk, but the comparison may sit on the wrong set,
-        // and only the player can take the ambiguity away by naming them apart. A line, not a dialog.
-        var uncertain = _gearsetMapping.UncertainMatches.Count;
-        if (uncertain > 0)
+        // The server guessed on at least one gearset. Nothing is broken and no data is at risk, but the
+        // comparison may sit on the wrong set. Two rungs, told apart on purpose: a shared name is
+        // something the player can end by renaming, a positional match is not, and offering the wrong
+        // remedy is worse than offering none. A line, not a dialog.
+        var ambiguous = _gearsetMapping.AmbiguousMatches;
+        var positional = _gearsetMapping.PositionalMatches;
+        if (ambiguous > 0 || positional > 0)
         {
             using var wrap = ImRaii.PushColor(ImGuiCol.Text, Yellow);
-            ImGui.TextWrapped(_localizer.Get(LocKeys.StatusGearsetIdentityUncertain, uncertain));
+            if (ambiguous > 0)
+            {
+                ImGui.TextWrapped(_localizer.Get(LocKeys.StatusGearsetIdentityAmbiguous, ambiguous));
+            }
+
+            if (positional > 0)
+            {
+                ImGui.TextWrapped(_localizer.Get(LocKeys.StatusGearsetIdentityPositional, positional));
+            }
         }
 
         ImGui.Spacing();

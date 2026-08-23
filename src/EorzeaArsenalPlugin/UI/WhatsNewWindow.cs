@@ -46,7 +46,7 @@ public sealed class WhatsNewWindow : Window
     /// <param name="localizer">UI string resolver.</param>
     /// <param name="save">Persists the config after marking the notes as seen.</param>
     public WhatsNewWindow(PluginConfig config, Localizer localizer, Action save)
-        : base("Eorzea Arsenal — What's new###EorzeaArsenalWhatsNew")
+        : base("Eorzea Arsenal · What's new###EorzeaArsenalWhatsNew")
     {
         _config = config;
         _localizer = localizer;

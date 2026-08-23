@@ -171,11 +171,19 @@ public static class LocKeys
     public const string StatusRateLimited = "status.ratelimited";
 
     /// <summary>
-    /// Warning that the server could not identify some gearsets with certainty (arg: count). Shown
-    /// because the comparison may then be attached to the wrong set, and because renaming the sets apart
-    /// is something only the player can do.
+    /// Warning that two or more gearsets share a job and a name, so the mapping between them is a guess
+    /// (arg: count). Shown because the comparison may then sit on the wrong set, and because naming them
+    /// apart is something only the player can do.
     /// </summary>
-    public const string StatusGearsetIdentityUncertain = "status.identity.uncertain";
+    public const string StatusGearsetIdentityAmbiguous = "status.identity.ambiguous";
+
+    /// <summary>
+    /// Warning that gearsets were recognised by their position alone (arg: count), because neither the
+    /// name nor the gear matched a stored set. Deliberately separate from
+    /// <see cref="StatusGearsetIdentityAmbiguous"/>: renaming does not help here, and the advice that
+    /// does help is to check the pinned target before the next sync settles the mapping.
+    /// </summary>
+    public const string StatusGearsetIdentityPositional = "status.identity.positional";
 
     /// <summary>"Push now" button.</summary>
     public const string PushNow = "status.pushnow";

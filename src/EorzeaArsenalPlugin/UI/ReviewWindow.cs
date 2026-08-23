@@ -370,7 +370,7 @@ public sealed class ReviewWindow : Window
     {
         using var id = ImRaii.PushId(candidate.SetUid ?? string.Empty);
 
-        var name = string.IsNullOrWhiteSpace(candidate.Name) ? "—" : candidate.Name;
+        var name = string.IsNullOrWhiteSpace(candidate.Name) ? "-" : candidate.Name;
         Text(proposed ? Good : Muted, proposed ? $"› {candidate.Job} {name}" : $"  {candidate.Job} {name}");
 
         ImGui.SameLine();
@@ -574,7 +574,7 @@ public sealed class ReviewWindow : Window
     {
         using var id = ImRaii.PushId(row.SetUid ?? string.Empty);
 
-        var name = string.IsNullOrWhiteSpace(row.Name) ? "—" : row.Name;
+        var name = string.IsNullOrWhiteSpace(row.Name) ? "-" : row.Name;
         Text(Muted, $"{row.Job} {name}");
 
         ImGui.SameLine();
@@ -819,7 +819,7 @@ public sealed class ReviewWindow : Window
             return lines;
         }
 
-        var name = string.IsNullOrWhiteSpace(row.Name) ? "—" : row.Name;
+        var name = string.IsNullOrWhiteSpace(row.Name) ? "-" : row.Name;
 
         // The team comes first: it is the part that affects somebody who is not in the room.
         if (row.HasTeamShare && row.TeamNames.Count > 0)

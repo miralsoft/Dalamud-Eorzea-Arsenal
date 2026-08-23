@@ -294,7 +294,7 @@ public sealed class AdvisorWindow : Window
     }
 
     private static string SetLabel(GearsetComparison set) =>
-        string.IsNullOrEmpty(set.Name) ? $"#{set.GearIndex} {set.Job}" : $"#{set.GearIndex} {set.Job} — {set.Name}";
+        string.IsNullOrEmpty(set.Name) ? $"#{set.GearIndex} {set.Job}" : $"#{set.GearIndex} {set.Job} · {set.Name}";
 
     /// <summary>Resolves the set's identity, then renders whichever view is selected.</summary>
     private void DrawSetBody(GearsetComparison? comparison)
@@ -538,7 +538,7 @@ public sealed class AdvisorWindow : Window
 
         var shown = next > 0 ? next : worn;
         var color = SlotColor(slot, entry, slots, next);
-        var detail = shown > 0 ? $"i{_gearSource.GetItemLevel(shown)}" : "—";
+        var detail = shown > 0 ? $"i{_gearSource.GetItemLevel(shown)}" : "-";
         ClickableItem(color, $"{_sourcing.SlotName(slot)}  ·  {detail}", shown, $"##grid{slot}", worn);
     }
 
@@ -591,7 +591,7 @@ public sealed class AdvisorWindow : Window
         ImGui.BeginGroup();
 
         var (whenText, whenColor) = WhenLabel(step.When);
-        var head = $"{rank}. {_sourcing.SlotName(step.Slot)} — {KindLabel(step.Kind)}: " +
+        var head = $"{rank}. {_sourcing.SlotName(step.Slot)} · {KindLabel(step.Kind)}: " +
             $"{_gearSource.GetItemName(itemId)} · iLvl {_gearSource.GetItemLevel(itemId)}";
         ClickableItem(Muted, head, itemId, $"##step{step.Slot}", (int)(step.From ?? 0));
 
@@ -645,7 +645,7 @@ public sealed class AdvisorWindow : Window
             ImGui.SameLine();
             ClickableItem(
                 owned >= need.Need ? Green : Orange,
-                $"{_gearSource.GetItemName((int)need.Id)} — {owned}/{need.Need}",
+                $"{_gearSource.GetItemName((int)need.Id)} · {owned}/{need.Need}",
                 (int)need.Id,
                 $"##need{need.Id}");
         }

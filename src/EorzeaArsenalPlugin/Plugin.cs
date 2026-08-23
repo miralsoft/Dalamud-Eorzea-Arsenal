@@ -68,6 +68,16 @@ public sealed class Plugin : IDalamudPlugin
     // Cancels the fire-and-forget work this class starts, so a reload does not leave a request running
     // against services that are being torn down.
     private readonly CancellationTokenSource _shutdown = new();
+
+    /// <summary>
+    /// The last capped-tomestone balance actually accepted by the server, per character. The push
+    /// piggy-backs the inventory sync, so it fires every few minutes whether or not the number moved,
+    /// and an unchanged value is a write that says nothing and a log line that hides the ones that do.
+    /// Cleared at every login, which is the one boundary where re-sending an unchanged value earns its
+    /// cost. Written from a background task, hence the gate.
+    /// </summary>
+    private readonly Dictionary<long, int> _lastTomeBalance = [];
+    private readonly Lock _tomeGate = new();
     private readonly GearsetDebugView _gearsetDebug = new();
     private readonly BisService _bisService;
     private readonly ObtainService _obtainService;
@@ -1020,7 +1030,30 @@ public sealed class Plugin : IDalamudPlugin
                     return; // no balance, or the character's server id is not known yet
                 }
 
+                // Unchanged since the last accepted push: nothing to tell the server, and nothing worth
+                // a log line. Only a real change is news.
+                lock (_tomeGate)
+                {
+                    if (_lastTomeBalance.TryGetValue(id, out var sent) && sent == balance.Value)
+                    {
+                        return;
+                    }
+                }
+
                 var result = await _api.PutTomeBalanceAsync(key, id, balance.Value, CancellationToken.None).ConfigureAwait(false);
+                lock (_tomeGate)
+                {
+                    // Remember only what the server took. A failed push must be retried, not forgotten.
+                    if (result.IsSuccess)
+                    {
+                        _lastTomeBalance[id] = balance.Value;
+                    }
+                    else
+                    {
+                        _lastTomeBalance.Remove(id);
+                    }
+                }
+
                 _log.Info(result.IsSuccess
                     ? $"Tome balance pushed: {balance} ({trigger})."
                     : $"Tome balance push: {result.Error?.Kind} ({trigger}).");
@@ -1071,6 +1104,13 @@ public sealed class Plugin : IDalamudPlugin
     {
         // Each login starts a fresh diagnostics log for the new game session.
         _logBuffer.Clear();
+
+        // A session boundary is the one place worth re-sending an unchanged balance: it costs one write
+        // and covers the case where the server lost it while nothing here changed.
+        lock (_tomeGate)
+        {
+            _lastTomeBalance.Clear();
+        }
         _log.Info("New game session (logged in).");
 
         RecordCurrentCharacter();

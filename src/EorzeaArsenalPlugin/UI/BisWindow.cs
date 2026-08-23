@@ -329,7 +329,7 @@ public sealed class BisWindow : Window
     /// </remarks>
     private void DrawWithoutTarget(GearsetDto set, int index)
     {
-        var name = string.IsNullOrWhiteSpace(set.Name) ? string.Empty : $" — {set.Name}";
+        var name = string.IsNullOrWhiteSpace(set.Name) ? string.Empty : $" · {set.Name}";
         using (ImRaii.PushColor(ImGuiCol.Text, Accent))
         {
             ImGui.TextUnformatted($"#{index} {set.Job}{name}");
@@ -448,7 +448,7 @@ public sealed class BisWindow : Window
         // marker is what keeps those numbers from looking settled while the question is open.
         var provisional = _bis.IsProvisional(comparison);
 
-        var name = string.IsNullOrEmpty(comparison.Name) ? string.Empty : $" — {comparison.Name}";
+        var name = string.IsNullOrEmpty(comparison.Name) ? string.Empty : $" · {comparison.Name}";
         // Unformatted: the target name comes from the server, so a percent sign in it stays one.
         using (ImRaii.PushColor(ImGuiCol.Text, Accent))
         {
@@ -604,7 +604,7 @@ public sealed class BisWindow : Window
             var suffix = slots is null ? string.Empty : $"   ·   {slots}";
             ClickableItem(
                 owned >= need.Need ? Green : Orange,
-                $"{_gearSource.GetItemName(itemId)} — {owned}/{need.Need}{suffix}",
+                $"{_gearSource.GetItemName(itemId)} · {owned}/{need.Need}{suffix}",
                 itemId,
                 $"##need{comparison.GearIndex}_{need.Id}");
         }

@@ -169,6 +169,19 @@ public sealed class GearsetMappingService
         new Dictionary<string, string>(StringComparer.Ordinal);
 
     /// <summary>
+    /// How many of <see cref="UncertainMatches"/> sit on <c>name_ambiguous</c>: two sets share a job and a
+    /// name, and the mapping is a guess between them. The player can end it by naming them apart.
+    /// </summary>
+    public int AmbiguousMatches { get; private set; }
+
+    /// <summary>
+    /// How many of <see cref="UncertainMatches"/> sit on <c>index</c>: neither the name nor the gear found a
+    /// stored row, so the position decided. Renaming does not help here, which is why the two are
+    /// counted apart and told apart in what the interface says.
+    /// </summary>
+    public int PositionalMatches { get; private set; }
+
+    /// <summary>
     /// Records the mapping a push answered with. The response is index-aligned with the list that was
     /// sent, so the sent gearsets supply the keys and the response supplies the identities.
     /// </summary>
@@ -191,6 +204,8 @@ public sealed class GearsetMappingService
         var held = new HashSet<string>(StringComparer.Ordinal);
         var unsure = new Dictionary<string, string>(StringComparer.Ordinal);
         var uncertain = 0;
+        var ambiguous = 0;
+        var positional = 0;
 
         for (var i = 0; i < assignments.Count && i < sent.Count; i++)
         {
@@ -234,6 +249,14 @@ public sealed class GearsetMappingService
             {
                 unsure[assignment.SetUid!] = assignment.MatchedBy!;
                 uncertain++;
+                if (string.Equals(assignment.MatchedBy, MatchedBy.NameAmbiguous, StringComparison.Ordinal))
+                {
+                    ambiguous++;
+                }
+                else
+                {
+                    positional++;
+                }
             }
         }
 
@@ -251,7 +274,9 @@ public sealed class GearsetMappingService
         ScheduleNextRead(cidHash, RefreshInterval);
         LastMappingReadUtc = _clock.UtcNow;
         MappingStatus = $"learned from a push, {rows.Count} row(s), {uncertain} uncertain";
-        WarnAboutUncertainty(uncertain);
+        AmbiguousMatches = ambiguous;
+        PositionalMatches = positional;
+        WarnAboutUncertainty(ambiguous, positional);
     }
 
     /// <summary>
@@ -558,17 +583,32 @@ public sealed class GearsetMappingService
     }
 
     /// <summary>Says once per session that the server had to guess somewhere, and where to look.</summary>
-    private void WarnAboutUncertainty(int count)
+    private void WarnAboutUncertainty(int ambiguous, int positional)
     {
-        if (count == 0 || _warnedAboutUncertainty)
+        if ((ambiguous == 0 && positional == 0) || _warnedAboutUncertainty)
         {
             return;
         }
 
         _warnedAboutUncertainty = true;
-        _log.Warning(
-            $"The server could not identify {count} gearset(s) with certainty (identical job and name, " +
-            "or matched on position alone). The comparison may be attached to the wrong set; renaming " +
-            "one of them apart fixes it for good.");
+
+        // Two rungs, two different pieces of advice, which is the whole reason they are counted apart.
+        // Renaming ends an ambiguity and does nothing at all for a positional match: there the names are
+        // already distinct and the gear no longer matches what the server stored.
+        if (ambiguous > 0)
+        {
+            _log.Warning(
+                $"{ambiguous} gearset(s) share a job and a name, so the server had to guess between " +
+                "them. The comparison may sit on the wrong one; giving them different names ends it.");
+        }
+
+        if (positional > 0)
+        {
+            _log.Warning(
+                $"{positional} gearset(s) were recognised by their position alone, because neither the " +
+                "name nor the gear matched a stored set. The comparison may sit on the wrong one. Check " +
+                "the pinned target on those sets: the next sync turns the current mapping into the " +
+                "settled one.");
+        }
     }
 }

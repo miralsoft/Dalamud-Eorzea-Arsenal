@@ -16,6 +16,7 @@ public sealed class GearsetMappingServiceTests
     private const string Cid = TestData.ExampleHash;
     private const string UidA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     private const string UidB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    private const string UidC = "cccccccccccccccccccccccccccccccc";
 
     private static GearsetDto Set(int index, string job, string? name, int weapon) => new()
     {
@@ -219,7 +220,41 @@ public sealed class GearsetMappingServiceTests
             [new GearsetAssignment { GearIndex = 0, SetUid = UidA, MatchedBy = MatchedBy.NameAmbiguous }]);
 
         Assert.Equal(MatchedBy.NameAmbiguous, service.UncertainMatches[UidA]);
-        Assert.Single(log.Messages, m => m.Contains("with certainty", StringComparison.Ordinal));
+        Assert.Equal(1, service.AmbiguousMatches);
+        Assert.Equal(0, service.PositionalMatches);
+        Assert.Single(log.Messages, m => m.Contains("share a job and a name", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The two uncertain rungs get their own sentence. Renaming ends an ambiguity and does nothing for a
+    /// positional match, so a single message with a single piece of advice was wrong in whichever case it
+    /// did not fit. Found in a real run where all five uncertain rows were `index` and already had
+    /// distinct names, and the plugin told the owner to rename them.
+    /// </summary>
+    [Fact]
+    public void EachUncertainRungGetsItsOwnAdvice()
+    {
+        var (service, _, _, log) = Build();
+
+        service.RecordPush(
+            Cid,
+            [Set(0, "DRK", "Twin", 100), Set(1, "DRK", "Twin", 200), Set(2, "WAR", "Moved", 300)],
+            [
+                new GearsetAssignment { GearIndex = 0, SetUid = UidA, MatchedBy = MatchedBy.NameAmbiguous },
+                new GearsetAssignment { GearIndex = 1, SetUid = UidB, MatchedBy = MatchedBy.NameAmbiguous },
+                new GearsetAssignment { GearIndex = 2, SetUid = UidC, MatchedBy = MatchedBy.Index },
+            ]);
+
+        Assert.Equal(2, service.AmbiguousMatches);
+        Assert.Equal(1, service.PositionalMatches);
+
+        var naming = Assert.Single(log.Messages, m => m.Contains("share a job and a name", StringComparison.Ordinal));
+        Assert.Contains("2 gearset(s)", naming, StringComparison.Ordinal);
+        Assert.Contains("different names", naming, StringComparison.Ordinal);
+
+        var positional = Assert.Single(log.Messages, m => m.Contains("position alone", StringComparison.Ordinal));
+        Assert.Contains("1 gearset(s)", positional, StringComparison.Ordinal);
+        Assert.DoesNotContain("different names", positional, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -92,4 +92,36 @@ public sealed class LocalizationParityTests
 
         return found;
     }
+
+    /// <summary>
+    /// Foundation rule I-02: no em-dash characters in prose. Its own text names the reach, and this is
+    /// the case it singles out: "strings compiled into a product". The rule points at the project's own
+    /// test (C-11) for exactly this, and until now the project had none, while 65 shipped strings in the
+    /// two catalogues carried the character.
+    /// </summary>
+    /// <remarks>
+    /// Release notes are checked for the shipping version only. Older notes are what players already
+    /// read, and the owner settled on 2026-08-20 that they stay as written.
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(EveryKeyInEveryLanguage))]
+    public void NoShippedStringCarriesAnEmDash(string language, string key)
+    {
+        var text = new Localizer(language).Get(key);
+
+        Assert.DoesNotContain('—', text);
+    }
+
+    /// <summary>The same rule for the notes of the version being shipped (see the remark above).</summary>
+    [Fact]
+    public void TheShippedReleaseNotesCarryNoEmDash()
+    {
+        var latest = ReleaseNotes.Latest;
+
+        foreach (var item in latest.Items)
+        {
+            Assert.DoesNotContain('—', ReleaseNotes.Text(item, german: true));
+            Assert.DoesNotContain('—', ReleaseNotes.Text(item, german: false));
+        }
+    }
 }
