@@ -47,28 +47,28 @@ public static class ReleaseNotes
             new ReleaseNoteItem(
                 ReleaseNoteKind.Fixed,
                 "reordering-gearsets-keeps-everything",
-                "Umsortieren verliert nichts mehr: ein Gearset wird jetzt an seiner Identität erkannt und nicht an seinem Platz in der Liste. Bisher wanderten festgelegtes BiS-Set, Team-Freigabe und Verborgen-Markierung mit der Position — wer im Spiel umsortierte, oder wessen anderes Plugin das tat, fand sie danach am falschen Set. Der Vergleich hängt an der Identität, und die bleibt.",
-                "Reordering loses nothing any more: a gearset is recognised by its identity now, not by its place in the list. A pinned BiS set, a team share and the hidden flag used to travel with the position, so reordering in game — or another plugin doing it for you — left them on the wrong set afterwards. The comparison hangs on the identity, and that stays put."),
+                "Umsortieren verliert nichts mehr: festgelegtes BiS-Set, Team-Freigabe und Verborgen-Markierung bleiben am Gearset, egal wohin es in der Liste rutscht.",
+                "Reordering loses nothing any more: a pinned BiS set, a team share and the hidden flag stay with the gearset wherever it moves in the list."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "crafter-and-gatherer-sets-are-sent",
-                "Handwerker und Sammler kommen mit: das Plugin kann jetzt alle 42 Klassen und Jobs benennen statt nur der 21 Kampfjobs, und jede Übertragung sagt dem Server ausdrücklich, welchen Umfang sie abgedeckt hat. Was tatsächlich rausgeht, entscheidet der Server der jeweiligen Adresse — solange er die neuen Codes nicht annimmt, bleibt es beim bisherigen Umfang, und niemand merkt etwas davon.",
-                "Crafters and gatherers come along: the plugin can name all 42 classes and jobs now instead of only the 21 battle jobs, and every sync states outright which range it covered. What actually goes out is decided by the server at that address — while it does not accept the new codes nothing changes, and nobody notices."),
+                "Handwerker und Sammler kommen mit: das Plugin überträgt alle 42 Klassen und Jobs, sobald der Server sie annimmt.",
+                "Crafters and gatherers come along: the plugin syncs all 42 classes and jobs as soon as the server accepts them."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "gear-list-splits-by-role",
-                "Die Ausrüstungsliste ist nach Rollen geteilt: Kampf, Handwerker, Sammler. Innerhalb einer Gruppe bleibt deine eigene Reihenfolge stehen, denn das ist die Liste, nach der du im Spiel navigierst. Die Überschriften erscheinen erst, wenn es mehr als eine Gruppe zu unterscheiden gibt.",
-                "The gear list splits by role: battle, crafters, gatherers. Inside a group your own order stays as it is, because that is the list you navigate by in game. The headings only appear once there is more than one group to tell apart."),
+                "Die Ausrüstungsliste ist nach Rollen geteilt: Kampf, Handwerker, Sammler. Deine Reihenfolge innerhalb einer Gruppe bleibt.",
+                "The gear list splits by role: battle, crafters, gatherers. Your own order inside a group stays."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Fixed,
                 "sets-without-a-bis-target-stay-visible",
-                "Sets ohne BiS-Ziel verschwinden nicht mehr: bisher tauchten sie im Ausrüstungsfenster gar nicht auf, was aussah wie ein verlorenes Set. Jetzt stehen sie da, mit Position und Namen, und sagen welcher der beiden Gründe es ist — für diesen Job gibt es noch keine Liste, oder du hast nur noch kein Ziel festgelegt.",
-                "Sets with no BiS target no longer vanish: they used to be absent from the gear window entirely, which looked like a lost set. Now they are listed with their position and name, and say which of the two reasons applies — there is no list for that job yet, or you simply have not pinned a target."),
+                "Sets ohne BiS-Ziel bleiben sichtbar: sie stehen mit Position und Namen in der Liste und sagen, ob es für den Job noch keine Liste gibt oder nur kein Ziel festgelegt ist.",
+                "Sets with no BiS target stay visible: they are listed with position and name, and say whether the job has no list yet or you have simply not pinned a target."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "the-plugin-asks-instead-of-guessing",
-                "Das Plugin fragt statt zu raten: wenn ein Set im Spiel nicht eindeutig einer gespeicherten Zeile zugeordnet werden kann, wird es trotzdem übertragen und du bekommst die Frage vorgelegt — mit Vorschlag, Wahrscheinlichkeit und dem, was an der anderen Zeile hängt. Wer einfach im Spiel Sets baut, sieht davon nie etwas: Uneindeutigkeit fragt nach, Unbekanntheit nicht.",
-                "The plugin asks instead of guessing: when a set in game cannot be matched to a stored row beyond doubt, it is still synced and you get the question — with a suggestion, a probability, and what hangs on the other row. Anybody who simply builds sets in game never sees it: ambiguity asks, unfamiliarity does not."),
+                "Das Plugin fragt statt zu raten: lässt sich ein Set im Spiel nicht eindeutig zuordnen, bekommst du die Frage mit Vorschlag vorgelegt.",
+                "The plugin asks instead of guessing: when a set in game cannot be matched beyond doubt, you get the question with a suggestion."),
         ]),
         new ReleaseNote("1.0.0", "2026-07-27",
         [

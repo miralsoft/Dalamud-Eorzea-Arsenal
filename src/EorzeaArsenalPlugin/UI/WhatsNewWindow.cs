@@ -18,6 +18,20 @@ public sealed class WhatsNewWindow : Window
 {
     private const string ChangelogUrl = "https://github.com/miralsoft/Dalamud-Eorzea-Arsenal/blob/main/CHANGELOG.md";
 
+    /// <summary>
+    /// Text scale for this window. The notes are prose, read once per release, so the game's default
+    /// size is too small here — the settings window runs at the same scale for the same reason.
+    /// </summary>
+    private const float TextScale = 1.25f;
+
+    /// <summary>The three kind labels, measured together so the badge column fits the widest of them.</summary>
+    private static readonly string[] KindKeys =
+    [
+        LocKeys.WhatsNewKindAdded,
+        LocKeys.WhatsNewKindImproved,
+        LocKeys.WhatsNewKindFixed,
+    ];
+
     private static readonly Vector4 Green = new(0.4f, 0.8f, 0.4f, 1f);
     private static readonly Vector4 Blue = new(0.55f, 0.75f, 1f, 1f);
     private static readonly Vector4 Yellow = new(0.9f, 0.8f, 0.3f, 1f);
@@ -38,10 +52,11 @@ public sealed class WhatsNewWindow : Window
         _localizer = localizer;
         _save = save;
 
+        // Wide enough that the text column keeps a readable line length next to the badge column.
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(460, 320),
-            MaximumSize = new Vector2(900, 1200),
+            MinimumSize = new Vector2(540, 360),
+            MaximumSize = new Vector2(1100, 1400),
         };
     }
 
@@ -71,6 +86,8 @@ public sealed class WhatsNewWindow : Window
     /// <inheritdoc />
     public override void Draw()
     {
+        ImGui.SetWindowFontScale(TextScale);
+
         using (ImRaii.PushColor(ImGuiCol.Text, Dim))
         {
             ImGui.TextWrapped(T(LocKeys.WhatsNewIntro));
@@ -111,31 +128,84 @@ public sealed class WhatsNewWindow : Window
 
         if (newest)
         {
-            ImGui.TextColored(Green, $"● {T(LocKeys.WhatsNewInstalled)}");
+            using (ImRaii.PushColor(ImGuiCol.Text, Green))
+            {
+                ImGui.TextUnformatted($"● {T(LocKeys.WhatsNewInstalled)}");
+            }
         }
 
-        foreach (var item in note.Items)
-        {
-            DrawItem(item);
-        }
-
+        DrawItems(note);
         ImGui.Spacing();
+    }
+
+    /// <summary>
+    /// Draws one release's items as a two-column table. The badge used to sit on the same line as
+    /// wrapped text, which put every continuation line back under the badge and let the left edge of the
+    /// prose move from block to block. In a table the text column is one straight edge, and its width is
+    /// measured over all three kind labels — so it is the same in every release, not just this one.
+    /// </summary>
+    private void DrawItems(ReleaseNote note)
+    {
+        using var pad = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(4f, 5f) * TextScale);
+        if (!ImGui.BeginTable("##items", 2, ImGuiTableFlags.NoSavedSettings | ImGuiTableFlags.PadOuterX))
+        {
+            return;
+        }
+
+        try
+        {
+            ImGui.TableSetupColumn("##kind", ImGuiTableColumnFlags.WidthFixed, BadgeWidth());
+            ImGui.TableSetupColumn("##text", ImGuiTableColumnFlags.WidthStretch);
+
+            foreach (var item in note.Items)
+            {
+                DrawItem(item);
+            }
+        }
+        finally
+        {
+            ImGui.EndTable();
+        }
     }
 
     private void DrawItem(ReleaseNoteItem item)
     {
-        var (label, color) = item.Kind switch
+        var (label, colour) = item.Kind switch
         {
             ReleaseNoteKind.Added => (T(LocKeys.WhatsNewKindAdded), Green),
             ReleaseNoteKind.Improved => (T(LocKeys.WhatsNewKindImproved), Blue),
             _ => (T(LocKeys.WhatsNewKindFixed), Yellow),
         };
 
-        // The badge sits on the same line as the first wrapped line of the text.
-        ImGui.TextColored(color, $"[{label}]");
-        ImGui.SameLine();
-        ImGui.TextWrapped(ReleaseNotes.Text(item, German));
+        ImGui.TableNextRow();
+
+        ImGui.TableNextColumn();
+        using (ImRaii.PushColor(ImGuiCol.Text, colour))
+        {
+            ImGui.TextUnformatted(Badge(label));
+        }
+
+        // Note text is authored content, so it goes through TextUnformatted — a stray percent sign in a
+        // note must not be read as a format specifier. Wrap position 0 means "the end of this cell".
+        ImGui.TableNextColumn();
+        ImGui.PushTextWrapPos(0f);
+        ImGui.TextUnformatted(ReleaseNotes.Text(item, German));
+        ImGui.PopTextWrapPos();
     }
+
+    /// <summary>Width of the badge column: the widest of the three kind labels at the current scale.</summary>
+    private float BadgeWidth()
+    {
+        var widest = 0f;
+        foreach (var key in KindKeys)
+        {
+            widest = Math.Max(widest, ImGui.CalcTextSize(Badge(T(key))).X);
+        }
+
+        return widest;
+    }
+
+    private static string Badge(string label) => $"[{label}]";
 
     /// <summary>Formats the ISO release date for the active language; falls back to the raw value.</summary>
     private string FormatDate(string iso) =>
