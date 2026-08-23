@@ -37,6 +37,12 @@ public sealed class GearsetMappingService
     private readonly ILog _log;
 
     private readonly Dictionary<string, DateTimeOffset> _nextRefreshUtc = new(StringComparer.Ordinal);
+
+    // Guards the identity store and the uncertainty map. Both are read from the drawing thread while a
+    // push or a mapping read writes them from another, and a Dictionary read during a write is a race that
+    // surfaces as an exception on the framework thread rather than as a wrong number. Held only around the
+    // collection work, never around a request.
+    private readonly Lock _state = new();
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
     private bool _warnedAboutUncertainty;
@@ -102,8 +108,18 @@ public sealed class GearsetMappingService
     /// <summary>How many rows are cached for a character.</summary>
     /// <param name="cidHash">The character.</param>
     /// <returns>The row count, zero when nothing is cached.</returns>
-    public int CachedCount(string? cidHash) =>
-        cidHash is not null && _store.Identities.TryGetValue(cidHash, out var rows) ? rows.Count : 0;
+    public int CachedCount(string? cidHash)
+    {
+        if (cidHash is null)
+        {
+            return 0;
+        }
+
+        lock (_state)
+        {
+            return _store.Identities.TryGetValue(cidHash, out var rows) ? rows.Count : 0;
+        }
+    }
 
     /// <summary>
     /// Resolves a whole list at once for the diagnostics view. Hashes every set, so it belongs off the
@@ -135,9 +151,15 @@ public sealed class GearsetMappingService
     /// identical candidates, or fell back to the position. Keyed by <c>set_uid</c>, with the rung as
     /// the value. Worth showing in the interface and worth quoting in a bug report.
     /// </summary>
+    /// <remarks>
+    /// Swapped whole rather than mutated, like the held set: the diagnostics view reads its count every
+    /// frame while a push writes it, and a snapshot costs one small allocation per push against nothing per
+    /// frame.
+    /// </remarks>
     public IReadOnlyDictionary<string, string> UncertainMatches => _uncertain;
 
-    private readonly Dictionary<string, string> _uncertain = new(StringComparer.Ordinal);
+    private volatile IReadOnlyDictionary<string, string> _uncertain =
+        new Dictionary<string, string>(StringComparer.Ordinal);
 
     /// <summary>
     /// Records the mapping a push answered with. The response is index-aligned with the list that was
@@ -160,6 +182,7 @@ public sealed class GearsetMappingService
 
         var rows = new List<CachedGearsetIdentity>(assignments.Count);
         var held = new HashSet<string>(StringComparer.Ordinal);
+        var unsure = new Dictionary<string, string>(StringComparer.Ordinal);
         var uncertain = 0;
 
         for (var i = 0; i < assignments.Count && i < sent.Count; i++)
@@ -202,12 +225,8 @@ public sealed class GearsetMappingService
             }
             if (MatchedBy.IsUncertain(assignment.MatchedBy))
             {
-                _uncertain[assignment.SetUid!] = assignment.MatchedBy!;
+                unsure[assignment.SetUid!] = assignment.MatchedBy!;
                 uncertain++;
-            }
-            else
-            {
-                _uncertain.Remove(assignment.SetUid!);
             }
         }
 
@@ -216,12 +235,13 @@ public sealed class GearsetMappingService
             return;
         }
 
-        // Published as one whole after the loop, so a reader never sees a half-built set. The answer covers
-        // exactly the list that was just sent, so what is not in it is not held any more.
+        // Published as one whole after the loop, so a reader never sees a half-built collection. The answer
+        // covers exactly the list that was just sent, so what is not in it is neither held nor unsure.
         _held = held;
+        _uncertain = unsure;
 
         Replace(cidHash, rows);
-        _nextRefreshUtc[cidHash] = _clock.UtcNow + RefreshInterval;
+        ScheduleNextRead(cidHash, RefreshInterval);
         LastMappingReadUtc = _clock.UtcNow;
         MappingStatus = $"learned from a push, {rows.Count} row(s), {uncertain} uncertain";
         WarnAboutUncertainty(uncertain);
@@ -238,11 +258,19 @@ public sealed class GearsetMappingService
     /// <returns>The match, which may be a miss.</returns>
     public GearsetIdentityMatch Resolve(string cidHash, GearsetDto set)
     {
-        if (string.IsNullOrEmpty(cidHash) ||
-            !_store.Identities.TryGetValue(cidHash, out var rows) ||
-            rows.Count == 0)
+        List<CachedGearsetIdentity> rows;
+        lock (_state)
         {
-            return GearsetIdentityMatch.None;
+            if (string.IsNullOrEmpty(cidHash) ||
+                !_store.Identities.TryGetValue(cidHash, out var cached) ||
+                cached.Count == 0)
+            {
+                return GearsetIdentityMatch.None;
+            }
+
+            // Copied under the lock, then matched outside it: the comparison hashes the gearset, and holding
+            // a lock across that would put a push behind the drawing thread for no reason.
+            rows = [.. cached];
         }
 
         var strong = GearsetFingerprint.Strong(set);
@@ -293,14 +321,14 @@ public sealed class GearsetMappingService
             return false;
         }
 
-        if (_nextRefreshUtc.TryGetValue(cidHash, out var next) && _clock.UtcNow < next)
+        if (IsFresh(cidHash))
         {
-            return _store.Identities.TryGetValue(cidHash, out var cached) && cached.Count > 0;
+            return HasCached(cidHash);
         }
 
         if (!await _refreshGate.WaitAsync(0, ct).ConfigureAwait(false))
         {
-            return _store.Identities.TryGetValue(cidHash, out var inflight) && inflight.Count > 0;
+            return HasCached(cidHash);
         }
 
         try
@@ -310,12 +338,12 @@ public sealed class GearsetMappingService
             {
                 // A server that does not know the route answers 404. That is a fact about the server,
                 // not an error to shout about, and the old comparison path still works.
-                _nextRefreshUtc[cidHash] = _clock.UtcNow + FailureBackoff;
+                ScheduleNextRead(cidHash, FailureBackoff);
                 MappingStatus = result.Error!.Kind == ApiErrorKind.NotFound
                     ? "route unknown to this server"
                     : $"unavailable ({result.Error!.Kind})";
                 _log.Info($"Gearset mapping unavailable ({result.Error!.Kind}); keeping what is cached.");
-                return _store.Identities.TryGetValue(cidHash, out var stale) && stale.Count > 0;
+                return HasCached(cidHash);
             }
 
             // Does this server report a row state at all? Asked of the answer rather than of a version,
@@ -363,7 +391,7 @@ public sealed class GearsetMappingService
                 });
             }
 
-            _nextRefreshUtc[cidHash] = _clock.UtcNow + RefreshInterval;
+            ScheduleNextRead(cidHash, RefreshInterval);
             LastMappingReadUtc = _clock.UtcNow;
             MappingStatus = reportsState
                 ? $"read ok, {rows.Count} live row(s) of {result.Value!.Data.Count}"
@@ -386,7 +414,7 @@ public sealed class GearsetMappingService
         }
         catch (Exception ex)
         {
-            _nextRefreshUtc[cidHash] = _clock.UtcNow + FailureBackoff;
+            ScheduleNextRead(cidHash, FailureBackoff);
             MappingStatus = $"read failed ({ex.GetType().Name})";
             _log.Warning($"Gearset mapping refresh failed: {ex.GetType().Name}.");
             return false;
@@ -401,25 +429,68 @@ public sealed class GearsetMappingService
     /// <param name="cidHash">The character, or <see langword="null"/> to forget all of them.</param>
     public void Forget(string? cidHash)
     {
-        if (string.IsNullOrEmpty(cidHash))
+        lock (_state)
         {
-            _store.Identities.Clear();
-            _nextRefreshUtc.Clear();
-            _uncertain.Clear();
-        }
-        else
-        {
-            _store.Identities.Remove(cidHash);
-            _nextRefreshUtc.Remove(cidHash);
+            if (string.IsNullOrEmpty(cidHash))
+            {
+                _store.Identities.Clear();
+                _nextRefreshUtc.Clear();
+                _uncertain = new Dictionary<string, string>(StringComparer.Ordinal);
+                _held = new HashSet<string>(StringComparer.Ordinal);
+            }
+            else
+            {
+                _store.Identities.Remove(cidHash);
+                _nextRefreshUtc.Remove(cidHash);
+            }
         }
 
+        // Outside the lock: writing the configuration touches the disk, and nothing about that needs to
+        // hold a reader on the drawing thread.
         _store.Save();
     }
 
     /// <summary>Replaces a character's rows wholesale — used when the source knew the complete list.</summary>
+
+
+    /// <summary>Notes when this character mapping may be read again. Takes the state lock.</summary>
+    /// <param name="cidHash">The character.</param>
+    /// <param name="after">How long to wait.</param>
+    private void ScheduleNextRead(string cidHash, TimeSpan after)
+    {
+        lock (_state)
+        {
+            _nextRefreshUtc[cidHash] = _clock.UtcNow + after;
+        }
+    }
+
+    /// <summary>Whether this character mapping is still considered fresh. Takes the state lock.</summary>
+    /// <param name="cidHash">The character.</param>
+    /// <returns><see langword="true"/> while the last read is young enough to trust.</returns>
+    private bool IsFresh(string cidHash)
+    {
+        lock (_state)
+        {
+            return _nextRefreshUtc.TryGetValue(cidHash, out var next) && _clock.UtcNow < next;
+        }
+    }
+    /// <summary>Whether anything is cached for a character. Takes the state lock.</summary>
+    /// <param name="cidHash">The character.</param>
+    /// <returns><see langword="true"/> when at least one row is held.</returns>
+    private bool HasCached(string cidHash)
+    {
+        lock (_state)
+        {
+            return _store.Identities.TryGetValue(cidHash, out var rows) && rows.Count > 0;
+        }
+    }
     private void Replace(string cidHash, List<CachedGearsetIdentity> rows)
     {
-        _store.Identities[cidHash] = rows;
+        lock (_state)
+        {
+            _store.Identities[cidHash] = rows;
+        }
+
         _store.Save();
     }
 
@@ -430,9 +501,13 @@ public sealed class GearsetMappingService
     /// </summary>
     private void Merge(string cidHash, List<CachedGearsetIdentity> rows)
     {
-        var existing = _store.Identities.TryGetValue(cidHash, out var current)
-            ? current.ToDictionary(r => r.SetUid, StringComparer.Ordinal)
-            : new Dictionary<string, CachedGearsetIdentity>(StringComparer.Ordinal);
+        Dictionary<string, CachedGearsetIdentity> existing;
+        lock (_state)
+        {
+            existing = _store.Identities.TryGetValue(cidHash, out var current)
+                ? current.ToDictionary(r => r.SetUid, StringComparer.Ordinal)
+                : new Dictionary<string, CachedGearsetIdentity>(StringComparer.Ordinal);
+        }
 
         var merged = new List<CachedGearsetIdentity>(rows.Count);
         foreach (var row in rows)
@@ -450,7 +525,11 @@ public sealed class GearsetMappingService
 
         // Rows the server no longer lists are gone from the mapping. Dropping them here loses nothing:
         // the server is the truth, and a stale row could only ever attach a uid that no longer exists.
-        _store.Identities[cidHash] = merged;
+        lock (_state)
+        {
+            _store.Identities[cidHash] = merged;
+        }
+
         _store.Save();
     }
 
