@@ -485,4 +485,51 @@ public sealed class GearsetMappingServiceTests
         Assert.Null(store.Identities[Cid][0].ItemsKey);
         Assert.Equal(UidA, service.Resolve(Cid, set).SetUid);
     }
+
+    /// <summary>
+    /// A read names one character. The development server accepts <c>?cid_hash=</c> and answers with the
+    /// whole account anyway (verified against it on 2026-08-23), so a row of another character can arrive
+    /// sharing a job and a name with a real set. Cached, it would make the real set ambiguous and leave it
+    /// without an identity — the one outcome this cache exists to prevent.
+    /// </summary>
+    [Fact]
+    public async Task RowsOfAnotherCharacterAreNotCached()
+    {
+        const string other = "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f";
+        var (service, api, _, _) = Build();
+        api.GearSetsResult = ApiResult<GearSetsResponse>.Ok(new GearSetsResponse
+        {
+            Data =
+            [
+                new StoredGearset { SetUid = UidA, CidHash = Cid, Job = "DRK", Name = "same name", GearIndex = 0, Source = GearsetSource.Plugin, State = RowState.Active },
+                new StoredGearset { SetUid = UidB, CidHash = other, Job = "DRK", Name = "same name", GearIndex = 0, Source = GearsetSource.Plugin, State = RowState.Active },
+            ],
+        });
+
+        Assert.True(await service.EnsureMappingAsync(Cid, CancellationToken.None));
+
+        var match = service.Resolve(Cid, Set(0, "DRK", "same name", 100));
+        Assert.Equal(UidA, match.SetUid);
+        Assert.False(match.WasAmbiguous);
+        Assert.Equal(1, service.ForeignRowsDropped);
+    }
+
+    /// <summary>
+    /// A server that names no character on its rows is still usable: the filter drops what is known to be
+    /// foreign, never what is merely unstated.
+    /// </summary>
+    [Fact]
+    public async Task ARowThatNamesNoCharacterIsKept()
+    {
+        var (service, api, _, _) = Build();
+        api.GearSetsResult = ApiResult<GearSetsResponse>.Ok(new GearSetsResponse
+        {
+            Data = [new StoredGearset { SetUid = UidA, Job = "DRK", Name = "no owner named", GearIndex = 0, Source = GearsetSource.Plugin }],
+        });
+
+        Assert.True(await service.EnsureMappingAsync(Cid, CancellationToken.None));
+
+        Assert.Equal(UidA, service.Resolve(Cid, Set(0, "DRK", "no owner named", 100)).SetUid);
+        Assert.Equal(0, service.ForeignRowsDropped);
+    }
 }

@@ -102,6 +102,13 @@ public sealed class GearsetMappingService
     /// </summary>
     public string MappingStatus { get; private set; } = "not read yet";
 
+    /// <summary>
+    /// How many rows of the last read belonged to another character and were dropped. Not an error: the
+    /// read names the character it wants, and a server that answers with the whole account is worth
+    /// noticing rather than trusting.
+    /// </summary>
+    public int ForeignRowsDropped { get; private set; }
+
     /// <summary>When the mapping was last read from the server, or <see langword="null"/>.</summary>
     public DateTimeOffset? LastMappingReadUtc { get; private set; }
 
@@ -361,10 +368,22 @@ public sealed class GearsetMappingService
             }
 
             var rows = new List<CachedGearsetIdentity>();
+            var foreign = 0;
             foreach (var stored in result.Value!.Data)
             {
                 if (string.IsNullOrEmpty(stored.SetUid))
                 {
+                    continue;
+                }
+
+                // The read asked for one character. A server may still answer with the whole account —
+                // the development one does today, ignoring the cid_hash it was given. A foreign row that
+                // shares a job and a name with a real set makes that set ambiguous and its identity
+                // unresolvable, so what was not asked for is dropped here rather than trusted.
+                if (!string.IsNullOrEmpty(stored.CidHash) &&
+                    !string.Equals(stored.CidHash, cidHash, StringComparison.Ordinal))
+                {
+                    foreign++;
                     continue;
                 }
 
@@ -393,9 +412,14 @@ public sealed class GearsetMappingService
 
             ScheduleNextRead(cidHash, RefreshInterval);
             LastMappingReadUtc = _clock.UtcNow;
+            ForeignRowsDropped = foreign;
             MappingStatus = reportsState
                 ? $"read ok, {rows.Count} live row(s) of {result.Value!.Data.Count}"
                 : $"read ok, {rows.Count} row(s) from the server";
+            if (foreign > 0)
+            {
+                MappingStatus += $", {foreign} of another character";
+            }
 
             if (rows.Count == 0)
             {
