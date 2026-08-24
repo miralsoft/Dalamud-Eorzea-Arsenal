@@ -4,6 +4,45 @@
 show because the state it reads is never set. The task is the missing step; the question is a contract
 point that the same migration exposed.
 
+## Please check the status first, and implement it if it is not already done
+
+Measured again on **2026-08-24 at 20:00**, dev, read-only:
+
+```
+GET /gear/sets            8 rows in the position band at 100 and up, every one of them "state":"active"
+GET /gear/review?character_id=29
+                          {"state_token":"2bef8717...","held":[],"orphans":[]}
+```
+
+The `state_token` is byte for byte the one from 2026-08-23. Nothing has moved.
+
+**And this is no longer a single sync's leftover.** A second push ran in between: the live rows carry
+`updated_at 2026-08-23 22:23:38`, the eight stranded ones still carry `21:19:36` from the push that
+stranded them. So a scoped sync that could have parked them has since run at least once and did not.
+
+If the parking has been built since and simply has not run against this character, say so and say what
+triggers it. If it has not been built, this is the task.
+
+**What "done" looks like, so it can be checked rather than believed:** after the next push with
+`scope: all`, those eight report `"state":"parked"`, `GET /gear/review` lists them in `orphans[]` with
+`delete` among the offered verbs, and the `state_token` differs from `2bef8717...`.
+
+## What the eight rows are worth, measured
+
+Worth knowing before anything deletes them, because it turns out to be the reassuring answer.
+
+- **All eight carry a pinned BiS target.** They are not empty clutter.
+- **Every one of those targets already hangs on a live set of the same job.** "Set 27" (DNC) points at
+  *Relic Weapon BiS* and so does the live DNC set; the two DRK rows point at *2.50 Relic Weapon* and so
+  do all three live DRK sets; and so on for PCT, BLM, MNK, RPR and WAR.
+- **No pin points at a `set_uid` the server does not have**, and **all 22 live combat sets carry a
+  pin**. Nothing is left hanging on either side.
+
+So a `delete` on these eight loses nothing that a live set does not already have. Nothing needs
+relinking, and the player is not being asked to choose between two things they care about. That is the
+best case, and it is also why leaving them is tempting and wrong: the player sees eight sets under
+"Mein Gear" that they do not own, and has no way to remove them.
+
 ## What was measured
 
 A read-only key on `dev.xivarsenal.app`, 2026-08-23, after a data sync, an adoption of the migrated
