@@ -319,7 +319,17 @@ public sealed class Plugin : IDalamudPlugin
         // loads at the title screen, where the window would be dismissed unseen. OnFrameworkUpdate
         // opens it as soon as a character is actually in the world — which also covers installing the
         // update mid-session, where no Login event follows.
-        _whatsNewPending = _config.ShowWhatsNewOnUpdate && ReleaseNotes.HasUnseen(_config.LastSeenReleaseNotes);
+        _whatsNewPending = _config.ShowWhatsNewOnUpdate &&
+            ReleaseNotes.ShouldAnnounce(_config.LastSeenReleaseNotes, _config.TosAccepted);
+
+        // A first installation starts level with the current version: nothing to announce, and the menu
+        // entry must not glow about changes this player never lived through. Stamped once, here, because
+        // the alternative is a highlight that only clears by opening a window nobody was told to open.
+        if (!_config.TosAccepted && _config.LastSeenReleaseNotes is null)
+        {
+            _config.LastSeenReleaseNotes = ReleaseNotes.Latest.Version;
+            Save();
+        }
 
         _dtrEntry = dtrBar.Get("Eorzea Arsenal");
         _dtrEntry.OnClick = _ => OpenStatus();

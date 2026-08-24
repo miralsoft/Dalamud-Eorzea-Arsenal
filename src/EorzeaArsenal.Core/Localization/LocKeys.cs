@@ -1051,6 +1051,9 @@ public static class LocKeys
     /// <summary>What's new: "fixed" badge.</summary>
     public const string WhatsNewKindFixed = "whatsnew.kind.fixed";
 
+    /// <summary>Badge for a removed capability, the fourth marking the framework profile names.</summary>
+    public const string WhatsNewKindRemoved = "whatsnew.kind.removed";
+
     /// <summary>What's new: link to the full changelog.</summary>
     public const string WhatsNewFullChangelog = "whatsnew.fullchangelog";
 

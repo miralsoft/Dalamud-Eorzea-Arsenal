@@ -11,10 +11,14 @@ public enum ReleaseNoteKind
 
     /// <summary>A bug is gone.</summary>
     Fixed,
+
+    /// <summary>A capability is gone. Named by the framework profile alongside the other three, and
+    /// without it a removal ships badged as a fix, which is the one reading that is never true.</summary>
+    Removed,
 }
 
 /// <summary>One user-facing line of a release note, in both supported languages.</summary>
-/// <param name="Kind">Added / improved / fixed.</param>
+/// <param name="Kind">Added, improved, fixed or removed.</param>
 /// <param name="Id">
 /// A stable, repo-unique, kebab-case identifier. The web side remembers it as "already announced", so
 /// it must <b>never</b> change once published — correcting a typo in the text must not turn an entry
@@ -258,6 +262,21 @@ public static class ReleaseNotes
     /// <returns><see langword="true"/> when the user has not seen the current notes.</returns>
     public static bool HasUnseen(string? lastSeenVersion) =>
         !string.Equals(lastSeenVersion, Latest.Version, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Whether the notes should open by themselves. They announce what an update changed, so a first
+    /// installation stays silent: somebody seeing the plugin for the first time lived through none of
+    /// it, and a wall of history is the worst possible first screen.
+    /// </summary>
+    /// <param name="lastSeenVersion">The version last marked as seen (may be empty/null).</param>
+    /// <param name="usedBefore">
+    /// Whether this installation has been used before. The caller decides what proves it; the plugin
+    /// passes whether the terms were accepted, which is the first thing anybody does and therefore the
+    /// one mark an upgrading user always carries and a new one never does.
+    /// </param>
+    /// <returns><see langword="true"/> when the notes should appear without being asked for.</returns>
+    public static bool ShouldAnnounce(string? lastSeenVersion, bool usedBefore) =>
+        usedBefore && HasUnseen(lastSeenVersion);
 
     /// <summary>Picks the text for the active language.</summary>
     /// <param name="item">The entry.</param>

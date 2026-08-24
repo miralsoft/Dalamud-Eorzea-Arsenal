@@ -30,11 +30,13 @@ public sealed class WhatsNewWindow : Window
         LocKeys.WhatsNewKindAdded,
         LocKeys.WhatsNewKindImproved,
         LocKeys.WhatsNewKindFixed,
+        LocKeys.WhatsNewKindRemoved,
     ];
 
     private static readonly Vector4 Green = new(0.4f, 0.8f, 0.4f, 1f);
     private static readonly Vector4 Blue = new(0.55f, 0.75f, 1f, 1f);
     private static readonly Vector4 Yellow = new(0.9f, 0.8f, 0.3f, 1f);
+    private static readonly Vector4 Rose = new(0.9f, 0.55f, 0.55f, 1f);
     private static readonly Vector4 Dim = new(0.65f, 0.65f, 0.65f, 1f);
 
     private readonly PluginConfig _config;
@@ -174,7 +176,12 @@ public sealed class WhatsNewWindow : Window
         {
             ReleaseNoteKind.Added => (T(LocKeys.WhatsNewKindAdded), Green),
             ReleaseNoteKind.Improved => (T(LocKeys.WhatsNewKindImproved), Blue),
-            _ => (T(LocKeys.WhatsNewKindFixed), Yellow),
+            ReleaseNoteKind.Removed => (T(LocKeys.WhatsNewKindRemoved), Rose),
+            ReleaseNoteKind.Fixed => (T(LocKeys.WhatsNewKindFixed), Yellow),
+
+            // A draw call may not throw. An unmapped kind shows its own name, muted: visibly odd, never
+            // wrong, and it cannot be mistaken for one of the four that mean something.
+            _ => (item.Kind.ToString(), Dim),
         };
 
         ImGui.TableNextRow();

@@ -71,12 +71,19 @@ public static class ChangelogJson
 
     /// <summary>The kind names the web side expects, from the ones the in-game notes use.</summary>
     /// <param name="kind">The in-game classification.</param>
-    /// <returns><c>feature</c>, <c>change</c> or <c>fix</c>.</returns>
+    /// <returns><c>feature</c>, <c>change</c> or <c>fix</c>, the three the web side accepts.</returns>
+    /// <remarks>
+    /// Every kind is named. The discard arm throws rather than falling back, so a kind added without a
+    /// mapping here fails loudly in the test that walks the enum instead of quietly shipping as whatever
+    /// the fallback was. A removal maps to <c>change</c>, the closest of the three the web side knows.
+    /// </remarks>
     public static string KindName(ReleaseNoteKind kind) => kind switch
     {
         ReleaseNoteKind.Added => "feature",
         ReleaseNoteKind.Improved => "change",
-        _ => "fix",
+        ReleaseNoteKind.Removed => "change",
+        ReleaseNoteKind.Fixed => "fix",
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "No changelog kind name for this note kind."),
     };
 
     /// <summary>Builds the file's contents from the shipped release notes.</summary>
