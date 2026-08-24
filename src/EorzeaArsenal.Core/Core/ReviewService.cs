@@ -94,6 +94,47 @@ public sealed class ReviewService : IDisposable
     /// <summary>The questions and the inventory as last read, or <see langword="null"/> before any read.</summary>
     public ReviewState? Current { get; private set; }
 
+    /// <summary>
+    /// The same counts a push answers with, taken from what this service last read, or
+    /// <see langword="null"/> when it has read nothing yet.
+    /// </summary>
+    /// <returns>The summary, for a caller that shows a badge.</returns>
+    /// <remarks>
+    /// A push answer is a snapshot of the moment it was sent, and acting in the review window moves the
+    /// state without one. A badge fed only by the push therefore keeps announcing work that is already
+    /// done, and a marker that does not clear when the work is finished is the fastest way to teach
+    /// somebody to ignore it. Whoever shows the badge prefers this and falls back to the push answer.
+    /// </remarks>
+    public ReviewSummary? Summary()
+    {
+        var state = Current;
+        if (state is null)
+        {
+            return null;
+        }
+
+        var open = 0;
+        var aside = 0;
+        foreach (var orphan in state.Orphans)
+        {
+            if (orphan.IsPutAside)
+            {
+                aside++;
+            }
+            else
+            {
+                open++;
+            }
+        }
+
+        return new ReviewSummary
+        {
+            StateToken = state.StateToken,
+            Held = state.Held.Count,
+            Orphans = new OrphanCounts { Open = open, Ignored = aside },
+        };
+    }
+
     /// <summary>The character <see cref="Current"/> belongs to.</summary>
     public string? CurrentCidHash { get; private set; }
 

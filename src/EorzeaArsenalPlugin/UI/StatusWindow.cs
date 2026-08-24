@@ -6,6 +6,7 @@ using Dalamud.Interface.Windowing;
 using Dalamud.Utility;
 using EorzeaArsenal.Core;
 using EorzeaArsenal.Localization;
+using EorzeaArsenal.Model;
 using EorzeaArsenal.Plugin.Configuration;
 
 namespace EorzeaArsenal.Plugin.UI;
@@ -38,6 +39,11 @@ public sealed class StatusWindow : Window
     private readonly Action _openAdvisor;
     private readonly Action _openLog;
     private readonly Action _openReview;
+
+    // Preferred over the last push answer, which is a snapshot of the moment it was sent: acting in the
+    // review window moves the state without a push, and a badge that keeps announcing finished work is
+    // one people learn to ignore.
+    private readonly Func<ReviewSummary?> _currentReview;
     private readonly Action _openReport;
     private readonly Action _openTeams;
     private readonly Action _openCalendar;
@@ -59,6 +65,7 @@ public sealed class StatusWindow : Window
     /// <param name="openAdvisor">Callback to open the purchase-advisor window.</param>
     /// <param name="openLog">Callback to open the diagnostics log window.</param>
     /// <param name="openReview">Opens the reconciliation window. Shown only while something waits.</param>
+    /// <param name="currentReview">The freshest reconciliation counts, or <see langword="null"/> when none are known.</param>
     /// <param name="openReport">Callback to open the "report a problem" window.</param>
     /// <param name="openTeams">Callback to open the Teams companion window.</param>
     /// <param name="openCalendar">Callback to open the calendar window.</param>
@@ -81,6 +88,7 @@ public sealed class StatusWindow : Window
         Action openAdvisor,
         Action openLog,
         Action openReview,
+        Func<ReviewSummary?> currentReview,
         Action openReport,
         Action openTeams,
         Action openCalendar,
@@ -103,6 +111,7 @@ public sealed class StatusWindow : Window
         _openAdvisor = openAdvisor;
         _openLog = openLog;
         _openReview = openReview;
+        _currentReview = currentReview;
         _openReport = openReport;
         _openTeams = openTeams;
         _openCalendar = openCalendar;
@@ -240,7 +249,7 @@ public sealed class StatusWindow : Window
         // Only when something is actually waiting. A normal player who builds sets in game never sees this
         // entry at all, which is the whole point of the mechanism behind it: ambiguity raises a question,
         // unfamiliarity does not. Rows already put aside deliberately do not count towards showing it.
-        if (_sync.LastReview is { NeedsAttention: true } review)
+        if (_currentReview() is { NeedsAttention: true } review)
         {
             var waiting = review.Held > 0
                 ? _localizer.Get(LocKeys.ReviewQuestions, review.Held)

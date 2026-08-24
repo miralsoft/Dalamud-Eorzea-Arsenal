@@ -351,4 +351,50 @@ public sealed class ReviewServiceTests
         var mapping = new GearsetMappingService(api, tokens, store, new TestClock(), new CapturingLog());
         return (new ReviewService(api, tokens, directory, new TestClock(), mapping), api, tokens, mapping);
     }
+
+    /// <summary>
+    /// Nothing read yet means nothing to say, so the caller falls back to whatever the last push
+    /// answered rather than being handed a summary of zeroes that would clear a badge too early.
+    /// </summary>
+    [Fact]
+    public void ThereIsNoSummaryBeforeAnythingIsRead()
+    {
+        var (service, _, _, _) = Build();
+
+        Assert.Null(service.Summary());
+    }
+
+    /// <summary>
+    /// The badge is fed from here rather than from the push answer, which is a snapshot of the moment it
+    /// was sent. Acting in the window moves the state without a push, and a marker that keeps announcing
+    /// finished work is one people learn to ignore. Rows put aside are counted apart, because they are
+    /// decided and must not keep the badge alight.
+    /// </summary>
+    [Fact]
+    public async Task TheSummaryCountsWhatWasLastRead()
+    {
+        var (service, api, _, _) = Build();
+        api.ReviewResult = ApiResult<ReviewState>.Ok(new ReviewState
+        {
+            StateToken = "9f13",
+            Held = [new HeldGearset { SetUid = "a", Job = "DRK", GearIndex = 0 }],
+            Orphans =
+            [
+                new OrphanRow { SetUid = "b", Job = "DRK", Source = GearsetSource.Plugin, State = RowState.Parked },
+                new OrphanRow { SetUid = "c", Job = "WAR", Source = GearsetSource.Plugin, State = RowState.Parked },
+                new OrphanRow { SetUid = "d", Job = "MNK", Source = GearsetSource.Plugin, State = RowState.Ignored },
+            ],
+        });
+
+        Assert.Equal(ReviewOutcome.Ok, await service.RefreshAsync(Cid, CancellationToken.None));
+
+        var summary = service.Summary();
+
+        Assert.NotNull(summary);
+        Assert.Equal("9f13", summary!.StateToken);
+        Assert.Equal(1, summary.Held);
+        Assert.Equal(2, summary.Orphans!.Open);
+        Assert.Equal(1, summary.Orphans!.Ignored);
+        Assert.True(summary.NeedsAttention);
+    }
 }

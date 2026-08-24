@@ -279,7 +279,7 @@ public sealed class Plugin : IDalamudPlugin
         _imageWindow = new ImageWindow(_teamsService, textureProvider, _localizer, _log);
         _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
         _reportWindow = new ReportWindow(_store, _localizer, api, _log, DescribeClient);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReview, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReview, () => _review.Summary() ?? _sync.LastReview, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew);
         _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save);
