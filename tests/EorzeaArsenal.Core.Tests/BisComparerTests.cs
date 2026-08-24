@@ -313,4 +313,40 @@ public sealed class BisComparerTests
         Assert.True(result[0].HasLiveGearset);
         Assert.True(result[1].HasLiveGearset);
     }
+
+    /// <summary>
+    /// The shape the in-game tooltip used, kept so it cannot come back. A target that carries an
+    /// identity is looked up by uid and never by position, so a caller that passes no resolver hands
+    /// over a target that can match nothing: the comparison reports no live gearset and every slot as
+    /// missing. In the game that read as a red cross on gear the player was wearing, while the gear
+    /// window, which does pass a resolver, showed the same set matching.
+    /// </summary>
+    [Fact]
+    public void A_target_with_an_identity_matches_nothing_without_a_resolver()
+    {
+        var items = new Dictionary<string, ItemDto> { ["Weapon"] = new() { Id = 100 } };
+        var target = new BisGearset { Job = "DRK", GearIndex = 0, Name = "BiS", SetUid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Items = items };
+
+        var comparison = BisComparer.Compare(Live(items), [target]).Single();
+
+        Assert.False(comparison.HasLiveGearset);
+        Assert.Equal(SlotMatch.MissingCurrent, Slot(comparison, "Weapon").Status);
+    }
+
+    /// <summary>
+    /// And the way out: a caller that already knows the pair says so, and no pairing runs at all. Same
+    /// target, same gear, opposite outcome.
+    /// </summary>
+    [Fact]
+    public void A_known_pair_compares_without_any_pairing_step()
+    {
+        var items = new Dictionary<string, ItemDto> { ["Weapon"] = new() { Id = 100 } };
+        var target = new BisGearset { Job = "DRK", GearIndex = 7, Name = "BiS", SetUid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Items = items };
+
+        var comparison = BisComparer.CompareKnownPair(target, items);
+
+        Assert.True(comparison.HasLiveGearset);
+        Assert.Equal(SlotMatch.Match, Slot(comparison, "Weapon").Status);
+        Assert.True(comparison.IsComplete);
+    }
 }

@@ -124,6 +124,29 @@ public static class BisComparer
     }
 
     /// <summary>
+    /// Compares one target against gear already known to belong to it, with no pairing step at all.
+    /// </summary>
+    /// <param name="target">The BiS target.</param>
+    /// <param name="liveItems">The gear that belongs to it, by slot.</param>
+    /// <returns>The comparison, always with a live gearset attached.</returns>
+    /// <remarks>
+    /// For a caller that has already established the pair by identity. Sending such a pair through
+    /// <see cref="Compare"/> only gives the pairing a second chance to fail, and it did: a target
+    /// carrying a <c>set_uid</c> is looked up by uid and never by position, so a caller that passes no
+    /// resolver hands over a target that can match nothing, and every slot comes back as missing. That
+    /// is what the in-game tooltip did from the day the server began minting identities.
+    /// </remarks>
+    public static GearsetComparison CompareKnownPair(BisGearset target, Dictionary<string, ItemDto> liveItems) => new()
+    {
+        GearIndex = target.GearIndex,
+        SetUid = target.SetUid,
+        Job = target.Job,
+        Name = target.Name,
+        HasLiveGearset = true,
+        Slots = CompareSlots(target.Items, liveItems),
+    };
+
+    /// <summary>
     /// The live gearsets no target claims, in the order the player has them.
     /// </summary>
     /// <param name="live">The player current (sanitized) gear.</param>

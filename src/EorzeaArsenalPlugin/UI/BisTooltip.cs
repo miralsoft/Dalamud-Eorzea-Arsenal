@@ -152,18 +152,18 @@ public sealed class BisTooltip
             return lines;
         }
 
-        // Compare the BiS target against the LIVE equipped gear (not the cached fetch-time state),
-        // so the overlay is correct immediately after a swap/meld.
-        var live = new GearData
+        // The pair is already established, by identity: TargetGearset resolved this target from the
+        // live gearset's uid. Handing it to Compare would put that decision through a second pairing
+        // step which cannot succeed here, because a target carrying a uid is looked up by uid and this
+        // caller has no resolver to offer. Every slot then came back missing, and the tooltip marked
+        // equipped gear as absent while the gear window, which does pass a resolver, showed it matching.
+        var equipped = _gearSource.GetEquippedItems();
+        if (equipped.Count == 0)
         {
-            Character = LiveCharacter,
-            Gearsets = [new GearsetDto { GearIndex = gearIndex, Job = target.Job, Items = _gearSource.GetEquippedItems() }],
-        };
-        var comparison = BisComparer.Compare(live, [target]).FirstOrDefault();
-        if (comparison is null)
-        {
-            return lines;
+            return lines; // nothing readable to compare against; say nothing rather than "all missing"
         }
+
+        var comparison = BisComparer.CompareKnownPair(target, equipped);
 
         foreach (var slot in slots)
         {
