@@ -47,14 +47,16 @@ gear, so "is this the same set" is answered by looking rather than by trusting a
 
 ## The limit that decides how far this goes today
 
-`HeldGearset` carries `Items`. `OrphanRow` carries `Items`. **`ReviewCandidate` does not.** It carries
-`Probability`, `MatchedSlots` and `TotalSlots`, which are numbers about an overlap, not the gear.
+**There is none. An earlier draft of this page claimed there was, and it was wrong.**
 
-So the side by side comparison is **not buildable client side** for candidates in general. Partially:
-where a candidate is also listed in `orphans[]` of the same answer, its items can be taken from there
-by uid. For the rest it needs a field on the candidate, which is a request to the API side.
+`ReviewCandidate` carries `Items`, along with `has_pin`, `has_team_share`, `team_names`, `hidden`,
+`state`, `proposed`, `blocked_by` and `url`. All seventeen fields the contract specifies for a
+candidate are in the model. The earlier claim came from reading the class through a filtered grep that
+cut off before the last two properties, and concluding from an absence in the output that the field was
+absent from the code.
 
-Decide that before building the question card, because it changes the card.
+So the side by side comparison is buildable today, on both cards, with no request to the API side.
+Nothing about the question card is blocked.
 
 ## Making a new discrepancy visible
 
@@ -72,3 +74,15 @@ a uid that is not among them.
 duty. The plugin already defers the what's new window until a character is in the world; this needs
 that guard plus the others. A window that opens over a pull is the thing people uninstall for, and it
 would discredit a feature whose whole purpose is to be trusted.
+
+## Two things settled on 2026-08-24
+
+- **"im Besitz (Inventar/Arsenal)" becomes "im Besitz."** The owner decided the wording. The label is
+  shown for an item that may well be equipped, and naming two places while it sits in a third made it
+  read as wrong. The English string already names no place.
+- **Live carries none of the new routes.** Measured the same evening: `GET /gear/jobs` answers 404 on
+  `xivarsenal.app`, and so do `/gear/review` and `/gear/review/accept`. Only `/gear/sets` (401) and
+  `PUT /gear` (405 on GET) exist. The plugin behaves correctly against that, by design: no job table
+  means the frozen 21 code floor and `scope: combat`, and a missing review route reads as "route
+  unknown to this server" rather than as a fault. But both headline features of 1.1.0 are inert there
+  until the server side is deployed to live, which makes this a release gate rather than a detail.
