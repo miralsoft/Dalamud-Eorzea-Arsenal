@@ -636,8 +636,11 @@ public sealed class ReviewWindow : Window
     {
         using var id = ImRaii.PushId(row.SetUid ?? string.Empty);
 
+        ImGui.Separator();
+
         var name = string.IsNullOrWhiteSpace(row.Name) ? "-" : row.Name;
         Text(Accent, $"{row.Job}   {name}");
+        ImGui.SameLine();
         Text(Muted, OriginText(row));
 
         // The gear is what somebody recognises a set by months later, so it is on the card and not behind
@@ -650,12 +653,12 @@ public sealed class ReviewWindow : Window
         // What a delete costs, said before the button and not only in the confirmation.
         if (row.HasPin)
         {
-            Text(Warn, T(LocKeys.ReviewCardHasPin));
+            Wrapped(Warn, T(LocKeys.ReviewCardHasPin));
         }
 
         if (row.HasTeamShare && row.TeamNames.Count > 0)
         {
-            Text(Warn, T(LocKeys.ReviewCardHasShare, string.Join(", ", row.TeamNames)));
+            Wrapped(Warn, T(LocKeys.ReviewCardHasShare, string.Join(", ", row.TeamNames)));
         }
 
         if (row.Hidden)
@@ -663,7 +666,7 @@ public sealed class ReviewWindow : Window
             Text(Muted, T(LocKeys.ReviewHiddenOnSite));
         }
 
-        DrawLink(row.Url);
+        DrawLink(row.Url, sameLine: false);
 
         // A row the server sent without an identity cannot be decided about: every verb needs one to name.
         // Offering buttons that could only ever come back as a 422 is the same mistake as offering an
@@ -683,12 +686,26 @@ public sealed class ReviewWindow : Window
                     Gate(new ReviewDecision { SetUid = row.SetUid!, Action = verb }, WarningsFor(verb, row));
                 }
 
-                ImGui.SameLine();
-                Text(Muted, MeansOf(verb, row));
+                // Under the button and wrapped, not beside it. Beside it the sentence runs off the right
+                // edge of the window and the reader loses exactly the half that says what the button
+                // costs, which is the half worth reading.
+                using (ImRaii.PushIndent())
+                {
+                    Wrapped(Muted, MeansOf(verb, row));
+                }
             }
         }
 
         ImGui.Spacing();
+    }
+
+    /// <summary>Text that wraps at the window edge instead of running past it.</summary>
+    private static void Wrapped(Vector4 colour, string text)
+    {
+        using var pushed = ImRaii.PushColor(ImGuiCol.Text, colour);
+        ImGui.PushTextWrapPos(0f);
+        ImGui.TextUnformatted(text);
+        ImGui.PopTextWrapPos();
     }
 
 
@@ -821,16 +838,21 @@ public sealed class ReviewWindow : Window
         }
     }
 
-    /// <summary>Offers the row on the website, where there is a url to offer.</summary>
-    /// <param name="url">The url the server sent. Read back, never composed.</param>
-    private void DrawLink(string? url)
+    /// <summary>The way to the row on the website.</summary>
+    /// <param name="url">The address, or nothing when the server sent none.</param>
+    /// <param name="sameLine">Whether it belongs beside what was just drawn. False after a wide row.</param>
+    private void DrawLink(string? url, bool sameLine = true)
     {
         if (url is not { Length: > 0 })
         {
             return;
         }
 
-        ImGui.SameLine();
+        if (sameLine)
+        {
+            ImGui.SameLine();
+        }
+
         if (ImGui.SmallButton(T(LocKeys.ReviewOpenOnSite)))
         {
             _openLink(url);
