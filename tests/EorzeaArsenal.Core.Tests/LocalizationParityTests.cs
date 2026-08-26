@@ -124,4 +124,25 @@ public sealed class LocalizationParityTests
             Assert.DoesNotContain('—', ReleaseNotes.Text(item, german: false));
         }
     }
+
+    /// <summary>
+    /// The other half of C-11: a catalogue must not carry a key nobody declares any more. Without this
+    /// a replaced string stays in the file, translated into every language and shown nowhere, and the
+    /// next reader has to work out whether it is dead or whether its call site is missing.
+    /// </summary>
+    [Theory]
+    [InlineData(Localizer.English)]
+    [InlineData(Localizer.German)]
+    public void NoCatalogueCarriesAKeyNobodyDeclares(string language)
+    {
+        // Declared means "the code can ask for it", which is wider than the constants: two small tables
+        // build their keys at run time from a slot or a source name.
+        var declared = new HashSet<string>(AllKeys(), StringComparer.Ordinal);
+        declared.UnionWith(SlotNames.AllKeys);
+        declared.UnionWith(SourceNames.AllKeys);
+
+        var undeclared = Localizer.KeysOf(language).Where(key => !declared.Contains(key)).Order().ToList();
+
+        Assert.True(undeclared.Count == 0, $"{language} carries undeclared key(s): {string.Join(", ", undeclared)}");
+    }
 }

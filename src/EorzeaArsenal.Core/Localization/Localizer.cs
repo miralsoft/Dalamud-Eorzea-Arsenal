@@ -1054,6 +1054,18 @@ public sealed class Localizer : ILocalizer
 
     private string _language = English;
 
+
+    /// <summary>
+    /// Every key a shipped catalogue carries, for the test that keeps the catalogues and
+    /// <see cref="LocKeys"/> in step. C-11 asks for both halves: a key missing from a language, and a
+    /// catalogue still carrying one nobody declares any more. The second half is how a string that was
+    /// replaced keeps sitting in the file, translated and unreachable, until somebody reads it and
+    /// wonders where it is shown.
+    /// </summary>
+    /// <param name="language">The catalogue to read.</param>
+    /// <returns>Its keys, or nothing for an unknown language.</returns>
+    public static IEnumerable<string> KeysOf(string language) =>
+        Languages.TryGetValue(language, out var catalogue) ? catalogue.Keys : [];
     /// <summary>Creates a localizer in the given language (defaults to English if unknown).</summary>
     /// <param name="language">Initial two-letter language code.</param>
     public Localizer(string language = English) => Language = language;

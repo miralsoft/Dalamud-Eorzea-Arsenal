@@ -22,6 +22,13 @@ public static class SlotNames
         ["RingRight"] = "slot.ringright",
     };
 
+    /// <summary>
+    /// Every localization key this table can produce. The keys are built at run time from a domain
+    /// value, so they are not <see cref="LocKeys"/> constants, and the test that keeps the catalogues
+    /// honest would otherwise report the whole family as declared by nobody.
+    /// </summary>
+    public static IEnumerable<string> AllKeys => Keys.Values;
+
     /// <summary>Returns the localization key for a slot, or the slot key itself if unknown.</summary>
     /// <param name="slot">The API slot key.</param>
     /// <returns>The localization key.</returns>
