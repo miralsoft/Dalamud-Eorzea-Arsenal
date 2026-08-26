@@ -104,4 +104,32 @@ public sealed class ChangelogJsonTests
 
         Assert.Equal(ReleaseNotes.All.Select(n => n.Version).ToList(), versions);
     }
+
+    /// <summary>
+    /// The contributor changelog and the notes a player reads are written separately, in different words
+    /// for different readers, and neither is generated from the other. What they must agree on is which
+    /// versions exist. Without this the two drift, which is exactly what happened: the whole of 1.1.0 was
+    /// written into the release notes and the changelog still ended at 1.0.0.
+    /// </summary>
+    [Fact]
+    public void TheChangelogAndTheReleaseNotesNameTheSameVersions()
+    {
+        var path = Path.Combine(RepoRoot(), "CHANGELOG.md");
+        Assert.True(File.Exists(path), "CHANGELOG.md is missing.");
+
+        var documented = Regex.Matches(File.ReadAllText(path), @"^## \[(\d+\.\d+\.\d+)\]", RegexOptions.Multiline)
+            .Select(m => m.Groups[1].Value)
+            .ToHashSet(StringComparer.Ordinal);
+        var announced = ReleaseNotes.All.Select(n => n.Version).ToHashSet(StringComparer.Ordinal);
+
+        var missingFromChangelog = announced.Except(documented).Order().ToList();
+        var missingFromNotes = documented.Except(announced).Order().ToList();
+
+        Assert.True(
+            missingFromChangelog.Count == 0,
+            $"Announced to players but not in CHANGELOG.md: {string.Join(", ", missingFromChangelog)}");
+        Assert.True(
+            missingFromNotes.Count == 0,
+            $"In CHANGELOG.md but announced to nobody: {string.Join(", ", missingFromNotes)}");
+    }
 }

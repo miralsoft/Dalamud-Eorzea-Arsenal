@@ -4,6 +4,51 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-08-26
+
+Gearsets carry a server-minted identity instead of being keyed on their position in the list. Everything
+that was attached to a position (pinned BiS target, team share, hidden flag) now follows the set itself.
+
+### Added
+- **Gearset identity.** A push carries no uid; the server matches each set and answers with one, on a
+  named rung (`exact`, `name`, `name_ambiguous`, `items`, `index`, `new`). The plugin caches the mapping
+  per character, resolves a live set through a strong key (job, name, items) and a weak one (job, name),
+  and reports ambiguity rather than guessing.
+- **Job scope.** `GET /gear/jobs` decides which of the 42 class and job codes may be sent; a server
+  without the route leaves a frozen 21-code combat floor in place. Every push declares which range it
+  covered, so the server can park what a sync could have reported and did not.
+- **The reconciliation window.** Questions as a carousel, the inventory of rows with no gearset as one
+  card per decision, with the gear as icons, why the row is there, what hangs on it, and the six verbs
+  the contract defines (`link`, `new`, `ignore`, `reopen`, `delete`, `release`). It opens by itself once
+  for a row nobody has seen, keyed on identity rather than on a count, and only at a moment where
+  interrupting is acceptable.
+- **Role groups in the gear window**, and sets with no BiS target are listed instead of being absent.
+- A fourth release-note kind, `Removed`, which the framework profile names alongside the other three.
+- `images/icon.png` ships inside the package. The packager does not descend into subfolders, so it is
+  appended after packaging; without it every installed copy showed Dalamud's default icon.
+
+### Fixed
+- **The BiS tooltip compared against nothing** from the day the server began minting identities: a target
+  carrying a uid is looked up by uid, and the tooltip passed no resolver, so every slot read as missing.
+- The mapping cache was written by a push and read while drawing, without a lock.
+- `GET /gear/sets` answers with the whole account; rows of another character are dropped rather than
+  cached, where they would have made a real set ambiguous.
+- The uncertainty warning gave the advice for the wrong rung: renaming ends an ambiguity and does nothing
+  for a positional match.
+- A missing `last_seen_at` printed "never in game", a claim built out of an absence.
+- The what's-new window appeared on a first installation, which the framework profile forbids.
+- The tome balance was pushed every five minutes whether or not it had changed.
+- The reconciliation badge counted what the last push said rather than the current state.
+
+### Changed
+- No shipped string carries an em-dash (I-02), and two tests keep it that way.
+- The what's-new window reads at a larger scale and lays its notes out as a table.
+
+### Internal
+- A release refuses to publish when the tag disagrees with the manifest inside the archive.
+- The localisation test gained its other half: a catalogue may not carry a key nobody declares.
+- Test count: 1231 to 2288.
+
 ## [1.0.0] - 2026-07-27
 
 The plugin leaves its trial phase. `0.x` in SemVer means "anything may change"; that is no longer
