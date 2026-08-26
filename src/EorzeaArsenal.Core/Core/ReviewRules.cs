@@ -33,6 +33,44 @@ public enum OrphanOrigin
 public static class ReviewRules
 {
 
+
+    /// <summary>
+    /// The rows the player has not been shown yet: open questions and open inventory rows whose identity
+    /// is not in the given set.
+    /// </summary>
+    /// <param name="state">The reconciliation state as last read.</param>
+    /// <param name="alreadyShown">Identities already announced once. Pass a set, this is asked per row.</param>
+    /// <returns>The new identities, questions first, in the order the server listed them.</returns>
+    /// <remarks>
+    /// Keyed on identity and never on a count. One row deleted and another appearing leaves the count
+    /// where it was, and a count based rule would stay silent exactly when it should speak. A row put
+    /// aside is not new either: it was shown once and decided, and announcing it again is how a marker
+    /// becomes something people learn to ignore.
+    /// </remarks>
+    public static IReadOnlyList<string> Unannounced(ReviewState state, ICollection<string> alreadyShown)
+    {
+        var fresh = new List<string>();
+
+        foreach (var held in state.Held)
+        {
+            Add(held.SetUid);
+        }
+
+        foreach (var row in state.OpenOrphans)
+        {
+            Add(row.SetUid);
+        }
+
+        return fresh;
+
+        void Add(string? uid)
+        {
+            if (uid is { Length: > 0 } && !alreadyShown.Contains(uid) && !fresh.Contains(uid))
+            {
+                fresh.Add(uid);
+            }
+        }
+    }
     /// <summary>
     /// What the data says about where a row came from.
     /// </summary>

@@ -306,4 +306,59 @@ public sealed class ReviewRulesTests
         Assert.Equal(
             OrphanOrigin.Unknown,
             ReviewRules.OriginOf(new OrphanRow { SetUid = "d", Source = GearsetSource.Plugin, LastSeenAt = string.Empty }));
+
+    /// <summary>
+    /// The window opens itself for a row nobody has seen and never again for the same one. Keyed on
+    /// identity, because one row decided and another appearing leaves the count where it was, and a
+    /// count based rule would stay silent exactly when it should speak.
+    /// </summary>
+    [Fact]
+    public void OnlyRowsNobodyHasSeenAreAnnounced()
+    {
+        var state = new ReviewState
+        {
+            Held = [new HeldGearset { SetUid = "q1", Job = "DRK", GearIndex = 0 }],
+            Orphans =
+            [
+                new OrphanRow { SetUid = "o1", Source = GearsetSource.Plugin, State = RowState.Parked },
+                new OrphanRow { SetUid = "o2", Source = GearsetSource.Plugin, State = RowState.Parked },
+            ],
+        };
+
+        Assert.Equal(["q1", "o1", "o2"], ReviewRules.Unannounced(state, new HashSet<string>(StringComparer.Ordinal)));
+        Assert.Equal(["o2"], ReviewRules.Unannounced(state, new HashSet<string>(["q1", "o1"], StringComparer.Ordinal)));
+        Assert.Empty(ReviewRules.Unannounced(state, new HashSet<string>(["q1", "o1", "o2"], StringComparer.Ordinal)));
+    }
+
+    /// <summary>
+    /// A row put aside was shown once and decided. Announcing it again is how a marker becomes something
+    /// people learn to ignore, so it never counts as new.
+    /// </summary>
+    [Fact]
+    public void ARowPutAsideIsNeverAnnouncedAgain()
+    {
+        var state = new ReviewState
+        {
+            Orphans = [new OrphanRow { SetUid = "aside", Source = GearsetSource.Plugin, State = RowState.Ignored }],
+        };
+
+        Assert.Empty(ReviewRules.Unannounced(state, new HashSet<string>(StringComparer.Ordinal)));
+    }
+
+    /// <summary>
+    /// The count is the same before and after, and the answer is not: exactly the case a count based
+    /// rule gets wrong.
+    /// </summary>
+    [Fact]
+    public void ARowSwappedForAnotherIsStillNew()
+    {
+        var before = new HashSet<string>(["o1"], StringComparer.Ordinal);
+        var after = new ReviewState
+        {
+            Orphans = [new OrphanRow { SetUid = "o2", Source = GearsetSource.Plugin, State = RowState.Parked }],
+        };
+
+        Assert.Single(after.OpenOrphans);
+        Assert.Equal(["o2"], ReviewRules.Unannounced(after, before));
+    }
 }

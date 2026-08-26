@@ -145,6 +145,13 @@ public sealed class PluginConfig : IPluginConfiguration
     /// <summary>The release-notes version the user has acknowledged; empty on a fresh install.</summary>
     public string LastSeenReleaseNotes { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Identities of reconciliation rows the player has already been shown once. The window opens by
+    /// itself when something new appears and never again for the same row, which is why this is kept
+    /// rather than a count: one row decided and another appearing leaves a count unchanged.
+    /// </summary>
+    public List<string> SeenReviewRows { get; set; } = [];
+
     /// <summary>Open the what's-new window once after the plugin updated.</summary>
     public bool ShowWhatsNewOnUpdate { get; set; } = true;
 

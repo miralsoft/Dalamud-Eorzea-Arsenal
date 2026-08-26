@@ -101,6 +101,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly WhatsNewWindow _whatsNewWindow;
     private readonly ReportWindow _reportWindow;
     private bool _whatsNewPending;
+    private bool _reviewAnnounceRunning;
+    private volatile bool _reviewOpenRequested;
     private readonly BisTooltip _bisTooltip;
     private readonly IDtrBarEntry _dtrEntry;
 
@@ -1188,6 +1190,13 @@ public sealed class Plugin : IDalamudPlugin
             _whatsNewWindow.Open();
         }
 
+        // A reconciliation row nobody has seen yet, and a moment where a window may appear.
+        if (_reviewOpenRequested && CanInterrupt())
+        {
+            _reviewOpenRequested = false;
+            _reviewWindow.Open();
+        }
+
         // Hidden-refresh drivers (no-op while idle): the Raid-Finder (Savage) and Duty-Finder
         // (normal/alliance) background reads.
         _weeklySource.PumpHiddenRefresh();
@@ -1434,6 +1443,11 @@ public sealed class Plugin : IDalamudPlugin
     {
         UpdateDtr();
 
+        if (report.Outcome == PushOutcome.Sent && _sync.LastReview is { NeedsAttention: true })
+        {
+            AnnounceReviewIfNew();
+        }
+
         if (report.Outcome == PushOutcome.Sent)
         {
             // The advisor ranks against the gear the server has on file, which just changed — drop the
@@ -1531,6 +1545,71 @@ public sealed class Plugin : IDalamudPlugin
         _ => _localizer.Get(LocKeys.ErrorUnexpected),
     };
 
+
+    /// <summary>
+    /// A push reported something waiting. Reads the reconciliation state once and opens the window if it
+    /// holds a row this player has never been shown. Runs at most one read per push that reports
+    /// anything, and none at all when a push reports nothing.
+    /// </summary>
+    private void AnnounceReviewIfNew()
+    {
+        if (_reviewAnnounceRunning || _reviewWindow.IsOpen || string.IsNullOrEmpty(_currentCidHash))
+        {
+            return;
+        }
+
+        _reviewAnnounceRunning = true;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (await _review.RefreshAsync(_currentCidHash!, _shutdown.Token).ConfigureAwait(false) != ReviewOutcome.Ok ||
+                    _review.Current is not { } state)
+                {
+                    return;
+                }
+
+                var seen = new HashSet<string>(_config.SeenReviewRows, StringComparer.Ordinal);
+                var fresh = ReviewRules.Unannounced(state, seen);
+                if (fresh.Count == 0)
+                {
+                    return;
+                }
+
+                // Remembered before the window opens, not after: whether the player reads it is their
+                // business, and a second announcement for the same row is the thing being avoided.
+                _config.SeenReviewRows.AddRange(fresh);
+                Save();
+                _reviewOpenRequested = true;
+                _log.Info($"Reconciliation: {fresh.Count} row(s) nobody has seen yet.");
+            }
+            catch (OperationCanceledException)
+            {
+                // Reload during the read. Nothing to say.
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"Reconciliation announcement failed: {ex.GetType().Name}.");
+            }
+            finally
+            {
+                _reviewAnnounceRunning = false;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Whether a window may open itself right now. The same quiet-moment test the hidden refresh uses,
+    /// because the cost of getting it wrong is the same: something appearing over a pull is what people
+    /// uninstall a plugin for, and it would discredit the one feature whose whole point is being trusted.
+    /// </summary>
+    private bool CanInterrupt() =>
+        _clientState.IsLoggedIn
+        && !_condition[ConditionFlag.InCombat]
+        && !_condition[ConditionFlag.BoundByDuty]
+        && !_condition[ConditionFlag.BetweenAreas]
+        && !_condition[ConditionFlag.OccupiedInCutSceneEvent]
+        && !_condition[ConditionFlag.WatchingCutscene];
     /// <summary>Whether the invisible Savage refresh may run right now (safe, idle game state).</summary>
     private bool CanHiddenRefresh() =>
         _store.HasKey
