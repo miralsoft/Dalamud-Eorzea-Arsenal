@@ -3,6 +3,8 @@ using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
+using Dalamud.Interface.Textures;
+using Dalamud.Plugin.Services;
 using EorzeaArsenal.Abstractions;
 using EorzeaArsenal.Core;
 using EorzeaArsenal.Localization;
@@ -38,7 +40,18 @@ public sealed class ReviewWindow : Window
     private readonly Localizer _localizer;
     private readonly Func<string?> _currentCharacter;
     private readonly Action _afterDecision;
+    /// <summary>Icon edge length on a card. The strip has to read as gear at a glance, not as a toolbar.</summary>
+    private const float IconSize = 32f;
+
+    /// <summary>The order a character sheet shows, so the strip reads the way the game does.</summary>
+    private static readonly string[] SlotOrder =
+    [
+        "Weapon", "OffHand", "Head", "Body", "Hands", "Legs", "Feet",
+        "Ears", "Neck", "Wrists", "RingLeft", "RingRight",
+    ];
     private readonly Func<int, string> _itemName;
+    private readonly Func<int, uint> _itemIcon;
+    private readonly ITextureProvider _textures;
     private readonly Action<string> _openLink;
     private readonly ILog _log;
 
@@ -52,6 +65,7 @@ public sealed class ReviewWindow : Window
 
     private readonly HashSet<string> _struckOut = new(StringComparer.Ordinal);
     private int _question;
+    private int _orphan;
     private bool _showAside;
     private bool _staleNotice;
 
@@ -64,6 +78,8 @@ public sealed class ReviewWindow : Window
     /// mapping on the next push.
     /// </param>
     /// <param name="itemName">Resolves an item id to its name in the player language.</param>
+    /// <param name="itemIcon">Resolves an item id to its game icon id, or zero when it has none.</param>
+    /// <param name="textures">Loads those icons.</param>
     /// <param name="openLink">Opens an http(s) url, already guarded against other schemes.</param>
     /// <param name="log">Diagnostics sink, so an escaped exception is not simply lost.</param>
     public ReviewWindow(
@@ -72,6 +88,8 @@ public sealed class ReviewWindow : Window
         Func<string?> currentCharacter,
         Action afterDecision,
         Func<int, string> itemName,
+        Func<int, uint> itemIcon,
+        ITextureProvider textures,
         Action<string> openLink,
         ILog log)
         : base("Eorzea Arsenal###EorzeaArsenalReview")
@@ -81,6 +99,8 @@ public sealed class ReviewWindow : Window
         _currentCharacter = currentCharacter;
         _afterDecision = afterDecision;
         _itemName = itemName;
+        _itemIcon = itemIcon;
+        _textures = textures;
         _openLink = openLink;
         _log = log;
 
@@ -524,10 +544,14 @@ public sealed class ReviewWindow : Window
     }
 
     /// <summary>
-    /// The inventory half: rows no gearset in game occupies. Open ones first, the ones already put aside
-    /// folded away — reachable, because a misclick has to have a way back, and quiet, because somebody who
-    /// said "not this one" ten times does not want to keep reading it.
+    /// The inventory half: rows no gearset in game occupies. One card at a time, because the work is a
+    /// sequence of decisions and not a list to browse. Eight rows with three buttons each on one page is
+    /// twenty four buttons and no order to work through them in, which is what the first version was.
     /// </summary>
+    /// <remarks>
+    /// Rows already put aside stay a folded list. There the task really is browsing: somebody looking for
+    /// one row they set aside by mistake, not somebody working through a queue.
+    /// </remarks>
     private void DrawInventory(ReviewState state)
     {
         var open = state.OpenOrphans.ToList();
@@ -540,9 +564,11 @@ public sealed class ReviewWindow : Window
 
         Text(Accent, T(LocKeys.ReviewInventory));
 
-        foreach (var row in open)
+        if (open.Count > 0)
         {
-            DrawOrphan(row);
+            _orphan = Math.Clamp(_orphan, 0, open.Count - 1);
+            DrawStepper(ref _orphan, open.Count);
+            DrawOrphanCard(open[_orphan]);
         }
 
         if (aside.Count == 0)
@@ -563,8 +589,106 @@ public sealed class ReviewWindow : Window
 
         foreach (var row in aside)
         {
-            DrawOrphan(row);
+            DrawOrphanCard(row, compact: true);
         }
+    }
+
+    /// <summary>
+    /// Position and movement for a carousel. Moving decides nothing, which is what makes it safe to look
+    /// around before answering.
+    /// </summary>
+    /// <param name="cursor">The current position, clamped by the caller.</param>
+    /// <param name="count">How many there are.</param>
+    private void DrawStepper(ref int cursor, int count)
+    {
+        if (count <= 1)
+        {
+            return;
+        }
+
+        Text(Muted, T(LocKeys.ReviewPosition, cursor + 1, count));
+        ImGui.SameLine();
+        using (ImRaii.Disabled(cursor == 0))
+        {
+            if (ImGui.SmallButton("<##orph"))
+            {
+                cursor--;
+            }
+        }
+
+        ImGui.SameLine();
+        using (ImRaii.Disabled(cursor >= count - 1))
+        {
+            if (ImGui.SmallButton(">##orph"))
+            {
+                cursor++;
+            }
+        }
+    }
+
+    /// <summary>
+    /// One row as a card: what it is, where it came from, what it holds, what hangs on it, and the
+    /// decision with the consequence beside each verb rather than one sentence under all of them.
+    /// </summary>
+    /// <param name="row">The row to decide about.</param>
+    /// <param name="compact">Leaves out the gear, for the folded list of rows already put aside.</param>
+    private void DrawOrphanCard(OrphanRow row, bool compact = false)
+    {
+        using var id = ImRaii.PushId(row.SetUid ?? string.Empty);
+
+        var name = string.IsNullOrWhiteSpace(row.Name) ? "-" : row.Name;
+        Text(Accent, $"{row.Job}   {name}");
+        Text(Muted, OriginText(row));
+
+        // The gear is what somebody recognises a set by months later, so it is on the card and not behind
+        // a toggle. Icons rather than a list of names: this is the same set the gear window shows.
+        if (!compact)
+        {
+            DrawGearStrip(row.Items);
+        }
+
+        // What a delete costs, said before the button and not only in the confirmation.
+        if (row.HasPin)
+        {
+            Text(Warn, T(LocKeys.ReviewCardHasPin));
+        }
+
+        if (row.HasTeamShare && row.TeamNames.Count > 0)
+        {
+            Text(Warn, T(LocKeys.ReviewCardHasShare, string.Join(", ", row.TeamNames)));
+        }
+
+        if (row.Hidden)
+        {
+            Text(Muted, T(LocKeys.ReviewHiddenOnSite));
+        }
+
+        DrawLink(row.Url);
+
+        // A row the server sent without an identity cannot be decided about: every verb needs one to name.
+        // Offering buttons that could only ever come back as a 422 is the same mistake as offering an
+        // incompatible candidate, so the row is shown and the actions are not.
+        if (row.SetUid is not { Length: > 0 })
+        {
+            ImGui.Spacing();
+            return;
+        }
+
+        using (ImRaii.Disabled(Blocked))
+        {
+            foreach (var verb in ReviewRules.OfferedVerbs(row))
+            {
+                if (ImGui.SmallButton(Label(verb)))
+                {
+                    Gate(new ReviewDecision { SetUid = row.SetUid!, Action = verb }, WarningsFor(verb, row));
+                }
+
+                ImGui.SameLine();
+                Text(Muted, MeansOf(verb, row));
+            }
+        }
+
+        ImGui.Spacing();
     }
 
 
@@ -585,66 +709,70 @@ public sealed class ReviewWindow : Window
         DateTimeOffset.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.None, out var when)
             ? when.ToLocalTime().ToString("d", _localizer.Language == Localizer.German ? new CultureInfo("de-DE") : CultureInfo.InvariantCulture)
             : iso;
-    /// <summary>
-    /// One inventory row, with exactly the verbs that apply to it. A hand-made row that was put aside gets
-    /// one button, not one live beside three dead ones.
-    /// </summary>
-    private void DrawOrphan(OrphanRow row)
+    /// <summary>What a verb does to this row, in one phrase, beside the button that does it.</summary>
+    private string MeansOf(string verb, OrphanRow row) => verb switch
     {
-        using var id = ImRaii.PushId(row.SetUid ?? string.Empty);
+        ReviewAction.Delete => row.IsFromPlugin && !row.IsPutAside
+            ? T(LocKeys.ReviewDeleteComesBack)
+            : T(LocKeys.ReviewDeleteMeans),
+        ReviewAction.Release => T(LocKeys.ReviewReleaseTwoRows),
+        ReviewAction.Reopen => T(LocKeys.ReviewReopenMeans),
+        _ => T(LocKeys.ReviewIgnoreMeans),
+    };
 
-        var name = string.IsNullOrWhiteSpace(row.Name) ? "-" : row.Name;
-        Text(Muted, $"{row.Job} {name}");
-
-        ImGui.SameLine();
-        Text(Muted, OriginText(row));
-
-        if (row.Hidden)
+    /// <summary>
+    /// The gear of a set as a strip of icons, in the order the game shows a character sheet, with the item
+    /// name on hover. A slot the set does not fill is left out rather than drawn empty: this is a
+    /// recognition aid, not an inventory of holes.
+    /// </summary>
+    private void DrawGearStrip(Dictionary<string, ItemDto> items)
+    {
+        if (items.Count == 0)
         {
-            ImGui.SameLine();
-            Text(Muted, $"· {T(LocKeys.ReviewHiddenOnSite)}");
-        }
-
-        if (row.HasTeamShare && row.TeamNames.Count > 0)
-        {
-            Text(Warn, $"    {T(LocKeys.ReviewKeepsShare, string.Join(", ", row.TeamNames), name)}");
-        }
-
-        // A row the server sent without an identity cannot be decided about: every verb needs one to name.
-        // Offering buttons that could only ever come back as a 422 is the same mistake as offering an
-        // incompatible candidate, so the row is shown and the actions are not.
-        if (row.SetUid is not { Length: > 0 })
-        {
-            ImGui.Spacing();
+            Text(Muted, T(LocKeys.ReviewNoItems));
             return;
         }
 
-        DrawLink(row.Url);
-        DrawItems(row.SetUid ?? string.Empty, row.Items);
-
-        using (ImRaii.Disabled(Blocked))
+        var drawn = 0;
+        foreach (var slot in SlotOrder)
         {
-            foreach (var verb in ReviewRules.OfferedVerbs(row))
+            if (!items.TryGetValue(slot, out var item) || item.Id <= 0)
             {
-                if (ImGui.SmallButton(Label(verb)))
-                {
-                    Gate(new ReviewDecision { SetUid = row.SetUid!, Action = verb }, WarningsFor(verb, row));
-                }
+                continue;
+            }
 
+            if (drawn > 0)
+            {
                 ImGui.SameLine();
             }
+
+            DrawIcon(item.Id, IconSize);
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip($"{slot}: {_itemName(item.Id)}");
+            }
+
+            drawn++;
         }
 
-        ImGui.NewLine();
-
-        // Said only where it is true. A parked or ignored row was not being reported anyway, and a hand-made
-        // one cannot come back at all, so promising a return there would be a lie.
-        if (row.IsFromPlugin && !row.IsPutAside)
+        if (drawn == 0)
         {
-            Text(Muted, $"    {T(LocKeys.ReviewDeleteComesBack)}");
+            Text(Muted, T(LocKeys.ReviewNoItems));
+        }
+    }
+
+    /// <summary>One item icon, or an empty square of the same size when the game has none for it.</summary>
+    private void DrawIcon(int itemId, float size)
+    {
+        var iconId = _itemIcon(itemId);
+        if (iconId == 0)
+        {
+            ImGui.Dummy(new Vector2(size, size));
+            return;
         }
 
-        ImGui.Spacing();
+        var wrap = _textures.GetFromGameIcon(new GameIconLookup(iconId)).GetWrapOrEmpty();
+        ImGui.Image(wrap.Handle, new Vector2(size, size));
     }
 
     private string Label(string verb) => verb switch

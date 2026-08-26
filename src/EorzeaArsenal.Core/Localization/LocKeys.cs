@@ -441,6 +441,27 @@ public static class LocKeys
     /// <summary>A row its owner hid on the website, which explains why it cannot be found there.</summary>
     public const string ReviewHiddenOnSite = "review.hiddenonsite";
 
+    /// <summary>Where the carousel stands (args: position, total).</summary>
+    public const string ReviewPosition = "review.position";
+
+    /// <summary>Card line: a BiS target is pinned to this row.</summary>
+    public const string ReviewCardHasPin = "review.card.haspin";
+
+    /// <summary>Card line: teams see this row (arg: team names).</summary>
+    public const string ReviewCardHasShare = "review.card.hasshare";
+
+    /// <summary>What delete does to a row that was not being reported anyway.</summary>
+    public const string ReviewDeleteMeans = "review.delete.means";
+
+    /// <summary>What putting a row aside does.</summary>
+    public const string ReviewIgnoreMeans = "review.ignore.means";
+
+    /// <summary>What taking a row back does.</summary>
+    public const string ReviewReopenMeans = "review.reopen.means";
+
+    /// <summary>A row the server sent without any gear.</summary>
+    public const string ReviewNoItems = "review.noitems";
+
     /// <summary>Remove a row.</summary>
     public const string ReviewDelete = "review.delete";
 
