@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility.Raii;
@@ -566,6 +567,24 @@ public sealed class ReviewWindow : Window
         }
     }
 
+
+    /// <summary>
+    /// Where the row came from, in one phrase, and never further than the data goes. A missing date used
+    /// to print "never in game", which is a claim built out of an absence and was the opposite of the
+    /// truth for every row a data migration brought in.
+    /// </summary>
+    private string OriginText(OrphanRow row) => ReviewRules.OriginOf(row) switch
+    {
+        OrphanOrigin.MadeOnSite => T(LocKeys.ReviewMadeOnSite),
+        OrphanOrigin.LastReported => T(LocKeys.ReviewLastSeen, FormatWhen(row.LastSeenAt!)),
+        _ => T(LocKeys.ReviewLastSeenUnknown),
+    };
+
+    /// <summary>The server's timestamp as a date in the reader's language; the raw value if it will not parse.</summary>
+    private string FormatWhen(string iso) =>
+        DateTimeOffset.TryParse(iso, CultureInfo.InvariantCulture, DateTimeStyles.None, out var when)
+            ? when.ToLocalTime().ToString("d", _localizer.Language == Localizer.German ? new CultureInfo("de-DE") : CultureInfo.InvariantCulture)
+            : iso;
     /// <summary>
     /// One inventory row, with exactly the verbs that apply to it. A hand-made row that was put aside gets
     /// one button, not one live beside three dead ones.
@@ -578,11 +597,7 @@ public sealed class ReviewWindow : Window
         Text(Muted, $"{row.Job} {name}");
 
         ImGui.SameLine();
-        Text(
-            Muted,
-            row.LastSeenAt is { Length: > 0 } seen
-                ? T(LocKeys.ReviewLastSeen, seen)
-                : T(LocKeys.ReviewNeverInGame));
+        Text(Muted, OriginText(row));
 
         if (row.Hidden)
         {

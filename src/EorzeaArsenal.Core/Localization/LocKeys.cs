@@ -433,7 +433,10 @@ public static class LocKeys
     public const string ReviewLastSeen = "review.lastseen";
 
     /// <summary>A row no push ever reported, because it was made on the website.</summary>
-    public const string ReviewNeverInGame = "review.neveringame";
+    public const string ReviewMadeOnSite = "review.madeonsite";
+
+    /// <summary>When a plugin row carries no last-reported date. Absence of a date is not a claim.</summary>
+    public const string ReviewLastSeenUnknown = "review.lastseen.unknown";
 
     /// <summary>A row its owner hid on the website, which explains why it cannot be found there.</summary>
     public const string ReviewHiddenOnSite = "review.hiddenonsite";

@@ -282,4 +282,28 @@ public sealed class ReviewRulesTests
         Source = source,
         State = state,
     };
+
+    /// <summary>
+    /// The window printed "never in game" whenever the server sent no timestamp, which turned a missing
+    /// field into a claim. For every row a data migration brought in it stated the opposite of the truth,
+    /// and it was the one sentence meant to explain the cause. Three cases, and the third stays a third.
+    /// </summary>
+    [Fact]
+    public void AMissingDateIsNotAClaimThatTheSetNeverExisted()
+    {
+        var madeOnSite = new OrphanRow { SetUid = "a", Source = GearsetSource.Manual };
+        var reported = new OrphanRow { SetUid = "b", Source = GearsetSource.Plugin, LastSeenAt = "2026-08-14T20:11:03+00:00" };
+        var noDate = new OrphanRow { SetUid = "c", Source = GearsetSource.Plugin };
+
+        Assert.Equal(OrphanOrigin.MadeOnSite, ReviewRules.OriginOf(madeOnSite));
+        Assert.Equal(OrphanOrigin.LastReported, ReviewRules.OriginOf(reported));
+        Assert.Equal(OrphanOrigin.Unknown, ReviewRules.OriginOf(noDate));
+    }
+
+    /// <summary>An empty string is as absent as a null one; the server has sent both.</summary>
+    [Fact]
+    public void AnEmptyDateCountsAsNoDate() =>
+        Assert.Equal(
+            OrphanOrigin.Unknown,
+            ReviewRules.OriginOf(new OrphanRow { SetUid = "d", Source = GearsetSource.Plugin, LastSeenAt = string.Empty }));
 }

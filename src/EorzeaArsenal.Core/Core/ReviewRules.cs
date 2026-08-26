@@ -2,6 +2,25 @@ using EorzeaArsenal.Model;
 
 namespace EorzeaArsenal.Core;
 
+
+/// <summary>
+/// Where a row in the inventory came from, as far as the data actually says. The card turns this into a
+/// sentence, and the point of naming the third case is that it stays a third case: the plugin printed
+/// "never in game" whenever a timestamp was missing, which built a claim out of an absence and told
+/// eight players' worth of rows the opposite of the truth.
+/// </summary>
+public enum OrphanOrigin
+{
+    /// <summary>Made in the web editor. It never existed in game, and that is a fact, not an inference.</summary>
+    MadeOnSite,
+
+    /// <summary>A push reported it, and the server says when. The date is what turns a mystery into a memory.</summary>
+    LastReported,
+
+    /// <summary>It came from a push and no date is known. Say that, rather than inventing one end of it.</summary>
+    Unknown,
+}
+
 /// <summary>
 /// What a window may offer, and what it must preselect. Pure decisions over one answer, kept apart from
 /// the service that fetches so they can be read and tested on their own.
@@ -13,6 +32,16 @@ namespace EorzeaArsenal.Core;
 /// </remarks>
 public static class ReviewRules
 {
+
+    /// <summary>
+    /// What the data says about where a row came from.
+    /// </summary>
+    /// <param name="row">The inventory row.</param>
+    /// <returns>The origin, never inferred beyond what the fields carry.</returns>
+    public static OrphanOrigin OriginOf(OrphanRow row) =>
+        !row.IsFromPlugin ? OrphanOrigin.MadeOnSite
+        : row.LastSeenAt is { Length: > 0 } ? OrphanOrigin.LastReported
+        : OrphanOrigin.Unknown;
     /// <summary>
     /// The inventory verbs that apply to one orphan row, in the order a window should show them.
     /// </summary>
