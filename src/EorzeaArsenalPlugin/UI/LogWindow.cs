@@ -19,22 +19,22 @@ public sealed class LogWindow : Window
 
     private readonly LogBuffer _buffer;
     private readonly Localizer _localizer;
-    private readonly Action? _drawDevSection;
 
     /// <summary>Creates the log window.</summary>
     /// <param name="buffer">The shared log buffer.</param>
     /// <param name="localizer">UI string resolver.</param>
-    /// <param name="drawDevSection">
-    /// Draws the developer diagnostics section above the log, or <see langword="null"/> when the build
-    /// has no developer tools compiled in — which is every released build. Passed in rather than looked
-    /// up so this window knows nothing about what the section contains.
-    /// </param>
-    public LogWindow(LogBuffer buffer, Localizer localizer, Action? drawDevSection = null)
+    /// <remarks>
+    /// Only the log. The developer panels used to be drawn above it, on the argument that a developer
+    /// build has one place to look; they have their own window now, because the two are read differently.
+    /// The log is an account of what happened and is read from the top; the report is the state right now
+    /// and is read against what is on screen. Sharing one window meant scrolling past one to reach the
+    /// other and never having both open at once.
+    /// </remarks>
+    public LogWindow(LogBuffer buffer, Localizer localizer)
         : base("Eorzea Arsenal · Log###EorzeaArsenalLog")
     {
         _buffer = buffer;
         _localizer = localizer;
-        _drawDevSection = drawDevSection;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -60,7 +60,6 @@ public sealed class LogWindow : Window
         }
 
         ImGui.Separator();
-        _drawDevSection?.Invoke();
 
         var entries = _buffer.Snapshot();
         if (ImGui.BeginChild("##logList", new Vector2(0, 0), true))

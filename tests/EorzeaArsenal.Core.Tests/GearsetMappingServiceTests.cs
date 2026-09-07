@@ -99,17 +99,19 @@ public sealed class GearsetMappingServiceTests
     }
 
     /// <summary>
-    /// A rename changes both keys, so this side cannot find it — and must not pretend to. The server
-    /// recognises it on the items rung at the next push and the mapping is repaired then; until that
-    /// happens the interface shows nothing, which is the correct half of "never something wrong".
+    /// A rename changes both content keys, so once the set has also moved there is nothing left to
+    /// recognise it by, and this side must not pretend otherwise. The server finds it on the items rung at
+    /// the next push and the mapping is repaired then; until that happens the interface shows nothing,
+    /// which is the correct half of "never something wrong". A rename on its own is a different matter,
+    /// since the set is still where it was: see <see cref="ARenamedSetStillResolvesWhereItSits"/>.
     /// </summary>
     [Fact]
-    public void ARenameIsAMissRatherThanAWrongAnswer()
+    public void ARenameAndAMoveTogetherAreAMissRatherThanAWrongAnswer()
     {
         var (service, _, _, _) = Build();
         service.RecordPush(Cid, [Set(0, "DRK", "2.50", 100)], [new GearsetAssignment { GearIndex = 0, SetUid = UidA }]);
 
-        var match = service.Resolve(Cid, Set(0, "DRK", "Savage", 100));
+        var match = service.Resolve(Cid, Set(4, "DRK", "Savage", 999));
 
         Assert.False(match.IsResolved);
         Assert.Null(match.SetUid);
@@ -146,6 +148,425 @@ public sealed class GearsetMappingServiceTests
 
         Assert.False(match.IsResolved);
         Assert.True(match.WasAmbiguous);
+    }
+
+    /// <summary>
+    /// The case the guard was missing for, found in a live report rather than by reading. Two gearsets
+    /// with the same job, the same name <b>and</b> the same gear carry the same strong key, and the
+    /// strong-key search used to return the first of them and call the rung exact. Two live sets resolved
+    /// to one identity, the position table wrote one uid twice so the last one won, and two windows
+    /// printed the same set number for two different sets, with nothing reporting a doubt because the
+    /// doubt was never detected. Same job, same name, same items is the strongest evidence the contents
+    /// can give, and it is still not a distinction.
+    /// </summary>
+    /// <remarks>
+    /// Both sets have moved here, which is what leaves the strong key alone with the question. Where
+    /// nothing has moved their positions tell them apart, and that is the ordinary case:
+    /// <see cref="IdenticalTwinsResolveByWhereTheySit"/>.
+    /// </remarks>
+    [Fact]
+    public void IdenticalTwinsAreAmbiguousOnTheStrongKeyToo()
+    {
+        var (service, _, _, _) = Build();
+
+        service.RecordPush(Cid, [Set(0, "BRD", "Barde", 100), Set(1, "BRD", "Barde", 100)], [
+            new GearsetAssignment { GearIndex = 0, SetUid = UidA },
+            new GearsetAssignment { GearIndex = 1, SetUid = UidB },
+        ]);
+
+        var match = service.Resolve(Cid, Set(5, "BRD", "Barde", 100));
+
+        Assert.False(match.IsResolved);
+        Assert.True(match.WasAmbiguous);
+
+        // And the same for the other one, which is the half that made it dangerous: it did not fail, it
+        // answered with somebody else's identity.
+        Assert.False(service.Resolve(Cid, Set(6, "BRD", "Barde", 100)).IsResolved);
+    }
+
+    /// <summary>
+    /// The case the whole position rung exists for. A player never names a gearset when they make one:
+    /// the game writes the job in, so two sets of one job are called the same thing from the start, and
+    /// if they also hold the same gear nothing derived from their contents can tell them apart. Their
+    /// positions can, and the position is the one value here that came from an answer rather than from a
+    /// guess. Before this they both came back ambiguous and lost their comparison.
+    /// </summary>
+    [Fact]
+    public void IdenticalTwinsResolveByWhereTheySit()
+    {
+        var (service, _, _, _) = Build();
+        var first = Set(3, "DRK", "Dunkelritter", 100);
+        var second = Set(7, "DRK", "Dunkelritter", 100);
+
+        service.RecordPush(Cid, [first, second], [
+            new GearsetAssignment { GearIndex = 3, SetUid = UidA },
+            new GearsetAssignment { GearIndex = 7, SetUid = UidB },
+        ]);
+
+        Assert.Equal(UidA, service.Resolve(Cid, first).SetUid);
+        Assert.Equal(UidB, service.Resolve(Cid, second).SetUid);
+    }
+
+    /// <summary>
+    /// And it survives a rename, which is the whole point of anchoring on the gear rather than on the
+    /// strong key: that one takes the name in with it, so renaming a set used to drop it to a weak key
+    /// two identically named sets share.
+    /// </summary>
+    [Fact]
+    public void ARenamedSetStillResolvesWhereItSits()
+    {
+        var (service, _, _, _) = Build();
+        var before = Set(3, "DRK", "Dunkelritter", 100);
+
+        service.RecordPush(Cid, [before, Set(7, "DRK", "Dunkelritter", 100)], [
+            new GearsetAssignment { GearIndex = 3, SetUid = UidA },
+            new GearsetAssignment { GearIndex = 7, SetUid = UidB },
+        ]);
+
+        Assert.Equal(UidA, service.Resolve(Cid, Set(3, "DRK", "FRU DRK", 100)).SetUid);
+    }
+
+    /// <summary>
+    /// A re-geared set keeps its place too, but only where its name belongs to nothing else. Where two
+    /// sets share a name, swapping them would otherwise be indistinguishable from re-gearing one, and the
+    /// position would hand back the wrong identity with no doubt attached. That is worse than the
+    /// ambiguity it replaces, so the rung declines and the content ladder takes over.
+    /// </summary>
+    [Fact]
+    public void ARegearedSetKeepsItsPlaceOnlyWhereItsNameIsItsOwn()
+    {
+        var (service, _, _, _) = Build();
+
+        service.RecordPush(Cid, [Set(3, "DRK", "FRU DRK", 100), Set(7, "WHM", "Heal", 200)], [
+            new GearsetAssignment { GearIndex = 3, SetUid = UidA },
+            new GearsetAssignment { GearIndex = 7, SetUid = UidB },
+        ]);
+
+        // Unique name, gear changed: the place decides.
+        Assert.Equal(UidA, service.Resolve(Cid, Set(3, "DRK", "FRU DRK", 999)).SetUid);
+
+        var (twins, _, _, _) = Build();
+        twins.RecordPush(Cid, [Set(3, "DRK", "Dunkelritter", 100), Set(7, "DRK", "Dunkelritter", 200)], [
+            new GearsetAssignment { GearIndex = 3, SetUid = UidA },
+            new GearsetAssignment { GearIndex = 7, SetUid = UidB },
+        ]);
+
+        // Shared name, gear changed: this side cannot tell a re-gear from a swap, and says so.
+        var match = twins.Resolve(Cid, Set(3, "DRK", "Dunkelritter", 999));
+        Assert.False(match.IsResolved);
+        Assert.True(match.WasAmbiguous);
+    }
+
+    /// <summary>
+    /// Reordering moves the position, which is exactly when the content ladder has to take over. Two sets
+    /// of one job with different gear, swapped: each is found at its new place by what is in it, which is
+    /// the property this whole feature exists to keep.
+    /// </summary>
+    [Fact]
+    public void ReorderingFallsThroughToWhatIsInTheSet()
+    {
+        var (service, _, _, _) = Build();
+        var a = Set(3, "DRK", "FRU DRK", 100);
+        var b = Set(7, "DRK", "Palazzo", 200);
+
+        service.RecordPush(Cid, [a, b], [
+            new GearsetAssignment { GearIndex = 3, SetUid = UidA },
+            new GearsetAssignment { GearIndex = 7, SetUid = UidB },
+        ]);
+
+        Assert.Equal(UidA, service.Resolve(Cid, Set(7, "DRK", "FRU DRK", 100)).SetUid);
+        Assert.Equal(UidB, service.Resolve(Cid, Set(3, "DRK", "Palazzo", 200)).SetUid);
+    }
+
+    /// <summary>
+    /// Copy a set, rename the copy, then reorder: two sets hold the same gear under different names. The
+    /// position rung looks at the gear and not at the name, which is what lets it survive a rename, and
+    /// that same blindness had it hand back the neighbour's identity with no doubt attached. The name is
+    /// evidence here and it points somewhere else, so the content ladder has to win.
+    /// </summary>
+    [Fact]
+    public void TheNameWinsWhereItPointsSomewhereElse()
+    {
+        var (service, _, _, _) = Build();
+
+        service.RecordPush(Cid, [Set(3, "DRK", "FRU", 100), Set(7, "DRK", "Ultimate", 100)], [
+            new GearsetAssignment { GearIndex = 3, SetUid = UidA },
+            new GearsetAssignment { GearIndex = 7, SetUid = UidB },
+        ]);
+
+        Assert.Equal(UidB, service.Resolve(Cid, Set(3, "DRK", "Ultimate", 100)).SetUid);
+        Assert.Equal(UidA, service.Resolve(Cid, Set(7, "DRK", "FRU", 100)).SetUid);
+    }
+
+    /// <summary>
+    /// The cross-check reaching the interface. A push whose answer contradicts what was remembered leaves
+    /// those sets unidentified, however well a rung would otherwise have found them: the position rung
+    /// here would answer at once and confidently, and confidently is the problem.
+    /// </summary>
+    [Fact]
+    public void ASetTheTwoAccountsDisagreeAboutIsNotIdentified()
+    {
+        var (service, _, _, _) = Build();
+
+        service.RecordPush(Cid, [Set(0, "GNB", "Revolverklinge", 100), Set(1, "GNB", "Revolverklinge", 200)], [
+            new GearsetAssignment { GearIndex = 0, SetUid = UidA, MatchedBy = MatchedBy.Exact },
+            new GearsetAssignment { GearIndex = 1, SetUid = UidB, MatchedBy = MatchedBy.Exact },
+        ]);
+
+        // Reordered, and the server broke the tie on the value the reorder just changed: it now says the
+        // set at 0 is A, while the gear there is what B was carrying.
+        var swapped = new[] { Set(0, "GNB", "Revolverklinge", 200), Set(1, "GNB", "Revolverklinge", 100) };
+        service.RecordPush(Cid, swapped, [
+            new GearsetAssignment { GearIndex = 0, SetUid = UidA, MatchedBy = MatchedBy.NameAmbiguous },
+            new GearsetAssignment { GearIndex = 1, SetUid = UidB, MatchedBy = MatchedBy.NameAmbiguous },
+        ]);
+
+        Assert.Equal(2, service.ContestedMatches);
+        Assert.True(service.Resolve(Cid, swapped[0]).WasAmbiguous);
+        Assert.True(service.Resolve(Cid, swapped[1]).WasAmbiguous);
+    }
+
+    /// <summary>
+    /// And the mark lasts exactly as long as the evidence. It is recomputed on every push rather than
+    /// carried, so a set the two accounts agree about again is identified again, without anybody having to
+    /// clear anything.
+    /// </summary>
+    [Fact]
+    public void TheDoubtLiftsOnceTheTwoAccountsAgreeAgain()
+    {
+        var (service, _, _, _) = Build();
+        var first = new[] { Set(0, "GNB", "Revolverklinge", 100), Set(1, "GNB", "Revolverklinge", 200) };
+
+        service.RecordPush(Cid, first, [
+            new GearsetAssignment { GearIndex = 0, SetUid = UidA, MatchedBy = MatchedBy.Exact },
+            new GearsetAssignment { GearIndex = 1, SetUid = UidB, MatchedBy = MatchedBy.Exact },
+        ]);
+
+        var swapped = new[] { Set(0, "GNB", "Revolverklinge", 200), Set(1, "GNB", "Revolverklinge", 100) };
+        service.RecordPush(Cid, swapped, [
+            new GearsetAssignment { GearIndex = 0, SetUid = UidA, MatchedBy = MatchedBy.NameAmbiguous },
+            new GearsetAssignment { GearIndex = 1, SetUid = UidB, MatchedBy = MatchedBy.NameAmbiguous },
+        ]);
+
+        Assert.Equal(2, service.ContestedMatches);
+
+        service.RecordPush(Cid, swapped, [
+            new GearsetAssignment { GearIndex = 0, SetUid = UidA, MatchedBy = MatchedBy.Exact },
+            new GearsetAssignment { GearIndex = 1, SetUid = UidB, MatchedBy = MatchedBy.Exact },
+        ]);
+
+        Assert.Equal(0, service.ContestedMatches);
+        Assert.Equal(UidA, service.Resolve(Cid, swapped[0]).SetUid);
+    }
+
+    /// <summary>
+    /// A refresh from <c>GET /gear/sets</c> brings no items, so it keeps whatever a push established. Where
+    /// the name has moved since, the row is rebuilt from the read and the strong key goes with it, because
+    /// the name is part of what that key hashes. The gear key is not, and it must survive: a rename is the
+    /// one case it exists for, and this refresh runs every ten minutes whether anybody asked or not.
+    /// </summary>
+    [Fact]
+    public async Task ARefreshDoesNotForgetTheGearWhenTheNameMoved()
+    {
+        var api = new FakeApiClient();
+        var tokens = new InMemoryTokenStore();
+        tokens.SetApiKey("key");
+        var clock = new TestClock();
+        var service = new GearsetMappingService(api, tokens, new InMemoryGearsetIdentityStore(), clock, new CapturingLog());
+
+        service.RecordPush(Cid, [Set(3, "DRK", "Dunkelritter", 100)], [
+            new GearsetAssignment { GearIndex = 3, SetUid = UidA, MatchedBy = MatchedBy.Exact },
+        ]);
+
+        // A push holds the cache fresh for a while, and the refresh under test only runs once that lapses.
+        clock.Advance(TimeSpan.FromHours(1));
+
+        // Renamed on the website, so the read comes back under a name the cache never saw and the row is
+        // rebuilt from it. The strong key cannot survive that; the gear key has no business dying with it.
+        api.GearSetsResult = ApiResult<GearSetsResponse>.Ok(new GearSetsResponse
+        {
+            Data =
+            [
+                new StoredGearset
+                {
+                    SetUid = UidA, Job = "DRK", Name = "FRU DRK", GearIndex = 3, Source = GearsetSource.Plugin,
+                },
+            ],
+        });
+
+        Assert.True(await service.EnsureMappingAsync(Cid, CancellationToken.None));
+
+        // The game still calls it what it always did, since the rename happened elsewhere. So the cached
+        // name and the live name now disagree, which retires both the name rungs and leaves the gear as
+        // the only thing that can still recognise the set.
+        Assert.Equal(UidA, service.Resolve(Cid, Set(3, "DRK", "Dunkelritter", 100)).SetUid);
+    }
+
+    /// <summary>
+    /// Which attributions are still open used to come from a push and from nothing else, and it is not
+    /// persisted. So every reload started out believing nothing was outstanding, and stayed that way until
+    /// the next push happened to mention it: a set the server is waiting on showed its provisional target
+    /// as though it were settled, and a diagnostics dump read "none open" with a card sitting in the
+    /// review window. The read knows, and now says so.
+    /// </summary>
+    [Fact]
+    public async Task AReadAlsoSaysWhichAttributionsAreStillOpen()
+    {
+        var (service, api, _, _) = Build();
+        api.GearSetsResult = ApiResult<GearSetsResponse>.Ok(new GearSetsResponse
+        {
+            Data =
+            [
+                new StoredGearset { SetUid = UidA, Job = "DRK", Name = "FRU", GearIndex = 0, State = RowState.Active },
+                new StoredGearset { SetUid = UidB, Job = "GNB", Name = "Revolver", GearIndex = 1, State = RowState.Held },
+            ],
+        });
+
+        Assert.True(await service.EnsureMappingAsync(Cid, CancellationToken.None));
+
+        Assert.True(service.IsHeld(UidB));
+        Assert.False(service.IsHeld(UidA));
+    }
+
+    /// <summary>
+    /// And a server that reports no state says nothing about what is open. Reading its silence as "nothing
+    /// is open" would replace a real set of questions with an empty one, which is the same mistake in the
+    /// other direction.
+    /// </summary>
+    [Fact]
+    public async Task AServerThatReportsNoStateDoesNotClearWhatIsOpen()
+    {
+        var (service, api, _, _) = Build();
+        service.RecordPush(Cid, [Set(0, "GNB", "Revolver", 100)], [
+            new GearsetAssignment { GearIndex = 0, SetUid = UidB, MatchedBy = MatchedBy.New, State = PushState.Held },
+        ]);
+
+        Assert.True(service.IsHeld(UidB));
+
+        api.GearSetsResult = ApiResult<GearSetsResponse>.Ok(new GearSetsResponse
+        {
+            Data = [new StoredGearset { SetUid = UidB, Job = "GNB", Name = "Revolver", GearIndex = 0 }],
+        });
+
+        Assert.True(await service.EnsureMappingAsync(Cid, CancellationToken.None));
+        Assert.True(service.IsHeld(UidB));
+    }
+
+    /// <summary>
+    /// Answering one question in the review window used to cost the whole character's gear knowledge. The
+    /// caller wanted the attribution re-read, dropped the cache to force it, and the re-read carries no
+    /// items, so every row came back with its uid, its job and its name and nothing else. Two sets of one
+    /// job are named identically by the game, so every such pair went unresolvable, and stayed that way
+    /// until the next push.
+    /// </summary>
+    [Fact]
+    public async Task ExpiringTheMappingKeepsWhatOnlyAPushCanKnow()
+    {
+        var api = new FakeApiClient();
+        var tokens = new InMemoryTokenStore();
+        tokens.SetApiKey("key");
+        var service = new GearsetMappingService(api, tokens, new InMemoryGearsetIdentityStore(), new TestClock(), new CapturingLog());
+
+        var twins = new[] { Set(0, "GNB", "Revolverklinge", 100), Set(1, "GNB", "Revolverklinge", 200) };
+        service.RecordPush(Cid, twins, [
+            new GearsetAssignment { GearIndex = 0, SetUid = UidA, MatchedBy = MatchedBy.Exact },
+            new GearsetAssignment { GearIndex = 1, SetUid = UidB, MatchedBy = MatchedBy.Exact },
+        ]);
+
+        api.GearSetsResult = ApiResult<GearSetsResponse>.Ok(new GearSetsResponse
+        {
+            Data =
+            [
+                new StoredGearset { SetUid = UidA, Job = "GNB", Name = "Revolverklinge", GearIndex = 0, State = RowState.Active },
+                new StoredGearset { SetUid = UidB, Job = "GNB", Name = "Revolverklinge", GearIndex = 1, State = RowState.Active },
+            ],
+        });
+
+        service.ExpireMapping(Cid);
+        Assert.True(await service.EnsureMappingAsync(Cid, CancellationToken.None));
+
+        Assert.Equal(UidA, service.Resolve(Cid, twins[0]).SetUid);
+        Assert.Equal(UidB, service.Resolve(Cid, twins[1]).SetUid);
+    }
+
+    /// <summary>
+    /// Each rung says which one it was. Not decoration: the report used to print only the rung the server
+    /// had reported months ago, so a set found by its contents and a set found by where it sits looked
+    /// identical, and a test of the position rungs could not be told from one where nothing had changed.
+    /// </summary>
+    [Fact]
+    public void EachRungSaysWhichOneItWas()
+    {
+        var (service, _, _, _) = Build();
+        service.RecordPush(Cid, [Set(3, "DRK", "Dunkelritter", 100), Set(7, "DRK", "Dunkelritter", 200)], [
+            new GearsetAssignment { GearIndex = 3, SetUid = UidA, MatchedBy = MatchedBy.Exact },
+            new GearsetAssignment { GearIndex = 7, SetUid = UidB, MatchedBy = MatchedBy.Exact },
+        ]);
+
+        // Nothing changed: the contents describe it completely.
+        Assert.Equal("job+name+gear", service.Resolve(Cid, Set(3, "DRK", "Dunkelritter", 100)).By);
+
+        // Renamed: the contents no longer match, the place and the gear do.
+        Assert.Equal("place+gear", service.Resolve(Cid, Set(3, "DRK", "FRU", 100)).By);
+
+        // Both sets moved and their name belongs to two rows, so nothing is left to ask.
+        Assert.Equal("ambiguous", service.Resolve(Cid, Set(5, "DRK", "Dunkelritter", 999)).By);
+
+        var (lone, _, _, _) = Build();
+        lone.RecordPush(Cid, [Set(3, "DRK", "FRU", 100)], [
+            new GearsetAssignment { GearIndex = 3, SetUid = UidA, MatchedBy = MatchedBy.Exact },
+        ]);
+
+        // Re-geared under a name nothing else carries.
+        Assert.Equal("place+name", lone.Resolve(Cid, Set(3, "DRK", "FRU", 999)).By);
+
+        // Re-geared and moved, so only the name is left.
+        Assert.Equal("job+name", lone.Resolve(Cid, Set(8, "DRK", "FRU", 999)).By);
+
+        Assert.Equal("none", lone.Resolve(Cid, Set(8, "DRK", "Nothing", 999)).By);
+    }
+
+    /// <summary>
+    /// The ordinary refresh, ten minutes after a push, with nothing changed in between. It must keep what
+    /// the push established: a read carries no items, so anything it writes over is gone until the next
+    /// push, and the position rung then drops from the gear to the name and stops separating two sets of
+    /// one job.
+    /// </summary>
+    [Fact]
+    public async Task AnOrdinaryRefreshKeepsTheStrongKey()
+    {
+        var api = new FakeApiClient();
+        var tokens = new InMemoryTokenStore();
+        tokens.SetApiKey("key");
+        var clock = new TestClock();
+        var store = new InMemoryGearsetIdentityStore();
+        var service = new GearsetMappingService(api, tokens, store, clock, new CapturingLog());
+
+        var set = Set(3, "DRK", "Dunkelritter", 100);
+        service.RecordPush(Cid, [set], [
+            new GearsetAssignment { GearIndex = 3, SetUid = UidA, MatchedBy = MatchedBy.Exact },
+        ]);
+
+        Assert.NotNull(store.Identities[Cid][0].ItemsKey);
+        Assert.NotNull(store.Identities[Cid][0].GearKey);
+
+        api.GearSetsResult = ApiResult<GearSetsResponse>.Ok(new GearSetsResponse
+        {
+            Data =
+            [
+                new StoredGearset
+                {
+                    SetUid = UidA, Job = "DRK", Name = "Dunkelritter", GearIndex = 3, State = RowState.Active,
+                },
+            ],
+        });
+
+        clock.Advance(TimeSpan.FromHours(1));
+        Assert.True(await service.EnsureMappingAsync(Cid, CancellationToken.None));
+
+        Assert.NotNull(store.Identities[Cid][0].ItemsKey);
+        Assert.NotNull(store.Identities[Cid][0].GearKey);
+        Assert.Equal("job+name+gear", service.Resolve(Cid, set).By);
     }
 
     [Fact]

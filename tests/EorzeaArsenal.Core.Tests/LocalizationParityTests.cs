@@ -145,4 +145,31 @@ public sealed class LocalizationParityTests
 
         Assert.True(undeclared.Count == 0, $"{language} carries undeclared key(s): {string.Join(", ", undeclared)}");
     }
+
+    /// <summary>
+    /// The host speaks more languages than this plugin ships, so following it has to land somewhere. It
+    /// lands on English, because a window full of raw keys is worse than one in a language most people
+    /// reading this can manage.
+    /// </summary>
+    [Theory]
+    [InlineData("de", Localizer.German)]
+    [InlineData("en", Localizer.English)]
+    [InlineData("fr", Localizer.English)]
+    [InlineData("ja", Localizer.English)]
+    [InlineData("", Localizer.English)]
+    [InlineData(null, Localizer.English)]
+    public void FollowingTheHostLandsOnAShippedCatalogue(string? hostCode, string expected) =>
+        Assert.Equal(expected, Localizer.Nearest(hostCode));
+
+    /// <summary>
+    /// And the sentinel is not a language. It must never reach the localizer, which would quietly read it
+    /// as English and leave "follow the host" looking like a working choice that does nothing.
+    /// </summary>
+    [Fact]
+    public void FollowTheHostIsNotItselfACatalogue()
+    {
+        Assert.False(Localizer.Supports(Localizer.FollowHost));
+        Assert.True(Localizer.Supports(Localizer.English));
+        Assert.True(Localizer.Supports(Localizer.German));
+    }
 }

@@ -67,8 +67,8 @@ public sealed class BisService
     // the interface: a caller knows the position it is drawing, and everything downstream needs the
     // identity. Rebuilt on every fetch, empty when no identity could be resolved — in which case the
     // position fallback below applies, and only then.
-    private volatile Dictionary<int, string> _uidByLiveIndex = new();
-    private volatile Dictionary<string, int> _liveIndexByUid = new(StringComparer.Ordinal);
+    private volatile IReadOnlyDictionary<int, string> _uidByLiveIndex = new Dictionary<int, string>();
+    private volatile IReadOnlyDictionary<string, int> _liveIndexByUid = new Dictionary<string, int>(StringComparer.Ordinal);
 
     /// <summary>Creates the service.</summary>
     /// <param name="api">API client.</param>
@@ -114,6 +114,61 @@ public sealed class BisService
     /// <param name="maxAge">The maximum acceptable age.</param>
     /// <returns><see langword="true"/> if a refresh is due.</returns>
     public bool IsStale(TimeSpan maxAge) => DateTimeOffset.UtcNow - _fetchedUtc > maxAge;
+
+    /// <summary>
+    /// The position table as it stands: which identity sits at which live position.
+    /// </summary>
+    /// <remarks>
+    /// For diagnostics, and it earned the accessor. Two gearsets sharing a job and a name resolved to one
+    /// identity, so this table held one of them and the other fell through to its stored index; both then
+    /// displayed the same number, in two windows, and nothing on screen could show why. A table nobody can
+    /// read is a table nobody can correct.
+    /// </remarks>
+    public IReadOnlyDictionary<string, int> LivePositions => _liveIndexByUid;
+
+    /// <summary>When the targets were last fetched, or the minimum value if never.</summary>
+    public DateTimeOffset FetchedUtc => _fetchedUtc;
+
+    /// <summary>
+    /// The live positions this side declined to identify because another gearset is indistinguishable
+    /// from that one. Measured here rather than taken from a push answer: the server tells them apart by
+    /// its own record and reports no doubt, so this is the only place the local blindness is visible.
+    /// </summary>
+    /// <remarks>
+    /// Positions and not just a count, because the interface needs both. The status window says how many;
+    /// the BiS window has to know <b>which</b>, since such a set falls into the "no target pinned" list
+    /// for want of a match and would otherwise be told to pin a target it already has.
+    /// </remarks>
+    public IReadOnlySet<int> AmbiguousLive { get; private set; } = new HashSet<int>();
+
+    /// <summary>
+    /// Forgets which live position holds which gearset, because the list in game just changed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see cref="_uidByLiveIndex"/> is a photograph of the order at the moment the targets were fetched,
+    /// and it was only ever rebuilt when a window opened. Reorder three sets and push, and the map still
+    /// says position 8 belongs to the gearset that used to sit there: the tooltip asked for position 8 and
+    /// was handed a neighbour's target, with nothing anywhere to suggest a doubt. Opening the gear window
+    /// refreshed it and the same tooltip became right, which is what made it look like a display quirk
+    /// rather than a stale key.
+    /// </para>
+    /// <para>
+    /// Clearing is the safe half and it comes first: with no map, a position resolves to no identity, and
+    /// a target that carries a uid is never reached through the position fallback. So between this call
+    /// and the fetch that follows it, the tooltip says nothing instead of something wrong. That is the
+    /// same rule as everywhere else here, and it is the one worth keeping when a refresh fails.
+    /// </para>
+    /// </remarks>
+    public void Invalidate()
+    {
+        _uidByLiveIndex = new Dictionary<int, string>();
+        _liveIndexByUid = new Dictionary<string, int>(StringComparer.Ordinal);
+        _comparisons = [];
+        _withoutTarget = [];
+        _fetchedUtc = DateTimeOffset.MinValue;
+        AmbiguousLive = new HashSet<int>();
+    }
 
     /// <summary>Fetches the BiS targets for the current character and updates the cache.</summary>
     /// <param name="ct">Cancellation token.</param>
@@ -161,22 +216,11 @@ public sealed class BisService
             }
 
             var cidHash = clean.Character.CidHash;
-            var uidByIndex = new Dictionary<int, string>();
-            var indexByUid = new Dictionary<string, int>(StringComparer.Ordinal);
-            foreach (var set in clean.Gearsets)
-            {
-                var match = _mapping.Resolve(cidHash, set);
-                if (!match.IsResolved)
-                {
-                    continue;
-                }
+            var positions = LivePositionMap.Build(clean.Gearsets, set => _mapping.Resolve(cidHash, set));
 
-                uidByIndex[set.GearIndex] = match.SetUid!;
-                indexByUid[match.SetUid!] = set.GearIndex;
-            }
-
-            _uidByLiveIndex = uidByIndex;
-            _liveIndexByUid = indexByUid;
+            _uidByLiveIndex = positions.UidByIndex;
+            _liveIndexByUid = positions.IndexByUid;
+            AmbiguousLive = positions.Undecided;
 
             var targets = result.Value!.Data;
             _targets = targets.ToArray();
@@ -215,6 +259,7 @@ public sealed class BisService
             ? live
             : comparison.GearIndex;
     }
+
 
     /// <summary>
     /// Whether this comparison rests on an attribution the server is still waiting to have confirmed.
@@ -349,8 +394,27 @@ public sealed class BisService
     }
 
     /// <summary>The identity of a live gearset, for the comparer's key.</summary>
+    /// <summary>
+    /// The identity to compare this live gearset under, or <see langword="null"/> where there is none to
+    /// be had.
+    /// </summary>
+    /// <param name="cidHash">The character.</param>
+    /// <param name="set">The live gearset.</param>
+    /// <returns>The identity, or <see langword="null"/>.</returns>
+    /// <remarks>
+    /// A withdrawn position counts as no identity. The mapping answers one gearset at a time and cannot
+    /// see that another one just gave the same answer; the position table can, and does, and this used to
+    /// ask past it straight back to the mapping. So the table would drop all the claims on a doubled
+    /// identity while the comparison built from the same identity kept one of them, and a BiS target was
+    /// drawn against one gearset and labelled with another one's number.
+    /// </remarks>
     private string? Identify(string cidHash, GearsetDto set)
     {
+        if (AmbiguousLive.Contains(set.GearIndex))
+        {
+            return null;
+        }
+
         var match = _mapping.Resolve(cidHash, set);
         return match.IsResolved ? match.SetUid : null;
     }

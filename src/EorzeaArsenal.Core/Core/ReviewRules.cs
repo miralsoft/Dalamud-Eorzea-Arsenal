@@ -14,11 +14,70 @@ public enum OrphanOrigin
     /// <summary>Made in the web editor. It never existed in game, and that is a fact, not an inference.</summary>
     MadeOnSite,
 
+    /// <summary>
+    /// It came from the game and was handed to the website. Told apart from a hand-made row by
+    /// <see cref="OrphanRow.ReleasedAt"/> and by nothing else: both are <c>manual</c>, and until the mark
+    /// existed the two were one case, which cost a row the only button that could bring it back.
+    /// </summary>
+    Released,
+
     /// <summary>A push reported it, and the server says when. The date is what turns a mystery into a memory.</summary>
     LastReported,
 
     /// <summary>It came from a push and no date is known. Say that, rather than inventing one end of it.</summary>
     Unknown,
+}
+
+/// <summary>
+/// One thing a verb does to a row that cannot be taken back, named rather than phrased. The window turns
+/// each into a sentence; keeping the two apart is what lets the rule be tested.
+/// </summary>
+public enum ReviewConsequence
+{
+    /// <summary>
+    /// The delete is carried out as a release, because deleting would remove the set for other people on
+    /// one person's decision. The row survives, and the window has to say so before the word "delete"
+    /// promises otherwise.
+    /// </summary>
+    DeleteBecomesRelease,
+
+    /// <summary>The teams following this row go on seeing it, frozen as it is now.</summary>
+    TeamKeepsSeeingIt,
+
+    /// <summary>The row survives, so the target pinned to it survives with it.</summary>
+    KeepsItsPin,
+
+    /// <summary>The row goes, and the target pinned to it goes with it.</summary>
+    LosesItsPin,
+
+    /// <summary>
+    /// The set still exists in game, so a later sync writes a new row for it. What does not come back is
+    /// the pinned target, because that hung on the row rather than on the set.
+    /// </summary>
+    ComesBackWithoutItsPin,
+
+    /// <summary>
+    /// What a delete actually does: the stored row goes, and the gearset in game is not touched.
+    /// </summary>
+    /// <remarks>
+    /// Obvious to whoever wrote it and not to whoever reads it. On a row with no pin and no share this
+    /// used to leave the confirmation with a single line, about a BiS target the row did not have, and
+    /// nothing at all about the row being removed. Under a button labelled "delete", "does this take my
+    /// gearset with it" is the question somebody actually has.
+    /// </remarks>
+    RowIsRemoved,
+
+    /// <summary>
+    /// What a release does: the row stays and stops being the plugin's. Nothing in game is touched, and
+    /// nothing in game reaches it any more.
+    /// </summary>
+    /// <remarks>
+    /// The counterpart of <see cref="RowIsRemoved"/> and missing for the same reason. On a row with a team
+    /// the confirmation said only what the team would keep seeing; on a row with neither team nor pin it
+    /// said nothing at all and fell back to repeating the button label. Both left out the one thing the
+    /// press actually does.
+    /// </remarks>
+    LeavesPluginGovernance,
 }
 
 /// <summary>
@@ -71,13 +130,27 @@ public static class ReviewRules
             }
         }
     }
-    /// <summary>
-    /// What the data says about where a row came from.
-    /// </summary>
+    /// <summary>The same question about a candidate, which carries the same two marks.</summary>
+    /// <param name="candidate">The row being offered as an answer.</param>
+    /// <returns>The origin, never inferred beyond what the fields carry.</returns>
+    /// <remarks>
+    /// Worth saying on a candidate for a different reason than on an orphan. There it explains why a row is
+    /// in the list; here it is evidence: a row a push reported an hour ago and one nobody has seen since
+    /// spring are not equally likely to be the set that just arrived, and the date is the only thing on the
+    /// card that says which is which.
+    /// </remarks>
+    public static OrphanOrigin OriginOf(ReviewCandidate candidate) =>
+        candidate.ReleasedAt is { Length: > 0 } ? OrphanOrigin.Released
+        : !string.Equals(candidate.Source, GearsetSource.Plugin, StringComparison.Ordinal) ? OrphanOrigin.MadeOnSite
+        : candidate.LastSeenAt is { Length: > 0 } ? OrphanOrigin.LastReported
+        : OrphanOrigin.Unknown;
+
+    /// <summary>What the data says about where an inventory row came from.</summary>
     /// <param name="row">The inventory row.</param>
     /// <returns>The origin, never inferred beyond what the fields carry.</returns>
     public static OrphanOrigin OriginOf(OrphanRow row) =>
-        !row.IsFromPlugin ? OrphanOrigin.MadeOnSite
+        row.WasReleased ? OrphanOrigin.Released
+        : !row.IsFromPlugin ? OrphanOrigin.MadeOnSite
         : row.LastSeenAt is { Length: > 0 } ? OrphanOrigin.LastReported
         : OrphanOrigin.Unknown;
     /// <summary>
@@ -103,6 +176,22 @@ public static class ReviewRules
             // Hand-made. It only appears in this list at all once somebody put it aside, so the way back
             // is the only thing left to offer.
             return row.IsPutAside ? [ReviewAction.Reopen] : [ReviewAction.Ignore];
+        }
+
+        // A row a team follows offers no delete either, for the same reason a hand-made one does not: the
+        // server will not carry it out. It converts rather than refusing, so the press would work and do
+        // something else, which is worse than a refusal, and the button that does that something else is
+        // already on the card with the right word on it. Two buttons doing one thing, one of them lying
+        // about it, is not a choice.
+        //
+        // Not a refusal by the back door: the contract rejected refusing because it left the player
+        // un-sharing on the website first to get anywhere. Nothing here blocks anybody, the path is one
+        // button to the left, and the card says why this one is missing.
+        if (row.HasTeamShare)
+        {
+            return row.IsPutAside
+                ? [ReviewAction.Reopen, ReviewAction.Release]
+                : [ReviewAction.Ignore, ReviewAction.Release];
         }
 
         return row.IsPutAside
@@ -155,20 +244,173 @@ public static class ReviewRules
         !string.Equals(candidate.Source, GearsetSource.Plugin, StringComparison.Ordinal);
 
     /// <summary>
-    /// Whether a verb takes something away that this endpoint cannot give back, so a window has to ask
-    /// twice.
+    /// The inventory rows a window should offer, which is the open orphans minus the ones an unanswered
+    /// question is already about.
+    /// </summary>
+    /// <param name="state">The reconciliation state as last read.</param>
+    /// <returns>The rows to draw as cards, in the order the server sent them.</returns>
+    /// <remarks>
+    /// <para>
+    /// A parked row is genuinely both things at once: an unclaimed compatible row, so a candidate, and a
+    /// row no gearset occupies, so an orphan. The server is right to list it twice and the window was wrong
+    /// to draw it twice: the same set appeared under the question with a full comparison and again below
+    /// with another, and nothing said they were one row.
+    /// </para>
+    /// <para>
+    /// The reason this is a rule and not a tidy-up: the inventory card offers <b>delete</b>. Delete the row
+    /// there and then answer the question above with "that is the one", and the answer names a target that
+    /// no longer exists. The window would have walked somebody into destroying the row it was about to
+    /// reunite with its set, and on the observed case that row carried a pinned target.
+    /// </para>
+    /// <para>
+    /// Hidden only while the question is open. Answer it and the row either becomes the set again through a
+    /// <c>link</c>, or stays behind after a <c>new</c> and appears here on the next read, where it belongs.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<OrphanRow> InventoryToOffer(ReviewState state)
+    {
+        var asked = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var held in state.Held)
+        {
+            foreach (var candidate in held.Candidates)
+            {
+                if (candidate.SetUid is { Length: > 0 } uid)
+                {
+                    asked.Add(uid);
+                }
+            }
+        }
+
+        return [.. state.OpenOrphans.Where(o => o.SetUid is not { Length: > 0 } uid || !asked.Contains(uid))];
+    }
+
+    /// <summary>
+    /// What a verb about to be applied actually costs this row, as facts rather than as sentences, so the
+    /// rule can be read and tested apart from the words that carry it.
+    /// </summary>
+    /// <param name="verb">The verb about to be applied.</param>
+    /// <param name="row">The row.</param>
+    /// <returns>The consequences, in the order they matter. Empty where the verb takes nothing away.</returns>
+    /// <remarks>
+    /// <para>
+    /// This exists because the sentence in front of the one irreversible click was wrong. A delete
+    /// confirmation said "keeps its pinned BiS set", which is true of a candidate somebody answers away
+    /// with <c>new</c> and is the exact opposite of what a delete does. The reassuring half of a rule got
+    /// reused where only the costly half applied, and the wrong half of it was the last thing anybody read
+    /// before the row was gone.
+    /// </para>
+    /// <para>
+    /// The distinction the old code missed: <b>a delete on a row with an active team share is performed as
+    /// a release.</b> The row survives, so its pin survives with it, and there "keeps its pin" is right
+    /// after all. Only a delete that really deletes takes the pin, which is why the two cases cannot share
+    /// one sentence.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<ReviewConsequence> ConsequencesOf(string? verb, OrphanRow row)
+    {
+        var consequences = new List<ReviewConsequence>();
+        if (!NeedsConfirming(verb))
+        {
+            return consequences;
+        }
+
+        var deleting = string.Equals(verb, ReviewAction.Delete, StringComparison.Ordinal);
+        var releasing = string.Equals(verb, ReviewAction.Release, StringComparison.Ordinal);
+        var shared = row.HasTeamShare && row.TeamNames.Count > 0;
+
+        // The order is the order somebody reads a confirmation in: what am I agreeing to, then what falls
+        // out of it. It used to open with the team line, on the argument that the part reaching somebody
+        // outside the room comes first. That argument belongs to a delete, where the word on the button is
+        // wrong and has to be corrected before anything else; everywhere else it put the result above the
+        // deed and left the reader to work backwards to what they had actually pressed.
+
+        // First, and only here: the button says delete and the server will not delete. Nothing else in
+        // the list means anything until that is out of the way.
+        if (deleting && shared)
+        {
+            consequences.Add(ReviewConsequence.DeleteBecomesRelease);
+        }
+
+        // Then the deed itself, in one of its two forms. Whichever applies, it is the sentence the reader
+        // came for, and it was missing from both: with no pin and no share a delete confirmation said
+        // nothing about the row going away, and a release said nothing at all and fell back to repeating
+        // the button label.
+        if (deleting && !shared)
+        {
+            consequences.Add(ReviewConsequence.RowIsRemoved);
+        }
+        else if (releasing || deleting)
+        {
+            consequences.Add(ReviewConsequence.LeavesPluginGovernance);
+        }
+
+        // Then what it costs, starting with the part that reaches other people.
+        if (shared)
+        {
+            consequences.Add(ReviewConsequence.TeamKeepsSeeingIt);
+        }
+
+        if (row.HasPin)
+        {
+            // Survives wherever the row survives, and only there.
+            consequences.Add(deleting && !shared
+                ? ReviewConsequence.LosesItsPin
+                : ReviewConsequence.KeepsItsPin);
+        }
+
+        // Only where it is true: a row that was put aside was not being reported anyway, a hand-made one
+        // cannot come back at all, and without a pin there is nothing for it to come back without. That
+        // last condition was missing, so a row with no pin was warned about losing one.
+        if (deleting && !shared && row.IsFromPlugin && !row.IsPutAside && row.HasPin)
+        {
+            consequences.Add(ReviewConsequence.ComesBackWithoutItsPin);
+        }
+
+        return consequences;
+    }
+
+    /// <summary>
+    /// Whether a verb changes enough that a window should ask twice before applying it.
     /// </summary>
     /// <param name="action">The verb.</param>
-    /// <returns><see langword="true"/> for a delete or a release.</returns>
+    /// <returns><see langword="true"/> for a delete, a release or a link.</returns>
     /// <remarks>
-    /// A delete removes the row and what hangs on it. A release hands the row to the web editor and freezes
-    /// it for everybody who was following it. Neither has a way back through the deciding endpoint, and the
-    /// contract asks for the warning to come <i>before</i> the click rather than as a label beside it.
-    /// A link is irreversible too, but only onto a hand-made row, where <see cref="IsAdoption"/> says so.
+    /// Wider than <see cref="IsIrreversible"/> on purpose. A release can be taken back, and it still moves
+    /// a row out of the plugin's hands and freezes it for everybody following it; a link overwrites the
+    /// target's contents whatever kind of row it is. Both are worth a sentence and a second click. What
+    /// separates them is only what the sentence above may claim.
+    /// </remarks>
+    public static bool NeedsConfirming(string? action) =>
+        string.Equals(action, ReviewAction.Delete, StringComparison.Ordinal) ||
+        string.Equals(action, ReviewAction.Release, StringComparison.Ordinal) ||
+        string.Equals(action, ReviewAction.Link, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Whether a verb genuinely cannot be taken back, anywhere, so a dialog may say so.
+    /// </summary>
+    /// <param name="action">The verb.</param>
+    /// <returns><see langword="true"/> for a delete, and for nothing else.</returns>
+    /// <remarks>
+    /// <para>
+    /// One verb. A delete removes the row and everything hanging on it: the pinned target goes with it,
+    /// and nothing anywhere brings the row back.
+    /// </para>
+    /// <para>
+    /// <b>A release left this list</b> the day <c>released_at</c> arrived, because <c>reopen</c> on a
+    /// released row puts it back to a plugin row, parked, with the mark cleared.
+    /// </para>
+    /// <para>
+    /// <b>A link left it later, and for a different kind of reason.</b> A link is one-way as a verb: there
+    /// is no un-link, the newcomer's row is gone and the target now carries the gear from the game. But the
+    /// target itself survives with its uid, its pin and its shares, and what it used to hold is a set the
+    /// person can build again in the web editor. "This cannot be undone" over that is a warning spending
+    /// credit it did not earn, and every sentence like it teaches the reader to skim the next one. The verb
+    /// still asks twice: see <see cref="NeedsConfirming"/>, which is the wider list and the right place for
+    /// "look at this before you press it".
+    /// </para>
     /// </remarks>
     public static bool IsIrreversible(string? action) =>
-        string.Equals(action, ReviewAction.Delete, StringComparison.Ordinal) ||
-        string.Equals(action, ReviewAction.Release, StringComparison.Ordinal);
+        string.Equals(action, ReviewAction.Delete, StringComparison.Ordinal);
 
     /// <summary>
     /// Whether answering this question away leaves something behind that is worth a sentence: a pin, or
@@ -215,6 +457,17 @@ public static class ReviewRules
             }
 
             if (struckOut is not null && struckOut.Contains(uid))
+            {
+                continue;
+            }
+
+            // The safety rule is applied here and not by whoever draws the list. It used to live in the
+            // window, which computed the excluded set for the display and then handed the request builder
+            // only the player's own strikes: the panel greyed a pairing out, said in words that it would
+            // not be applied, listed two pairs in the confirmation, and sent three. A rule that decides
+            // what is sent has to sit where the request is composed, or the screen and the wire are two
+            // opinions that agree only by accident.
+            if (!QuestionAdvisor.SafeForBulk(held))
             {
                 continue;
             }

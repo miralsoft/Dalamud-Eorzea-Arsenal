@@ -57,6 +57,36 @@ public sealed class ReviewRulesTests
         Assert.DoesNotContain(ReviewAction.New, verbs);
     }
 
+    /// <summary>
+    /// Nor on a row a team follows, and for a reason one step removed from the hand-made case. There the
+    /// server refuses outright; here it converts, carrying the delete out as a release so that one person
+    /// cannot remove a set other people depend on. A press would therefore work and do something else,
+    /// which is worse than a refusal, and the button that does that something else is already on the card
+    /// with the right word on it. Two buttons doing one thing, one of them lying about it, is not a choice.
+    /// This is not the refusal the contract rejected: nothing is blocked, the path is one button to the
+    /// left, and the card says why this one is missing.
+    /// </summary>
+    [Fact]
+    public void DeleteIsNotOfferedOnARowATeamFollows()
+    {
+        var shared = Orphan(GearsetSource.Plugin, RowState.Parked, share: true);
+
+        var verbs = ReviewRules.OfferedVerbs(shared);
+
+        Assert.DoesNotContain(ReviewAction.Delete, verbs);
+        Assert.Contains(ReviewAction.Release, verbs);
+        Assert.Contains(ReviewAction.Ignore, verbs);
+    }
+
+    /// <summary>And it comes back the moment the share does not: the rule is about the row, not the job.</summary>
+    [Fact]
+    public void DeleteReturnsOnceNoTeamFollowsTheRow()
+    {
+        var verbs = ReviewRules.OfferedVerbs(Orphan(GearsetSource.Plugin, RowState.Parked));
+
+        Assert.Contains(ReviewAction.Delete, verbs);
+    }
+
     /// <summary>Delete is never offered on a hand-made row, whatever state it is in.</summary>
     [Fact]
     public void DeleteIsNeverOfferedOnAHandMadeRow()
@@ -115,28 +145,73 @@ public sealed class ReviewRulesTests
     }
 
     /// <summary>
-    /// A delete removes the row and what hangs on it; a release freezes it for everybody who was following
-    /// it. Neither has a way back through this endpoint, so the warning has to come before the click.
+    /// A delete removes the row and what hangs on it; a release hands it out of the plugin and freezes it
+    /// for everybody following it; a link overwrites the target's contents. All three change enough that
+    /// the sentence belongs before the click rather than beside it.
     /// </summary>
     [Theory]
     [InlineData(ReviewAction.Delete, true)]
     [InlineData(ReviewAction.Release, true)]
+    [InlineData(ReviewAction.Link, true)]
     [InlineData(ReviewAction.Ignore, false)]
     [InlineData(ReviewAction.Reopen, false)]
     [InlineData(ReviewAction.New, false)]
+    public void EveryVerbThatChangesSomethingIsAskedTwice(string action, bool expected) =>
+        Assert.Equal(expected, ReviewRules.NeedsConfirming(action));
+
+    /// <summary>
+    /// Narrower than <see cref="ReviewRules.NeedsConfirming"/>, and the difference is the whole point:
+    /// exactly one verb may be called irreversible.
+    /// <b>A release left this list</b> the day <c>released_at</c> arrived, because <c>reopen</c> puts a
+    /// released row back to a parked plugin row.
+    /// <b>A link left it later</b>, and for a different kind of reason: the verb really is one-way, but the
+    /// target survives with its uid, its pin and its shares, and what it used to hold can be built again in
+    /// the web editor. A dialog that says "this cannot be undone" over that spends credit it did not earn,
+    /// and every sentence like it teaches the reader to skim the next one.
+    /// </summary>
+    [Theory]
+    [InlineData(ReviewAction.Delete, true)]
     [InlineData(ReviewAction.Link, false)]
-    public void OnlyTheVerbsWithNoWayBackAreAskedTwice(string action, bool expected) =>
+    [InlineData(ReviewAction.Release, false)]
+    [InlineData(ReviewAction.Ignore, false)]
+    [InlineData(ReviewAction.Reopen, false)]
+    [InlineData(ReviewAction.New, false)]
+    public void OnlyWhatCannotBeTakenBackAnywhereMaySaySo(string action, bool expected) =>
         Assert.Equal(expected, ReviewRules.IsIrreversible(action));
 
     /// <summary>
-    /// A link is the exception that proves the rule: reversible onto a plugin row, a one-way door onto a
-    /// hand-made one, so the verb alone cannot answer it and the candidate has to.
+    /// Losing the strong heading must not lose the second click. A link is still a verb somebody should
+    /// look at before pressing, and that is what <see cref="ReviewRules.NeedsConfirming"/> is for: the two
+    /// predicates were split precisely so "ask again" and "say it is for ever" could stop being the same
+    /// question. The price of a link is still named by the candidate, and onto a hand-made row it is the
+    /// set somebody built there.
     /// </summary>
     [Fact]
-    public void ALinkNeedsTheCandidateToKnowWhetherItIsAOneWayDoor()
+    public void ALinkStillAsksTwiceWithoutClaimingItIsForEver()
     {
+        Assert.True(ReviewRules.NeedsConfirming(ReviewAction.Link));
         Assert.False(ReviewRules.IsIrreversible(ReviewAction.Link));
         Assert.True(ReviewRules.IsAdoption(new ReviewCandidate { Source = GearsetSource.Manual }));
+    }
+
+    /// <summary>
+    /// And the one that keeps the pair honest in the other direction: every verb that may say "for ever"
+    /// must also be one that asks twice. A verb that claimed the strong sentence without a second click
+    /// would put the worst outcome behind the fewest presses.
+    /// </summary>
+    [Theory]
+    [InlineData(ReviewAction.Delete)]
+    [InlineData(ReviewAction.Release)]
+    [InlineData(ReviewAction.Link)]
+    [InlineData(ReviewAction.Ignore)]
+    [InlineData(ReviewAction.Reopen)]
+    [InlineData(ReviewAction.New)]
+    public void NothingIsCalledForEverWithoutBeingAskedTwice(string action)
+    {
+        if (ReviewRules.IsIrreversible(action))
+        {
+            Assert.True(ReviewRules.NeedsConfirming(action));
+        }
     }
 
     [Fact]
@@ -179,6 +254,61 @@ public sealed class ReviewRulesTests
 
         var only = Assert.Single(pairs);
         Assert.Equal("b", only.SetUid);
+    }
+
+    /// <summary>
+    /// The bug this guard was moved into the rule for. A question with several candidates and no vouching
+    /// is one the shortcut may not answer, and the window knew that: it greyed the pairing out, wrote in
+    /// words that the decision belongs on the card, offered no way to pull it in, and put "2 of 2" on the
+    /// button. Then it composed the request from the player's strikes alone, and the server applied three
+    /// pairs. The screen and the wire were two computations that agreed only by accident, so the rule now
+    /// lives where the request is built and the drawing side reads it back rather than repeating it.
+    /// </summary>
+    [Fact]
+    public void AQuestionTheShortcutMayNotAnswerIsNotInTheMappingEvenUnstruck()
+    {
+        var contested = new HeldGearset
+        {
+            SetUid = "contested",
+            Job = "DRG",
+            Proposal = new ReviewProposal { Action = ReviewAction.Link, TargetUid = "b-side", Confident = false },
+            Candidates =
+            [
+                new ReviewCandidate { SetUid = "b-side", Probability = 18, Proposed = true },
+                new ReviewCandidate { SetUid = "a-side", Probability = 9 },
+            ],
+        };
+
+        var state = StateWith(Held("plain", ReviewAction.Link, "target-a"), contested);
+
+        Assert.False(QuestionAdvisor.SafeForBulk(contested));
+
+        var pairs = ReviewRules.MappingToAccept(state);
+
+        var only = Assert.Single(pairs);
+        Assert.Equal("plain", only.SetUid);
+    }
+
+    /// <summary>
+    /// And the other half of the same rule: a lone candidate rides along whatever its score, because
+    /// nothing is being decided there. Without this the website-first case, where every score is low, would
+    /// meet the wall of one-by-one clicks the shortcut exists to spare it.
+    /// </summary>
+    [Fact]
+    public void ALoneCandidateStaysInTheMappingHoweverLowItScores()
+    {
+        var lonely = new HeldGearset
+        {
+            SetUid = "lonely",
+            Job = "BRD",
+            Proposal = new ReviewProposal { Action = ReviewAction.Link, TargetUid = "only-row", Confident = false },
+            Candidates = [new ReviewCandidate { SetUid = "only-row", Probability = 9, Proposed = true }],
+        };
+
+        var pairs = ReviewRules.MappingToAccept(StateWith(lonely));
+
+        var only = Assert.Single(pairs);
+        Assert.Equal("only-row", only.TargetUid);
     }
 
     [Fact]
@@ -274,13 +404,223 @@ public sealed class ReviewRulesTests
         Job = "DRK",
         Proposal = action is null ? null : new ReviewProposal { Action = action, TargetUid = target },
     };
-    private static OrphanRow Orphan(string source, string? state) => new()
+
+    /// <summary>
+    /// The bug this whole rule was extracted for. The delete confirmation said "keeps its pinned BiS set",
+    /// which belongs to a candidate answered away with <c>new</c> and is the exact opposite of what a
+    /// delete does. It was the last sentence anybody read before the row was gone.
+    /// </summary>
+    [Fact]
+    public void DeletingAPinnedRowSaysThePinIsLost()
+    {
+        var row = Orphan(GearsetSource.Plugin, RowState.Parked, pin: true);
+
+        var costs = ReviewRules.ConsequencesOf(ReviewAction.Delete, row);
+
+        Assert.Contains(ReviewConsequence.LosesItsPin, costs);
+        Assert.DoesNotContain(ReviewConsequence.KeepsItsPin, costs);
+    }
+
+    /// <summary>
+    /// The plainest of these and the one that was missing. On a row with no pin and no share the
+    /// confirmation had exactly one line in it, about a pinned target the row did not have, and nothing at
+    /// all about the row being removed. Under a button labelled "delete", whether the gearset in game goes
+    /// with it is the question somebody actually has, and the dialog answered a different one.
+    /// </summary>
+    [Fact]
+    public void DeletingAlwaysSaysTheRowGoesAndTheGearsetDoesNot()
+    {
+        var bare = Orphan(GearsetSource.Plugin, RowState.Parked);
+
+        var costs = ReviewRules.ConsequencesOf(ReviewAction.Delete, bare);
+
+        Assert.Contains(ReviewConsequence.RowIsRemoved, costs);
+
+        // And nothing is said about losing a pin that is not there.
+        Assert.DoesNotContain(ReviewConsequence.ComesBackWithoutItsPin, costs);
+        Assert.DoesNotContain(ReviewConsequence.LosesItsPin, costs);
+    }
+
+    /// <summary>
+    /// The other half: a delete on a shared row is performed as a release, so nothing is removed and this
+    /// sentence must not appear. Saying "the stored row is removed" over an action that keeps it would be
+    /// the same class of mistake in the opposite direction.
+    /// </summary>
+    [Fact]
+    public void ASharedRowIsNotDescribedAsRemoved()
+    {
+        var shared = Orphan(GearsetSource.Plugin, RowState.Parked, share: true);
+
+        var costs = ReviewRules.ConsequencesOf(ReviewAction.Delete, shared);
+
+        Assert.DoesNotContain(ReviewConsequence.RowIsRemoved, costs);
+        Assert.Contains(ReviewConsequence.DeleteBecomesRelease, costs);
+        Assert.Contains(ReviewConsequence.LeavesPluginGovernance, costs);
+    }
+
+    /// <summary>
+    /// A confirmation reads in the order somebody agrees to something: what am I doing, then what falls
+    /// out of it. The list used to open with the team line, so the result stood above the deed and the
+    /// reader had to work backwards to what they had pressed. The one exception is a delete a share turns
+    /// into a release, where the word on the button is wrong and nothing else means anything until that
+    /// is said.
+    /// </summary>
+    [Fact]
+    public void TheDeedComesBeforeWhatItCosts()
+    {
+        var shared = Orphan(GearsetSource.Plugin, RowState.Parked, pin: true, share: true);
+
+        var onRelease = ReviewRules.ConsequencesOf(ReviewAction.Release, shared);
+        Assert.Equal(ReviewConsequence.LeavesPluginGovernance, onRelease[0]);
+        Assert.Equal(ReviewConsequence.TeamKeepsSeeingIt, onRelease[1]);
+
+        var onDelete = ReviewRules.ConsequencesOf(ReviewAction.Delete, shared);
+        Assert.Equal(ReviewConsequence.DeleteBecomesRelease, onDelete[0]);
+        Assert.Equal(ReviewConsequence.LeavesPluginGovernance, onDelete[1]);
+
+        var plain = ReviewRules.ConsequencesOf(ReviewAction.Delete, Orphan(GearsetSource.Plugin, RowState.Parked, pin: true));
+        Assert.Equal(ReviewConsequence.RowIsRemoved, plain[0]);
+    }
+
+    /// <summary>
+    /// A release says what it does, on every row. With a team it used to say only what the team would
+    /// keep seeing, and on a row with neither team nor pin the confirmation came out empty and fell back
+    /// to repeating the label on the button. Both left out the one thing the press actually does.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void AReleaseAlwaysSaysTheRowLeavesThePlugin(bool pin, bool share)
+    {
+        var row = Orphan(GearsetSource.Plugin, RowState.Parked, pin: pin, share: share);
+
+        var costs = ReviewRules.ConsequencesOf(ReviewAction.Release, row);
+
+        Assert.Contains(ReviewConsequence.LeavesPluginGovernance, costs);
+
+        // And never says the row goes, because it does not.
+        Assert.DoesNotContain(ReviewConsequence.RowIsRemoved, costs);
+    }
+
+    /// <summary>
+    /// And the distinction the first fix would have missed: a delete on a shared row is performed as a
+    /// release, so the row survives and its pin survives with it. There "keeps its pin" is right after all.
+    /// </summary>
+    [Fact]
+    public void DeletingASharedPinnedRowKeepsThePinAndSaysWhy()
+    {
+        var row = Orphan(GearsetSource.Plugin, RowState.Parked, pin: true, share: true);
+
+        var costs = ReviewRules.ConsequencesOf(ReviewAction.Delete, row);
+
+        Assert.Contains(ReviewConsequence.DeleteBecomesRelease, costs);
+        Assert.Contains(ReviewConsequence.KeepsItsPin, costs);
+        Assert.DoesNotContain(ReviewConsequence.LosesItsPin, costs);
+        Assert.DoesNotContain(ReviewConsequence.ComesBackWithoutItsPin, costs);
+    }
+
+    /// <summary>Releasing never removes the row, so the pin is never at risk there.</summary>
+    [Fact]
+    public void ReleasingAPinnedRowKeepsThePin()
+    {
+        var row = Orphan(GearsetSource.Plugin, RowState.Parked, pin: true);
+
+        var costs = ReviewRules.ConsequencesOf(ReviewAction.Release, row);
+
+        Assert.Contains(ReviewConsequence.KeepsItsPin, costs);
+        Assert.DoesNotContain(ReviewConsequence.LosesItsPin, costs);
+    }
+
+    /// <summary>A verb that takes nothing away asks nothing, so there is no second click to earn.</summary>
+    [Theory]
+    [InlineData(ReviewAction.Ignore)]
+    [InlineData(ReviewAction.Reopen)]
+    public void AReversibleVerbHasNothingToWarnAbout(string verb)
+    {
+        var row = Orphan(GearsetSource.Plugin, RowState.Parked, pin: true, share: true);
+
+        Assert.Empty(ReviewRules.ConsequencesOf(verb, row));
+    }
+
+    /// <summary>
+    /// The case that was on screen: a set renamed, re-geared and moved arrives as a question, and the row
+    /// it used to be is parked. That row is both an unclaimed candidate and an orphan, so the server lists
+    /// it twice and the window drew it twice, with a full comparison under each.
+    /// </summary>
+    [Fact]
+    public void ARowAnOpenQuestionAsksAboutIsNotAlsoOfferedInTheInventory()
+    {
+        var state = new ReviewState
+        {
+            Held = [new HeldGearset { SetUid = "new", Candidates = [new() { SetUid = "old" }] }],
+            Orphans = [new OrphanRow { SetUid = "old", Job = "DRK", Source = GearsetSource.Plugin, State = RowState.Parked }],
+        };
+
+        Assert.Empty(ReviewRules.InventoryToOffer(state));
+    }
+
+    /// <summary>
+    /// Why it is a rule and not tidiness: the inventory card offers delete. Deleting the row there and then
+    /// answering "that is the one" would name a target that no longer exists, and on the row this was found
+    /// on there was a pinned target hanging from it.
+    /// </summary>
+    [Fact]
+    public void TheHiddenRowIsExactlyTheOneTheProposalPointsAt()
+    {
+        var state = new ReviewState
+        {
+            Held =
+            [
+                new HeldGearset
+                {
+                    SetUid = "new",
+                    Proposal = new ReviewProposal { Action = ReviewAction.Link, TargetUid = "old" },
+                    Candidates = [new() { SetUid = "old", Proposed = true }],
+                },
+            ],
+            Orphans =
+            [
+                new OrphanRow { SetUid = "old", Job = "DRK", Source = GearsetSource.Plugin, State = RowState.Parked, HasPin = true },
+                new OrphanRow { SetUid = "other", Job = "WAR", Source = GearsetSource.Plugin, State = RowState.Parked },
+            ],
+        };
+
+        var offered = ReviewRules.InventoryToOffer(state);
+
+        var only = Assert.Single(offered);
+        Assert.Equal("other", only.SetUid);
+    }
+
+    /// <summary>Without an open question the inventory is untouched: this hides nothing on its own.</summary>
+    [Fact]
+    public void WithNoQuestionEveryOpenOrphanIsOffered()
+    {
+        var state = new ReviewState
+        {
+            Orphans =
+            [
+                new OrphanRow { SetUid = "a", Source = GearsetSource.Plugin, State = RowState.Parked },
+                new OrphanRow { SetUid = "b", Source = GearsetSource.Plugin, State = RowState.Ignored },
+            ],
+        };
+
+        var offered = ReviewRules.InventoryToOffer(state);
+
+        var only = Assert.Single(offered);
+        Assert.Equal("a", only.SetUid);
+    }
+    private static OrphanRow Orphan(string source, string? state, bool pin = false, bool share = false) => new()
     {
         SetUid = "7bb2",
         Job = "DRK",
         Name = "Dunkelritter",
         Source = source,
         State = state,
+        HasPin = pin,
+        HasTeamShare = share,
+        TeamNames = share ? ["Kreszentia"] : [],
     };
 
     /// <summary>

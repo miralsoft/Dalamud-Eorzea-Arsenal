@@ -141,6 +141,22 @@ public sealed class ReviewCandidate
     /// <summary>Its gear, by slot. Ids only; names get resolved in the player language.</summary>
     public Dictionary<string, ItemDto> Items { get; init; } = [];
 
+    /// <summary>
+    /// When a push last claimed this row, in server time, or <see langword="null"/> when none ever did.
+    /// Null on a row the web editor made, which was never in game and therefore has nothing to have seen.
+    /// </summary>
+    public string? LastSeenAt { get; init; }
+
+    /// <summary>
+    /// When this row left plugin governance, in server time, or <see langword="null"/> when it never did.
+    /// </summary>
+    /// <remarks>
+    /// <b>Unlike <see cref="LastSeenAt"/>, the absence here is a statement.</b> Null means this row was not
+    /// released, which is true of every hand-made row and of every row a push governs, so reading it is not
+    /// the inference from an absence the other field forbids.
+    /// </remarks>
+    public string? ReleasedAt { get; init; }
+
     /// <summary>Where to see it. Read back, never composed.</summary>
     public string? Url { get; init; }
 }
@@ -177,6 +193,55 @@ public sealed class HeldGearset
     /// one with none is new and asks nothing at all.
     /// </summary>
     public List<ReviewCandidate> Candidates { get; init; } = [];
+
+    /// <summary>Where to see it. Read back, never composed.</summary>
+    public string? Url { get; init; }
+}
+
+/// <summary>
+/// A row that is still there and that an orphan resembles, as <c>orphans[].similar[]</c> delivers it.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The question about a row the game stopped reporting is not "what was this" but "do I still need it",
+/// and the answer is usually standing in another row. A set that shares every slot with one that is still
+/// there is that one's copy, and delete-or-keep is answered without anybody remembering a name from
+/// months ago.
+/// </para>
+/// <para>
+/// It carries fewer fields than a <see cref="ReviewCandidate"/> and that is deliberate: this is not an
+/// answer to a question, it is a comparison. There is no <c>proposed</c> on it, nothing here is being
+/// attributed, and the target may itself be a row that is still under question.
+/// </para>
+/// </remarks>
+public sealed class SimilarSet
+{
+    /// <summary>The row it resembles.</summary>
+    public string? SetUid { get; init; }
+
+    /// <summary>Its job code.</summary>
+    public string? Job { get; init; }
+
+    /// <summary>Its name.</summary>
+    public string? Name { get; init; }
+
+    /// <summary>Whether it came from a push or from the web editor.</summary>
+    public string? Source { get; init; }
+
+    /// <summary>How much of the pair the server counts as shared, 0 to 100. Shown, never recomputed.</summary>
+    public int Probability { get; init; }
+
+    /// <summary>Slots where both carry the same item id. Note: the item, not the materia.</summary>
+    public int MatchedSlots { get; init; }
+
+    /// <summary>Slots occupied on either side, which is the denominator of the pair and not a constant.</summary>
+    public int TotalSlots { get; init; }
+
+    /// <summary>Its gear. The number says how much two sets share; only the pieces say where they differ.</summary>
+    public Dictionary<string, ItemDto> Items { get; init; } = [];
+
+    /// <summary>Where to see it.</summary>
+    public string? Url { get; init; }
 }
 
 /// <summary>
@@ -214,6 +279,20 @@ public sealed class OrphanRow
     /// </summary>
     public string? LastSeenAt { get; init; }
 
+    /// <summary>
+    /// When this row left plugin governance, in server time, or <see langword="null"/> when it never did.
+    /// A released row is <c>manual</c> like a hand-made one; this is what tells the two apart.
+    /// </summary>
+    /// <remarks>
+    /// <b>Unlike <see cref="LastSeenAt"/>, the absence here is a statement.</b> Null means the row was not
+    /// released. It is also what decides whether <see cref="ReviewAction.Reopen"/> is a way back at all: on
+    /// a released row it undoes the release outright, and on any other put-aside row it does not.
+    /// </remarks>
+    public string? ReleasedAt { get; init; }
+
+    /// <summary>Whether this row was handed to the website rather than built there.</summary>
+    public bool WasReleased => ReleasedAt is { Length: > 0 };
+
     /// <summary>Whether a BiS target is pinned on it.</summary>
     public bool HasPin { get; init; }
 
@@ -228,6 +307,12 @@ public sealed class OrphanRow
 
     /// <summary>Its gear. Seeing what is in a row is what makes delete-or-keep answerable.</summary>
     public Dictionary<string, ItemDto> Items { get; init; } = [];
+
+    /// <summary>
+    /// Which of the sets that are still there this row looks like, strongest first, at most three, and
+    /// only pairs sharing at least one slot. Empty when nothing resembles it, which is itself an answer.
+    /// </summary>
+    public List<SimilarSet> Similar { get; init; } = [];
 
     /// <summary>Where to see it.</summary>
     public string? Url { get; init; }

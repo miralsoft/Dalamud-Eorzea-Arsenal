@@ -73,6 +73,8 @@ public sealed class GearsetMappingService
     // frame.
     private volatile IReadOnlySet<string> _held = new HashSet<string>(StringComparer.Ordinal);
 
+    private volatile IReadOnlySet<string> _contested = new HashSet<string>(StringComparer.Ordinal);
+
     /// <summary>
     /// The gearsets the server wrote but could not attribute, by uid, as of the last push that said so.
     /// </summary>
@@ -129,6 +131,50 @@ public sealed class GearsetMappingService
     }
 
     /// <summary>
+    /// How much of what only a push can know is still in the cache, for the diagnostics view.
+    /// </summary>
+    /// <param name="cidHash">The character.</param>
+    /// <returns>How many rows carry the strong key, how many the gear key, and how many rows there are.</returns>
+    /// <remarks>
+    /// Both are filled by a push and by nothing else, and everything that separates two sets of one job
+    /// hangs off them. Whether they are present decided several hours of guessing, and none of it was
+    /// visible: the rungs each row resolved on could be read, but not whether the material for the better
+    /// rung was even there.
+    /// </remarks>
+    public (int WithItems, int WithGear, int Total) CachedKeys(string? cidHash)
+    {
+        if (cidHash is null)
+        {
+            return (0, 0, 0);
+        }
+
+        lock (_state)
+        {
+            if (!_store.Identities.TryGetValue(cidHash, out var rows))
+            {
+                return (0, 0, 0);
+            }
+
+            var items = 0;
+            var gear = 0;
+            foreach (var row in rows)
+            {
+                if (row.ItemsKey is not null)
+                {
+                    items++;
+                }
+
+                if (row.GearKey is not null)
+                {
+                    gear++;
+                }
+            }
+
+            return (items, gear, rows.Count);
+        }
+    }
+
+    /// <summary>
     /// Resolves a whole list at once for the diagnostics view. Hashes every set, so it belongs off the
     /// framework thread — the caller reads the game, hands the list over, and only displays the result.
     /// </summary>
@@ -147,7 +193,8 @@ public sealed class GearsetMappingService
                 set.Name,
                 match.SetUid,
                 match.MatchedBy,
-                match.WasAmbiguous));
+                match.WasAmbiguous,
+                match.By));
         }
 
         return rows;
@@ -182,6 +229,26 @@ public sealed class GearsetMappingService
     public int PositionalMatches { get; private set; }
 
     /// <summary>
+    /// How many identities the last push and the cache before it disagreed about. Both sides of each
+    /// disagreement are counted, since neither is provably the right one.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from the two counters above, which report what the <b>server</b> said about its own
+    /// confidence. This one reports what happened when that was checked against what this side
+    /// remembered, and it is the only number here the server could not have produced.
+    /// </remarks>
+    public int ContestedMatches { get; private set; }
+
+    /// <summary>
+    /// Which identities those are, for the diagnostics view and for a bug report.
+    /// </summary>
+    /// <remarks>
+    /// Swapped whole rather than mutated, like the other two snapshots here: read from the drawing thread
+    /// while a push writes it.
+    /// </remarks>
+    public IReadOnlySet<string> ContestedUids => _contested;
+
+    /// <summary>
     /// Records the mapping a push answered with. The response is index-aligned with the list that was
     /// sent, so the sent gearsets supply the keys and the response supplies the identities.
     /// </summary>
@@ -198,6 +265,15 @@ public sealed class GearsetMappingService
             // An older server answers without the mapping. That is not a failure and must not clear
             // what is already cached — nothing was contradicted, it simply was not mentioned.
             return;
+        }
+
+        // Read before it is overwritten. The cross-check below is the whole reason this is taken: what the
+        // previous push put under each identity is the only account of these gearsets that the server does
+        // not also hold, so it is the only thing that can disagree with it.
+        List<CachedGearsetIdentity> previous;
+        lock (_state)
+        {
+            previous = _store.Identities.TryGetValue(cidHash, out var before) ? [.. before] : [];
         }
 
         var rows = new List<CachedGearsetIdentity>(assignments.Count);
@@ -234,6 +310,8 @@ public sealed class GearsetMappingService
                 Job = set.Job,
                 Name = set.Name ?? string.Empty,
                 ItemsKey = GearsetFingerprint.Strong(set),
+                GearKey = GearsetFingerprint.Gear(set),
+                GearIndex = set.GearIndex,
                 MatchedBy = assignment.MatchedBy,
             });
 
@@ -265,6 +343,14 @@ public sealed class GearsetMappingService
             return;
         }
 
+        // Where the server guessed, ask what this side remembered. Recomputed here and not carried over,
+        // so the mark lasts exactly as long as the evidence for it.
+        var contested = PushCrossCheck.Contested(previous, sent, assignments);
+        foreach (var row in rows)
+        {
+            row.Contested = contested.Contains(row.SetUid);
+        }
+
         // Published as one whole after the loop, so a reader never sees a half-built collection. The answer
         // covers exactly the list that was just sent, so what is not in it is neither held nor unsure.
         _held = held;
@@ -276,15 +362,24 @@ public sealed class GearsetMappingService
         MappingStatus = $"learned from a push, {rows.Count} row(s), {uncertain} uncertain";
         AmbiguousMatches = ambiguous;
         PositionalMatches = positional;
+        _contested = contested;
+        ContestedMatches = contested.Count;
         WarnAboutUncertainty(ambiguous, positional);
+        WarnAboutContradiction(contested, rows);
     }
 
     /// <summary>
-    /// Resolves a live gearset to the identity the server gave it. The strong key first (job, name and
-    /// items — survives being moved), then the weak key (job and name — the only one a
-    /// <c>GET /gear/sets</c> row can be matched on). A weak key with more than one candidate is
-    /// reported as ambiguous rather than guessed at.
+    /// Resolves a live gearset to the identity the server gave it, on four rungs ordered by how much each
+    /// one distinguishes rather than by how sure it is. The strong key (job, name and items) survives
+    /// being moved. Then the position, twice over: with the same gear, which survives a rename, and with
+    /// the same name where no other set has it, which survives a re-gear. Then the weak key (job and
+    /// name), the only one a row learned from <c>GET /gear/sets</c> can be matched on at all.
     /// </summary>
+    /// <remarks>
+    /// Every rung reports ambiguity rather than guessing at it. The order is load-bearing: the position is
+    /// the surer evidence and the strong key the more discriminating one, and putting the surer first
+    /// handed a set whose full description matched another row exactly to whoever sat at its number.
+    /// </remarks>
     /// <param name="cidHash">The character the gearset belongs to.</param>
     /// <param name="set">The live gearset.</param>
     /// <returns>The match, which may be a miss.</returns>
@@ -305,13 +400,86 @@ public sealed class GearsetMappingService
             rows = [.. cached];
         }
 
+        // The strong key first: job, name and items together are the most specific thing this side can
+        // ask, and where exactly one row answers, that row is the set. It survives being moved, which is
+        // why it comes before the position below.
+        //
+        // Its guard took a live case to notice. A player had two gearsets with the same job, the same name
+        // and the same gear; both stored rows then carried the same strong key, and this loop returned the
+        // first of them and called the rung exact. Two live sets resolved to one identity, the position
+        // table wrote one uid twice, and two windows printed the same set number for two different sets,
+        // with nothing anywhere reporting a doubt because the doubt was never detected. Same job, same
+        // name, same items is the best evidence the contents can give and it is still not a distinction.
+        // Where it matches twice the contents are exhausted, and the position below is asked instead.
         var strong = GearsetFingerprint.Strong(set);
+        CachedGearsetIdentity? onStrong = null;
+        var strongIsAmbiguous = false;
         foreach (var row in rows)
         {
-            if (row.ItemsKey is not null && string.Equals(row.ItemsKey, strong, StringComparison.Ordinal))
+            if (row.ItemsKey is null || !string.Equals(row.ItemsKey, strong, StringComparison.Ordinal))
             {
-                return new GearsetIdentityMatch(row.SetUid, row.MatchedBy, false);
+                continue;
             }
+
+            if (onStrong is not null)
+            {
+                strongIsAmbiguous = true;
+                break;
+            }
+
+            onStrong = row;
+        }
+
+        if (!strongIsAmbiguous && onStrong is not null)
+        {
+            return Answer(onStrong, "job+name+gear");
+        }
+
+        // Then the position, for everything the contents cannot settle. It is the only value in a cached
+        // row that came from an answer rather than from a guess, because a push is index-aligned and the
+        // server confirms the index it answered for. Everything else is re-derived from what a live
+        // gearset looks like, and the name in that is not something a player ever chose: the game writes
+        // it when the set is made, so two sets of one job start out called the same thing. Leaving the
+        // position out meant asking a name to do work it was never able to do.
+        //
+        // Only a reorder moves the number. A rename, a re-gear, both at once: the number stays. So it
+        // answers the three cases the contents lose, and a reorder is already answered above.
+        var atSamePlace = rows.FindAll(r =>
+            r.GearIndex == set.GearIndex && string.Equals(r.Job, set.Job, StringComparison.Ordinal));
+
+        if (atSamePlace.Count == 1)
+        {
+            var here = atSamePlace[0];
+
+            // Same place, same job, same gear. Survives a rename, and tells apart two sets the player
+            // never named differently, which is the case this rung was added for. Reached only where the
+            // strong key found nothing or found two, so a set whose full description matches another row
+            // exactly has already been given to that row: this cannot overrule a name that points
+            // elsewhere, which it silently did while it sat above the strong key.
+            if (here.GearKey is not null &&
+                string.Equals(here.GearKey, GearsetFingerprint.Gear(set), StringComparison.Ordinal))
+            {
+                return Answer(here, "place+gear");
+            }
+
+            // Same place, same job, same name. Survives a re-gear, but only where that name belongs to
+            // nothing else: swap two sets a player never named apart and this would otherwise hand back
+            // the wrong one with no doubt attached, which is worse than the ambiguity it replaces.
+            var sameName = string.Equals(here.Name, set.Name ?? string.Empty, StringComparison.Ordinal);
+            var nameIsUnique = rows.Count(r =>
+                string.Equals(GearsetFingerprint.NameKey(r.Job, r.Name), GearsetFingerprint.NameKey(set), StringComparison.Ordinal)) == 1;
+
+            if (sameName && nameIsUnique)
+            {
+                return Answer(here, "place+name");
+            }
+        }
+
+        if (strongIsAmbiguous)
+        {
+            // Two rows describe this set equally well and its place says nothing. The weak key below is
+            // job and name, which those two rows also share, so there is nothing left to ask.
+            return GearsetIdentityMatch.Ambiguous;
         }
 
         var weak = GearsetFingerprint.NameKey(set);
@@ -335,7 +503,7 @@ public sealed class GearsetMappingService
 
         return single is null
             ? GearsetIdentityMatch.None
-            : new GearsetIdentityMatch(single.SetUid, single.MatchedBy, false);
+            : Answer(single, "job+name");
     }
 
     /// <summary>
@@ -393,6 +561,7 @@ public sealed class GearsetMappingService
             }
 
             var rows = new List<CachedGearsetIdentity>();
+            var stillHeld = new HashSet<string>(StringComparer.Ordinal);
             var foreign = 0;
             foreach (var stored in result.Value!.Data)
             {
@@ -425,14 +594,42 @@ public sealed class GearsetMappingService
                 }
 
                 ServerMintsUids = true;
+
+                // A read can say which attributions are still open, and it is the only thing that can say
+                // so at the start of a session. This was filled by a push and nothing else, and it is not
+                // persisted, so after every reload the plugin believed no question was outstanding until
+                // the next push happened to mention it. A set the server is waiting on then showed its
+                // provisional target as though it were settled, and a diagnostics dump read "none open"
+                // while the review window had a card waiting in it.
+                if (string.Equals(stored.State, RowState.Held, StringComparison.Ordinal))
+                {
+                    stillHeld.Add(stored.SetUid!);
+                }
+
                 rows.Add(new CachedGearsetIdentity
                 {
                     SetUid = stored.SetUid!,
                     Job = stored.Job ?? string.Empty,
                     Name = stored.Name ?? string.Empty,
                     ItemsKey = null,
+                    GearKey = null,
+
+                    // Where the server last recorded it, which is where it still is unless the player
+                    // has reordered since. Good enough to anchor on, because every rung that uses it
+                    // also wants the job and either the gear or a name nothing else carries.
+                    GearIndex = stored.GearIndex >= 0 && stored.GearIndex <= ProtocolConstants.MaxGearIndex
+                        ? stored.GearIndex
+                        : null,
                     MatchedBy = null,
                 });
+            }
+
+            // Only where the server actually reports the field. A server that sends no state says nothing
+            // about what is open, and reading its silence as "nothing is open" would replace a real set
+            // of questions with an empty one.
+            if (reportsState)
+            {
+                _held = stillHeld;
             }
 
             ScheduleNextRead(cidHash, RefreshInterval);
@@ -474,8 +671,45 @@ public sealed class GearsetMappingService
         }
     }
 
+    /// <summary>
+    /// Makes the next <see cref="EnsureMappingAsync"/> actually go to the server, without throwing away
+    /// what is cached in the meantime.
+    /// </summary>
+    /// <param name="cidHash">The character whose mapping is now suspect.</param>
+    /// <remarks>
+    /// <para>
+    /// For a caller that knows the attribution may have moved and wants it re-read, which is not the same
+    /// as wanting it forgotten. <see cref="Forget"/> was doing both, and the difference is severe: a read
+    /// carries no items, so everything derived from them goes with it. The row keeps its uid, its job and
+    /// its name and loses its gear, and the gear is the only thing that separates two sets of one job,
+    /// which the game names identically the moment they are made.
+    /// </para>
+    /// <para>
+    /// Answering one question in the review window therefore turned every same-named pair on the character
+    /// unresolvable, and left them that way until the next push. The merge already does what this caller
+    /// wanted: rows the server no longer lists are dropped, so an identity that was just linked away goes,
+    /// and everything still listed keeps what a push had established about it.
+    /// </para>
+    /// </remarks>
+    public void ExpireMapping(string? cidHash)
+    {
+        if (string.IsNullOrEmpty(cidHash))
+        {
+            return;
+        }
+
+        lock (_state)
+        {
+            _nextRefreshUtc.Remove(cidHash);
+        }
+    }
+
     /// <summary>Forgets everything cached for a character, e.g. after disconnecting.</summary>
     /// <param name="cidHash">The character, or <see langword="null"/> to forget all of them.</param>
+    /// <remarks>
+    /// Genuinely forgets. Where the mapping is only suspect rather than wrong, <see cref="ExpireMapping"/>
+    /// is the one that re-reads without also discarding what only a push can know.
+    /// </remarks>
     public void Forget(string? cidHash)
     {
         lock (_state)
@@ -569,6 +803,22 @@ public sealed class GearsetMappingService
                 continue;
             }
 
+            // The name moved, so the row is rebuilt from the read. Two things still carry over, because
+            // neither of them was ever about the name.
+            //
+            // The gear key is name-free by construction, and a rename is the one case it exists for: it is
+            // what recognises a set the player just renamed, and dropping it here would have retired it at
+            // exactly that moment, on a refresh that happens every ten minutes whether anybody asked or
+            // not. The strong key does go, and rightly, since the name is part of what it hashes.
+            //
+            // A doubt carries over too. It was found by comparing two accounts of the same uid, and a read
+            // is neither of them: it brings no gear, so it cannot settle what it cannot see.
+            if (existing.TryGetValue(row.SetUid, out var older))
+            {
+                row.GearKey ??= older.GearKey;
+                row.Contested = older.Contested;
+            }
+
             merged.Add(row);
         }
 
@@ -582,7 +832,57 @@ public sealed class GearsetMappingService
         _store.Save();
     }
 
+    /// <summary>
+    /// Hands back a row's identity, unless the last push and the cache before it disagreed about that row.
+    /// </summary>
+    /// <param name="row">The row a rung settled on.</param>
+    /// <param name="by">Which rung that was, in one word, for the diagnostics view.</param>
+    /// <returns>The identity, or an ambiguous answer where the two accounts do not agree.</returns>
+    /// <remarks>
+    /// Every rung goes through here, and none of them may skip it. A rung earning its answer says nothing
+    /// about whether the row it earned is trustworthy: the doubt was found at the push, against evidence
+    /// no rung sees. Reported as ambiguous rather than as nothing found, because the interface already
+    /// knows how to say "two of these cannot be told apart" and that is what has happened. What the server
+    /// claimed is carried through even so: on a contested row that claim is the interesting half, since the
+    /// disagreement is with it.
+    /// </remarks>
+    private static GearsetIdentityMatch Answer(CachedGearsetIdentity row, string by) =>
+        row.Contested
+            ? GearsetIdentityMatch.Ambiguous with { By = "contested", MatchedBy = row.MatchedBy }
+            : new GearsetIdentityMatch(row.SetUid, row.MatchedBy, false, by);
+
+    /// <summary>
+    /// Says which gearsets the two accounts disagree about, by name and position rather than by uid.
+    /// </summary>
+    /// <param name="contested">The identities in doubt.</param>
+    /// <param name="rows">The rows just written, which is where the names come from.</param>
+    /// <remarks>
+    /// Written on every push that finds one, unlike the once-a-session warning below. That one repeats a
+    /// standing condition and would be noise; this one reports something that just happened, and it stops
+    /// as soon as it stops being true.
+    /// </remarks>
+    private void WarnAboutContradiction(IReadOnlySet<string> contested, List<CachedGearsetIdentity> rows)
+    {
+        if (contested.Count == 0)
+        {
+            return;
+        }
+
+        var named = rows
+            .Where(r => contested.Contains(r.SetUid))
+            .Select(r => $"#{r.GearIndex + 1} {r.Job} \"{r.Name}\"")
+            .ToList();
+
+        _log.Warning(
+            $"The server's answer disagrees with what was remembered about {contested.Count} gearset(s): " +
+            $"{string.Join(", ", named)}. Gear that identified one set now sits under another, on a rung " +
+            "the server itself matched by position. Neither account is provably right, so these sets are " +
+            "left unidentified rather than attributed: their comparison stays empty until the two agree.");
+    }
+
     /// <summary>Says once per session that the server had to guess somewhere, and where to look.</summary>
+    /// <param name="ambiguous">How many sets were paired between identical names.</param>
+    /// <param name="positional">How many were recognised by their position alone.</param>
     private void WarnAboutUncertainty(int ambiguous, int positional)
     {
         if ((ambiguous == 0 && positional == 0) || _warnedAboutUncertainty)

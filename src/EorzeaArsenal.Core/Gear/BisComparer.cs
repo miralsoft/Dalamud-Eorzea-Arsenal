@@ -196,14 +196,27 @@ public static class BisComparer
         public static LiveIndex Build(GearData live, Func<GearsetDto, string?>? identify)
         {
             var index = new LiveIndex();
+            var doubled = new HashSet<string>(StringComparer.Ordinal);
             foreach (var set in live.Gearsets)
             {
                 index._byPosition[(set.GearIndex, set.Job)] = set;
 
                 var uid = identify?.Invoke(set);
-                if (!string.IsNullOrEmpty(uid))
+                if (string.IsNullOrEmpty(uid) || doubled.Contains(uid!))
                 {
-                    index._byUid[uid!] = set;
+                    continue;
+                }
+
+                // One identity cannot be two gearsets, so a second claimant does not win the key, it
+                // empties it. Copy a gearset and the copy is indistinguishable from the original until the
+                // next push tells the server it exists, so both come back under the same identity. This
+                // was a plain assignment: the last one seen took the key, and a target then drew itself
+                // against a set the player had just made while the number beside it named the original.
+                // A target that points nowhere is drawn nowhere, which is the honest half.
+                if (!index._byUid.TryAdd(uid!, set))
+                {
+                    index._byUid.Remove(uid!);
+                    doubled.Add(uid!);
                 }
             }
 

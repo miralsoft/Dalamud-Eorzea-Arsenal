@@ -70,7 +70,7 @@ public sealed class ReviewService : IDisposable
     /// <param name="directory">Resolves <c>cid_hash</c> to the numeric character id.</param>
     /// <param name="clock">Time source, for the back-off window.</param>
     /// <param name="mapping">
-    /// The identity cache, told to forget a character after a decision that moved identities. Optional
+    /// The identity cache, told to re-read a character after a decision that moved identities. Optional
     /// only so the service can be tested on its own.
     /// </param>
     /// <param name="log">Diagnostics sink.</param>
@@ -158,6 +158,46 @@ public sealed class ReviewService : IDisposable
 
     /// <summary>Raised after any call completes, on the calling thread.</summary>
     public event Action? Changed;
+
+    /// <summary>
+    /// Takes the summary a push just answered with and drops what is cached here when the two describe
+    /// different states.
+    /// </summary>
+    /// <param name="pushed">The summary from the push answer, or <see langword="null"/> where a server sent none.</param>
+    /// <remarks>
+    /// <para>
+    /// <see cref="Summary"/> prefers this service's own reading over a push answer, and for good reason:
+    /// answering a question in the window moves the state without any push, so a badge fed only by pushes
+    /// keeps announcing work that is already done. The other direction was left open. A push moves the
+    /// state too, and the reading here then goes stale with nothing to notice it: a set deleted and made
+    /// again is attributed to the row it left behind, that row stops being an orphan, and the menu went on
+    /// offering two decisions that led to an empty window.
+    /// </para>
+    /// <para>
+    /// The token is what settles it, and it exists for exactly this. It fingerprints which rows are being
+    /// asked about rather than their contents, so an ordinary push that only writes fresh numbers leaves an
+    /// open review valid, and one that changes the question invalidates it. Where it disagrees with the
+    /// cached reading, that reading described a state that is over: it is dropped, and the badge falls back
+    /// to the push answer, which is the newer of the two.
+    /// </para>
+    /// </remarks>
+    public void NoteFromPush(ReviewSummary? pushed)
+    {
+        if (pushed?.StateToken is not { Length: > 0 } token || Current is not { } state)
+        {
+            return;
+        }
+
+        // A reading with no token of its own cannot be compared, and guessing it is stale would throw away
+        // a good one on every push.
+        if (state.StateToken is not { Length: > 0 } known || string.Equals(known, token, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        Current = null;
+        Changed?.Invoke();
+    }
 
     /// <summary>
     /// Cancels anything in flight and releases the gate, so a plugin reload does not leave a decision
@@ -484,10 +524,17 @@ public sealed class ReviewService : IDisposable
     }
 
     /// <summary>
-    /// Records what a decision did. The identity cache is dropped for the character whenever a link
+    /// Records what a decision did. The identity cache is re-read for the character whenever a link
     /// survived, because after a link the target uid is the one that lives on and the held row uid ceases
     /// to exist: keeping it would attach a live gearset to a row that is gone.
     /// </summary>
+    /// <remarks>
+    /// Re-read, not forgotten. It dropped the cache outright, and that is a far larger thing than it
+    /// sounds: a read carries no items, so everything only a push can know went with it, and the rungs
+    /// that separate two sets of one job stopped working until the next push. One link cost the whole
+    /// character's gear knowledge. The stale row goes anyway, because the refresh drops what the server no
+    /// longer lists, and that is exactly the row a link retires.
+    /// </remarks>
     /// <param name="result">What the server did, if it said.</param>
     /// <param name="alsoResolved">Questions that settled as a consequence.</param>
     /// <param name="cidHash">The character.</param>
@@ -510,7 +557,7 @@ public sealed class ReviewService : IDisposable
 
         if (string.Equals(result.Action, ReviewAction.Link, StringComparison.Ordinal))
         {
-            _mapping?.Forget(cidHash);
+            _mapping?.ExpireMapping(cidHash);
         }
     }
 }

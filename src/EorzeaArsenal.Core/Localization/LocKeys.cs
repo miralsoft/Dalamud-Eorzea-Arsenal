@@ -19,6 +19,9 @@ public static class LocKeys
     /// <summary>"Language" label.</summary>
     public const string Language = "common.language";
 
+    /// <summary>The first language entry: follow the host, naming what that currently is (arg: its name).</summary>
+    public const string LanguageFollowHost = "language.followhost";
+
     /// <summary>"Save" button.</summary>
     public const string Save = "common.save";
 
@@ -103,6 +106,9 @@ public static class LocKeys
     /// <summary>Push-on-login toggle.</summary>
     public const string PushOnLogin = "config.pushonlogin";
 
+    /// <summary>Says that the login toggle covers everything switched on below it, not just gear.</summary>
+    public const string PushOnLoginHint = "config.pushonlogin.hint";
+
     /// <summary>Master opt-in toggle (R36).</summary>
     public const string EnablePushMaster = "config.enable.master";
 
@@ -184,6 +190,33 @@ public static class LocKeys
     /// does help is to check the pinned target before the next sync settles the mapping.
     /// </summary>
     public const string StatusGearsetIdentityPositional = "status.identity.positional";
+
+    /// <summary>
+    /// One live gearset this side would not attribute, so its comparison stays empty. Measured locally,
+    /// unlike the two above, which repeat what the server said about its own matching: the server has
+    /// distinct rows and reports no doubt at all, so without this the blindness is invisible and the empty
+    /// comparison reads as a fault.
+    /// </summary>
+    /// <remarks>
+    /// Three causes end up here and the text may not name only one. Two sets share a job and a name and
+    /// nothing separates them; two live sets claim one identity, which is what a copy looks like until the
+    /// next transfer; or the last answer disagreed with what was remembered. The first is ended by a
+    /// different name and the other two by the next transfer, so the wording leads with the transfer and
+    /// keeps the rename as what to try when it persists. It used to name the first cause alone and
+    /// prescribe a rename, which for a freshly copied set is advice that fixes nothing.
+    /// </remarks>
+    public const string StatusGearsetUnattributedOne = "status.gearset.unattributed.one";
+
+    /// <summary>The same for several (arg: count).</summary>
+    public const string StatusGearsetUnattributedMany = "status.gearset.unattributed.many";
+
+    /// <summary>
+    /// Beside a gearset in the BiS window that has a target but could not be matched to it, because
+    /// another gearset shares its job and its name. Told apart from "nothing pinned" on purpose: the
+    /// remedy is a different name, and sending somebody to pin a target they already have is worse than
+    /// saying nothing.
+    /// </summary>
+    public const string BisUnattributed = "bis.twin";
 
     /// <summary>"Push now" button.</summary>
     public const string PushNow = "status.pushnow";
@@ -366,17 +399,39 @@ public static class LocKeys
     /// <summary>Re-read the questions.</summary>
     public const string ReviewRefresh = "review.refresh";
 
-    /// <summary>Header count of open questions (arg: count).</summary>
-    public const string ReviewQuestions = "review.questions";
+    /// <summary>
+    /// Why the cards went away: the character on screen is not the one they were read for. Its own
+    /// sentence rather than the label off the re-read button, which is what used to be shown here and
+    /// left somebody staring at the word "re-read" in an otherwise empty window.
+    /// </summary>
+    public const string ReviewCharacterChanged = "review.characterchanged";
 
-    /// <summary>Header count of rows no live gearset occupies (arg: count).</summary>
-    public const string ReviewOrphansOpen = "review.orphans.open";
+    /// <summary>
+    /// Header count of open questions, where there is exactly one. Split from the plural because a count
+    /// followed by "(n)" is the seam that makes an interface read as machine output.
+    /// </summary>
+    public const string ReviewQuestionsOne = "review.questions.one";
+
+    /// <summary>Header count of open questions, none or several (arg: count).</summary>
+    public const string ReviewQuestionsMany = "review.questions.many";
+
+    /// <summary>Header count of rows no live gearset occupies, where there is exactly one.</summary>
+    public const string ReviewOrphansOpenOne = "review.orphans.open.one";
+
+    /// <summary>Header count of rows no live gearset occupies, none or several (arg: count).</summary>
+    public const string ReviewOrphansOpenMany = "review.orphans.open.many";
+
+    /// <summary>
+    /// Questions and inventory rows together, for the one line in the status panel. That row has no room
+    /// to name both kinds, and the sum is what it is actually saying: this much is waiting.
+    /// </summary>
+    public const string ReviewDecisionsOne = "review.decisions.one";
+
+    /// <summary>The same for none or several (arg: count).</summary>
+    public const string ReviewDecisionsMany = "review.decisions.many";
 
     /// <summary>Header count of rows put aside (arg: count).</summary>
     public const string ReviewOrphansAside = "review.orphans.aside";
-
-    /// <summary>The question itself (args: job, name).</summary>
-    public const string ReviewWhichSet = "review.whichset";
 
     /// <summary>Answer: it is a new set, not any of these.</summary>
     public const string ReviewItIsNew = "review.itisnew";
@@ -387,14 +442,17 @@ public static class LocKeys
     /// <summary>Per-candidate: do not offer this row again.</summary>
     public const string ReviewStopAsking = "review.stopasking";
 
-    /// <summary>Beside the question: take the set out of the plugin world entirely.</summary>
+    /// <summary>The verb that hands a row back: the plugin stops governing it.</summary>
     public const string ReviewTakeOut = "review.takeout";
 
     /// <summary>
-    /// What releasing a held gearset actually leaves the player with. The contract asks for this sentence
-    /// by name, because the outcome surprises anybody who was not told: two rows, not one moved.
+    /// What releasing the row behind a question leaves the player with. The contract asks for this sentence
+    /// by name, because a set that is plainly still in the game makes the verb read as impossible.
     /// </summary>
-    public const string ReviewReleaseTwoRows = "review.releasetworows";
+    public const string ReviewReleaseHeld = "review.release.held";
+
+    /// <summary>The same, on a row the game no longer reports, where there is no live set to speak of.</summary>
+    public const string ReviewReleaseOrphan = "review.release.orphan";
 
     /// <summary>Warning on a link onto a hand-made row, which is a one-way door.</summary>
     public const string ReviewAdoption = "review.adoption";
@@ -402,20 +460,67 @@ public static class LocKeys
     /// <summary>What stays behind on a candidate that is being answered away (arg: name).</summary>
     public const string ReviewKeepsPin = "review.keepspin";
 
-    /// <summary>What the other people keep seeing (args: names, name).</summary>
-    public const string ReviewKeepsShare = "review.keepsshare";
+    /// <summary>
+    /// What the other people keep seeing, where one team follows the row (args: the team, the set).
+    /// The word "team" is in the sentence rather than left to the name: a team can be called anything,
+    /// and a bare name at the start of a line reads as a word rather than as somebody else.
+    /// </summary>
+    public const string ReviewKeepsShareOne = "review.keepsshare.one";
 
-    /// <summary>How well a candidate matches (args: matched, total, probability).</summary>
-    public const string ReviewMatch = "review.match";
+    /// <summary>The same where several do (args: the teams, the set).</summary>
+    public const string ReviewKeepsShareMany = "review.keepsshare.many";
 
     /// <summary>Why a higher-scoring candidate is not the proposed one.</summary>
     public const string ReviewBlocked = "review.blocked";
 
+    /// <summary>Heading over the written-out mapping.</summary>
+    public const string ReviewBulkHeader = "review.bulk.header";
+
+    /// <summary>Why some pairings are listed but cannot be applied by the shortcut.</summary>
+    public const string ReviewBulkUnbacked = "review.bulk.unbacked";
+
+    /// <summary>The same, where the listed rows are out for more than one reason.</summary>
+    public const string ReviewBulkNotApplicable = "review.bulk.notapplicable";
+
+    /// <summary>Note that a pairing had alternatives (arg: how many candidates).</summary>
+    public const string ReviewBulkChoices = "review.bulk.choices";
+
+    /// <summary>Column heading: this half is what the game reports.</summary>
+    public const string ReviewBulkFromGame = "review.bulk.fromgame";
+
+    /// <summary>Column heading: this half is what the server has stored.</summary>
+    public const string ReviewBulkOnServer = "review.bulk.onserver";
+
+    /// <summary>The set as the game lists it (args: its number in game, job, name).</summary>
+    public const string ReviewBulkGameSet = "review.bulk.gameset";
+
+    /// <summary>Joins the two halves in the confirmation, where there are no columns to align.</summary>
+    public const string ReviewBulkBecomes = "review.bulk.becomes";
+
+    /// <summary>The stored row it would be written onto (arg: its name).</summary>
+    public const string ReviewBulkServerRow = "review.bulk.serverrow";
+
+    /// <summary>It becomes a row of its own instead.</summary>
+    public const string ReviewBulkServerNew = "review.bulk.servernew";
+
+    /// <summary>Every pairing was struck out, so there is nothing left to apply.</summary>
+    public const string ReviewBulkNothingLeft = "review.bulk.nothingleft";
+
+    /// <summary>What the bulk button does, on the button.</summary>
+    public const string ReviewBulkMeans = "review.bulk.means";
+
     /// <summary>Accept the whole mapping (arg: count).</summary>
     public const string ReviewAcceptAll = "review.acceptall";
 
-    /// <summary>How many of those are adoptions (arg: count).</summary>
-    public const string ReviewAcceptAdoptions = "review.acceptadoptions";
+    /// <summary>
+    /// The warning over a bulk accept that would overwrite hand-made rows, where exactly one would be.
+    /// Split from the plural because German has no honest form that fits both: "Bei 1 Zuordnungen" is
+    /// wrong, and a count in a sentence is worth less than a sentence that reads.
+    /// </summary>
+    public const string ReviewAcceptAdoptionsOne = "review.acceptadoptions.one";
+
+    /// <summary>The same warning for two or more (arg: count).</summary>
+    public const string ReviewAcceptAdoptionsMany = "review.acceptadoptions.many";
 
     /// <summary>The state moved while the window was open.</summary>
     public const string ReviewStale = "review.stale";
@@ -426,8 +531,11 @@ public static class LocKeys
     /// <summary>Header of the inventory half.</summary>
     public const string ReviewInventory = "review.inventory";
 
-    /// <summary>Foldable group of rows already put aside (arg: count).</summary>
-    public const string ReviewAsideGroup = "review.asidegroup";
+    /// <summary>Foldable group of rows already put aside, when there is one.</summary>
+    public const string ReviewAsideGroupOne = "review.asidegroup.one";
+
+    /// <summary>The same for several (arg: count).</summary>
+    public const string ReviewAsideGroupMany = "review.asidegroup.many";
 
     /// <summary>When a push last reported a row (arg: timestamp).</summary>
     public const string ReviewLastSeen = "review.lastseen";
@@ -444,11 +552,27 @@ public static class LocKeys
     /// <summary>Where the carousel stands (args: position, total).</summary>
     public const string ReviewPosition = "review.position";
 
+    /// <summary>The row goes and its pinned target with it (arg: the row name).</summary>
+    public const string ReviewLosesPin = "review.losespin";
+
+    /// <summary>A delete on a shared row is carried out as a release instead (arg: the row name).</summary>
+    public const string ReviewDeleteBecomesRelease = "review.deletebecomesrelease";
+
     /// <summary>Card line: a BiS target is pinned to this row.</summary>
     public const string ReviewCardHasPin = "review.card.haspin";
 
-    /// <summary>Card line: teams see this row (arg: team names).</summary>
-    public const string ReviewCardHasShare = "review.card.hasshare";
+    /// <summary>Card line: one team follows this row, so it cannot be deleted (arg: the team).</summary>
+    public const string ReviewCardHasShareOne = "review.card.hasshare.one";
+
+    /// <summary>The same where several do (arg: the teams).</summary>
+    public const string ReviewCardHasShareMany = "review.card.hasshare.many";
+
+    /// <summary>
+    /// What the share means for the buttons, added to the line above only where a delete would otherwise
+    /// be on offer. On a row already out of the plugin there is nothing to take out and nothing to delete,
+    /// so the guidance would name two actions that are not there.
+    /// </summary>
+    public const string ReviewCardShareBlocksDelete = "review.card.shareblocksdelete";
 
     /// <summary>What delete does to a row that was not being reported anyway.</summary>
     public const string ReviewDeleteMeans = "review.delete.means";
@@ -474,25 +598,211 @@ public static class LocKeys
     /// <summary>What deleting a row that still exists in game does.</summary>
     public const string ReviewDeleteComesBack = "review.deletecomesback";
 
+    /// <summary>
+    /// What a delete does, plainly. On a row with nothing hanging on it this is the only line there is,
+    /// and it used to be missing: the confirmation warned about losing a pinned target the row did not
+    /// have and said nothing about the row itself.
+    /// </summary>
+    public const string ReviewRowIsRemoved = "review.rowisremoved";
+
+    /// <summary>
+    /// What a release does, plainly: the row stays, stops being the plugin's, and stops following the
+    /// game. The counterpart of <see cref="ReviewRowIsRemoved"/> and missing for the same reason.
+    /// </summary>
+    public const string ReviewLeavesGovernance = "review.leavesgovernance";
+
     /// <summary>Second click on an irreversible action: what it will do, and the way out.</summary>
 
     /// <summary>Opens the row on the website.</summary>
     public const string ReviewOpenOnSite = "review.openonsite";
 
-    /// <summary>Shows or hides what a set contains.</summary>
-    public const string ReviewShowItems = "review.showitems";
+    /// <summary>One further question that settled itself as a consequence.</summary>
+    public const string ReviewAlsoSettledOne = "review.alsosettled.one";
 
-    /// <summary>Questions that settled themselves as a consequence (arg: count).</summary>
-    public const string ReviewAlsoSettled = "review.alsosettled";
+    /// <summary>Several further questions that settled themselves (arg: count).</summary>
+    public const string ReviewAlsoSettledMany = "review.alsosettled.many";
 
     /// <summary>Why a higher-scoring candidate is not the proposal (arg: the set it went to).</summary>
     public const string ReviewBlockedBy = "review.blockedby";
 
-    /// <summary>A candidate whose job is the same rather than merely compatible.</summary>
-    public const string ReviewSameJob = "review.samejob";
+    /// <summary>A candidate stored under another job code than the set that arrived (arg: that code).</summary>
+    public const string ReviewStoredAs = "review.storedas";
+
+    /// <summary>What putting a candidate aside does, on the button that does it.</summary>
+    public const string ReviewStopAskingMeans = "review.stopasking.means";
+
+    /// <summary>The comparison in one line (args: name, percent, same, other materia, different).</summary>
+    public const string ReviewSimilarTo = "review.similar.to";
+
+    /// <summary>The same line while the grid shows the other set (args: name, percent, same, other materia, different).</summary>
+    public const string ReviewSimilarToFlipped = "review.similar.to.flipped";
+
+    /// <summary>The comparison without the name, where a picker above already carries it (args: same, other materia, different).</summary>
+    public const string ReviewCounts = "review.counts";
+
+    /// <summary>The same counts while the grid shows the other set (args: same, other materia, different).</summary>
+    public const string ReviewCountsFlipped = "review.counts.flipped";
+
+    /// <summary>The server own count for the pair, on hover (args: matched, total, percent).</summary>
+    public const string ReviewSimilarServerCount = "review.similar.servercount";
+
+    /// <summary>
+    /// What the comparison on an inventory card is for. The question card carries the same shape over a
+    /// candidate, where it is an offer; here it is evidence for keeping or deleting, and without a line
+    /// saying so the two read alike.
+    /// </summary>
+    public const string ReviewSimilarPurpose = "review.similar.purpose";
+
+    /// <summary>No set the player still has resembles this row, which is itself an answer.</summary>
+    public const string ReviewSimilarNone = "review.similar.none";
+
+
+    /// <summary>The comparison in words, so the colours are not carrying it alone (args: three counts).</summary>
+    public const string ReviewSimilarCounts = "review.similar.counts";
+
+    /// <summary>A weaker resemblance, named in one line rather than drawn (args: name, percent).</summary>
+    public const string ReviewSimilarMore = "review.similar.more";
+
+    /// <summary>Turn the comparison round, to see the other set instead (arg: its name).</summary>
+    public const string ReviewShowOther = "review.showother";
+
+    /// <summary>Turn it back to the row being decided about.</summary>
+    public const string ReviewShowThisRow = "review.showthisrow";
+
+    /// <summary>Label on the box that picks which stored row the comparison shows.</summary>
+    public const string ReviewPickLabel = "review.pick.label";
+
+    /// <summary>One entry in that box (args: name, percent).</summary>
+    public const string ReviewPickOption = "review.pick.option";
+
+    /// <summary>The entry the server proposes, marked as such (args: name, percent).</summary>
+    public const string ReviewPickOptionProposed = "review.pick.option.proposed";
+
+    /// <summary>Turn the comparison back to the set that just came out of the game.</summary>
+    public const string ReviewShowInGame = "review.showingame";
+
+    /// <summary>Open the gear grid under an inventory comparison.</summary>
+    public const string ReviewShowGear = "review.showgear";
+
+    /// <summary>Fold it away again.</summary>
+    public const string ReviewHideGear = "review.hidegear";
+
+    /// <summary>What the grid is, for the reader deciding whether to open it.</summary>
+    public const string ReviewShowGearMeans = "review.showgear.means";
+
+    /// <summary>
+    /// On the swap button itself. Names the action rather than the destination, so the label keeps its
+    /// width when pressed and nothing beside it moves, and so one string serves every card.
+    /// </summary>
+    public const string ReviewSwapSides = "review.swapsides";
+
+    /// <summary>Where a released row came from (arg: when it was handed over).</summary>
+    public const string ReviewReleasedOn = "review.releasedon";
+
+    /// <summary>What taking a released row back does, which is more than reopening an ignore.</summary>
+    public const string ReviewReopenUndoesRelease = "review.reopen.undoesrelease";
+
+    /// <summary>Verdict: the row was handed to the website on purpose.</summary>
+    public const string ReviewAdviceReleased = "review.advice.released";
+
+    /// <summary>What to do with a released row, and what taking it back costs.</summary>
+    public const string ReviewAdviceReleasedDo = "review.advice.released.do";
+
+    /// <summary>What a link onto an ordinary parked row does (arg: its name).</summary>
+    public const string ReviewLinkParked = "review.link.parked";
+
+    /// <summary>What a link onto a released row costs: the frozen contents (arg: its name).</summary>
+    public const string ReviewLinkReleased = "review.link.released";
+
+    /// <summary>What a link onto a hand-made row costs (arg: its name).</summary>
+    public const string ReviewLinkHandMade = "review.link.handmade";
+
+    /// <summary>Verdict: the row was built on the website and was never in game.</summary>
+    public const string ReviewAdviceHandMade = "review.advice.handmade";
+
+    /// <summary>What to do with a hand-made row, which the server will not delete.</summary>
+    public const string ReviewAdviceHandMadeDo = "review.advice.handmade.do";
+
+    /// <summary>Verdict: nothing the player still has resembles this row.</summary>
+    public const string ReviewAdviceUnique = "review.advice.unique";
+
+    /// <summary>What to do when nothing resembles it.</summary>
+    public const string ReviewAdviceUniqueDo = "review.advice.unique.do";
+
+    /// <summary>Verdict: the row is a copy of one that is still there (arg: its name).</summary>
+    public const string ReviewAdviceCopy = "review.advice.copy";
+
+    /// <summary>What to do with a copy (arg: the other set's name).</summary>
+    public const string ReviewAdviceCopyDo = "review.advice.copy.do";
+
+    /// <summary>Verdict: the same pieces, other melds (arg: the other set's name).</summary>
+    public const string ReviewAdviceMateria = "review.advice.materia";
+
+    /// <summary>What to do when only the melds differ (arg: the other set's name).</summary>
+    public const string ReviewAdviceMateriaDo = "review.advice.materia.do";
+
+    /// <summary>Verdict: it resembles a set without being it (args: its name, differing slot count).</summary>
+    public const string ReviewAdviceSimilar = "review.advice.similar";
+
+    /// <summary>The same verdict where exactly one slot differs, so the sentence can be German (arg: its name).</summary>
+    public const string ReviewAdviceSimilarOne = "review.advice.similarone";
+
+    /// <summary>What to do when it merely resembles one.</summary>
+    public const string ReviewAdviceSimilarDo = "review.advice.similar.do";
+
+    /// <summary>
+    /// What to do instead, on a row a team follows. Replaces whichever closing sentence the verdict would
+    /// have given, because all of them name deleting and there is no delete on such a row.
+    /// </summary>
+    public const string ReviewAdviceUnshareFirst = "review.advice.unsharefirst";
+
+    /// <summary>What the other side has in a slot where the two disagree (arg: its item, or nothing).</summary>
+    public const string ReviewCompareOther = "review.compare.other";
+
+    /// <summary>An empty slot, named rather than left blank.</summary>
+    public const string ReviewCompareNothing = "review.compare.nothing";
+
+    /// <summary>Slot state: same item, same materia.</summary>
+    public const string ReviewSlotSame = "review.slot.same";
+
+    /// <summary>Slot state: same item, other materia. The one the numbers cannot say.</summary>
+    public const string ReviewSlotMateria = "review.slot.materia";
+
+    /// <summary>Slot state: a different item on the two sides.</summary>
+    public const string ReviewSlotOther = "review.slot.other";
+
+    /// <summary>Slot state: filled on the upper side only.</summary>
+    public const string ReviewSlotOnlyHere = "review.slot.onlyhere";
+
+    /// <summary>Slot state: filled on the lower side only.</summary>
+    public const string ReviewSlotOnlyThere = "review.slot.onlythere";
 
     /// <summary>What the window is asking on a first sync after a website-first start (arg: count).</summary>
     public const string ReviewWebsiteFirst = "review.websitefirst";
+
+    /// <summary>What answering "it is new" does, on the button that does it.</summary>
+    public const string ReviewItIsNewMeans = "review.itisnew.means";
+
+    /// <summary>What a question is, first line (arg: the name the set has in game).</summary>
+    public const string ReviewQuestionWhat = "review.question.what";
+
+    /// <summary>The server vouches for its suggestion (arg: the row it names).</summary>
+    public const string ReviewQuestionSure = "review.question.sure";
+
+    /// <summary>The server suggests without vouching (arg: the row it names).</summary>
+    public const string ReviewQuestionUnsure = "review.question.unsure";
+
+    /// <summary>The server proposes that the set really is new.</summary>
+    public const string ReviewQuestionNew = "review.question.new";
+
+    /// <summary>No proposal came with the question, so nothing is suggested.</summary>
+    public const string ReviewQuestionNone = "review.question.none";
+
+    /// <summary>
+    /// The reader picked a candidate other than the proposed one (args: the pick, the proposal). The card
+    /// used to keep naming the proposal while the comparison and the buttons had moved to the pick.
+    /// </summary>
+    public const string ReviewQuestionOwnPick = "review.question.ownpick";
 
     /// <summary>Leave this question out of the whole mapping, to answer on its own.</summary>
     public const string ReviewStrikeOut = "review.strikeout";
@@ -500,11 +810,11 @@ public static class LocKeys
     /// <summary>Put a struck question back into the mapping.</summary>
     public const string ReviewPutBack = "review.putback";
 
-    /// <summary>Marks a question that has been left out (arg: count).</summary>
-    public const string ReviewStruckCount = "review.struckcount";
-
     /// <summary>Second click on an irreversible action: what it will do, and the way out.</summary>
     public const string ReviewConfirmTitle = "review.confirm.title";
+
+    /// <summary>Second click on something that can be taken back, so the heading does not overclaim.</summary>
+    public const string ReviewConfirmCheck = "review.confirm.check";
 
     /// <summary>Go through with it.</summary>
     public const string ReviewConfirmYes = "review.confirm.yes";
@@ -632,18 +942,6 @@ public static class LocKeys
 
     /// <summary>"Clear" button.</summary>
     public const string LogClear = "log.clear";
-
-    /// <summary>Diagnostics: the gearset identity section header.</summary>
-    public const string LogGearsetIdentity = "log.gearset.identity";
-
-    /// <summary>Diagnostics: button that samples the current mapping.</summary>
-    public const string LogGearsetSample = "log.gearset.sample";
-
-    /// <summary>Diagnostics: nothing sampled yet.</summary>
-    public const string LogGearsetNone = "log.gearset.none";
-
-    /// <summary>Diagnostics: copy the sampled table.</summary>
-    public const string LogGearsetCopy = "log.gearset.copy";
 
     /// <summary>Empty-log placeholder.</summary>
     public const string LogEmpty = "log.empty";

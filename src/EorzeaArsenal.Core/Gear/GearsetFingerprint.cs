@@ -54,6 +54,29 @@ public static class GearsetFingerprint
     public static string NameKey(string? job, string? name) =>
         (job ?? string.Empty) + Separator + (name ?? string.Empty);
 
+    /// <summary>
+    /// The gear alone: job and the pieces, without the name.
+    /// </summary>
+    /// <param name="set">The gearset.</param>
+    /// <returns>A hex digest over the job and every occupied slot.</returns>
+    /// <remarks>
+    /// <see cref="Strong"/> takes the name in with it, so renaming a set breaks it and drops the match to
+    /// the weak key, where two sets of a job the player never named apart are indistinguishable. This one
+    /// answers the narrower question that survives a rename: is this the same gear.
+    /// </remarks>
+    public static string Gear(GearsetDto set)
+    {
+        var builder = new StringBuilder();
+        builder.Append(set.Job).Append(Separator);
+
+        foreach (var slot in set.Items.Keys.OrderBy(k => k, StringComparer.Ordinal))
+        {
+            builder.Append(slot).Append(':').Append(set.Items[slot].Id).Append(Separator);
+        }
+
+        return Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())));
+    }
+
     /// <summary>The weak key of a live gearset.</summary>
     /// <param name="set">The gearset.</param>
     /// <returns>The same key <see cref="NameKey(string?, string?)"/> builds.</returns>

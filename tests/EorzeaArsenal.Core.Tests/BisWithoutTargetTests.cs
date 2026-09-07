@@ -112,6 +112,37 @@ public sealed class BisWithoutTargetTests
         Assert.DoesNotContain("DRK", without.Select(s => s.Job));
     }
 
+    /// <summary>
+    /// Two live gearsets under one identity, which is what a freshly copied set looks like until the next
+    /// push tells the server it exists. The key used to go to whichever came last, so the target drew
+    /// itself against the copy while every number beside it named the original. Neither can claim it now,
+    /// and both are reported as having no target, which is what they have.
+    /// </summary>
+    [Fact]
+    public void AnIdentityTwoLiveSetsClaimIsClaimedByNeither()
+    {
+        var live = Live(("DRK", 0), ("DRK", 5));
+        var target = new BisGearset { Job = "DRK", GearIndex = 0, Name = "BiS", SetUid = "abc", Items = [] };
+
+        var without = BisComparer.WithoutTarget(live, [target], _ => "abc");
+
+        Assert.Equal([0, 5], without.Select(s => s.GearIndex).OrderBy(i => i));
+    }
+
+    /// <summary>
+    /// And a third claimant does not put the key back, which a plain removal on collision would allow.
+    /// </summary>
+    [Fact]
+    public void AThirdClaimantDoesNotRestoreTheIdentity()
+    {
+        var live = Live(("DRK", 0), ("DRK", 5), ("DRK", 9));
+        var target = new BisGearset { Job = "DRK", GearIndex = 0, Name = "BiS", SetUid = "abc", Items = [] };
+
+        var without = BisComparer.WithoutTarget(live, [target], _ => "abc");
+
+        Assert.Equal(3, without.Count);
+    }
+
     private static GearData Live(params (string Job, int Index)[] sets) => new()
     {
         Character = new CharacterDto { Name = "X", World = "Y", CidHash = TestData.ExampleHash },

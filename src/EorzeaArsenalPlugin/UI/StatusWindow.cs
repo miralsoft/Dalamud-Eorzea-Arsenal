@@ -44,6 +44,9 @@ public sealed class StatusWindow : Window
     // review window moves the state without a push, and a badge that keeps announcing finished work is
     // one people learn to ignore.
     private readonly Func<ReviewSummary?> _currentReview;
+
+    /// <summary>How many live gearsets this side cannot tell apart from another of the player's own.</summary>
+    private readonly Func<int> _twinCount;
     private readonly Action _openReport;
     private readonly Action _openTeams;
     private readonly Action _openCalendar;
@@ -72,6 +75,10 @@ public sealed class StatusWindow : Window
     /// <param name="openPreview">Callback to open the preview window.</param>
     /// <param name="openWhatsNew">Callback to open the what's-new window.</param>
     /// <param name="gearsetMapping">The gearset identity cache, for the uncertain-match warning.</param>
+    /// <param name="twinCount">
+    /// How many live gearsets this side declined to identify because another one is indistinguishable
+    /// from it. Measured locally: the server has distinct rows and reports no doubt at all.
+    /// </param>
     public StatusWindow(
         PluginConfig config,
         ConfigStore store,
@@ -93,7 +100,8 @@ public sealed class StatusWindow : Window
         Action openTeams,
         Action openCalendar,
         Action openPreview,
-        Action openWhatsNew)
+        Action openWhatsNew,
+        Func<int> twinCount)
         : base("Eorzea Arsenal###EorzeaArsenalStatus")
     {
         _config = config;
@@ -117,6 +125,7 @@ public sealed class StatusWindow : Window
         _openCalendar = openCalendar;
         _openPreview = openPreview;
         _openWhatsNew = openWhatsNew;
+        _twinCount = twinCount;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -160,6 +169,20 @@ public sealed class StatusWindow : Window
             {
                 ImGui.TextWrapped(_localizer.Get(LocKeys.StatusGearsetIdentityPositional, positional));
             }
+        }
+
+        // And the one this side works out for itself. The two above repeat what the server said about its
+        // own matching, and the server has distinct rows and reports no doubt; the case where two of the
+        // player's own gearsets are indistinguishable here is invisible to it. Without this line the only
+        // symptom is a BiS comparison that stays empty for those sets, which reads as a fault rather than
+        // as a refusal to guess. It carries the remedy, because there is one.
+        var twins = _twinCount();
+        if (twins > 0)
+        {
+            using var wrap = ImRaii.PushColor(ImGuiCol.Text, Yellow);
+            ImGui.TextWrapped(_localizer.Get(
+                twins == 1 ? LocKeys.StatusGearsetUnattributedOne : LocKeys.StatusGearsetUnattributedMany,
+                twins));
         }
 
         ImGui.Spacing();
@@ -246,16 +269,39 @@ public sealed class StatusWindow : Window
         }
 
 
-        // Only when something is actually waiting. A normal player who builds sets in game never sees this
-        // entry at all, which is the whole point of the mechanism behind it: ambiguity raises a question,
-        // unfamiliarity does not. Rows already put aside deliberately do not count towards showing it.
-        if (_currentReview() is { NeedsAttention: true } review)
+        // Shown while something waits, and also while anything is merely archived. A normal player who
+        // builds sets in game sees neither, which is the whole point of the mechanism behind it:
+        // ambiguity raises a question, unfamiliarity does not.
+        //
+        // The second half arrived late and it was a real hole. Putting a row aside has an undo,
+        // `reopen`, and this entry was the only route into the window: once nothing else was waiting the
+        // entry vanished, the window closed itself, and the archive with it. A button whose undo cannot
+        // be reached is a one-way door however the contract describes it, which is the same fault
+        // `release` had until `released_at` existed.
+        //
+        // Told apart by colour and by wording, because they are different states. Something waiting is
+        // yellow and says how many decisions; an archive is quiet, says how many rows are in it, and is
+        // there for whoever goes looking rather than for whoever needs telling.
+        if (_currentReview() is { } review && (review.NeedsAttention || (review.Orphans?.Ignored ?? 0) > 0))
         {
-            var waiting = review.Held > 0
-                ? _localizer.Get(LocKeys.ReviewQuestions, review.Held)
-                : _localizer.Get(LocKeys.ReviewOrphansOpen, review.Orphans?.Open ?? 0);
+            // The sum, not one of the two halves. It used to name the questions and fall back to the rows
+            // only when there were no questions at all, so one question beside one orphan read as "one
+            // question" and the row behind it was invisible until the window was opened. Naming both was
+            // honest and did not fit: the row is one line in a panel and the text ran off it. So the sum,
+            // in a word that covers both kinds without borrowing either one's name. Calling an inventory
+            // row a "question" here would be the window using two names for two different things, and
+            // "decision" is what they already are: one carousel walks them together.
+            var waiting = review.Held + (review.Orphans?.Open ?? 0);
+            var label = waiting > 0
+                ? waiting == 1
+                    ? _localizer.Get(LocKeys.ReviewDecisionsOne)
+                    : _localizer.Get(LocKeys.ReviewDecisionsMany, waiting)
+                : _localizer.Get(LocKeys.ReviewOrphansAside, review.Orphans?.Ignored ?? 0);
 
-            if (MenuButton(FontAwesomeIcon.QuestionCircle, $"{T(LocKeys.ReviewTitle)}   ·   {waiting}", accent: Yellow))
+            if (MenuButton(
+                FontAwesomeIcon.QuestionCircle,
+                $"{T(LocKeys.ReviewTitle)}   ·   {label}",
+                accent: waiting > 0 ? Yellow : null))
             {
                 _openReview();
             }

@@ -186,7 +186,17 @@ public sealed class BisWindow : Window
         ImGui.Separator();
 
         var currentIndex = _gearSource.GetCurrentGearsetIndex();
-        var scoped = _bis.Comparisons.Where(c => _config.BisShowAllSets || c.GearIndex == currentIndex);
+
+        // A target no gearset in game answers to is left out of this window entirely. Every view built a
+        // comparison out of that nothing: the list said "0 of 11 slots match" with all eleven pieces in
+        // red, and the shopping list counted a whole set as still to buy. Both are verdicts about a set
+        // that does not exist, and the window is called gear against BiS: with no gear there is no
+        // comparison to draw. Nothing is hidden by leaving them out, because that is exactly what the
+        // reconciliation window is for, and each of them is already a card or a candidate in it.
+        var scoped = _bis.Comparisons
+            .Where(c => c.HasLiveGearset)
+            .Where(c => _config.BisShowAllSets || c.GearIndex == currentIndex)
+            .ToList();
 
         if (_config.BisShoppingList)
         {
@@ -202,7 +212,7 @@ public sealed class BisWindow : Window
 
         // Materialised once: this runs every frame, and the role loop would otherwise walk the list three
         // times over and recompute the same heading decision three times with it.
-        var all = scoped.ToList();
+        var all = scoped;
         var label = RolesPresent(all) > 1;
 
         var shownAny = false;
@@ -211,11 +221,12 @@ public sealed class BisWindow : Window
             shownAny |= DrawRoleGroup(role, all, currentIndex, label);
         }
 
-        if (!shownAny && _bis.Comparisons.Count > 0)
+        if (!shownAny && all.Count > 0)
         {
             ImGui.TextDisabled(T(LocKeys.BisNothingShown));
         }
     }
+
 
     /// <summary>
     /// Battle first, then the crafters, then the gatherers. The groups are fixed; the order <i>inside</i> a
@@ -332,12 +343,21 @@ public sealed class BisWindow : Window
         var name = string.IsNullOrWhiteSpace(set.Name) ? string.Empty : $" · {set.Name}";
         using (ImRaii.PushColor(ImGuiCol.Text, Accent))
         {
-            ImGui.TextUnformatted($"#{index} {set.Job}{name}");
+            ImGui.TextUnformatted($"#{index + 1} {set.Job}{name}");
         }
 
-        var reason = JobMap.HasBisCatalogue(set.Job)
-            ? _localizer.Get(LocKeys.BisNoTarget, index)
-            : T(LocKeys.BisNoCatalogue);
+        // Three reasons, and the third one arrived with the rule that stops this side guessing between
+        // gearsets it cannot tell apart. Such a set has a target and cannot be matched to it, so it lands
+        // in this list for want of a claim; telling that player to pin a target would send them to do
+        // something they already did. A wrong remedy is worse than none, which is why the three are told
+        // apart at all. That third one names no single cause any more: two sets sharing a job and a name
+        // is one way in, a copy the server has not been told about is another, and a push that disagreed
+        // with what was remembered is a third. Only the first is ended by renaming.
+        var reason = _bis.AmbiguousLive.Contains(set.GearIndex)
+            ? T(LocKeys.BisUnattributed)
+            : JobMap.HasBisCatalogue(set.Job)
+                ? T(LocKeys.BisNoTarget)
+                : T(LocKeys.BisNoCatalogue);
 
         ImGui.SameLine();
         ImGui.TextDisabled(reason);
@@ -450,9 +470,17 @@ public sealed class BisWindow : Window
 
         var name = string.IsNullOrEmpty(comparison.Name) ? string.Empty : $" · {comparison.Name}";
         // Unformatted: the target name comes from the server, so a percent sign in it stays one.
+        // The position the player sees, which is one more than the index everything else counts with:
+        // the API and the game module count gearsets from zero, the gearset list shows them from one.
+        // The reconciliation window has added the one for a while; this window never did, so every
+        // number in it named the neighbour above. And a row with no gearset in game gets no number at
+        // all rather than its stored one, which for a hand-made row is a band value like 1000 and for a
+        // parked row is where it used to sit.
         using (ImRaii.PushColor(ImGuiCol.Text, Accent))
         {
-            ImGui.TextUnformatted($"#{_bis.DisplayIndex(comparison)} {comparison.Job}{name}");
+            ImGui.TextUnformatted(comparison.HasLiveGearset
+                ? $"#{_bis.DisplayIndex(comparison) + 1} {comparison.Job}{name}"
+                : $"{comparison.Job}{name}");
         }
         if (provisional)
         {

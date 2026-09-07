@@ -8,7 +8,10 @@
     What the symbol adds:
       * a wrench button in the status window's title bar, opening the diagnostics window;
       * the live "gearset identity" panel in that window — server state, cached rows, and the uid plus
-        the matched_by rung per gearset.
+        the matched_by rung per gearset;
+      * the diagnostics report in that window: identity, the uid-to-live-position table the set numbers
+        are drawn from, and the whole reconciliation state, each with a button that re-reads it and one
+        button that puts the lot on the clipboard. Never the API key, and nothing derived from it.
 
     What it does not change: the log itself, and `/xivarsenal gearsets`. A player's problem has to stay
     diagnosable in a released build, so the log and the chat dump are there for everyone. Only the
@@ -16,7 +19,7 @@
 
     Verify it worked, from the repository root:
       dotnet build -c Release
-      grep -c GearsetIdentityPanel src/EorzeaArsenalPlugin/bin/Release/EorzeaArsenalPlugin.dll
+      grep -c DiagnosticsPanel src/EorzeaArsenalPlugin/bin/Release/EorzeaArsenalPlugin.dll
     One or more with this file in place, zero without it. Checking the built assembly rather than the
     source is the only check that actually answers the question.
   -->

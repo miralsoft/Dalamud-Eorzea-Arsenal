@@ -33,6 +33,9 @@ public sealed class ConfigWindow : Window, IDisposable
     private readonly ILog _log;
     private readonly Action _save;
 
+    /// <summary>What the host's interface language resolves to, for the "same as the host" entry.</summary>
+    private readonly Func<string> _hostLanguage;
+
     private string _baseUrl;
     private string _webAppUrl;
     private string _pasteKey = string.Empty;
@@ -52,6 +55,10 @@ public sealed class ConfigWindow : Window, IDisposable
     /// <param name="api">API client (for the test-connection button).</param>
     /// <param name="log">Diagnostics sink.</param>
     /// <param name="save">Persists the config.</param>
+    /// <param name="hostLanguage">
+    /// The catalogue the host's interface language resolves to. Named in the "same as the host" entry, so
+    /// that choice is not made blind.
+    /// </param>
     public ConfigWindow(
         PluginConfig config,
         ConfigStore store,
@@ -59,7 +66,8 @@ public sealed class ConfigWindow : Window, IDisposable
         ConnectionService connection,
         IApiClient api,
         ILog log,
-        Action save)
+        Action save,
+        Func<string> hostLanguage)
         : base("Eorzea Arsenal###EorzeaArsenalConfig")
     {
         _config = config;
@@ -69,6 +77,7 @@ public sealed class ConfigWindow : Window, IDisposable
         _api = api;
         _log = log;
         _save = save;
+        _hostLanguage = hostLanguage;
         _baseUrl = config.BaseUrl;
         _webAppUrl = config.WebAppUrl ?? string.Empty;
 
@@ -275,14 +284,32 @@ public sealed class ConfigWindow : Window, IDisposable
         }
     }
 
+    /// <summary>
+    /// The language, with following the host as the first entry and the default.
+    /// </summary>
+    /// <remarks>
+    /// The first entry names what it currently resolves to, in brackets. Without that it is a choice made
+    /// blind: somebody picking "same as the host" has no way of knowing from here what the host is set to,
+    /// and the one thing they want to know is whether it lands on the language they read.
+    /// </remarks>
     private void DrawLanguage()
     {
-        var index = _localizer.Language == Localizer.German ? 1 : 0;
-        ReadOnlySpan<string> labels = ["English", "Deutsch"];
+        var follows = string.Equals(_config.Language, Localizer.FollowHost, StringComparison.Ordinal);
+        var index = follows ? 0 : _config.Language == Localizer.German ? 2 : 1;
+
+        var hostName = _hostLanguage() == Localizer.German ? "Deutsch" : "English";
+        string[] labels = [_localizer.Get(LocKeys.LanguageFollowHost, hostName), "English", "Deutsch"];
+
         if (ImGui.Combo(T(LocKeys.Language), ref index, labels, labels.Length))
         {
-            _localizer.Language = index == 1 ? Localizer.German : Localizer.English;
-            _config.Language = _localizer.Language;
+            _config.Language = index switch
+            {
+                0 => Localizer.FollowHost,
+                2 => Localizer.German,
+                _ => Localizer.English,
+            };
+
+            _localizer.Language = index == 0 ? _hostLanguage() : _config.Language;
             _save();
         }
     }
@@ -441,6 +468,8 @@ public sealed class ConfigWindow : Window, IDisposable
             _config.PushOnLogin = pushOnLogin;
             _save();
         }
+
+        Hint(_localizer.Get(LocKeys.PushOnLoginHint));
 
         var autoPush = _config.AutoPush;
         if (ImGui.Checkbox(T(LocKeys.AutoPush), ref autoPush))

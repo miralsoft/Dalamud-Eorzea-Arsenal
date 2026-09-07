@@ -14,7 +14,7 @@ namespace EorzeaArsenal.Plugin.Configuration;
 public sealed class PluginConfig : IPluginConfiguration
 {
     /// <summary>The current configuration schema version.</summary>
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     /// <summary>
     /// The default production API base URL; always user-editable (P9). For local development,
@@ -52,8 +52,12 @@ public sealed class PluginConfig : IPluginConfiguration
     /// <summary>Whether the user has acknowledged the third-party-tool ToS notice (R36).</summary>
     public bool TosAccepted { get; set; }
 
-    /// <summary>UI language code (<c>"de"</c>/<c>"en"</c>).</summary>
-    public string Language { get; set; } = Localizer.English;
+    /// <summary>
+    /// UI language: <c>"de"</c>, <c>"en"</c>, or <see cref="Localizer.FollowHost"/> to take whatever the
+    /// host is set to. Following the host is the default, because a plugin whose language has to be found
+    /// in a settings window is a plugin that greeted its owner in the wrong one.
+    /// </summary>
+    public string Language { get; set; } = Localizer.FollowHost;
 
     /// <summary>Whether to push automatically (throttled) when gear changes.</summary>
     public bool AutoPush { get; set; }
@@ -245,6 +249,23 @@ public sealed class PluginConfig : IPluginConfiguration
         if (Version < 2)
         {
             Version = 2;
+            changed = true;
+        }
+
+        // v2 → v3: the language may now follow the host. Only a stored "en" is moved onto it, and the
+        // reasoning is what that value cannot tell apart: it is both the old default and a deliberate
+        // choice. Leaving it would keep every existing installation on the old behaviour, and moving all
+        // of them would overrule somebody who really did pick English. On an English host the two resolve
+        // the same and nothing changes; on any other host this is the setting they never had a way to ask
+        // for. A stored "de" is a choice nobody arrives at by accident, so it stays.
+        if (Version < 3)
+        {
+            if (string.Equals(Language, Localizer.English, StringComparison.Ordinal))
+            {
+                Language = Localizer.FollowHost;
+            }
+
+            Version = 3;
             changed = true;
         }
 
