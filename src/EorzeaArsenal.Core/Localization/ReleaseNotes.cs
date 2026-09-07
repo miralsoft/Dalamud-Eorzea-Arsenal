@@ -71,8 +71,33 @@ public static class ReleaseNotes
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "the-plugin-asks-instead-of-guessing",
-                "Das Plugin fragt statt zu raten: lässt sich ein Set im Spiel nicht eindeutig zuordnen, bekommst du die Frage mit Vorschlag vorgelegt.",
-                "The plugin asks instead of guessing: when a set in game cannot be matched beyond doubt, you get the question with a suggestion."),
+                "Der neue Gearset-Abgleich: Wo unklar ist, welches Set in der Webapp zu welchem im Spiel gehört, fragt das Plugin nach statt zu raten.",
+                "The new gearset reconciliation: where it is unclear which set in the web app belongs to which one in game, the plugin asks instead of guessing."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "sets-with-no-counterpart-in-game",
+                "Sets ohne Gegenstück im Spiel: Der Abgleich listet sie mit allem, was daran hängt, und du entscheidest, ob sie bleiben.",
+                "Sets with no counterpart in game: the reconciliation lists them with everything attached to them, and you decide whether they stay."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "sets-are-shown-side-by-side",
+                "Beide Sets nebeneinander: Teil für Teil, mit Farbe je Platz für gleich, andere Materia oder anders.",
+                "Both sets side by side: piece by piece, with a colour per slot for same, other materia or different."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Fixed,
+                "bis-set-numbers-were-off-by-one",
+                "Die Setnummern im Ausrüstungsfenster stimmen: bisher stand dort die Nummer des Sets darüber.",
+                "The set numbers in the gear window are right: they used to name the set above the one they meant."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Fixed,
+                "when-to-send-now-covers-everything",
+                "\"Beim Login\" und \"Automatisch übertragen\" gelten für alles: bisher steuerten sie nur die Ausrüstung, nicht Besitz und Checkliste.",
+                "\"On login\" and \"push automatically\" cover everything: they used to govern the gear alone, not what you own or the checklist."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "language-follows-dalamud",
+                "Die Sprache folgt Dalamud: neu in den Einstellungen, Englisch und Deutsch bleiben frei wählbar.",
+                "The language follows Dalamud: new in the settings, with English and German still selectable."),
         ]),
         new ReleaseNote("1.0.0", "2026-07-27",
         [

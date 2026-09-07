@@ -73,6 +73,15 @@ _Last updated: 2026-06-12._
   assets** (no push to `main`); users add `releases/latest/download/pluginmaster.json`.
 - **Deferred (design only, do not build yet):** pairing-code connect path. (Inventory upload is
   implemented — opt-in, Phase 2b.)
+- **Plural seams outside the reconciliation window.** Around a dozen strings still count with a bracketed
+  suffix: `PushSuccess` ("{0} Gearset(s) übertragen"), `PreviewHeader`, `StatusGearsetIdentityAmbiguous`,
+  `StatusGearsetIdentityPositional`, `InventorySuccess` ("Gegenstand/Gegenstände", "Bereich(en)"),
+  `WeeklySuccess`, `AdvisorWhenWeeks`, `AdvisorWhenBooks`, `AdvisorNoSteps`, `BisNeedsWeeks`,
+  `BisNeedsUnknown`. The reconciliation window was cleared of them in 1.1.0 by splitting each key into a
+  singular and a plural and choosing in the caller; the rest of the plugin was deliberately left alone,
+  because touching it there would have mixed a cosmetic sweep into a feature branch. Same fix: one key
+  pair per string, both catalogues, and the caller picks. Note German has cases the suffix hides, so
+  `InventorySuccess` needs "einen Gegenstand" and not just a swapped ending.
 
 ## Key facts
 - Build needs **.NET 10 SDK** + local Dalamud dev libs (`%AppData%\XIVLauncher\addon\Hooks\dev`,
