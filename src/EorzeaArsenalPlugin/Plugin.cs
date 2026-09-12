@@ -43,6 +43,10 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IChatGui _chatGui;
     private readonly IToastGui _toastGui;
     private readonly IDataManager _dataManager;
+
+    // The game's own job list, read once at startup: what the plugin can name, and the names to quote in a
+    // report when the server does not yet accept one of them.
+    private readonly IReadOnlyList<GameJob> _gameJobs;
     private readonly LogBuffer _logBuffer;
     private readonly ILog _log;
 
@@ -211,6 +215,17 @@ public sealed class Plugin : IDalamudPlugin
         var api = new ApiClient(_httpClient, _store);
         _api = api;
         _trackedItems = new TrackedItemsStore();
+
+        // Before anything reads a gearset. A job the map cannot name is skipped when the list is read and
+        // is then thrown away again by the sanitizer, so learning has to happen ahead of both. It widens
+        // what can be named and nothing else: what may be sent stays with the server's table.
+        _gameJobs = GameJobSheet.Read(dataManager, _log);
+        var learned = JobMap.LearnFromGame(_gameJobs.Select(j => new KeyValuePair<uint, string>(j.Id, j.Code)));
+        if (learned.Count > 0)
+        {
+            _log.Info($"The game knows {learned.Count} job(s) this version was not told about: {string.Join(", ", learned)}.");
+        }
+
         _gearSource = new GameGearSource(clientState, playerState, framework, dataManager, _log, GameNameLanguage);
         _inventorySource = new GameInventorySource(clientState, playerState, framework, dataManager, _trackedItems, _log);
         _weeklySource = new GameWeeklySource(clientState, playerState, framework, gameGui, dataManager, _log);
@@ -293,6 +308,7 @@ public sealed class Plugin : IDalamudPlugin
             ("Duplicates", () => DiagnosticsReport.Duplicates(_gearsetDebug, _bisService.AmbiguousLive, _bisService.FetchedUtc)),
             ("Positions", () => DiagnosticsReport.Positions(_bisService)),
             ("Review", () => DiagnosticsReport.Review(_review.Current, _currentCidHash)),
+            ("Jobs", () => DiagnosticsReport.Jobs(_gameJobs, _jobTable.CurrentPolicy, _jobTable.Current)),
         ];
 
         (string Label, Action Run)[] actions =

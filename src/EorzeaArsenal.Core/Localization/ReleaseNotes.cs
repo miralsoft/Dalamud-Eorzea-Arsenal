@@ -80,6 +80,11 @@ public static class ReleaseNotes
                 "Sets with no counterpart in game: the reconciliation lists them with everything attached to them, and you decide whether they stay."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
+                "new-jobs-are-recognised",
+                "Neue Jobs erkennt das Plugin selbst: Ein Set für einen Job, den diese Fassung noch nicht kannte, fehlt nicht mehr in der Liste.",
+                "New jobs are recognised on their own: a set for a job this version had never heard of no longer goes missing from the list."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
                 "sets-are-shown-side-by-side",
                 "Beide Sets nebeneinander: Teil für Teil, mit Farbe je Platz für gleich, andere Materia oder anders.",
                 "Both sets side by side: piece by piece, with a colour per slot for same, other materia or different."),

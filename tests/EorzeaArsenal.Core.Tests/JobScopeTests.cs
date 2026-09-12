@@ -51,7 +51,7 @@ public sealed class JobScopeTests
         Assert.Equal(42, expected.Length);
         Assert.Equal(
             expected.OrderBy(c => c, StringComparer.Ordinal),
-            JobMap.ValidCodes.OrderBy(c => c, StringComparer.Ordinal));
+            JobMap.Floor.Values.OrderBy(c => c, StringComparer.Ordinal));
     }
 
     /// <summary>
@@ -67,9 +67,53 @@ public sealed class JobScopeTests
             Assert.NotNull(JobMap.ToCode(id));
         }
 
-        Assert.Null(JobMap.ToCode(0));
-        Assert.Null(JobMap.ToCode(43));
-        Assert.Null(JobMap.ToCode(9999));
+        Assert.False(JobMap.Floor.ContainsKey(0));
+        Assert.False(JobMap.Floor.ContainsKey(43));
+        Assert.False(JobMap.Floor.ContainsKey(9999));
+    }
+
+    /// <summary>
+    /// The game may know a job this version was never told about, and reading its own sheet is cheaper and
+    /// more reliable than transcribing the row again. Tested through the pure merge, so nothing here
+    /// touches the tables a running plugin is using.
+    /// </summary>
+    /// <remarks>
+    /// Beastmaster is the case that prompted it: added to the game after this table was written, so the
+    /// gearset was skipped when the list was read and vanished from the plugin without a word.
+    /// </remarks>
+    [Fact]
+    public void AJobTheGameAddedLaterIsLearnedFromItsOwnSheet()
+    {
+        var merged = JobMap.Merge(JobMap.Floor, [new KeyValuePair<uint, string>(43u, "BST")]);
+
+        Assert.Equal(43, merged.Count);
+        Assert.Equal("BST", merged[43u]);
+
+        // Everything the floor said, unchanged.
+        foreach (var (id, code) in JobMap.Floor)
+        {
+            Assert.Equal(code, merged[id]);
+        }
+    }
+
+    /// <summary>
+    /// And it only fills gaps. A sheet that disagrees about a row the floor already names does not get to
+    /// rename it, because a code is what a push carries and a renamed job is a push about the wrong set.
+    /// </summary>
+    [Theory]
+    [InlineData(0u, "ADV")]       // adventurer, which has no gearsets
+    [InlineData(19u, "PAL")]      // a row the floor names PLD, and PLD it stays
+    [InlineData(44u, "")]         // a placeholder row with no abbreviation
+    [InlineData(45u, "BEAST")]    // not three letters, so not a code the API speaks
+    [InlineData(46u, "pld")]      // not uppercase either
+    [InlineData(47u, "WVR")]      // a code another row already carries
+    public void TheSheetOnlyFillsGaps(uint id, string code)
+    {
+        var merged = JobMap.Merge(JobMap.Floor, [new KeyValuePair<uint, string>(id, code)]);
+
+        Assert.Equal(JobMap.Floor.Count, merged.Count);
+        Assert.Equal("PLD", merged[19u]);
+        Assert.Equal("WVR", merged[13u]);
     }
 
     [Theory]

@@ -68,17 +68,18 @@ public sealed class GearMappingTests
 
     [Theory]
     [InlineData(0u)]   // adventurer, which has no gearsets
-    [InlineData(43u)]  // past the last code the API knows
+    [InlineData(43u)]  // past the compiled floor; the game may teach this one at runtime
     [InlineData(999u)] // unknown
     public void JobMap_returns_null_for_ids_that_are_not_jobs(uint classJobId)
     {
-        Assert.Null(JobMap.ToCode(classJobId));
+        Assert.False(JobMap.Floor.ContainsKey(classJobId));
     }
 
     [Fact]
     public void JobMap_names_42_unique_codes()
     {
-        Assert.Equal(42, JobMap.ValidCodes.Count);
+        Assert.Equal(42, JobMap.Floor.Count);
+        Assert.Equal(42, JobMap.Floor.Values.Distinct(StringComparer.Ordinal).Count());
     }
 
     [Theory]

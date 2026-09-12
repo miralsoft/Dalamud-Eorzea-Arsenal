@@ -91,6 +91,21 @@
       }
     },
     {
+      "id": "new-jobs-are-recognised",
+      "version": "1.1.0",
+      "date": "2026-08-22",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Neue Jobs erkennt das Plugin selbst",
+        "body": "<p>Ein Set für einen Job, den diese Fassung noch nicht kannte, fehlt nicht mehr in der Liste.</p>"
+      },
+      "en": {
+        "title": "New jobs are recognised on their own",
+        "body": "<p>A set for a job this version had never heard of no longer goes missing from the list.</p>"
+      }
+    },
+    {
       "id": "sets-are-shown-side-by-side",
       "version": "1.1.0",
       "date": "2026-08-22",

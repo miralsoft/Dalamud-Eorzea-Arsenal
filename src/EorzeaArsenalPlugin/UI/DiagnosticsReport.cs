@@ -1,7 +1,9 @@
 #if EORZEA_ARSENAL_DEVTOOLS
+using System.Globalization;
 using EorzeaArsenal.Core;
 using EorzeaArsenal.Gear;
 using EorzeaArsenal.Model;
+using EorzeaArsenal.Plugin.Gear;
 using EorzeaArsenal.Plugin.Services;
 
 namespace EorzeaArsenal.Plugin.UI;
@@ -355,17 +357,78 @@ public static class DiagnosticsReport
             {
                 lines.Add(
                     $"   similar {Short(similar.SetUid)} {similar.Probability,3}% " +
-                    $"{similar.MatchedSlots}/{similar.TotalSlots} src={similar.Source} \"{similar.Name}\"");
+                    $"{similar.MatchedSlots}/{similar.TotalSlots} src={similar.Source} " +
+                    $"state={similar.State ?? "-"} idx={(similar.GearIndex is { } at ? (at + 1).ToString(CultureInfo.InvariantCulture) : "-")} " +
+                    $"seen={similar.LastSeenAt ?? "-"} \"{similar.Name}\"");
             }
         }
 
         return lines;
     }
 
-    /// <summary>Every section, with a heading, ready for the clipboard.</summary>
-    /// <param name="version">The plugin version, so a pasted report says which build it came from.</param>
-    /// <param name="sections">The sections, in the order they are drawn.</param>
-    /// <returns>One string.</returns>
+    /// <summary>
+    /// The three lists of jobs held against each other: what the game has, what this plugin can name, and
+    /// what the server accepts.
+    /// </summary>
+    /// <param name="gameJobs">The game's own job rows, as read at startup.</param>
+    /// <param name="policy">The policy in force, which carries the codes the server's table lists.</param>
+    /// <param name="table">The server's table, for its version stamp.</param>
+    /// <returns>The section.</returns>
+    /// <remarks>
+    /// A job the game has and the server does not accept is not a fault and not something the plugin can
+    /// fix: the codes a push may carry are the server's to decide. What it is, is a fact somebody has to
+    /// carry across, and the last block here is that message ready to quote. The names come along in both
+    /// languages so whoever adds the row can see they added the right job rather than a number.
+    /// </remarks>
+    public static IReadOnlyList<string> Jobs(
+        IReadOnlyList<GameJob> gameJobs,
+        JobPolicy policy,
+        JobTableResponse? table)
+    {
+        var learned = JobMap.ValidCodes.Count - JobMap.Floor.Count;
+        var lines = new List<string>
+        {
+            "== jobs ==",
+            $"game sheet     : {gameJobs.Count} job row(s)",
+            $"plugin names   : {JobMap.ValidCodes.Count} code(s), {JobMap.Floor.Count} compiled in, {learned} learned from the game",
+            $"server accepts : {policy.AllowedCodes.Count} code(s), scope {policy.Scope}, table version {table?.Version ?? "-"}",
+        };
+
+        // Only the disagreements. All 43 rows in a report is a wall nobody reads, and every row that
+        // agrees says the same nothing.
+        var unnamed = gameJobs.Where(j => !JobMap.IsValidCode(j.Code)).ToArray();
+        var unaccepted = gameJobs.Where(j => JobMap.IsValidCode(j.Code) && !policy.Allows(j.Code)).ToArray();
+
+        if (unnamed.Length > 0)
+        {
+            lines.Add(string.Empty);
+            lines.Add($"-- the game has these and the plugin cannot name them ({unnamed.Length}) --");
+            foreach (var job in unnamed)
+            {
+                lines.Add($"  row {job.Id,-4} \"{job.Code}\" / \"{job.LocalCode}\"  {job.English} / {job.German}");
+            }
+        }
+
+        if (unaccepted.Length > 0)
+        {
+            lines.Add(string.Empty);
+            lines.Add($"-- named here, not in the server's table ({unaccepted.Length}) --");
+            foreach (var job in unaccepted)
+            {
+                var known = JobMap.Floor.ContainsKey(job.Id) ? "compiled" : "learned";
+                lines.Add($"  row {job.Id,-4} {job.Code} (de {job.LocalCode})  {job.English} / {job.German}  ({known})");
+            }
+
+            lines.Add("  these are read and named, and every push leaves them out until the table lists them");
+        }
+
+        return lines;
+    }
+
+    /// <summary>Joins the sections into one report, with the version and the moment at the top.</summary>
+    /// <param name="version">The plugin version.</param>
+    /// <param name="sections">The sections, in the order they should appear.</param>
+    /// <returns>The whole report.</returns>
     public static string Compose(string version, params IReadOnlyList<string>[] sections)
     {
         var all = new List<string>
