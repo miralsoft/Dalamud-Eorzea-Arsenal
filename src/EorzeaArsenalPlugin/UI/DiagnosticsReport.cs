@@ -392,6 +392,13 @@ public static class DiagnosticsReport
             $"game sheet     : {gameJobs.Count} job row(s)",
             $"plugin names   : {JobMap.ValidCodes.Count} code(s), {JobMap.Floor.Count} compiled in, {learned} learned from the game",
             $"server accepts : {policy.AllowedCodes.Count} code(s), scope {policy.Scope}, table version {table?.Version ?? "-"}",
+
+            // Why the English sheet and not the one the player reads. The API speaks one spelling, the
+            // client shows another for some jobs, and a client that read its own column would send a code
+            // no server knows for every one of them. The count is here so that is a measurement rather
+            // than a belief.
+            $"abbreviations  : {gameJobs.Count(j => !string.Equals(j.Code, j.LocalCode, StringComparison.Ordinal))} " +
+                "of them spelled differently in the player's language",
         };
 
         // Only the disagreements. All 43 rows in a report is a wall nobody reads, and every row that
