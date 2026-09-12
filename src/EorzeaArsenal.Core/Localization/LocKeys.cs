@@ -663,9 +663,6 @@ public static class LocKeys
     /// <summary>A weaker resemblance, named in one line rather than drawn (args: name, percent).</summary>
     public const string ReviewSimilarMore = "review.similar.more";
 
-    /// <summary>The row being compared against is itself no longer in the game.</summary>
-    public const string ReviewSimilarGone = "review.similar.gone";
-
     /// <summary>
     /// The position the server last recorded for a set the live list cannot place (arg: the number).
     /// </summary>

@@ -246,22 +246,25 @@ public sealed class SimilarSet
     public Dictionary<string, ItemDto> Items { get; init; } = [];
 
     /// <summary>
-    /// What the row is: one of <see cref="RowState"/>, or <see langword="null"/> on a hand-made row.
+    /// What the row is: <c>active</c>, <c>held</c>, or <see langword="null"/> on a hand-made row.
     /// </summary>
     /// <remarks>
-    /// The field that decides how the whole comparison reads. <c>active</c> and <c>held</c> belong to a
-    /// gearset the player can look at; <c>parked</c> and <c>ignored</c> do not, and a card that points at
-    /// one of those is comparing an orphan to another orphan.
+    /// <b>Never <c>parked</c> and never <c>ignored</c>, and that is a guarantee of the contract rather
+    /// than an accident.</b> This list is built only from rows the character still has, which is what the
+    /// card has always called them, so a comparison can never rest on a row that is as gone as the orphan
+    /// it is being held against. Confirmed by the API on 2026-09-12 after a measurement here found the
+    /// list empty for two parked twins, and held over there by a test that pushes exactly that case.
     /// </remarks>
     public string? State { get; init; }
 
     /// <summary>
-    /// Where the server last recorded it, or <see langword="null"/> when it has no place in the list.
+    /// Where the server last recorded it, or <see langword="null"/> for a hand-made row.
     /// </summary>
     /// <remarks>
-    /// Null for <c>parked</c> and for a hand-made row, which is a statement rather than a gap. On a row
-    /// that is in game this is a value the client happens to know: the position the player sees comes from
-    /// the live list, and this one is only worth showing where the live list cannot answer.
+    /// Null only for the hand-made case here, which follows from <see cref="State"/>: everything else in
+    /// this list is in game and therefore has a place in it. On such a row this is a value the client
+    /// happens to know, and the position the player sees comes from the live list; it is worth showing
+    /// only where the live list cannot answer.
     /// </remarks>
     public int? GearIndex { get; init; }
 
@@ -269,8 +272,9 @@ public sealed class SimilarSet
     /// When a push last claimed it, in server time, or <see langword="null"/> when none ever did.
     /// </summary>
     /// <remarks>
-    /// Evidence, the same way it is on a candidate: a row a sync reported this morning and one nobody has
-    /// seen since spring are not equally good reasons to delete the set being asked about.
+    /// Carried and reported, not drawn. Every row in this list is one the player still has, so the date is
+    /// the date of the last push and says nothing about the pair. Telling two parked twins apart is the
+    /// job of the orphan's own fields, not of this list.
     /// </remarks>
     public string? LastSeenAt { get; init; }
 

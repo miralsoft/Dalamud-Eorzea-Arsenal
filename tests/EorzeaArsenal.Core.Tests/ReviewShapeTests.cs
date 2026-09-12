@@ -155,11 +155,11 @@ public sealed class ReviewShapeTests
     /// </summary>
     /// <remarks>
     /// The recorded answer above predates them and is left exactly as it was copied, so this case carries
-    /// its own fragment. Both halves matter: the new fields have to arrive, and an answer without them has
-    /// to keep working, which is what the assertions on the recorded orphan below check.
+    /// its own fragment. A row that is in game carries the position the server last recorded, which is
+    /// what the card falls back to when the live list cannot place it.
     /// </remarks>
     [Fact]
-    public void ASimilarRowCarriesWhatItIsAndWhenItWasLastSeen()
+    public void ASimilarRowThatIsStillInGameSaysWhereItSat()
     {
         const string json = """
         {
@@ -170,37 +170,6 @@ public sealed class ReviewShapeTests
           "probability": 75,
           "matched_slots": 3,
           "total_slots": 4,
-          "state": "parked",
-          "gear_index": null,
-          "last_seen_at": "2026-07-14T09:12:00Z",
-          "items": {}
-        }
-        """;
-
-        var similar = JsonSerializer.Deserialize<SimilarSet>(json, EorzeaJson.Options)!;
-
-        Assert.Equal(RowState.Parked, similar.State);
-        Assert.Null(similar.GearIndex);
-        Assert.Equal("2026-07-14T09:12:00Z", similar.LastSeenAt);
-
-        // What the card does with them: a parked row is not standing in the list, and the date is the
-        // evidence the comparison rests on.
-        Assert.True(ReviewRules.IsGoneFromGame(similar));
-        Assert.Equal(OrphanOrigin.LastReported, ReviewRules.OriginOf(similar));
-    }
-
-    /// <summary>
-    /// A row that is still in game says so, and carries the position the server last recorded for it.
-    /// </summary>
-    [Fact]
-    public void ASimilarRowThatIsStillInGameSaysWhereItSat()
-    {
-        const string json = """
-        {
-          "set_uid": "fa63549a03f4b0171d2b5a8db9308e2f",
-          "job": "DRK",
-          "name": "Rechte Hand",
-          "source": "plugin",
           "state": "active",
           "gear_index": 14,
           "last_seen_at": "2026-09-12T19:00:00Z",
@@ -212,13 +181,47 @@ public sealed class ReviewShapeTests
 
         Assert.Equal(RowState.Active, similar.State);
         Assert.Equal(14, similar.GearIndex);
-        Assert.False(ReviewRules.IsGoneFromGame(similar));
+        Assert.Equal("2026-09-12T19:00:00Z", similar.LastSeenAt);
+        Assert.Equal(OrphanOrigin.LastReported, ReviewRules.OriginOf(similar));
     }
 
     /// <summary>
-    /// And the answer that predates the three fields still reads. An absent state is not "gone": the
-    /// sentence about a row being out of the game is a claim, and a claim built out of a missing field is
-    /// the mistake this whole model is careful about.
+    /// The one entry in this list without a position: a set somebody built on the site, which was never in
+    /// game and has no place in a list it was never in. Its state is null, and that is the only reason the
+    /// field is nullable at all.
+    /// </summary>
+    /// <remarks>
+    /// Guaranteed by the API since 2026-09-12: <c>similar[]</c> is built only from rows the character
+    /// still has, so <c>state</c> here is <c>active</c>, <c>held</c> or null and never <c>parked</c> or
+    /// <c>ignored</c>. Measured here first, with two parked twins that matched each other completely and
+    /// named each other in neither list, then confirmed as a contract and held by a test on that side. The
+    /// plugin therefore treats no row in this list as gone, and the question "do I still need this" cannot
+    /// be answered by pointing at something equally gone.
+    /// </remarks>
+    [Fact]
+    public void AHandMadeSimilarRowHasNoStateAndNoPosition()
+    {
+        const string json = """
+        {
+          "set_uid": "fa63549a03f4b0171d2b5a8db9308e2f",
+          "job": "DRK",
+          "name": "Von Hand gebaut",
+          "source": "manual",
+          "state": null,
+          "gear_index": null,
+          "items": {}
+        }
+        """;
+
+        var similar = JsonSerializer.Deserialize<SimilarSet>(json, EorzeaJson.Options)!;
+
+        Assert.Null(similar.State);
+        Assert.Null(similar.GearIndex);
+        Assert.Equal(OrphanOrigin.MadeOnSite, ReviewRules.OriginOf(similar));
+    }
+
+    /// <summary>
+    /// And the answer that predates the three fields still reads, claiming nothing from their absence.
     /// </summary>
     [Fact]
     public void AnAnswerWithoutTheNewFieldsClaimsNothing()
@@ -227,6 +230,6 @@ public sealed class ReviewShapeTests
 
         Assert.Null(similar.State);
         Assert.Null(similar.GearIndex);
-        Assert.False(ReviewRules.IsGoneFromGame(similar));
+        Assert.Null(similar.LastSeenAt);
     }
 }
