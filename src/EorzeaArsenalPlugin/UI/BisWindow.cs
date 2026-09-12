@@ -204,24 +204,21 @@ public sealed class BisWindow : Window
             return;
         }
 
-        if (_config.BisGridView)
-        {
-            DrawGrids(scoped);
-            return;
-        }
-
         // Materialised once: this runs every frame, and the role loop would otherwise walk the list three
         // times over and recompute the same heading decision three times with it.
         var all = scoped;
         var label = RolesPresent(all) > 1;
 
+        // One ordering, two renderers. The grid used to walk the comparisons on its own, which is how it
+        // came to be missing both the role groups and every set with no target: switching the view made
+        // sets disappear that the list had just been showing.
         var shownAny = false;
         foreach (var role in RoleOrder)
         {
-            shownAny |= DrawRoleGroup(role, all, currentIndex, label);
+            shownAny |= DrawRoleGroup(role, all, currentIndex, label, _config.BisGridView);
         }
 
-        if (!shownAny && all.Count > 0)
+        if (!shownAny && (_bis.Comparisons.Count > 0 || _bis.WithoutTarget.Count > 0))
         {
             ImGui.TextDisabled(T(LocKeys.BisNothingShown));
         }
@@ -256,8 +253,17 @@ public sealed class BisWindow : Window
     /// <param name="scoped">The comparisons already narrowed by the current-set filter.</param>
     /// <param name="currentIndex">The gearset the player is wearing.</param>
     /// <param name="label">Whether the group heading is worth drawing at all.</param>
+    /// <param name="grid">
+    /// Whether a comparison is drawn as the icon grid rather than the per-slot list. The only difference
+    /// between the two views: what is in a group, and in which order, is one decision made here.
+    /// </param>
     /// <returns>Whether anything was drawn.</returns>
-    private bool DrawRoleGroup(string role, IReadOnlyList<GearsetComparison> scoped, int currentIndex, bool label)
+    private bool DrawRoleGroup(
+        string role,
+        IReadOnlyList<GearsetComparison> scoped,
+        int currentIndex,
+        bool label,
+        bool grid)
     {
         var comparisons = scoped
             .Where(c => (JobMap.RoleOf(c.Job) ?? JobMap.RoleCombat) == role)
@@ -287,6 +293,15 @@ public sealed class BisWindow : Window
         {
             if (row.Comparison is { } comparison)
             {
+                if (grid)
+                {
+                    // No slot filter here, by the same rule as before: it narrows the per-slot list, and
+                    // the grid is a picture of the whole set.
+                    DrawGrid(comparison);
+                    drewSomething = true;
+                    continue;
+                }
+
                 var slots = comparison.Slots.Where(Included).ToList();
                 if (slots.Count == 0)
                 {
@@ -749,22 +764,8 @@ public sealed class BisWindow : Window
         ClickableItem(Muted, line, itemId, $"##shop{itemId}");
     }
 
-    /// <summary>Renders each shown gearset as a character-screen-style two-column icon grid.</summary>
-    private void DrawGrids(IEnumerable<GearsetComparison> scoped)
-    {
-        var shownAny = false;
-        foreach (var comparison in scoped)
-        {
-            DrawGrid(comparison);
-            shownAny = true;
-        }
-
-        if (!shownAny && _bis.Comparisons.Count > 0)
-        {
-            ImGui.TextDisabled(T(LocKeys.BisNothingShown));
-        }
-    }
-
+    /// <summary>Renders one gearset as a character-screen-style two-column icon grid.</summary>
+    /// <param name="comparison">The set to draw.</param>
     private void DrawGrid(GearsetComparison comparison)
     {
         DrawSetHeader(comparison);
