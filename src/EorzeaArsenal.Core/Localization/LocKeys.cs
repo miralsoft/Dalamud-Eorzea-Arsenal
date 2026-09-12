@@ -926,6 +926,34 @@ public static class LocKeys
     /// <summary>Hub hint shown when not connected.</summary>
     public const string StatusConnectHint = "status.connecthint";
 
+    /// <summary>
+    /// Heading over the switches that decide <b>when</b> something is sent, as opposed to what.
+    /// </summary>
+    /// <remarks>
+    /// This pair of headings is load-bearing rather than decorative. The two questions were confused
+    /// until 2026-09-06, when the distinction was written into the hint texts; with those texts folded
+    /// into tooltips, the headings are the only place it is still said out loud.
+    /// </remarks>
+    public const string SectionWhen = "config.section.when";
+
+    /// <summary>Heading over the switches that decide <b>what</b> is sent.</summary>
+    public const string SectionWhat = "config.section.what";
+
+    /// <summary>Heading over what the plugin puts on the screen while playing.</summary>
+    public const string SectionInGame = "config.section.ingame";
+
+    /// <summary>Heading over the plugin's own settings: language, logging, the web address.</summary>
+    public const string SectionPlugin = "config.section.plugin";
+
+    /// <summary>Heading over how the team windows look.</summary>
+    public const string SectionTeamsDisplay = "config.section.teamsdisplay";
+
+    /// <summary>Heading over what the team windows start with each time they open.</summary>
+    public const string SectionTeamsDefaults = "config.section.teamsdefaults";
+
+    /// <summary>Heading over the two text-size sliders.</summary>
+    public const string SectionTextSize = "config.section.textsize";
+
     /// <summary>Config tab: sync/upload options.</summary>
     public const string TabSync = "config.tab.sync";
 

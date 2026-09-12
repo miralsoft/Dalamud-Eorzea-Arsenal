@@ -90,13 +90,49 @@ public sealed class ConfigWindow : Window, IDisposable
 
     private string T(string key) => _localizer.Get(key);
 
-    /// <summary>A wrapped, dimmed hint line (auto-breaks to the window width).</summary>
-    private static void Hint(string text)
+    /// <summary>A question mark beside the control just drawn, carrying its explanation on hover.</summary>
+    /// <param name="text">The explanation, unchanged from when it stood under the control.</param>
+    /// <remarks>
+    /// Every one of these used to be a full-width paragraph under its switch. Each was right on its own
+    /// and the page as a whole became unreadable: two dozen grey paragraphs, and the switches, which are
+    /// the thing somebody came for, drowned between them. The text is unchanged and one hover away, so
+    /// nothing is lost that anybody was reading on purpose.
+    /// </remarks>
+    private static void Help(string text)
     {
+        ImGui.SameLine(0f, 6f);
         using (ImRaii.PushColor(ImGuiCol.Text, Dim))
         {
-            ImGui.TextWrapped(text);
+            ImGui.TextUnformatted("(?)");
         }
+
+        if (!ImGui.IsItemHovered())
+        {
+            return;
+        }
+
+        using var tip = ImRaii.Tooltip();
+
+        // Wrapped, because these are sentences and a tooltip has no width of its own: without this one
+        // runs off the screen as a single line.
+        ImGui.PushTextWrapPos(ImGui.GetFontSize() * 24f);
+        ImGui.TextUnformatted(text);
+        ImGui.PopTextWrapPos();
+    }
+
+    /// <summary>A heading over a group of settings.</summary>
+    /// <param name="title">What the group is about.</param>
+    /// <remarks>
+    /// This is what carries the distinction the hint texts used to make in prose: <b>when</b> something is
+    /// sent is a different question from <b>what</b> is sent, and with the prose folded into tooltips the
+    /// heading is the only thing left saying so.
+    /// </remarks>
+    private static void Section(string title)
+    {
+        ImGui.Spacing();
+        ImGui.TextUnformatted(title);
+        ImGui.Separator();
+        ImGui.Spacing();
     }
 
     /// <summary>Vertical breathing room between groups: spacing, a rule, and more spacing.</summary>
@@ -151,8 +187,9 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        Hint(T(LocKeys.SyncTeamsHint));
-        GroupGap();
+        Help(T(LocKeys.SyncTeamsHint));
+
+        Section(T(LocKeys.SectionTeamsDisplay));
 
         var displayLabels = new[] { T(LocKeys.TeamsDispIconText), T(LocKeys.TeamsDispIcon), T(LocKeys.TeamsDispText) };
 
@@ -164,8 +201,7 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        Hint(T(LocKeys.TeamsMitDisplayHint));
-        GroupGap();
+        Help(T(LocKeys.TeamsMitDisplayHint));
 
         var res = _config.TeamsResourceDisplay;
         ImGui.SetNextItemWidth(240f);
@@ -175,8 +211,7 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        Hint(T(LocKeys.TeamsResourceDisplayHint));
-        GroupGap();
+        Help(T(LocKeys.TeamsResourceDisplayHint));
 
         var notes = _config.TeamsShowNotes;
         if (ImGui.Checkbox(T(LocKeys.TeamsShowNotes), ref notes))
@@ -185,8 +220,9 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        Hint(T(LocKeys.TeamsShowNotesHint));
-        GroupGap();
+        Help(T(LocKeys.TeamsShowNotesHint));
+
+        Section(T(LocKeys.SectionTeamsDefaults));
 
         var jobDefault = _config.TeamsDefaultAllJobs ? 1 : 0;
         var jobLabels = new[] { T(LocKeys.TeamsDefaultCurrentJob), T(LocKeys.TeamsDefaultAllJobsOpt) };
@@ -204,8 +240,7 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        Hint(T(LocKeys.TeamsDefaultShowOtherHint));
-        GroupGap();
+        Help(T(LocKeys.TeamsDefaultShowOtherHint));
 
         var phaseDefault = _config.TeamsDefaultAllPhases ? 0 : 1;
         var phaseLabels = new[] { T(LocKeys.TeamsDefaultPhasesAll), T(LocKeys.TeamsDefaultPhasesFirst) };
@@ -216,8 +251,9 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        Hint(T(LocKeys.TeamsDefaultPhasesHint));
-        GroupGap();
+        Help(T(LocKeys.TeamsDefaultPhasesHint));
+
+        Section(T(LocKeys.SectionTextSize));
 
         var eventScale = _config.TeamsEventTextScale;
         ImGui.SetNextItemWidth(240f);
@@ -227,8 +263,8 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        Hint(T(LocKeys.TeamsEventScaleHint));
-        GroupGap();
+        Help(T(LocKeys.TeamsEventScaleHint));
+
 
         var advisorScale = _config.AdvisorTextScale;
         ImGui.SetNextItemWidth(240f);
@@ -238,7 +274,7 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        Hint(T(LocKeys.AdvisorScaleHint));
+        Help(T(LocKeys.AdvisorScaleHint));
     }
 
     private void Tab(string key, Action body)
@@ -327,7 +363,7 @@ public sealed class ConfigWindow : Window, IDisposable
             _store.OnAddressChanged();
         }
 
-        Hint(T(LocKeys.BaseUrlHint));
+        Help(T(LocKeys.BaseUrlHint));
 
         // Say plainly when the plugin is not talking to production — otherwise a bug gets reported
         // against live that only exists on a test server.
@@ -370,7 +406,7 @@ public sealed class ConfigWindow : Window, IDisposable
         ImGui.TextUnformatted(T(LocKeys.PasteKeyLabel));
         ImGui.SetNextItemWidth(-1);
         ImGui.InputText("##pasteKey", ref _pasteKey, 512, ImGuiInputTextFlags.Password);
-        Hint(T(LocKeys.PasteKeyHint));
+        Help(T(LocKeys.PasteKeyHint));
         if (ImGui.Button(T(LocKeys.PasteKeyButton)) && _connection.ConnectWithPastedKey(_pasteKey))
         {
             _pasteKey = string.Empty;
@@ -458,9 +494,12 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        Hint(T(LocKeys.EnablePushMasterHint));
+        Help(T(LocKeys.EnablePushMasterHint));
 
-        GroupGap();
+        // Two headings and not one, because they answer two questions that were being confused. The
+        // switches above decide the moment; the switches below decide the contents, and until this
+        // distinction was drawn a player could turn every timer off and still see the inventory go up.
+        Section(T(LocKeys.SectionWhen));
 
         var pushOnLogin = _config.PushOnLogin;
         if (ImGui.Checkbox(T(LocKeys.PushOnLogin), ref pushOnLogin))
@@ -469,7 +508,7 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        Hint(_localizer.Get(LocKeys.PushOnLoginHint));
+        Help(_localizer.Get(LocKeys.PushOnLoginHint));
 
         var autoPush = _config.AutoPush;
         if (ImGui.Checkbox(T(LocKeys.AutoPush), ref autoPush))
@@ -478,7 +517,7 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        Hint(_localizer.Get(LocKeys.AutoPushHint, _config.AutoPushIntervalMinutes));
+        Help(_localizer.Get(LocKeys.AutoPushHint, _config.AutoPushIntervalMinutes));
 
         var pushOnChange = _config.PushOnGearsetChange;
         if (ImGui.Checkbox(T(LocKeys.PushOnChange), ref pushOnChange))
@@ -487,9 +526,9 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        Hint(T(LocKeys.PushOnChangeHint));
+        Help(T(LocKeys.PushOnChangeHint));
 
-        GroupGap();
+        Section(T(LocKeys.SectionWhat));
 
         var syncInventory = _config.SyncInventory;
         if (ImGui.Checkbox(T(LocKeys.SyncInventory), ref syncInventory))
@@ -498,7 +537,7 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        Hint(T(LocKeys.SyncInventoryHint));
+        Help(T(LocKeys.SyncInventoryHint));
 
         if (_config.SyncInventory)
         {
@@ -510,11 +549,9 @@ public sealed class ConfigWindow : Window, IDisposable
                 _save();
             }
 
-            Hint(T(LocKeys.SyncRetainersHint));
+            Help(T(LocKeys.SyncRetainersHint));
             ImGui.Unindent();
         }
-
-        GroupGap();
 
         var syncWeekly = _config.SyncWeekly;
         if (ImGui.Checkbox(T(LocKeys.SyncWeekly), ref syncWeekly))
@@ -523,8 +560,7 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        Hint(T(LocKeys.SyncWeeklyHint));
-        GroupGap();
+        Help(T(LocKeys.SyncWeeklyHint));
 
         var syncTeams = _config.SyncTeams;
         if (ImGui.Checkbox(T(LocKeys.SyncTeams), ref syncTeams))
@@ -533,11 +569,13 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        Hint(T(LocKeys.SyncTeamsHint));
+        Help(T(LocKeys.SyncTeamsHint));
     }
 
     private void DrawDisplayTab()
     {
+        Section(T(LocKeys.SectionInGame));
+
         var toasts = _config.UseToasts;
         if (ImGui.Checkbox(T(LocKeys.UseToasts), ref toasts))
         {
@@ -559,7 +597,7 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        Hint(T(LocKeys.BisShowSourcingHint));
+        Help(T(LocKeys.BisShowSourcingHint));
 
         var dtrBar = _config.ShowDtrBar;
         if (ImGui.Checkbox(T(LocKeys.ShowDtrBar), ref dtrBar))
@@ -568,7 +606,7 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        Hint(T(LocKeys.ShowDtrBarHint));
+        Help(T(LocKeys.ShowDtrBarHint));
 
         var whatsNew = _config.ShowWhatsNewOnUpdate;
         if (ImGui.Checkbox(T(LocKeys.WhatsNewOnUpdate), ref whatsNew))
@@ -577,9 +615,9 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        Hint(T(LocKeys.WhatsNewOnUpdateHint));
+        Help(T(LocKeys.WhatsNewOnUpdateHint));
 
-        GroupGap();
+        Section(T(LocKeys.SectionPlugin));
 
         ImGui.SetNextItemWidth(-1);
         DrawLanguage();
@@ -593,23 +631,21 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
-        GroupGap();
-
+        ImGui.Spacing();
         ImGui.TextUnformatted(T(LocKeys.WebAppUrlLabel));
+        Help(T(LocKeys.WebAppUrlHint));
         ImGui.SetNextItemWidth(-1);
         if (ImGui.InputText("##webAppUrl", ref _webAppUrl, 256))
         {
             _config.WebAppUrl = string.IsNullOrWhiteSpace(_webAppUrl) ? null : _webAppUrl.Trim();
             _save();
         }
-
-        Hint(T(LocKeys.WebAppUrlHint));
     }
 
     private void DrawCharacters()
     {
         ImGui.TextUnformatted(T(LocKeys.CharactersHeader));
-        Hint(T(LocKeys.CharactersHint));
+        Help(T(LocKeys.CharactersHint));
         ImGui.Spacing();
 
         if (_config.Characters.Count == 0)

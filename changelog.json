@@ -91,6 +91,21 @@
       }
     },
     {
+      "id": "the-settings-page-is-tidied-up",
+      "version": "1.1.0",
+      "date": "2026-08-22",
+      "kind": "change",
+      "source": "plugin",
+      "de": {
+        "title": "Die Einstellungen sind aufgeräumt",
+        "body": "<p>Die Erklärungen liegen jetzt hinter einem Fragezeichen, und jeder Block hat eine Überschrift.</p>"
+      },
+      "en": {
+        "title": "The settings are tidied up",
+        "body": "<p>Each explanation now sits behind a question mark, and every block has a heading.</p>"
+      }
+    },
+    {
       "id": "new-jobs-are-recognised",
       "version": "1.1.0",
       "date": "2026-08-22",

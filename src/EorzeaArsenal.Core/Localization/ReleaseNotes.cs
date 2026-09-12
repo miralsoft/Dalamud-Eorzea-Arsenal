@@ -79,6 +79,11 @@ public static class ReleaseNotes
                 "Sets ohne Gegenstück im Spiel: Der Abgleich listet sie mit allem, was daran hängt, und du entscheidest, ob sie bleiben.",
                 "Sets with no counterpart in game: the reconciliation lists them with everything attached to them, and you decide whether they stay."),
             new ReleaseNoteItem(
+                ReleaseNoteKind.Improved,
+                "the-settings-page-is-tidied-up",
+                "Die Einstellungen sind aufgeräumt: Die Erklärungen liegen jetzt hinter einem Fragezeichen, und jeder Block hat eine Überschrift.",
+                "The settings are tidied up: each explanation now sits behind a question mark, and every block has a heading."),
+            new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "new-jobs-are-recognised",
                 "Neue Jobs erkennt das Plugin selbst: Ein Set für einen Job, den diese Fassung noch nicht kannte, fehlt nicht mehr in der Liste.",
