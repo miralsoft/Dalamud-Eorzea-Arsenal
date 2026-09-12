@@ -59,6 +59,11 @@ public sealed class BisService
 
     private volatile bool _loading;
     private volatile GearsetComparison[] _comparisons = [];
+
+    // Which character the comparisons above were built for. IsProvisional is asked per frame about one
+    // comparison, and a comparison does not carry its character; without this the question went to
+    // whichever character the identity cache had heard from last.
+    private volatile string? _comparedFor;
     private volatile GearsetDto[] _withoutTarget = [];
     private volatile BisGearset[] _targets = [];
     private DateTimeOffset _fetchedUtc = DateTimeOffset.MinValue;
@@ -165,6 +170,7 @@ public sealed class BisService
         _uidByLiveIndex = new Dictionary<int, string>();
         _liveIndexByUid = new Dictionary<string, int>(StringComparer.Ordinal);
         _comparisons = [];
+        _comparedFor = null;
         _withoutTarget = [];
         _fetchedUtc = DateTimeOffset.MinValue;
         AmbiguousLive = new HashSet<int>();
@@ -216,6 +222,7 @@ public sealed class BisService
             }
 
             var cidHash = clean.Character.CidHash;
+            _comparedFor = cidHash;
             var positions = LivePositionMap.Build(clean.Gearsets, set => _mapping.Resolve(cidHash, set));
 
             _uidByLiveIndex = positions.UidByIndex;
@@ -271,7 +278,9 @@ public sealed class BisService
     /// The marker is what keeps those numbers from reading as settled: the target may change when the
     /// question is answered.
     /// </remarks>
-    public bool IsProvisional(GearsetComparison comparison) => _mapping.IsHeld(comparison.SetUid);
+    public bool IsProvisional(GearsetComparison comparison) =>
+        _mapping.IsHeld(_comparedFor, comparison.SetUid);
+
     /// <summary>Finds the gearset slots whose BiS target item id equals the given item.</summary>
     /// <param name="itemId">A normalized (HQ-stripped) item id.</param>
     /// <returns>Every slot that wants this item as its BiS target (may be empty).</returns>

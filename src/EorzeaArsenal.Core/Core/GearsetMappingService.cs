@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using EorzeaArsenal.Abstractions;
 using EorzeaArsenal.Gear;
 using EorzeaArsenal.Model;
@@ -38,6 +39,15 @@ public sealed class GearsetMappingService
 
     private readonly Dictionary<string, DateTimeOffset> _nextRefreshUtc = new(StringComparer.Ordinal);
 
+    // Per character, because two characters on one account share a plugin and a configuration file. As one
+    // flat set of fields these described whichever character was touched last: after a switch the report
+    // read "learned from a push, 10 row(s)" above "cached rows : 34", and a measurement that names the
+    // wrong character is worse than a missing one. Concurrent and swapped whole rather than mutated, for
+    // the reason the fields were volatile before: IsHeld runs per frame for every gearset in the BiS
+    // window while a push writes from another thread, and reading a collection during a write to it
+    // surfaces as an exception on the framework thread rather than as a wrong number.
+    private readonly ConcurrentDictionary<string, CharacterSummary> _summaries = new(StringComparer.Ordinal);
+
     // Guards the identity store and the uncertainty map. Both are read from the drawing thread while a
     // push or a mapping read writes them from another, and a Dictionary read during a write is a race that
     // surfaces as an exception on the framework thread rather than as a wrong number. Held only around the
@@ -45,7 +55,9 @@ public sealed class GearsetMappingService
     private readonly Lock _state = new();
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
-    private bool _warnedAboutUncertainty;
+    // Once per character rather than once per session: the second character deserves the same warning as
+    // the first, and reading the first one's silence as "already said" would swallow it.
+    private readonly HashSet<string> _warnedAboutUncertainty = new(StringComparer.Ordinal);
 
     /// <summary>Creates the service.</summary>
     /// <param name="api">The API client.</param>
@@ -67,28 +79,25 @@ public sealed class GearsetMappingService
         _log = log;
     }
 
-    // Swapped whole rather than mutated: IsHeld runs per frame for every gearset in the BiS window while a
-    // push writes this from another thread, and Contains() during Add() on a HashSet is a race that ends as
-    // an exception on the framework thread. A snapshot costs one small allocation per push and nothing per
-    // frame.
-    private volatile IReadOnlySet<string> _held = new HashSet<string>(StringComparer.Ordinal);
-
-    private volatile IReadOnlySet<string> _contested = new HashSet<string>(StringComparer.Ordinal);
-
     /// <summary>
     /// The gearsets the server wrote but could not attribute, by uid, as of the last push that said so.
     /// </summary>
+    /// <param name="cidHash">The character.</param>
+    /// <returns>The open attributions, empty when there are none.</returns>
     /// <remarks>
     /// Read from the push answer rather than from the review, because a push happens anyway and the review
     /// is only read when somebody opens it. A marker that only appeared after opening the window would be
     /// missing at exactly the moment it is useful.
     /// </remarks>
-    public IReadOnlySet<string> HeldUids => _held;
+    public IReadOnlySet<string> HeldUids(string? cidHash) => SummaryOf(cidHash).Held;
 
     /// <summary>Whether this gearset attribution is still open.</summary>
+    /// <param name="cidHash">The character the gearset belongs to.</param>
     /// <param name="setUid">The identity to ask about.</param>
     /// <returns><see langword="true"/> while the server is waiting for an answer about it.</returns>
-    public bool IsHeld(string? setUid) => setUid is not null && _held.Contains(setUid);
+    public bool IsHeld(string? cidHash, string? setUid) =>
+        setUid is not null && SummaryOf(cidHash).Held.Contains(setUid);
+
     /// <summary>
     /// Whether the server this plugin is talking to mints identities at all. <see langword="false"/>
     /// until something carrying a <c>set_uid</c> has been seen. Detected rather than assumed on
@@ -98,21 +107,27 @@ public sealed class GearsetMappingService
     public bool ServerMintsUids { get; private set; }
 
     /// <summary>
-    /// What the last attempt to read the mapping did, in one short line for the diagnostics view. This
-    /// is what separates the two states that look identical from outside: a server that mints no
-    /// identities, and one that does but could not be reached.
+    /// What the last attempt to read this character's mapping did, in one short line for the diagnostics
+    /// view. This is what separates the two states that look identical from outside: a server that mints
+    /// no identities, and one that does but could not be reached.
     /// </summary>
-    public string MappingStatus { get; private set; } = "not read yet";
+    /// <param name="cidHash">The character.</param>
+    /// <returns>The one-line status.</returns>
+    public string MappingStatus(string? cidHash) => SummaryOf(cidHash).Status;
 
     /// <summary>
-    /// How many rows of the last read belonged to another character and were dropped. Not an error: the
-    /// read names the character it wants, and a server that answers with the whole account is worth
-    /// noticing rather than trusting.
+    /// How many rows of that character's last read belonged to somebody else and were dropped. Not an
+    /// error: the read names the character it wants, and a server that answers with the whole account is
+    /// worth noticing rather than trusting.
     /// </summary>
-    public int ForeignRowsDropped { get; private set; }
+    /// <param name="cidHash">The character.</param>
+    /// <returns>The count, zero when nothing was dropped.</returns>
+    public int ForeignRowsDropped(string? cidHash) => SummaryOf(cidHash).ForeignDropped;
 
-    /// <summary>When the mapping was last read from the server, or <see langword="null"/>.</summary>
-    public DateTimeOffset? LastMappingReadUtc { get; private set; }
+    /// <summary>When this character's mapping was last read, or <see langword="null"/>.</summary>
+    /// <param name="cidHash">The character.</param>
+    /// <returns>The moment of the last read.</returns>
+    public DateTimeOffset? LastMappingReadUtc(string? cidHash) => SummaryOf(cidHash).LastReadUtc;
 
     /// <summary>How many rows are cached for a character.</summary>
     /// <param name="cidHash">The character.</param>
@@ -210,43 +225,47 @@ public sealed class GearsetMappingService
     /// frame while a push writes it, and a snapshot costs one small allocation per push against nothing per
     /// frame.
     /// </remarks>
-    public IReadOnlyDictionary<string, string> UncertainMatches => _uncertain;
-
-    private volatile IReadOnlyDictionary<string, string> _uncertain =
-        new Dictionary<string, string>(StringComparer.Ordinal);
+    /// <param name="cidHash">The character.</param>
+    /// <returns>The uncertain attributions, empty when there are none.</returns>
+    public IReadOnlyDictionary<string, string> UncertainMatches(string? cidHash) =>
+        SummaryOf(cidHash).Uncertain;
 
     /// <summary>
     /// How many of <see cref="UncertainMatches"/> sit on <c>name_ambiguous</c>: two sets share a job and a
     /// name, and the mapping is a guess between them. The player can end it by naming them apart.
     /// </summary>
-    public int AmbiguousMatches { get; private set; }
+    /// <param name="cidHash">The character.</param>
+    /// <returns>The count.</returns>
+    public int AmbiguousMatches(string? cidHash) => SummaryOf(cidHash).Ambiguous;
 
     /// <summary>
     /// How many of <see cref="UncertainMatches"/> sit on <c>index</c>: neither the name nor the gear found a
     /// stored row, so the position decided. Renaming does not help here, which is why the two are
     /// counted apart and told apart in what the interface says.
     /// </summary>
-    public int PositionalMatches { get; private set; }
+    /// <param name="cidHash">The character.</param>
+    /// <returns>The count.</returns>
+    public int PositionalMatches(string? cidHash) => SummaryOf(cidHash).Positional;
 
     /// <summary>
-    /// How many identities the last push and the cache before it disagreed about. Both sides of each
-    /// disagreement are counted, since neither is provably the right one.
+    /// How many identities that character's last push and the cache before it disagreed about. Both sides
+    /// of each disagreement are counted, since neither is provably the right one.
     /// </summary>
+    /// <param name="cidHash">The character.</param>
+    /// <returns>The count.</returns>
     /// <remarks>
     /// Distinct from the two counters above, which report what the <b>server</b> said about its own
     /// confidence. This one reports what happened when that was checked against what this side
     /// remembered, and it is the only number here the server could not have produced.
     /// </remarks>
-    public int ContestedMatches { get; private set; }
+    public int ContestedMatches(string? cidHash) => SummaryOf(cidHash).Contested.Count;
 
     /// <summary>
     /// Which identities those are, for the diagnostics view and for a bug report.
     /// </summary>
-    /// <remarks>
-    /// Swapped whole rather than mutated, like the other two snapshots here: read from the drawing thread
-    /// while a push writes it.
-    /// </remarks>
-    public IReadOnlySet<string> ContestedUids => _contested;
+    /// <param name="cidHash">The character.</param>
+    /// <returns>The contested identities, empty when there are none.</returns>
+    public IReadOnlySet<string> ContestedUids(string? cidHash) => SummaryOf(cidHash).Contested;
 
     /// <summary>
     /// Records the mapping a push answered with. The response is index-aligned with the list that was
@@ -351,20 +370,27 @@ public sealed class GearsetMappingService
             row.Contested = contested.Contains(row.SetUid);
         }
 
-        // Published as one whole after the loop, so a reader never sees a half-built collection. The answer
-        // covers exactly the list that was just sent, so what is not in it is neither held nor unsure.
-        _held = held;
-        _uncertain = unsure;
-
         Replace(cidHash, rows);
         ScheduleNextRead(cidHash, RefreshInterval);
-        LastMappingReadUtc = _clock.UtcNow;
-        MappingStatus = $"learned from a push, {rows.Count} row(s), {uncertain} uncertain";
-        AmbiguousMatches = ambiguous;
-        PositionalMatches = positional;
-        _contested = contested;
-        ContestedMatches = contested.Count;
-        WarnAboutUncertainty(ambiguous, positional);
+
+        // Published as one whole after the loop, so a reader never sees a half-built summary. The answer
+        // covers exactly the list that was just sent, so what is not in it is neither held nor unsure.
+        UpdateSummary(cidHash, older => new CharacterSummary
+        {
+            Status = $"learned from a push, {rows.Count} row(s), {uncertain} uncertain",
+            LastReadUtc = _clock.UtcNow,
+
+            // Kept, not reset: this counts what the last read found, and a push does not read. A push is
+            // index-aligned with the list it sent, so it has no foreign rows to drop and nothing to say.
+            ForeignDropped = older.ForeignDropped,
+            Ambiguous = ambiguous,
+            Positional = positional,
+            Held = held,
+            Contested = contested,
+            Uncertain = unsure,
+        });
+
+        WarnAboutUncertainty(ambiguous, positional, cidHash);
         WarnAboutContradiction(contested, rows);
     }
 
@@ -539,9 +565,12 @@ public sealed class GearsetMappingService
                 // A server that does not know the route answers 404. That is a fact about the server,
                 // not an error to shout about, and the old comparison path still works.
                 ScheduleNextRead(cidHash, FailureBackoff);
-                MappingStatus = result.Error!.Kind == ApiErrorKind.NotFound
-                    ? "route unknown to this server"
-                    : $"unavailable ({result.Error!.Kind})";
+                UpdateSummary(cidHash, older => older with
+                {
+                    Status = result.Error!.Kind == ApiErrorKind.NotFound
+                        ? "route unknown to this server"
+                        : $"unavailable ({result.Error!.Kind})",
+                });
                 _log.Info($"Gearset mapping unavailable ({result.Error!.Kind}); keeping what is cached.");
                 return HasCached(cidHash);
             }
@@ -624,24 +653,27 @@ public sealed class GearsetMappingService
                 });
             }
 
-            // Only where the server actually reports the field. A server that sends no state says nothing
-            // about what is open, and reading its silence as "nothing is open" would replace a real set
-            // of questions with an empty one.
-            if (reportsState)
-            {
-                _held = stillHeld;
-            }
-
             ScheduleNextRead(cidHash, RefreshInterval);
-            LastMappingReadUtc = _clock.UtcNow;
-            ForeignRowsDropped = foreign;
-            MappingStatus = reportsState
+
+            var status = reportsState
                 ? $"read ok, {rows.Count} live row(s) of {result.Value!.Data.Count}"
                 : $"read ok, {rows.Count} row(s) from the server";
             if (foreign > 0)
             {
-                MappingStatus += $", {foreign} of another character";
+                status += $", {foreign} of another character";
             }
+
+            UpdateSummary(cidHash, older => older with
+            {
+                Status = status,
+                LastReadUtc = _clock.UtcNow,
+                ForeignDropped = foreign,
+
+                // Only where the server actually reports the field. A server that sends no state says
+                // nothing about what is open, and reading its silence as "nothing is open" would replace a
+                // real set of questions with an empty one.
+                Held = reportsState ? stillHeld : older.Held,
+            });
 
             if (rows.Count == 0)
             {
@@ -661,7 +693,7 @@ public sealed class GearsetMappingService
         catch (Exception ex)
         {
             ScheduleNextRead(cidHash, FailureBackoff);
-            MappingStatus = $"read failed ({ex.GetType().Name})";
+            UpdateSummary(cidHash, older => older with { Status = $"read failed ({ex.GetType().Name})" });
             _log.Warning($"Gearset mapping refresh failed: {ex.GetType().Name}.");
             return false;
         }
@@ -718,13 +750,15 @@ public sealed class GearsetMappingService
             {
                 _store.Identities.Clear();
                 _nextRefreshUtc.Clear();
-                _uncertain = new Dictionary<string, string>(StringComparer.Ordinal);
-                _held = new HashSet<string>(StringComparer.Ordinal);
+                _summaries.Clear();
+                _warnedAboutUncertainty.Clear();
             }
             else
             {
                 _store.Identities.Remove(cidHash);
                 _nextRefreshUtc.Remove(cidHash);
+                _summaries.TryRemove(cidHash, out _);
+                _warnedAboutUncertainty.Remove(cidHash);
             }
         }
 
@@ -883,14 +917,21 @@ public sealed class GearsetMappingService
     /// <summary>Says once per session that the server had to guess somewhere, and where to look.</summary>
     /// <param name="ambiguous">How many sets were paired between identical names.</param>
     /// <param name="positional">How many were recognised by their position alone.</param>
-    private void WarnAboutUncertainty(int ambiguous, int positional)
+    /// <param name="cidHash">The character it is said about, so a second one is not left out.</param>
+    private void WarnAboutUncertainty(int ambiguous, int positional, string cidHash)
     {
-        if ((ambiguous == 0 && positional == 0) || _warnedAboutUncertainty)
+        if (ambiguous == 0 && positional == 0)
         {
             return;
         }
 
-        _warnedAboutUncertainty = true;
+        lock (_state)
+        {
+            if (!_warnedAboutUncertainty.Add(cidHash))
+            {
+                return;
+            }
+        }
 
         // Two rungs, two different pieces of advice, which is the whole reason they are counted apart.
         // Renaming ends an ambiguity and does nothing at all for a positional match: there the names are
@@ -910,5 +951,54 @@ public sealed class GearsetMappingService
                 "the pinned target on those sets: the next sync turns the current mapping into the " +
                 "settled one.");
         }
+    }
+
+    /// <summary>What one character's last read or push learned, or the empty summary.</summary>
+    /// <param name="cidHash">The character, or <see langword="null"/> when nobody is logged in.</param>
+    /// <returns>The summary, never <see langword="null"/>.</returns>
+    private CharacterSummary SummaryOf(string? cidHash) =>
+        cidHash is { Length: > 0 } key && _summaries.TryGetValue(key, out var summary)
+            ? summary
+            : CharacterSummary.Empty;
+
+    /// <summary>Publishes a new summary for one character, built from the one it replaces.</summary>
+    /// <param name="cidHash">The character.</param>
+    /// <param name="change">What the read or push learned, applied to the previous summary.</param>
+    private void UpdateSummary(string cidHash, Func<CharacterSummary, CharacterSummary> change) =>
+        _summaries.AddOrUpdate(cidHash, _ => change(CharacterSummary.Empty), (_, older) => change(older));
+
+    /// <summary>
+    /// What one read or push learned about one character. Immutable and published whole, so a reader on
+    /// the drawing thread sees either the whole of the last answer or the whole of the one before it.
+    /// </summary>
+    private sealed record CharacterSummary
+    {
+        /// <summary>The summary of a character nothing has been read or pushed for.</summary>
+        public static readonly CharacterSummary Empty = new();
+
+        /// <summary>The one-line status for the diagnostics view.</summary>
+        public string Status { get; init; } = "not read yet";
+
+        /// <summary>When the mapping was last read, or <see langword="null"/>.</summary>
+        public DateTimeOffset? LastReadUtc { get; init; }
+
+        /// <summary>How many rows of the last read belonged to somebody else.</summary>
+        public int ForeignDropped { get; init; }
+
+        /// <summary>How many attributions sit on <c>name_ambiguous</c>.</summary>
+        public int Ambiguous { get; init; }
+
+        /// <summary>How many attributions sit on <c>index</c>.</summary>
+        public int Positional { get; init; }
+
+        /// <summary>Which attributions the server is still waiting to have confirmed.</summary>
+        public IReadOnlySet<string> Held { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+
+        /// <summary>Which identities the last push and the cache before it disagreed about.</summary>
+        public IReadOnlySet<string> Contested { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+
+        /// <summary>Which attributions the server itself called uncertain, with the rung it used.</summary>
+        public IReadOnlyDictionary<string, string> Uncertain { get; init; } =
+            new Dictionary<string, string>(StringComparer.Ordinal);
     }
 }

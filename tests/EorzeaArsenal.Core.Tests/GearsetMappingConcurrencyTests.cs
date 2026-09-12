@@ -41,10 +41,10 @@ public sealed class GearsetMappingConcurrencyTests
             while (!stop.IsCancellationRequested)
             {
                 // Exactly what the diagnostics panel and the BiS window ask for, every frame.
-                _ = service.UncertainMatches.Count;
+                _ = service.UncertainMatches(Cid).Count;
                 _ = service.CachedCount(Cid);
-                _ = service.IsHeld("uid-0");
-                _ = service.MappingStatus;
+                _ = service.IsHeld(Cid, "uid-0");
+                _ = service.MappingStatus(Cid);
                 _ = service.ServerMintsUids;
             }
         });
@@ -78,7 +78,7 @@ public sealed class GearsetMappingConcurrencyTests
             while (!stop.IsCancellationRequested)
             {
                 _ = service.CachedCount(Cid);
-                _ = service.UncertainMatches.Count;
+                _ = service.UncertainMatches(Cid).Count;
             }
         });
 

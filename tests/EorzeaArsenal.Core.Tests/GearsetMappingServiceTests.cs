@@ -321,7 +321,7 @@ public sealed class GearsetMappingServiceTests
             new GearsetAssignment { GearIndex = 1, SetUid = UidB, MatchedBy = MatchedBy.NameAmbiguous },
         ]);
 
-        Assert.Equal(2, service.ContestedMatches);
+        Assert.Equal(2, service.ContestedMatches(Cid));
         Assert.True(service.Resolve(Cid, swapped[0]).WasAmbiguous);
         Assert.True(service.Resolve(Cid, swapped[1]).WasAmbiguous);
     }
@@ -348,14 +348,14 @@ public sealed class GearsetMappingServiceTests
             new GearsetAssignment { GearIndex = 1, SetUid = UidB, MatchedBy = MatchedBy.NameAmbiguous },
         ]);
 
-        Assert.Equal(2, service.ContestedMatches);
+        Assert.Equal(2, service.ContestedMatches(Cid));
 
         service.RecordPush(Cid, swapped, [
             new GearsetAssignment { GearIndex = 0, SetUid = UidA, MatchedBy = MatchedBy.Exact },
             new GearsetAssignment { GearIndex = 1, SetUid = UidB, MatchedBy = MatchedBy.Exact },
         ]);
 
-        Assert.Equal(0, service.ContestedMatches);
+        Assert.Equal(0, service.ContestedMatches(Cid));
         Assert.Equal(UidA, service.Resolve(Cid, swapped[0]).SetUid);
     }
 
@@ -424,8 +424,8 @@ public sealed class GearsetMappingServiceTests
 
         Assert.True(await service.EnsureMappingAsync(Cid, CancellationToken.None));
 
-        Assert.True(service.IsHeld(UidB));
-        Assert.False(service.IsHeld(UidA));
+        Assert.True(service.IsHeld(Cid, UidB));
+        Assert.False(service.IsHeld(Cid, UidA));
     }
 
     /// <summary>
@@ -441,7 +441,7 @@ public sealed class GearsetMappingServiceTests
             new GearsetAssignment { GearIndex = 0, SetUid = UidB, MatchedBy = MatchedBy.New, State = PushState.Held },
         ]);
 
-        Assert.True(service.IsHeld(UidB));
+        Assert.True(service.IsHeld(Cid, UidB));
 
         api.GearSetsResult = ApiResult<GearSetsResponse>.Ok(new GearSetsResponse
         {
@@ -449,7 +449,7 @@ public sealed class GearsetMappingServiceTests
         });
 
         Assert.True(await service.EnsureMappingAsync(Cid, CancellationToken.None));
-        Assert.True(service.IsHeld(UidB));
+        Assert.True(service.IsHeld(Cid, UidB));
     }
 
     /// <summary>
@@ -640,9 +640,9 @@ public sealed class GearsetMappingServiceTests
             [Set(0, "DRK", "Twin", 100)],
             [new GearsetAssignment { GearIndex = 0, SetUid = UidA, MatchedBy = MatchedBy.NameAmbiguous }]);
 
-        Assert.Equal(MatchedBy.NameAmbiguous, service.UncertainMatches[UidA]);
-        Assert.Equal(1, service.AmbiguousMatches);
-        Assert.Equal(0, service.PositionalMatches);
+        Assert.Equal(MatchedBy.NameAmbiguous, service.UncertainMatches(Cid)[UidA]);
+        Assert.Equal(1, service.AmbiguousMatches(Cid));
+        Assert.Equal(0, service.PositionalMatches(Cid));
         Assert.Single(log.Messages, m => m.Contains("share a job and a name", StringComparison.Ordinal));
     }
 
@@ -666,8 +666,8 @@ public sealed class GearsetMappingServiceTests
                 new GearsetAssignment { GearIndex = 2, SetUid = UidC, MatchedBy = MatchedBy.Index },
             ]);
 
-        Assert.Equal(2, service.AmbiguousMatches);
-        Assert.Equal(1, service.PositionalMatches);
+        Assert.Equal(2, service.AmbiguousMatches(Cid));
+        Assert.Equal(1, service.PositionalMatches(Cid));
 
         var naming = Assert.Single(log.Messages, m => m.Contains("share a job and a name", StringComparison.Ordinal));
         Assert.Contains("2 gearset(s)", naming, StringComparison.Ordinal);
@@ -696,7 +696,7 @@ public sealed class GearsetMappingServiceTests
         service.RecordPush(Cid, [set], [new GearsetAssignment { GearIndex = 0, SetUid = UidA, MatchedBy = MatchedBy.NameAmbiguous }]);
         service.RecordPush(Cid, [set], [new GearsetAssignment { GearIndex = 0, SetUid = UidA, MatchedBy = MatchedBy.Exact }]);
 
-        Assert.Empty(service.UncertainMatches);
+        Assert.Empty(service.UncertainMatches(Cid));
     }
 
     /// <summary>Reading the mapping is a read. Learning it by pushing would be a write to ask a question.</summary>
@@ -967,7 +967,7 @@ public sealed class GearsetMappingServiceTests
         var match = service.Resolve(Cid, Set(0, "DRK", "same name", 100));
         Assert.Equal(UidA, match.SetUid);
         Assert.False(match.WasAmbiguous);
-        Assert.Equal(1, service.ForeignRowsDropped);
+        Assert.Equal(1, service.ForeignRowsDropped(Cid));
     }
 
     /// <summary>
@@ -986,6 +986,53 @@ public sealed class GearsetMappingServiceTests
         Assert.True(await service.EnsureMappingAsync(Cid, CancellationToken.None));
 
         Assert.Equal(UidA, service.Resolve(Cid, Set(0, "DRK", "no owner named", 100)).SetUid);
-        Assert.Equal(0, service.ForeignRowsDropped);
+        Assert.Equal(0, service.ForeignRowsDropped(Cid));
+    }
+
+    /// <summary>
+    /// Two characters on one account share a plugin, a configuration file and this service. What a push
+    /// learned is about the character it was sent for, and asking about the other one must not answer with
+    /// it.
+    /// </summary>
+    /// <remarks>
+    /// Found in game on 2026-09-12 rather than here: after switching characters the diagnostics read
+    /// "learned from a push, 10 row(s)" directly above "cached rows : 34". No identity was wrong, because a
+    /// <c>set_uid</c> is unique across the account and a held uid of one character can never match a set of
+    /// the other, so the flat fields could only lose a marker, never invent one. The report was the damage:
+    /// a number that names the wrong character is worse than a missing one, which is the whole lesson of
+    /// the day this cache was built.
+    /// </remarks>
+    [Fact]
+    public void WhatOneCharacterLearnedIsNotReportedForTheOther()
+    {
+        const string other = "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f";
+        var (service, _, _, _) = Build();
+
+        service.RecordPush(
+            Cid,
+            [Set(0, "DRK", "Dunkelritter", 100), Set(1, "DRK", "Dunkelritter", 200)],
+            [
+                new GearsetAssignment { GearIndex = 0, SetUid = UidA, MatchedBy = MatchedBy.Exact },
+                new GearsetAssignment { GearIndex = 1, SetUid = UidB, MatchedBy = MatchedBy.NameAmbiguous, State = PushState.Held },
+            ]);
+
+        service.RecordPush(
+            other,
+            [Set(0, "WAR", "Krieger", 300)],
+            [new GearsetAssignment { GearIndex = 0, SetUid = UidC, MatchedBy = MatchedBy.New }]);
+
+        // The second character's push says nothing about the first, and the first is still what it was.
+        Assert.Contains("2 row(s)", service.MappingStatus(Cid), StringComparison.Ordinal);
+        Assert.Equal(1, service.AmbiguousMatches(Cid));
+        Assert.True(service.IsHeld(Cid, UidB));
+        Assert.Equal(MatchedBy.NameAmbiguous, service.UncertainMatches(Cid)[UidB]);
+
+        Assert.Contains("1 row(s)", service.MappingStatus(other), StringComparison.Ordinal);
+        Assert.Equal(0, service.AmbiguousMatches(other));
+        Assert.Empty(service.UncertainMatches(other));
+        Assert.False(service.IsHeld(other, UidB));
+
+        // And a character nothing has happened for says so rather than borrowing an answer.
+        Assert.Equal("not read yet", service.MappingStatus(null));
     }
 }

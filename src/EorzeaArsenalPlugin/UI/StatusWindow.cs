@@ -47,6 +47,8 @@ public sealed class StatusWindow : Window
 
     /// <summary>How many live gearsets this side cannot tell apart from another of the player's own.</summary>
     private readonly Func<int> _twinCount;
+
+    private readonly Func<string?> _currentCharacter;
     private readonly Action _openReport;
     private readonly Action _openTeams;
     private readonly Action _openCalendar;
@@ -79,6 +81,10 @@ public sealed class StatusWindow : Window
     /// How many live gearsets this side declined to identify because another one is indistinguishable
     /// from it. Measured locally: the server has distinct rows and reports no doubt at all.
     /// </param>
+    /// <param name="currentCharacter">
+    /// Who is logged in, because everything the identity cache reports is about one character and two of
+    /// them share this plugin.
+    /// </param>
     public StatusWindow(
         PluginConfig config,
         ConfigStore store,
@@ -101,7 +107,8 @@ public sealed class StatusWindow : Window
         Action openCalendar,
         Action openPreview,
         Action openWhatsNew,
-        Func<int> twinCount)
+        Func<int> twinCount,
+        Func<string?> currentCharacter)
         : base("Eorzea Arsenal###EorzeaArsenalStatus")
     {
         _config = config;
@@ -126,6 +133,7 @@ public sealed class StatusWindow : Window
         _openPreview = openPreview;
         _openWhatsNew = openWhatsNew;
         _twinCount = twinCount;
+        _currentCharacter = currentCharacter;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -155,8 +163,9 @@ public sealed class StatusWindow : Window
         // comparison may sit on the wrong set. Two rungs, told apart on purpose: a shared name is
         // something the player can end by renaming, a positional match is not, and offering the wrong
         // remedy is worse than offering none. A line, not a dialog.
-        var ambiguous = _gearsetMapping.AmbiguousMatches;
-        var positional = _gearsetMapping.PositionalMatches;
+        var character = _currentCharacter();
+        var ambiguous = _gearsetMapping.AmbiguousMatches(character);
+        var positional = _gearsetMapping.PositionalMatches(character);
         if (ambiguous > 0 || positional > 0)
         {
             using var wrap = ImRaii.PushColor(ImGuiCol.Text, Yellow);

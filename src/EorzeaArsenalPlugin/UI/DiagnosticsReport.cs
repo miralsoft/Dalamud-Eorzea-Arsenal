@@ -55,18 +55,19 @@ public static class DiagnosticsReport
             // which. A live list that looks like somebody else's is exactly the moment that matters.
             $"character        : {Short(cidHash)}",
             $"server mints uids : {mapping.ServerMintsUids}",
-            $"mapping status    : {mapping.MappingStatus}",
+            $"mapping status    : {mapping.MappingStatus(cidHash)}",
             $"cached rows       : {mapping.CachedCount(cidHash)}",
             CachedKeyLine(mapping, cidHash),
-            $"last read         : {Stamp(mapping.LastMappingReadUtc)}",
+            $"last read         : {Stamp(mapping.LastMappingReadUtc(cidHash))}",
             $"uncertain / ambiguous / positional : " +
-                $"{mapping.UncertainMatches.Count} / {mapping.AmbiguousMatches} / {mapping.PositionalMatches}",
-            $"contested         : {mapping.ContestedMatches}",
-            $"held uids         : {mapping.HeldUids.Count}",
-            $"foreign dropped   : {mapping.ForeignRowsDropped}",
+                $"{mapping.UncertainMatches(cidHash).Count} / {mapping.AmbiguousMatches(cidHash)} / " +
+                $"{mapping.PositionalMatches(cidHash)}",
+            $"contested         : {mapping.ContestedMatches(cidHash)}",
+            $"held uids         : {mapping.HeldUids(cidHash).Count}",
+            $"foreign dropped   : {mapping.ForeignRowsDropped(cidHash)}",
         };
 
-        foreach (var pair in mapping.UncertainMatches)
+        foreach (var pair in mapping.UncertainMatches(cidHash))
         {
             lines.Add($"  uncertain {Short(pair.Key)} on rung {pair.Value}");
         }
@@ -74,7 +75,7 @@ public static class DiagnosticsReport
         // Named separately from the uncertain rungs above, because the two say different things. Those are
         // the server reporting its own confidence; this is what came back when that was checked against
         // what this side remembered, and it is the only line here the server could not have produced.
-        foreach (var uid in mapping.ContestedUids)
+        foreach (var uid in mapping.ContestedUids(cidHash))
         {
             lines.Add($"  contested {Short(uid)}: the push and the cache before it disagree");
         }

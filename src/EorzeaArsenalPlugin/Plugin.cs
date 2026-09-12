@@ -315,7 +315,7 @@ public sealed class Plugin : IDalamudPlugin
         _imageWindow = new ImageWindow(_teamsService, textureProvider, _localizer, _log);
         _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
         _reportWindow = new ReportWindow(_store, _localizer, api, _log, DescribeClient);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReview, () => _review.Summary() ?? _sync.LastReview, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew, () => _bisService.AmbiguousLive.Count);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReview, () => _review.Summary() ?? _sync.LastReview, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew, () => _bisService.AmbiguousLive.Count, () => _currentCidHash);
         _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save, () => Localizer.Nearest(_pluginInterface.UiLanguage));
@@ -919,7 +919,7 @@ public sealed class Plugin : IDalamudPlugin
                     return;
                 }
 
-                Chat($"gearsets: {rows.Count} live, {_gearsetMapping.MappingStatus}, " +
+                Chat($"gearsets: {rows.Count} live, {_gearsetMapping.MappingStatus(cid)}, " +
                      $"server mints uids: {_gearsetMapping.ServerMintsUids}.");
                 foreach (var row in rows)
                 {
@@ -928,7 +928,7 @@ public sealed class Plugin : IDalamudPlugin
 
                 Chat($"gearsets: {_gearsetDebug.Resolved}/{rows.Count} identified, " +
                      $"{_gearsetDebug.Ambiguous} ambiguous, " +
-                     $"{_gearsetMapping.UncertainMatches.Count} the server was unsure about.");
+                     $"{_gearsetMapping.UncertainMatches(cid).Count} the server was unsure about.");
             }
             catch (Exception ex)
             {
