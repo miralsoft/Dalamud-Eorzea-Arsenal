@@ -148,4 +148,85 @@ public sealed class ReviewShapeTests
 
         Assert.Equal(["Weapon", "Head", "Body", "Hands"], pairs.Select(p => p.Slot));
     }
+
+    /// <summary>
+    /// The three fields the server added to <c>similar[]</c> on 2026-09-12, read from the wire spelling
+    /// rather than from a hand-built object.
+    /// </summary>
+    /// <remarks>
+    /// The recorded answer above predates them and is left exactly as it was copied, so this case carries
+    /// its own fragment. Both halves matter: the new fields have to arrive, and an answer without them has
+    /// to keep working, which is what the assertions on the recorded orphan below check.
+    /// </remarks>
+    [Fact]
+    public void ASimilarRowCarriesWhatItIsAndWhenItWasLastSeen()
+    {
+        const string json = """
+        {
+          "set_uid": "fa63549a03f4b0171d2b5a8db9308e2f",
+          "job": "DRK",
+          "name": "Rechte Hand",
+          "source": "plugin",
+          "probability": 75,
+          "matched_slots": 3,
+          "total_slots": 4,
+          "state": "parked",
+          "gear_index": null,
+          "last_seen_at": "2026-07-14T09:12:00Z",
+          "items": {}
+        }
+        """;
+
+        var similar = JsonSerializer.Deserialize<SimilarSet>(json, EorzeaJson.Options)!;
+
+        Assert.Equal(RowState.Parked, similar.State);
+        Assert.Null(similar.GearIndex);
+        Assert.Equal("2026-07-14T09:12:00Z", similar.LastSeenAt);
+
+        // What the card does with them: a parked row is not standing in the list, and the date is the
+        // evidence the comparison rests on.
+        Assert.True(ReviewRules.IsGoneFromGame(similar));
+        Assert.Equal(OrphanOrigin.LastReported, ReviewRules.OriginOf(similar));
+    }
+
+    /// <summary>
+    /// A row that is still in game says so, and carries the position the server last recorded for it.
+    /// </summary>
+    [Fact]
+    public void ASimilarRowThatIsStillInGameSaysWhereItSat()
+    {
+        const string json = """
+        {
+          "set_uid": "fa63549a03f4b0171d2b5a8db9308e2f",
+          "job": "DRK",
+          "name": "Rechte Hand",
+          "source": "plugin",
+          "state": "active",
+          "gear_index": 14,
+          "last_seen_at": "2026-09-12T19:00:00Z",
+          "items": {}
+        }
+        """;
+
+        var similar = JsonSerializer.Deserialize<SimilarSet>(json, EorzeaJson.Options)!;
+
+        Assert.Equal(RowState.Active, similar.State);
+        Assert.Equal(14, similar.GearIndex);
+        Assert.False(ReviewRules.IsGoneFromGame(similar));
+    }
+
+    /// <summary>
+    /// And the answer that predates the three fields still reads. An absent state is not "gone": the
+    /// sentence about a row being out of the game is a claim, and a claim built out of a missing field is
+    /// the mistake this whole model is careful about.
+    /// </summary>
+    [Fact]
+    public void AnAnswerWithoutTheNewFieldsClaimsNothing()
+    {
+        var similar = Recorded().Orphans[0].Similar[0];
+
+        Assert.Null(similar.State);
+        Assert.Null(similar.GearIndex);
+        Assert.False(ReviewRules.IsGoneFromGame(similar));
+    }
 }

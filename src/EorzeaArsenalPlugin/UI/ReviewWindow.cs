@@ -683,14 +683,48 @@ public sealed class ReviewWindow : Window
     /// <para>
     /// And the position carries the argument the card is making. A parked row that is nearly identical to
     /// a set still sitting in the list is a row nobody needs, and saying "in game, #15" lets the reader see
-    /// that rather than being told it. It has to be seen rather than told, because the payload cannot
-    /// support the telling: <see cref="SimilarSet"/> carries no state, no date and no position, so whether
-    /// one of these rows is itself an orphan is not knowable from the answer. The plugin's own live
-    /// mapping is, which is why the lookup is trusted only when it answers.
+    /// that rather than being told it. The plugin's live mapping is the first source for that number and
+    /// the only one that is current; since 2026-09-12 the payload carries a state, a date and a position
+    /// too, so where the live list cannot place a row the server's last record fills in, marked as what it
+    /// is.
     /// </para>
     /// </remarks>
     private static string NameOfSimilar(SimilarSet similar) =>
         string.IsNullOrWhiteSpace(similar.Name) ? "-" : similar.Name!;
+
+    /// <summary>The same, with whatever position can be had for it.</summary>
+    /// <param name="similar">The row it resembles.</param>
+    /// <returns>Text to drop into a sentence, quotes included.</returns>
+    /// <remarks>
+    /// The live number where the live list has one, because that is where the set is now. Otherwise the
+    /// server's last record, and only for a row that is still in game: on a parked row the field is null
+    /// anyway, and on a hand-made one a position would be a claim about a list it was never in. The
+    /// fallback is worth having for exactly the case this whole label exists for, two sets of one job with
+    /// one name: that is where the live table withdraws both claims and answers nothing at all.
+    /// </remarks>
+    private string NamedSimilar(SimilarSet similar)
+    {
+        var name = NameOfSimilar(similar);
+        var live = similar.SetUid is { Length: > 0 } uid ? _liveNumber(uid) : null;
+        if (live is { } number)
+        {
+            return $"\"{name}\" (#{number})";
+        }
+
+        return similar.GearIndex is { } stored && RowState.BelongsInResolutionCache(similar.State)
+            ? $"\"{name}\" ({T(LocKeys.ReviewSimilarLastAt, stored + 1)})"
+            : $"\"{name}\"";
+    }
+
+    /// <summary>The same phrase the other two cards carry, for a row an orphan resembles.</summary>
+    /// <param name="similar">The row it resembles.</param>
+    /// <returns>The phrase.</returns>
+    private string SimilarOrigin(SimilarSet similar) => ReviewRules.OriginOf(similar) switch
+    {
+        OrphanOrigin.MadeOnSite => T(LocKeys.ReviewMadeOnSite),
+        OrphanOrigin.LastReported => T(LocKeys.ReviewLastSeen, FormatWhen(similar.LastSeenAt!)),
+        _ => T(LocKeys.ReviewLastSeenUnknown),
+    };
 
     /// <summary>
     /// A gearset for a sentence: its name in quotes, and the number it carries in game when that is known.
@@ -1835,7 +1869,7 @@ public sealed class ReviewWindow : Window
         }
 
         var best = row.Similar[0];
-        var name = Named(NameOfSimilar(best), best.SetUid);
+        var name = NamedSimilar(best);
         var key = row.SetUid ?? string.Empty;
 
         // What this block is, before it is drawn. The question card puts the same shape over a candidate,
@@ -1867,7 +1901,7 @@ public sealed class ReviewWindow : Window
             best.Probability,
             best.MatchedSlots,
             best.TotalSlots,
-            origin: string.Empty,
+            origin: SimilarOrigin(best),
             url: string.Equals(best.Source, GearsetSource.Plugin, StringComparison.Ordinal) ? null : best.Url,
             backTooltip: T(LocKeys.ReviewShowThisRow),
             allowSwap: showGear);
@@ -1884,6 +1918,14 @@ public sealed class ReviewWindow : Window
             }
         }
 
+        // The one thing the card cannot make the reader see. A resemblance to a set standing in the list
+        // answers "do I still need this"; a resemblance to a row that is just as gone answers nothing, and
+        // until the payload carried a state the two were drawn identically.
+        if (ReviewRules.IsGoneFromGame(best))
+        {
+            Wrapped(Muted, T(LocKeys.ReviewSimilarGone));
+        }
+
         if (showGear)
         {
             ImGui.Dummy(new Vector2(0f, 3f));
@@ -1898,7 +1940,7 @@ public sealed class ReviewWindow : Window
         for (var i = 1; i < row.Similar.Count; i++)
         {
             var other = row.Similar[i];
-            Text(Muted, T(LocKeys.ReviewSimilarMore, Named(NameOfSimilar(other), other.SetUid), other.Probability));
+            Text(Muted, T(LocKeys.ReviewSimilarMore, NamedSimilar(other), other.Probability));
         }
     }
 

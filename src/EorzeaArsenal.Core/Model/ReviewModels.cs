@@ -213,6 +213,11 @@ public sealed class HeldGearset
 /// answer to a question, it is a comparison. There is no <c>proposed</c> on it, nothing here is being
 /// attributed, and the target may itself be a row that is still under question.
 /// </para>
+/// <para>
+/// What it does carry, since 2026-09-12, is what the row <b>is</b>. Without that the card made its case
+/// the same way whether the set it pointed at was standing in the list or was itself long gone, and a
+/// resemblance between two dead rows is not an argument for deleting either.
+/// </para>
 /// </remarks>
 public sealed class SimilarSet
 {
@@ -239,6 +244,35 @@ public sealed class SimilarSet
 
     /// <summary>Its gear. The number says how much two sets share; only the pieces say where they differ.</summary>
     public Dictionary<string, ItemDto> Items { get; init; } = [];
+
+    /// <summary>
+    /// What the row is: one of <see cref="RowState"/>, or <see langword="null"/> on a hand-made row.
+    /// </summary>
+    /// <remarks>
+    /// The field that decides how the whole comparison reads. <c>active</c> and <c>held</c> belong to a
+    /// gearset the player can look at; <c>parked</c> and <c>ignored</c> do not, and a card that points at
+    /// one of those is comparing an orphan to another orphan.
+    /// </remarks>
+    public string? State { get; init; }
+
+    /// <summary>
+    /// Where the server last recorded it, or <see langword="null"/> when it has no place in the list.
+    /// </summary>
+    /// <remarks>
+    /// Null for <c>parked</c> and for a hand-made row, which is a statement rather than a gap. On a row
+    /// that is in game this is a value the client happens to know: the position the player sees comes from
+    /// the live list, and this one is only worth showing where the live list cannot answer.
+    /// </remarks>
+    public int? GearIndex { get; init; }
+
+    /// <summary>
+    /// When a push last claimed it, in server time, or <see langword="null"/> when none ever did.
+    /// </summary>
+    /// <remarks>
+    /// Evidence, the same way it is on a candidate: a row a sync reported this morning and one nobody has
+    /// seen since spring are not equally good reasons to delete the set being asked about.
+    /// </remarks>
+    public string? LastSeenAt { get; init; }
 
     /// <summary>Where to see it.</summary>
     public string? Url { get; init; }

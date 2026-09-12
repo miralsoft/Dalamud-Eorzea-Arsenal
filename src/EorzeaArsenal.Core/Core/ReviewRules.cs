@@ -145,6 +145,30 @@ public static class ReviewRules
         : candidate.LastSeenAt is { Length: > 0 } ? OrphanOrigin.LastReported
         : OrphanOrigin.Unknown;
 
+    /// <summary>The same question about a row an orphan resembles.</summary>
+    /// <param name="similar">The row it resembles.</param>
+    /// <returns>The origin, never inferred beyond what the fields carry.</returns>
+    /// <remarks>
+    /// One case short of the other two: nothing here can be <see cref="OrphanOrigin.Released"/>, because
+    /// <see cref="SimilarSet"/> carries no release mark. A released row still reaches this list, and it
+    /// reads as made on the site, which is where it now lives.
+    /// </remarks>
+    public static OrphanOrigin OriginOf(SimilarSet similar) =>
+        !string.Equals(similar.Source, GearsetSource.Plugin, StringComparison.Ordinal) ? OrphanOrigin.MadeOnSite
+        : similar.LastSeenAt is { Length: > 0 } ? OrphanOrigin.LastReported
+        : OrphanOrigin.Unknown;
+
+    /// <summary>Whether a row an orphan resembles is itself no longer in the game.</summary>
+    /// <param name="similar">The row it resembles.</param>
+    /// <returns><see langword="true"/> for a parked or put-aside row a push once governed.</returns>
+    /// <remarks>
+    /// A hand-made row is not one of these and gets no such line: it was never in game, so saying it is
+    /// gone from there would be a claim about a place it never occupied. That case is the origin's to
+    /// tell.
+    /// </remarks>
+    public static bool IsGoneFromGame(SimilarSet similar) =>
+        similar.State is { Length: > 0 } state && !RowState.BelongsInResolutionCache(state);
+
     /// <summary>What the data says about where an inventory row came from.</summary>
     /// <param name="row">The inventory row.</param>
     /// <returns>The origin, never inferred beyond what the fields carry.</returns>
