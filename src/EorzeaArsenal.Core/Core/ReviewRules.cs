@@ -162,9 +162,19 @@ public static class ReviewRules
     /// <param name="similar">The row it resembles.</param>
     /// <returns><see langword="true"/> for a parked or put-aside row a push once governed.</returns>
     /// <remarks>
+    /// <para>
     /// A hand-made row is not one of these and gets no such line: it was never in game, so saying it is
     /// gone from there would be a claim about a place it never occupied. That case is the origin's to
     /// tell.
+    /// </para>
+    /// <para>
+    /// <b>A guard, not an observed case.</b> Measured against the live server on 2026-09-12 with two
+    /// parked rows that match each other completely: <c>similar[]</c> came back empty for both. The server
+    /// appears to offer only rows that are still there, which is what the card has always called them, and
+    /// every parked row is already listed as an orphan in the same answer. So this cannot fire today. It
+    /// stays because the server documented <c>parked</c> as a value this field can carry, and being right
+    /// the day that happens costs one line.
+    /// </para>
     /// </remarks>
     public static bool IsGoneFromGame(SimilarSet similar) =>
         similar.State is { Length: > 0 } state && !RowState.BelongsInResolutionCache(state);

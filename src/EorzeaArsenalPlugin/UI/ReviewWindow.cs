@@ -718,13 +718,37 @@ public sealed class ReviewWindow : Window
 
     /// <summary>The same phrase the other two cards carry, for a row an orphan resembles.</summary>
     /// <param name="similar">The row it resembles.</param>
-    /// <returns>The phrase.</returns>
-    private string SimilarOrigin(SimilarSet similar) => ReviewRules.OriginOf(similar) switch
+    /// <returns>The phrase, or nothing where a date would say nothing.</returns>
+    /// <remarks>
+    /// <para>
+    /// Empty for a row that is still in game, and that is the point rather than an omission. Active means
+    /// the last sync reported it, so its date is the date of the last push and says nothing about this
+    /// pair. Drawn anyway it was worse than useless: the orphan's own "last reported" sits at the top of
+    /// the card, so the same sentence with the same date appeared twice and read as one line drawn twice.
+    /// </para>
+    /// <para>
+    /// On a row that is gone it earns its place, next to the sentence saying so: how long ago it went is
+    /// the difference between a copy that was current last week and one nobody has seen since spring. And
+    /// a row made on the site says so whatever its state, because that explains a set with a link and no
+    /// position.
+    /// </para>
+    /// </remarks>
+    private string SimilarOrigin(SimilarSet similar)
     {
-        OrphanOrigin.MadeOnSite => T(LocKeys.ReviewMadeOnSite),
-        OrphanOrigin.LastReported => T(LocKeys.ReviewLastSeen, FormatWhen(similar.LastSeenAt!)),
-        _ => T(LocKeys.ReviewLastSeenUnknown),
-    };
+        if (ReviewRules.OriginOf(similar) == OrphanOrigin.MadeOnSite)
+        {
+            return T(LocKeys.ReviewMadeOnSite);
+        }
+
+        if (!ReviewRules.IsGoneFromGame(similar))
+        {
+            return string.Empty;
+        }
+
+        return similar.LastSeenAt is { Length: > 0 } seen
+            ? T(LocKeys.ReviewLastSeen, FormatWhen(seen))
+            : T(LocKeys.ReviewLastSeenUnknown);
+    }
 
     /// <summary>
     /// A gearset for a sentence: its name in quotes, and the number it carries in game when that is known.
