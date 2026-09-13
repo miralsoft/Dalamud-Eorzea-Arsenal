@@ -88,9 +88,10 @@ that noise. Judge the format gate from a clone, never from the working tree.
   older than the self-detection cannot name a newly added job, still declares `scope: all`, and would
   have its row parked. Either the push grows a `named_jobs[]` list, or the plugin ships before the table
   does.
-- **`pluginmaster.json` in the repo root still says `0.4.0.0`.** The release workflow generates it from
-  the tag and attaches it to the release, so nobody reads the committed copy; it misleads anyone who
-  looks. Delete it or keep it current, but do not leave it as it is.
+- **`pluginmaster.json` is no longer in the repo** (2026-09-13). It is build output: the release workflow
+  generates it from the built manifest at tag time and attaches it to the release, and that attachment is
+  the URL players give Dalamud. The committed copy was read by nobody and had sat at `0.4.0.0` through
+  two releases. It is in `.gitignore` now, so a local release rehearsal does not put it back.
 - **CI:** workflows run on `windows-latest` with the Dalamud distrib download. **CodeQL** is active
   (`codeql.yml`, free on the now-public repo); actions are SHA-pinned + Dependabot-managed.
 - **Custom repo:** the release workflow ships `pluginmaster.json` + `latest.zip` as **release

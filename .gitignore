@@ -33,3 +33,9 @@ coverage*.xml
 # surfaces in. It must never be committed — CI refuses a checkout that contains it. The committed
 # copy is Directory.Build.local.props.example.
 Directory.Build.local.props
+
+# The custom-repo index, which is build output and not source. The release workflow generates it from
+# the *built* manifest at tag time and attaches it to the release, and that attachment is what players
+# point Dalamud at. A committed copy is read by nobody and goes stale the moment a version ships: the
+# one here sat at 0.4.0.0 through two releases.
+pluginmaster.json
