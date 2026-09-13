@@ -23,8 +23,15 @@ public sealed class LogWindow : Window
     /// <summary>Creates the log window.</summary>
     /// <param name="buffer">The shared log buffer.</param>
     /// <param name="localizer">UI string resolver.</param>
+    /// <remarks>
+    /// Only the log. The developer panels used to be drawn above it, on the argument that a developer
+    /// build has one place to look; they have their own window now, because the two are read differently.
+    /// The log is an account of what happened and is read from the top; the report is the state right now
+    /// and is read against what is on screen. Sharing one window meant scrolling past one to reach the
+    /// other and never having both open at once.
+    /// </remarks>
     public LogWindow(LogBuffer buffer, Localizer localizer)
-        : base("Eorzea Arsenal — Log###EorzeaArsenalLog")
+        : base("Eorzea Arsenal · Log###EorzeaArsenalLog")
     {
         _buffer = buffer;
         _localizer = localizer;
@@ -87,4 +94,5 @@ public sealed class LogWindow : Window
 
         ImGui.EndChild();
     }
+
 }

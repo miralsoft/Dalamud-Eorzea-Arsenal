@@ -43,6 +43,36 @@ jobs:
           if (-not (Test-Path $zip)) { Write-Error "Packaged zip not found at $zip"; exit 1 }
           Copy-Item $zip -Destination "latest.zip" -Force
 
+      # What ships is what counts: the manifest inside the archive is authoritative, so the tag is
+      # checked against it and not against the csproj. A tag that disagrees would publish an archive
+      # saying one version under an index entry promising another, and the index is what a player's
+      # client reads. Refusing here is the only place that can still stop it.
+      - name: Refuse a tag that disagrees with the built version
+        shell: pwsh
+        run: |
+          $expected = "${{ github.ref_name }}".TrimStart("v")
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path "latest.zip").Path)
+          try {
+            $entry = $zip.Entries | Where-Object { $_.FullName -eq "EorzeaArsenalPlugin.json" }
+            if (-not $entry) { Write-Error "No manifest inside latest.zip."; exit 1 }
+            $reader = New-Object System.IO.StreamReader($entry.Open())
+            try { $manifest = $reader.ReadToEnd() | ConvertFrom-Json } finally { $reader.Dispose() }
+          }
+          finally { $zip.Dispose() }
+
+          $built = $manifest.AssemblyVersion
+          if (-not $built) { Write-Error "The manifest carries no AssemblyVersion."; exit 1 }
+
+          # The manifest carries four components, a tag carries three.
+          $normalised = ([version]$built).ToString(3)
+          if ($normalised -ne $expected) {
+            Write-Error "Tag ${{ github.ref_name }} says $expected, the packaged manifest says $normalised. Not publishing."
+            exit 1
+          }
+
+          Write-Output "tag and packaged manifest agree on $expected"
+
       - name: Generate pluginmaster.json
         shell: pwsh
         run: |

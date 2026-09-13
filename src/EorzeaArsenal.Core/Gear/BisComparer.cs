@@ -41,8 +41,15 @@ public readonly record struct SlotComparison(
 /// <summary>The comparison of one gearset against its BiS target.</summary>
 public sealed class GearsetComparison
 {
-    /// <summary>The in-game gearset index.</summary>
+    /// <summary>The in-game gearset index. <b>Display order</b> — not what the target was matched by.</summary>
     public required int GearIndex { get; init; }
+
+    /// <summary>
+    /// The server's identity for the gearset this target belongs to, when it sends one. This is what
+    /// the match was made on; <see langword="null"/> means the server does not mint identities yet and
+    /// <see cref="GearIndex"/> had to serve as the key.
+    /// </summary>
+    public string? SetUid { get; init; }
 
     /// <summary>The job code.</summary>
     public required string Job { get; init; }
@@ -65,10 +72,16 @@ public sealed class GearsetComparison
 
 /// <summary>
 /// Computes the per-slot diff of the player's live gear against the BiS targets from
-/// <c>GET /gear/bis</c>. Pure and unit-tested. Targets are matched to live gearsets by
-/// <c>gear_index</c> (+ <c>job</c>); rings are interchangeable (left/right) and materia order is
-/// irrelevant, per the API contract.
+/// <c>GET /gear/bis</c>. Pure and unit-tested. Rings are interchangeable (left/right) and materia order
+/// is irrelevant, per the API contract.
 /// </summary>
+/// <remarks>
+/// Targets are matched to live gearsets by <c>set_uid</c>, the identity the server mints. The old key
+/// was <c>(gear_index, job)</c> — the position — and it was silently wrong the moment anything
+/// reordered the list: a tank set compared against a healer's target shows plausible, false numbers.
+/// The position remains as a fallback for exactly one case, a server that does not send identities yet;
+/// it is chosen per target, so a mixed response works too.
+/// </remarks>
 public static class BisComparer
 {
     private const string RingLeft = "RingLeft";
@@ -77,22 +90,29 @@ public static class BisComparer
     /// <summary>Compares the live gear against the BiS targets, one entry per resolvable target.</summary>
     /// <param name="live">The player's current (sanitized) gear.</param>
     /// <param name="targets">The BiS targets from the API.</param>
+    /// <param name="identify">
+    /// Resolves a live gearset to its <c>set_uid</c> — the mapping the server minted, read from a push
+    /// response or from <c>GET /gear/sets</c>. Return <see langword="null"/> when it cannot be resolved;
+    /// the target is then reported without a live gearset rather than attached to a guess.
+    /// <see langword="null"/> for the whole delegate means "no identities available", which puts every
+    /// target on the position fallback.
+    /// </param>
     /// <returns>One <see cref="GearsetComparison"/> per target.</returns>
-    public static IReadOnlyList<GearsetComparison> Compare(GearData live, IReadOnlyList<BisGearset> targets)
+    public static IReadOnlyList<GearsetComparison> Compare(
+        GearData live,
+        IReadOnlyList<BisGearset> targets,
+        Func<GearsetDto, string?>? identify = null)
     {
-        var liveByKey = new Dictionary<(int, string), GearsetDto>();
-        foreach (var set in live.Gearsets)
-        {
-            liveByKey[(set.GearIndex, set.Job)] = set;
-        }
+        var index = LiveIndex.Build(live, identify);
 
         var result = new List<GearsetComparison>(targets.Count);
         foreach (var target in targets)
         {
-            liveByKey.TryGetValue((target.GearIndex, target.Job), out var liveSet);
+            var liveSet = index.Claim(target);
             result.Add(new GearsetComparison
             {
                 GearIndex = target.GearIndex,
+                SetUid = target.SetUid,
                 Job = target.Job,
                 Name = target.Name,
                 HasLiveGearset = liveSet is not null,
@@ -103,6 +123,135 @@ public static class BisComparer
         return result;
     }
 
+    /// <summary>
+    /// Compares one target against gear already known to belong to it, with no pairing step at all.
+    /// </summary>
+    /// <param name="target">The BiS target.</param>
+    /// <param name="liveItems">The gear that belongs to it, by slot.</param>
+    /// <returns>The comparison, always with a live gearset attached.</returns>
+    /// <remarks>
+    /// For a caller that has already established the pair by identity. Sending such a pair through
+    /// <see cref="Compare"/> only gives the pairing a second chance to fail, and it did: a target
+    /// carrying a <c>set_uid</c> is looked up by uid and never by position, so a caller that passes no
+    /// resolver hands over a target that can match nothing, and every slot comes back as missing. That
+    /// is what the in-game tooltip did from the day the server began minting identities.
+    /// </remarks>
+    public static GearsetComparison CompareKnownPair(BisGearset target, Dictionary<string, ItemDto> liveItems) => new()
+    {
+        GearIndex = target.GearIndex,
+        SetUid = target.SetUid,
+        Job = target.Job,
+        Name = target.Name,
+        HasLiveGearset = true,
+        Slots = CompareSlots(target.Items, liveItems),
+    };
+
+    /// <summary>
+    /// The live gearsets no target claims, in the order the player has them.
+    /// </summary>
+    /// <param name="live">The player current (sanitized) gear.</param>
+    /// <param name="targets">The BiS targets from the API.</param>
+    /// <param name="identify">Same resolver as <see cref="Compare"/>.</param>
+    /// <returns>The unclaimed live gearsets.</returns>
+    /// <remarks>
+    /// These are not a fault and not a failed transfer. A crafter set, a gatherer set or a base class has
+    /// no catalogue to compare against, and a set whose target nobody pinned has nothing to compare
+    /// either. Both are synced perfectly well, and the reason this exists at all is that
+    /// <see cref="Compare"/> walks the <i>targets</i>: a live set with no target produces no entry, so it
+    /// would simply be absent from the window, and a set that vanishes gets reported as a bug.
+    /// </remarks>
+    public static IReadOnlyList<GearsetDto> WithoutTarget(
+        GearData live,
+        IReadOnlyList<BisGearset> targets,
+        Func<GearsetDto, string?>? identify = null)
+    {
+        var index = LiveIndex.Build(live, identify);
+        foreach (var target in targets)
+        {
+            index.Claim(target);
+        }
+
+        var unclaimed = new List<GearsetDto>();
+        foreach (var set in live.Gearsets)
+        {
+            if (!index.IsClaimed(set))
+            {
+                unclaimed.Add(set);
+            }
+        }
+
+        return unclaimed;
+    }
+
+    /// <summary>
+    /// The live list keyed the two ways a target can point at it, so both callers make the same decision
+    /// rather than two that drift apart.
+    /// </summary>
+    private sealed class LiveIndex
+    {
+        private readonly Dictionary<string, GearsetDto> _byUid = new(StringComparer.Ordinal);
+        private readonly Dictionary<(int, string), GearsetDto> _byPosition = [];
+        private readonly HashSet<GearsetDto> _claimed = [];
+
+        public static LiveIndex Build(GearData live, Func<GearsetDto, string?>? identify)
+        {
+            var index = new LiveIndex();
+            var doubled = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var set in live.Gearsets)
+            {
+                index._byPosition[(set.GearIndex, set.Job)] = set;
+
+                var uid = identify?.Invoke(set);
+                if (string.IsNullOrEmpty(uid) || doubled.Contains(uid!))
+                {
+                    continue;
+                }
+
+                // One identity cannot be two gearsets, so a second claimant does not win the key, it
+                // empties it. Copy a gearset and the copy is indistinguishable from the original until the
+                // next push tells the server it exists, so both come back under the same identity. This
+                // was a plain assignment: the last one seen took the key, and a target then drew itself
+                // against a set the player had just made while the number beside it named the original.
+                // A target that points nowhere is drawn nowhere, which is the honest half.
+                if (!index._byUid.TryAdd(uid!, set))
+                {
+                    index._byUid.Remove(uid!);
+                    doubled.Add(uid!);
+                }
+            }
+
+            return index;
+        }
+
+        /// <summary>
+        /// The live gearset a target points at, or <see langword="null"/>. Decided per target rather than
+        /// per response: a server mid-migration can answer with identities on some rows and not on others,
+        /// and each row deserves the best key it actually carries.
+        /// </summary>
+        public GearsetDto? Claim(BisGearset target)
+        {
+            GearsetDto? liveSet;
+            if (!string.IsNullOrEmpty(target.SetUid))
+            {
+                // The target has an identity, so the position is not consulted at all. A miss here is a
+                // real miss: falling back to the position would resurrect the bug this replaces.
+                _byUid.TryGetValue(target.SetUid!, out liveSet);
+            }
+            else
+            {
+                _byPosition.TryGetValue((target.GearIndex, target.Job), out liveSet);
+            }
+
+            if (liveSet is not null)
+            {
+                _claimed.Add(liveSet);
+            }
+
+            return liveSet;
+        }
+
+        public bool IsClaimed(GearsetDto set) => _claimed.Contains(set);
+    }
     private static List<SlotComparison> CompareSlots(
         Dictionary<string, ItemDto> targetItems,
         Dictionary<string, ItemDto>? liveItems)

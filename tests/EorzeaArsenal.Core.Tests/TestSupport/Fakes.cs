@@ -133,3 +133,16 @@ public sealed class FakeWeeklySource : IWeeklySource
         return Task.FromResult(Snapshot);
     }
 }
+
+/// <summary>In-memory <see cref="IGearsetIdentityStore"/> for tests.</summary>
+public sealed class InMemoryGearsetIdentityStore : IGearsetIdentityStore
+{
+    /// <inheritdoc />
+    public Dictionary<string, List<CachedGearsetIdentity>> Identities { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>How many times the store was asked to persist.</summary>
+    public int Saves { get; private set; }
+
+    /// <inheritdoc />
+    public void Save() => Saves++;
+}

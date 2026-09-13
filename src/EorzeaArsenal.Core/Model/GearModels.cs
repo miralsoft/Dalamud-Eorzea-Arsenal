@@ -91,17 +91,102 @@ public sealed class GearPayload
     /// <summary>The character block.</summary>
     public required CharacterDto Character { get; init; }
 
+    /// <summary>
+    /// What this push covered — <see cref="JobScope.Combat"/> or <see cref="JobScope.All"/>. Sent on
+    /// every push, including when the range is full: only then does its absence mean "an older client"
+    /// rather than "this one held back". See <see cref="JobScope"/> for why a version could not carry
+    /// this.
+    ///
+    /// <para>
+    /// The default is the <i>narrow</i> value on purpose. A path that forgets to state its scope then
+    /// under-claims, which costs a sync for some rows; over-claiming costs the player their rows, because
+    /// the server parks what a full push did not report.
+    /// </para>
+    /// </summary>
+    public string Scope { get; init; } = JobScope.Combat;
+
     /// <summary>All gearsets being upserted (max 200).</summary>
     public required IReadOnlyList<GearsetDto> Gearsets { get; init; }
 
     /// <summary>Wraps a <see cref="GearData"/> snapshot into a sendable payload.</summary>
-    /// <param name="data">The snapshot read from the game.</param>
+    /// <param name="data">The snapshot read from the game, already filtered to what may be sent.</param>
+    /// <param name="scope">
+    /// What this push covers: <see cref="JobScope.Combat"/> or <see cref="JobScope.All"/>. Required and
+    /// never defaulted, because a wrong value here is the one mistake that makes the server park rows the
+    /// game still has. Whoever builds a payload states what went into it.
+    /// </param>
     /// <returns>A payload carrying the current protocol version.</returns>
-    public static GearPayload From(GearData data) => new()
+    public static GearPayload From(GearData data, string scope) => new()
     {
         Character = data.Character,
         Gearsets = data.Gearsets,
+        Scope = scope,
     };
+}
+
+/// <summary>
+/// How the server recognised a pushed gearset. Every rung requires the job to agree; a position that
+/// changed jobs is a different gearset, which is what the old <c>gear_index</c> key got wrong. Names
+/// come from the API and are matched case-sensitively — an unknown value is simply passed through.
+/// </summary>
+public static class MatchedBy
+{
+    /// <summary>Same job, same name, same position.</summary>
+    public const string Exact = "exact";
+
+    /// <summary>Same job, same name.</summary>
+    public const string Name = "name";
+
+    /// <summary>
+    /// Same job and name, but more than one candidate on either side, paired in position order. The
+    /// one value where the server <b>guessed</b>: deterministic and harmless to data, but it is what
+    /// to warn about and what to quote in a bug report.
+    /// </summary>
+    public const string NameAmbiguous = "name_ambiguous";
+
+    /// <summary>Same job, identical items — a renamed set.</summary>
+    public const string Items = "items";
+
+    /// <summary>
+    /// Same job, same position; the last resort. It only fires when name <i>and</i> items both failed,
+    /// so after a reorder it is the rung most likely to be wrong — worth a log line of its own.
+    /// </summary>
+    public const string Index = "index";
+
+    /// <summary>Nothing matched: a new gearset with a freshly minted uid.</summary>
+    public const string New = "new";
+
+    /// <summary>Whether a value is one the server guessed rather than established.</summary>
+    /// <param name="matchedBy">The value from the push response; may be <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> for the two rungs that can attach a set to the wrong row.</returns>
+    public static bool IsUncertain(string? matchedBy) =>
+        matchedBy is NameAmbiguous or Index;
+}
+
+/// <summary>
+/// One line of the mapping a push answers with: which gearset the server recognised the entry as, and
+/// on which rung of its ladder. The plugin never mints a <see cref="SetUid"/> — it only reads them.
+/// </summary>
+public sealed class GearsetAssignment
+{
+    /// <summary>The in-game position that was sent. Display order only; not an identity.</summary>
+    public int GearIndex { get; init; }
+
+    /// <summary>
+    /// The server's identity for this gearset: 32 lowercase hex characters, opaque and stable for the
+    /// life of the gearset. <see langword="null"/> on a server that does not mint them yet, which is
+    /// the signal to fall back to the old <c>(gear_index, job)</c> path rather than to show nothing.
+    /// </summary>
+    public string? SetUid { get; init; }
+
+    /// <summary>Which rung matched — see <see cref="MatchedBy"/>. <see langword="null"/> when unsaid.</summary>
+    public string? MatchedBy { get; init; }
+
+    /// <summary>
+    /// What happened to this gearset — see <see cref="PushState"/>. <see langword="null"/> on a server
+    /// that does not report it yet, which is not the same as "resolved" and must not be read as such.
+    /// </summary>
+    public string? State { get; init; }
 }
 
 /// <summary>Success body of <c>PUT /gear</c>: <c>{ "status": "ok", "character_id": "42", "gearsets": 3 }</c>.</summary>
@@ -115,6 +200,22 @@ public sealed class GearPushResult
 
     /// <summary>Number of gearsets accepted.</summary>
     public int Gearsets { get; init; }
+
+    /// <summary>
+    /// The mapping, <b>index-aligned with the gearsets that were sent</b>. Empty on a server that does
+    /// not answer with it — the plugin then keeps working the old way rather than losing its bearings.
+    /// </summary>
+    public List<GearsetAssignment> Sets { get; init; } = [];
+
+    /// <summary>
+    /// What is waiting for the player, present on <b>every</b> push including the quiet one.
+    /// </summary>
+    /// <remarks>
+    /// <see langword="null"/> only on a server that does not send it at all. Where it is sent, absence
+    /// never means zero: a missing field and an empty one would have to be told apart by whoever reads
+    /// them, and the reader who guesses wrong shows a badge for a question that does not exist.
+    /// </remarks>
+    public ReviewSummary? Review { get; init; }
 }
 
 /// <summary>Protocol-wide constants shared across the core.</summary>
@@ -154,4 +255,61 @@ public static class ProtocolConstants
 
     /// <summary>The single scope the issued key carries (R17 least privilege).</summary>
     public const string RequiredScope = "gear:write";
+}
+
+/// <summary>
+/// The reconciliation counters a push answers with: how much is waiting, and the token that says which
+/// state those numbers describe.
+/// </summary>
+/// <remarks>
+/// Two different sentences for a player, which is why they are counted apart: "2 sets are waiting for
+/// your decision" is not "10 rows on the site no longer exist in game". One is an attribution question
+/// about a set that exists; the other is an inventory question about one that does not.
+/// </remarks>
+public sealed class ReviewSummary
+{
+    /// <summary>
+    /// Fingerprint of the state these numbers describe, per character. Sent even when nothing is open, so
+    /// a client that arrives after somebody else answered everything can tell "nothing waits" from "I have
+    /// no token".
+    /// </summary>
+    /// <remarks>
+    /// It covers identity per row — uid, state, source, job, name and position — and not item values, so a
+    /// routine push that only writes fresh numbers into known rows leaves an open review valid, and one
+    /// that changes what is being asked invalidates it.
+    /// </remarks>
+    public string? StateToken { get; init; }
+
+    /// <summary>How many sent gearsets are waiting for an attribution decision.</summary>
+    public int Held { get; init; }
+
+    /// <summary>Rows no live gearset occupies, split by whether anybody has put them aside.</summary>
+    public OrphanCounts? Orphans { get; init; }
+
+    /// <summary>Where the player can see all of it. Read back, never composed.</summary>
+    public string? Url { get; init; }
+
+    /// <summary>Whether anything at all is waiting.</summary>
+    public bool HasAnything => Held > 0 || (Orphans?.Open ?? 0) > 0 || (Orphans?.Ignored ?? 0) > 0;
+
+    /// <summary>
+    /// What is worth putting in front of the player unprompted: a question about a set they have, or rows
+    /// they have not looked at yet.
+    /// </summary>
+    /// <remarks>
+    /// Rows already put aside are deliberately not in this. Somebody who said "not this one" ten times
+    /// does not want a badge for it afterwards, and a marker that never clears is one people learn to
+    /// ignore, including when it means something.
+    /// </remarks>
+    public bool NeedsAttention => Held > 0 || (Orphans?.Open ?? 0) > 0;
+}
+
+/// <summary>Orphan rows, counted by whether anybody has decided about them.</summary>
+public sealed class OrphanCounts
+{
+    /// <summary>Rows nobody has put aside, which is what a window should offer first.</summary>
+    public int Open { get; init; }
+
+    /// <summary>Rows put aside. Still reachable, so they can be folded away rather than hidden.</summary>
+    public int Ignored { get; init; }
 }

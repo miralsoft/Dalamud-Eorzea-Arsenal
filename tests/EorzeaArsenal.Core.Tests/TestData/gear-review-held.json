@@ -1,0 +1,185 @@
+{
+    "state_token": "17040ee1f990e326400b57cb4b09364f649f445d023cac9686c4ea9033ab9442",
+    "held": [
+        {
+            "set_uid": "fa63549a03f4b0171d2b5a8db9308e2f",
+            "job": "DRK",
+            "name": "Rechte Hand",
+            "gear_index": 7,
+            "items": {
+                "Weapon": {
+                    "id": 44123,
+                    "materia": [
+                        41777,
+                        41777
+                    ]
+                },
+                "Head": {
+                    "id": 44100,
+                    "materia": [
+                        41777,
+                        41777
+                    ]
+                },
+                "Body": {
+                    "id": 44101,
+                    "materia": [
+                        41777,
+                        41777
+                    ]
+                },
+                "Hands": {
+                    "id": 51010,
+                    "materia": [
+                        41777,
+                        41777
+                    ]
+                }
+            },
+            "proposal": {
+                "action": "link",
+                "target_uid": "7473daa6e052ec3daf4c6e07845c7cdc",
+                "confident": false
+            },
+            "candidates": [
+                {
+                    "set_uid": "7473daa6e052ec3daf4c6e07845c7cdc",
+                    "job": "DRK",
+                    "name": "FRU DRK",
+                    "source": "plugin",
+                    "state": "parked",
+                    "probability": 75,
+                    "matched_slots": 3,
+                    "total_slots": 4,
+                    "same_job": true,
+                    "proposed": true,
+                    "blocked_by": null,
+                    "items": {
+                        "Weapon": {
+                            "id": 44123,
+                            "materia": [
+                                41777,
+                                41777
+                            ]
+                        },
+                        "Head": {
+                            "id": 44100,
+                            "materia": [
+                                41777,
+                                41777
+                            ]
+                        },
+                        "Body": {
+                            "id": 44101,
+                            "materia": [
+                                41777,
+                                41777
+                            ]
+                        },
+                        "Hands": {
+                            "id": 44102,
+                            "materia": [
+                                41777,
+                                41777
+                            ]
+                        }
+                    },
+                    "last_seen_at": "2026-08-31 08:22:46",
+                    "url": "https://xivarsenal.app/mein-gear#s-7473daa6e052ec3daf4c6e07845c7cdc",
+                    "has_pin": false,
+                    "has_team_share": false,
+                    "team_names": [],
+                    "hidden": false
+                }
+            ],
+            "url": "https://xivarsenal.app/mein-gear#s-fa63549a03f4b0171d2b5a8db9308e2f"
+        }
+    ],
+    "orphans": [
+        {
+            "set_uid": "7473daa6e052ec3daf4c6e07845c7cdc",
+            "job": "DRK",
+            "name": "FRU DRK",
+            "state": "parked",
+            "source": "plugin",
+            "last_seen_at": "2026-08-31 08:22:46",
+            "items": {
+                "Weapon": {
+                    "id": 44123,
+                    "materia": [
+                        41777,
+                        41777
+                    ]
+                },
+                "Head": {
+                    "id": 44100,
+                    "materia": [
+                        41777,
+                        41777
+                    ]
+                },
+                "Body": {
+                    "id": 44101,
+                    "materia": [
+                        41777,
+                        41777
+                    ]
+                },
+                "Hands": {
+                    "id": 44102,
+                    "materia": [
+                        41777,
+                        41777
+                    ]
+                }
+            },
+            "similar": [
+                {
+                    "set_uid": "fa63549a03f4b0171d2b5a8db9308e2f",
+                    "job": "DRK",
+                    "name": "Rechte Hand",
+                    "source": "plugin",
+                    "probability": 75,
+                    "matched_slots": 3,
+                    "total_slots": 4,
+                    "items": {
+                        "Weapon": {
+                            "id": 44123,
+                            "materia": [
+                                41777,
+                                41777
+                            ]
+                        },
+                        "Head": {
+                            "id": 44100,
+                            "materia": [
+                                41777,
+                                41777
+                            ]
+                        },
+                        "Body": {
+                            "id": 44101,
+                            "materia": [
+                                41777,
+                                41777
+                            ]
+                        },
+                        "Hands": {
+                            "id": 51010,
+                            "materia": [
+                                41777,
+                                41777
+                            ]
+                        }
+                    },
+                    "url": "https://xivarsenal.app/mein-gear#s-fa63549a03f4b0171d2b5a8db9308e2f"
+                }
+            ],
+            "url": "https://xivarsenal.app/mein-gear#s-7473daa6e052ec3daf4c6e07845c7cdc",
+            "has_pin": false,
+            "has_team_share": false,
+            "team_names": [],
+            "hidden": false
+        }
+    ]
+}

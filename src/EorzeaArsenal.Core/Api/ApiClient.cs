@@ -103,6 +103,80 @@ public sealed class ApiClient : IApiClient
     }
 
     /// <inheritdoc />
+    public async Task<ApiResult<GearSetsResponse>> GetGearSetsAsync(string apiKey, string? cidHash, CancellationToken ct)
+    {
+        var path = "/gear/sets";
+        if (!string.IsNullOrEmpty(cidHash))
+        {
+            path += "?cid_hash=" + Uri.EscapeDataString(cidHash);
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, Url(path));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<GearSetsResponse>(request, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiResult<JobTableResponse>> GetJobTableAsync(CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, Url("/gear/jobs"));
+        return await SendAsync<JobTableResponse>(request, ct).ConfigureAwait(false);
+    }
+
+
+    /// <inheritdoc />
+    public async Task<ApiResult<ReviewState>> GetReviewAsync(string apiKey, string characterId, CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, Url($"/gear/review?character_id={Uri.EscapeDataString(characterId)}"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<ReviewState>(request, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiResult<ReviewDecisionResponse>> PostReviewDecisionAsync(
+        string apiKey,
+        string characterId,
+        string stateToken,
+        ReviewDecision decision,
+        CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, Url("/gear/review"))
+        {
+            Content = JsonBody(new ReviewDecisionRequest
+            {
+                CharacterId = characterId,
+                StateToken = stateToken,
+                Decision = decision,
+            }),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+
+        // A 409 is not a failure here: it carries the same body plus what moved, which is the state to
+        // render. Mapping it to an error would throw away the one thing that makes it actionable.
+        return await SendAsync<ReviewDecisionResponse>(request, ct, treatConflictAsValue: true).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<ApiResult<ReviewAcceptResponse>> AcceptReviewMappingAsync(
+        string apiKey,
+        string characterId,
+        string stateToken,
+        IReadOnlyList<ReviewDecision> pairs,
+        CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, Url("/gear/review/accept"))
+        {
+            Content = JsonBody(new ReviewAcceptRequest
+            {
+                CharacterId = characterId,
+                StateToken = stateToken,
+                Pairs = pairs,
+            }),
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<ReviewAcceptResponse>(request, ct, treatConflictAsValue: true).ConfigureAwait(false);
+    }
+    /// <inheritdoc />
     public async Task<ApiResult<WeeklyResponse>> GetWeeklyAsync(string apiKey, string characterId, CancellationToken ct)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, Url(WeeklyPath(characterId)));
@@ -406,7 +480,8 @@ public sealed class ApiClient : IApiClient
     private async Task<ApiResult<T>> SendAsync<T>(
         HttpRequestMessage request,
         CancellationToken ct,
-        bool treatBadRequestAsValue = false)
+        bool treatBadRequestAsValue = false,
+        bool treatConflictAsValue = false)
     {
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeoutCts.CancelAfter(_requestTimeout);
@@ -421,7 +496,8 @@ public sealed class ApiClient : IApiClient
             var body = await response.Content.ReadAsStringAsync(timeoutCts.Token).ConfigureAwait(false);
 
             if (response.IsSuccessStatusCode ||
-                (treatBadRequestAsValue && response.StatusCode == HttpStatusCode.BadRequest))
+                (treatBadRequestAsValue && response.StatusCode == HttpStatusCode.BadRequest) ||
+                (treatConflictAsValue && response.StatusCode == HttpStatusCode.Conflict))
             {
                 return Deserialize<T>(body, endpoint);
             }
@@ -511,6 +587,8 @@ public sealed class ApiClient : IApiClient
             RequestId = problem?.RequestId,
             Endpoint = endpoint,
             RetryAfter = retryAfter is { Ticks: > 0 } ? retryAfter : null,
+            Code = problem?.Error,
+            Jobs = problem?.Jobs,
         };
     }
 
@@ -539,6 +617,24 @@ public sealed class ApiClient : IApiClient
 
     private string Url(string path) => $"{_settings.BaseUrl.TrimEnd('/')}{path}";
 
+
+    private sealed class ReviewDecisionRequest
+    {
+        public required string CharacterId { get; init; }
+
+        public required string StateToken { get; init; }
+
+        public required ReviewDecision Decision { get; init; }
+    }
+
+    private sealed class ReviewAcceptRequest
+    {
+        public required string CharacterId { get; init; }
+
+        public required string StateToken { get; init; }
+
+        public required IReadOnlyList<ReviewDecision> Pairs { get; init; }
+    }
     private sealed class DeviceTokenRequest
     {
         public required string DeviceCode { get; init; }

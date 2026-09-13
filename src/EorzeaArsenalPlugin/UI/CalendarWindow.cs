@@ -54,7 +54,7 @@ public sealed class CalendarWindow : Window
     /// <param name="log">Diagnostics sink.</param>
     /// <param name="openConfig">Opens the settings (disabled hint).</param>
     public CalendarWindow(TeamsService teams, PluginConfig config, ConfigStore store, Localizer localizer, ILog log, Action openConfig)
-        : base("Eorzea Arsenal — Calendar###EorzeaArsenalCalendar")
+        : base("Eorzea Arsenal · Calendar###EorzeaArsenalCalendar")
     {
         _teams = teams;
         _config = config;

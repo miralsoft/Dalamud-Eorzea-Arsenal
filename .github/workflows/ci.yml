@@ -38,6 +38,16 @@ jobs:
       - name: Restore
         run: dotnet restore
 
+      - name: Developer-tools switch must not be committed
+        shell: pwsh
+        run: |
+          # The only route by which a published build could carry developer surfaces, so it is checked
+          # rather than left to .gitignore. The committed file is the .example copy.
+          if (Test-Path "Directory.Build.local.props") {
+            Write-Error "Directory.Build.local.props is in the checkout. It defines EORZEA_ARSENAL_DEVTOOLS and must never be committed."
+            exit 1
+          }
+
       - name: Build (Release)
         run: dotnet build -c Release --no-restore
 

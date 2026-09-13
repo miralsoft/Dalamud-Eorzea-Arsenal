@@ -112,7 +112,7 @@ public sealed class TeamsWindow : Window
         Action save,
         Action openConfig,
         Action<long, long, string?> openImage)
-        : base("Eorzea Arsenal — Teams###EorzeaArsenalTeams")
+        : base("Eorzea Arsenal · Teams###EorzeaArsenalTeams")
     {
         _myCharacterId = myCharacterId;
         _config = config;
@@ -670,7 +670,7 @@ public sealed class TeamsWindow : Window
                 ImGui.TableNextRow();
                 ImGui.TableNextColumn();
                 ImGui.TableNextColumn();
-                ImGui.TextColored(Yellow, "— " + PhaseName(phases, phase) + " —");
+                ImGui.TextColored(Yellow, "· " + PhaseName(phases, phase) + " ·");
             }
 
             var times = mechs.Select(m => m.TimeS).Concat(places.Select(pl => pl.TimeS)).Distinct().OrderBy(t => t).ToList();
@@ -766,7 +766,7 @@ public sealed class TeamsWindow : Window
                     ImGui.TextDisabled(category);
                 }
 
-                ImGui.TextDisabled($"{T(LocKeys.TeamsRange)}: {(a.Range < 0 ? "—" : a.Range + "y")}   {T(LocKeys.TeamsRadius)}: {a.EffectRange}y");
+                ImGui.TextDisabled($"{T(LocKeys.TeamsRange)}: {(a.Range < 0 ? "-" : a.Range + "y")}   {T(LocKeys.TeamsRadius)}: {a.EffectRange}y");
                 var cast = a.Cast100ms / 10.0;
                 var recast = a.Recast100ms / 10.0;
                 ImGui.TextDisabled($"{T(LocKeys.TeamsCast)}: {(cast <= 0 ? T(LocKeys.TeamsInstant) : cast.ToString("0.#", CultureInfo.InvariantCulture) + "s")}   {T(LocKeys.TeamsRecast)}: {recast.ToString("0.#", CultureInfo.InvariantCulture)}s");
@@ -874,7 +874,7 @@ public sealed class TeamsWindow : Window
             {
                 var drops = string.Join(", ", boss.Drops.Select(d => d.Value));
                 ImGui.SameLine();
-                ImGui.TextDisabled($"— {drops}");
+                ImGui.TextDisabled($"· {drops}");
             }
         }
 

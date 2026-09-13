@@ -29,6 +29,15 @@ public static class EquipmentSlots
         null,        // 13 Soul Crystal (not sent)
     ];
 
+    /// <summary>
+    /// The order a character sheet reads in, so a strip of icons looks like the game rather than like a
+    /// dictionary. Separate from <see cref="ByGearsetIndex"/> on purpose: that one is the game's storage
+    /// order and puts the right ring first, which is right for reading a gearset and wrong for showing
+    /// one.
+    /// </summary>
+    public static readonly IReadOnlyList<string> DisplayOrder =
+        ["Weapon", "OffHand", "Head", "Body", "Hands", "Legs", "Feet", "Ears", "Neck", "Wrists", "RingLeft", "RingRight"];
+
     /// <summary>The 12 canonical slot keys accepted by the API.</summary>
     public static readonly IReadOnlySet<string> ValidKeys = new HashSet<string>(
         ["Weapon", "OffHand", "Head", "Body", "Hands", "Legs", "Feet", "Ears", "Neck", "Wrists", "RingLeft", "RingRight"],

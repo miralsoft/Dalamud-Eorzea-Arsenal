@@ -43,6 +43,10 @@ public sealed class Plugin : IDalamudPlugin
     private readonly IChatGui _chatGui;
     private readonly IToastGui _toastGui;
     private readonly IDataManager _dataManager;
+
+    // The game's own job list, read once at startup: what the plugin can name, and the names to quote in a
+    // report when the server does not yet accept one of them.
+    private readonly IReadOnlyList<GameJob> _gameJobs;
     private readonly LogBuffer _logBuffer;
     private readonly ILog _log;
 
@@ -61,6 +65,24 @@ public sealed class Plugin : IDalamudPlugin
     private readonly WeeklySyncService _weeklySync;
     private readonly TeamsService _teamsService;
     private readonly TeamsSeenStore _teamsSeenStore;
+    private readonly GearsetIdentityStore _gearsetIdentityStore;
+    private readonly GearsetMappingService _gearsetMapping;
+    private readonly JobTableCache _jobTable;
+
+    // Cancels the fire-and-forget work this class starts, so a reload does not leave a request running
+    // against services that are being torn down.
+    private readonly CancellationTokenSource _shutdown = new();
+
+    /// <summary>
+    /// The last capped-tomestone balance actually accepted by the server, per character. The push
+    /// piggy-backs the inventory sync, so it fires every few minutes whether or not the number moved,
+    /// and an unchanged value is a write that says nothing and a log line that hides the ones that do.
+    /// Cleared at every login, which is the one boundary where re-sending an unchanged value earns its
+    /// cost. Written from a background task, hence the gate.
+    /// </summary>
+    private readonly Dictionary<long, int> _lastTomeBalance = [];
+    private readonly Lock _tomeGate = new();
+    private readonly GearsetDebugView _gearsetDebug = new();
     private readonly BisService _bisService;
     private readonly ObtainService _obtainService;
     private readonly HoldingsService _holdingsService;
@@ -77,10 +99,19 @@ public sealed class Plugin : IDalamudPlugin
     private readonly BisWindow _bisWindow;
     private readonly AdvisorWindow _advisorWindow;
     private readonly LogWindow _logWindow;
+#if EORZEA_ARSENAL_DEVTOOLS
+
+    /// <summary>The developer window. Only exists in a build that defined the symbol.</summary>
+    private readonly DevWindow _devWindow;
+#endif
     private readonly PreviewWindow _previewWindow;
+    private readonly ReviewWindow _reviewWindow;
+    private readonly ReviewService _review;
     private readonly WhatsNewWindow _whatsNewWindow;
     private readonly ReportWindow _reportWindow;
     private bool _whatsNewPending;
+    private bool _reviewAnnounceRunning;
+    private volatile bool _reviewOpenRequested;
     private readonly BisTooltip _bisTooltip;
     private readonly IDtrBarEntry _dtrEntry;
 
@@ -112,6 +143,11 @@ public sealed class Plugin : IDalamudPlugin
     private bool _announceWeekly;
     private bool _announcePush;
     private bool _bisLoadPending;
+
+    // Whether the reconciliation state has been read at all in this session. The menu entry that opens
+    // the window is drawn from that state, so until it is read there is no way in.
+    private bool _reviewNeverRead = true;
+    private long _nextReviewReadTicks;
     private ulong _lastStoredSig;
     private ulong _lastEquippedItemsSig;
     private ulong _lastEquippedMateriaSig;
@@ -169,11 +205,27 @@ public sealed class Plugin : IDalamudPlugin
         _log = new CompositeLog(new PluginLogAdapter(log, () => _config.Verbosity), _logBuffer);
         _httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(100) };
         _store = new ConfigStore(_config, Save);
-        _localizer = new Localizer(_config.Language);
+        _localizer = new Localizer(LanguageInUse());
+
+        // A change in the host reaches the plugin only while the plugin is set to follow it. Subscribed
+        // once, checked on every event, so switching to an explicit language does not need the handler
+        // taken off again.
+        pluginInterface.LanguageChanged += OnHostLanguageChanged;
 
         var api = new ApiClient(_httpClient, _store);
         _api = api;
         _trackedItems = new TrackedItemsStore();
+
+        // Before anything reads a gearset. A job the map cannot name is skipped when the list is read and
+        // is then thrown away again by the sanitizer, so learning has to happen ahead of both. It widens
+        // what can be named and nothing else: what may be sent stays with the server's table.
+        _gameJobs = GameJobSheet.Read(dataManager, _log);
+        var learned = JobMap.LearnFromGame(_gameJobs.Select(j => new KeyValuePair<uint, string>(j.Id, j.Code)));
+        if (learned.Count > 0)
+        {
+            _log.Info($"The game knows {learned.Count} job(s) this version was not told about: {string.Join(", ", learned)}.");
+        }
+
         _gearSource = new GameGearSource(clientState, playerState, framework, dataManager, _log, GameNameLanguage);
         _inventorySource = new GameInventorySource(clientState, playerState, framework, dataManager, _trackedItems, _log);
         _weeklySource = new GameWeeklySource(clientState, playerState, framework, gameGui, dataManager, _log);
@@ -184,11 +236,49 @@ public sealed class Plugin : IDalamudPlugin
         _characterDirectory = new CharacterDirectory(_config.CharacterIds);
         _characterDirectory.Changed += OnCharacterDirectoryChanged;
 
-        _sync = new GearSyncService(_gearSource, api, _store, new SystemClock(), _log, _characterDirectory)
+        // Remembers which set_uid the server gave each gearset, so the in-game comparison is keyed on
+        // identity instead of on the position — the position moves, and everything hung off it used to
+        // move with it, silently and wrongly.
+        _gearsetIdentityStore = new GearsetIdentityStore(_config, Save);
+        _gearsetMapping = new GearsetMappingService(api, _store, _gearsetIdentityStore, new SystemClock(), _log);
+
+        // Which job codes may leave this machine is the server's answer, held per address so a test
+        // instance cannot decide what goes to live. Absent or unreachable, the frozen combat floor governs
+        // and the push says so — a narrow push syncs most of it, a wrongly-full one parks rows the game
+        // still has.
+        _jobTable = new JobTableCache(api, _store, new SystemClock(), _log);
+
+        // Read once at startup, deliberately before any key exists: this route takes none, and fetching it
+        // now is what makes the role split right from the first start. Left to the push path it would only
+        // be read after connecting, so a fresh install would show one flat list until then. Failure is fine
+        // and silent — the cache falls back to the frozen floor and heals on the next attempt.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _jobTable.GetPolicyAsync(_shutdown.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                // Unloaded before the answer arrived. The floor governs, which is the safe direction.
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"Reading the job table at startup threw: {ex.GetType().Name}.");
+            }
+        });
+
+        _sync = new GearSyncService(_gearSource, api, _store, new SystemClock(), _log, _characterDirectory, _gearsetMapping, _jobTable)
         {
             MinAutoPushInterval = TimeSpan.FromMinutes(Math.Max(1, _config.AutoPushIntervalMinutes)),
         };
         _sync.PushCompleted += OnPushCompleted;
+
+        // Where a person answers what a sync could not. Automatic pushes hold back while it is open,
+        // because a push moves the state token and would turn their next decision into a 409.
+        _review = new ReviewService(api, _store, _characterDirectory, new SystemClock(), _gearsetMapping, _log);
+        _reviewWindow = new ReviewWindow(_review, _localizer, () => _currentCidHash, OnReviewDecision, _gearSource.GetItemName, _gearSource.GetItemIconId, textureProvider, OpenExternalLink, LiveNumberOf, _log);
+        _sync.PauseAutomatic = () => _review.IsOpen;
         _inventorySync = new InventorySyncService(_inventorySource, api, _store, new SystemClock(), _log, _characterDirectory);
         _inventorySync.SyncCompleted += OnInventoryCompleted;
         _weeklySync = new WeeklySyncService(_weeklySource, api, _store, _characterDirectory, new SystemClock(), _log);
@@ -198,7 +288,7 @@ public sealed class Plugin : IDalamudPlugin
         _teamsSeenStore = new TeamsSeenStore(_config, Save);
         _teamsService = new TeamsService(api, _store, _teamsSeenStore, new SystemClock(), _log);
         _teamsService.Toast += OnTeamToast;
-        _bisService = new BisService(api, _gearSource, _store, _log);
+        _bisService = new BisService(api, _gearSource, _store, _log, _gearsetMapping);
         _obtainService = new ObtainService(api, _store, _log);
         // Pin the counts to the character actually on screen — without it the server answers for
         // whichever character the account last made active, which on a multi-character account is a
@@ -209,17 +299,45 @@ public sealed class Plugin : IDalamudPlugin
 
         _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, _obtainService, _worldActions, _holdingsService, _advisorService, ServerCharacterId, Save, LinkItemInChat);
         _advisorWindow = new AdvisorWindow(_config, _store, _localizer, _bisService, _advisorService, _trackedItems, _holdingsService, _obtainService, _gearSource, _worldActions, textureProvider, ServerCharacterId, LinkItemInChat);
+#if EORZEA_ARSENAL_DEVTOOLS
+        // Named once, used twice: each probe is a button, and "Everything" is all of them in order. A
+        // second list of the same reports for the copy is how the two drift apart.
+        (string Label, Func<IReadOnlyList<string>> Run)[] probes =
+        [
+            ("Identity", () => DiagnosticsReport.Identity(_gearsetMapping, _gearsetDebug, _currentCidHash, _bisService.AmbiguousLive, _bisService.FetchedUtc)),
+            ("Duplicates", () => DiagnosticsReport.Duplicates(_gearsetDebug, _bisService.AmbiguousLive, _bisService.FetchedUtc)),
+            ("Positions", () => DiagnosticsReport.Positions(_bisService)),
+            ("Review", () => DiagnosticsReport.Review(_review.Current, _currentCidHash)),
+            ("Jobs", () => DiagnosticsReport.Jobs(_gameJobs, _jobTable.CurrentPolicy, _jobTable.Current)),
+        ];
+
+        (string Label, Action Run)[] actions =
+        [
+            ("Sample gearsets", () => SampleGearsetIdentity(toChat: false)),
+            ("Re-read identities", RefreshIdentitiesNow),
+            ("Refresh BiS", RefreshBisNow),
+            ("Re-read review", RefreshReviewNow),
+        ];
+
+        _devWindow = new DevWindow(
+            probes,
+            actions,
+            () => DiagnosticsReport.Compose(
+                ProtocolConstants.PluginVersion,
+                [.. probes.Select(p => p.Run())]));
+#endif
         _logWindow = new LogWindow(_logBuffer, _localizer);
         _previewWindow = new PreviewWindow(_gearSource, _localizer, _log);
         _imageWindow = new ImageWindow(_teamsService, textureProvider, _localizer, _log);
         _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
         _reportWindow = new ReportWindow(_store, _localizer, api, _log, DescribeClient);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReview, () => _review.Summary() ?? _sync.LastReview, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew, () => _bisService.AmbiguousLive.Count, () => _currentCidHash);
         _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
-        _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save);
+        _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save, () => Localizer.Nearest(_pluginInterface.UiLanguage));
         _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _obtainService, _worldActions, _holdingsService, _log);
         _windowSystem.AddWindow(_previewWindow);
+        _windowSystem.AddWindow(_reviewWindow);
         _windowSystem.AddWindow(_imageWindow);
         _windowSystem.AddWindow(_teamsWindow);
         _windowSystem.AddWindow(_calendarWindow);
@@ -243,11 +361,38 @@ public sealed class Plugin : IDalamudPlugin
         AddReportButton(_previewWindow, "Preview");
         AddReportButton(_logWindow, "Log");
 
+#if EORZEA_ARSENAL_DEVTOOLS
+        // Only in a developer build, and on every window rather than on a chosen few. Diagnosing
+        // something means being in whichever window showed it, and a shortcut that exists in one place
+        // is a shortcut somebody navigates away from what they were looking at to reach. Driven off the
+        // registration rather than a list, so a window added later carries it without anybody
+        // remembering to say so. The developer window itself is left out: it would be a button that
+        // opens the window it is drawn in.
+        _windowSystem.AddWindow(_devWindow);
+        foreach (var window in _windowSystem.Windows)
+        {
+            if (!ReferenceEquals(window, _devWindow))
+            {
+                AddDevToolsButton(window);
+            }
+        }
+#endif
+
         // Show what changed once per new version. Deferred rather than opened here: a plugin usually
         // loads at the title screen, where the window would be dismissed unseen. OnFrameworkUpdate
         // opens it as soon as a character is actually in the world — which also covers installing the
         // update mid-session, where no Login event follows.
-        _whatsNewPending = _config.ShowWhatsNewOnUpdate && ReleaseNotes.HasUnseen(_config.LastSeenReleaseNotes);
+        _whatsNewPending = _config.ShowWhatsNewOnUpdate &&
+            ReleaseNotes.ShouldAnnounce(_config.LastSeenReleaseNotes, _config.TosAccepted);
+
+        // A first installation starts level with the current version: nothing to announce, and the menu
+        // entry must not glow about changes this player never lived through. Stamped once, here, because
+        // the alternative is a highlight that only clears by opening a window nobody was told to open.
+        if (!_config.TosAccepted && _config.LastSeenReleaseNotes is null)
+        {
+            _config.LastSeenReleaseNotes = ReleaseNotes.Latest.Version;
+            Save();
+        }
 
         _dtrEntry = dtrBar.Get("Eorzea Arsenal");
         _dtrEntry.OnClick = _ => OpenStatus();
@@ -280,11 +425,17 @@ public sealed class Plugin : IDalamudPlugin
         _pluginInterface.UiBuilder.Draw -= _bisTooltip.Draw;
         _pluginInterface.UiBuilder.OpenConfigUi -= OpenConfig;
         _pluginInterface.UiBuilder.OpenMainUi -= OpenStatus;
+        _pluginInterface.LanguageChanged -= OnHostLanguageChanged;
         _windowSystem.RemoveAllWindows();
 
         _dtrEntry.Remove();
+        // Cancelled first, so nothing new starts while the rest is being taken down. Disposed at the end,
+        // because a captured token stays usable after its source is gone and a source does not.
+        _shutdown.Cancel();
+
         _sync.PushCompleted -= OnPushCompleted;
         _sync.Dispose();
+        _review.Dispose();
         _inventorySync.SyncCompleted -= OnInventoryCompleted;
         _inventorySync.Dispose();
         _weeklySource.HiddenRefreshCompleted -= OnHiddenRefreshCompleted;
@@ -298,6 +449,7 @@ public sealed class Plugin : IDalamudPlugin
         _characterDirectory.Changed -= OnCharacterDirectoryChanged;
         _configWindow.Dispose();
         _httpClient.Dispose();
+        _shutdown.Dispose();
     }
 
     private void Save() => _pluginInterface.SavePluginConfig(_config);
@@ -337,9 +489,96 @@ public sealed class Plugin : IDalamudPlugin
             ? numeric
             : null;
 
+    /// <summary>
+    /// The catalogue to show: the one that was chosen, or the host's where the choice is to follow it.
+    /// </summary>
+    /// <returns>A code the localizer accepts, English where the host speaks something unshipped.</returns>
+    private string LanguageInUse() =>
+        string.Equals(_config.Language, Localizer.FollowHost, StringComparison.Ordinal)
+            ? Localizer.Nearest(_pluginInterface.UiLanguage)
+            : _config.Language;
+
+    /// <summary>Follows a language change in the host, where that is what the configuration asks for.</summary>
+    /// <param name="language">The host's new interface language.</param>
+    private void OnHostLanguageChanged(string language) => _localizer.Language = LanguageInUse();
+
     private void OpenLog() => _logWindow.IsOpen = true;
 
     private void OpenPreview() => _previewWindow.Open();
+
+    /// <summary>
+    /// Which number a gearset carries in the player's list right now, by identity.
+    /// </summary>
+    /// <param name="setUid">The identity to look up.</param>
+    /// <returns>The in-game number, counted from one, or <see langword="null"/> where it is not known.</returns>
+    /// <remarks>
+    /// Read from the position table rather than from the stored index, because the stored one is where the
+    /// server last saw the set and the reader is looking at the list as it is now. The table withdraws
+    /// every claim it cannot be sure of, so this is either right or absent, and absent is a real answer:
+    /// the set may be one the game no longer holds.
+    /// </remarks>
+    private int? LiveNumberOf(string setUid) =>
+        _bisService.LivePositions.TryGetValue(setUid, out var index) ? index + 1 : null;
+
+    private void OpenReview() => _reviewWindow.Open();
+
+    /// <summary>
+    /// After a reconciliation decision: the gear did not change, so the unchanged guard would skip the next
+    /// push perfectly correctly — and that push answer is the cheap way the mapping gets re-learned after
+    /// the decision dropped it.
+    /// </summary>
+    /// <summary>
+    /// After an answer in the reconciliation window: everything keyed on the old identities is now wrong.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A decision is exactly what a review answer changes: a link ends one row and moves its contents,
+    /// name and position onto another, and a bulk accept does that several times over. Only the push cache
+    /// was cleared here, and the identity mapping, which is what resolves a live gearset to a stored row,
+    /// was left holding the picture from before the answer.
+    /// </para>
+    /// <para>
+    /// That is not a cosmetic staleness. With two gearsets sharing a job and a name, the stale mapping
+    /// resolved the wrong one: before a bulk accept the only "BRD / Barde" row was one of them, afterwards
+    /// the adopted row carried that name too, and the live set went on resolving to the row it used to be.
+    /// The plugin then showed a position that belonged to a different gearset. Attribution is the whole
+    /// point of this feature, so the mapping is read again rather than left to expire.
+    /// </para>
+    /// <para>
+    /// Read again, and nothing here is thrown away first. Both caches were being emptied, which reads like
+    /// the careful version and is the destructive one: what only a push can know goes with it, and every
+    /// set number vanishes from the interface until the refresh lands. The refresh is what makes the state
+    /// right, and it runs unconditionally two lines below.
+    /// </para>
+    /// </remarks>
+    private void OnReviewDecision()
+    {
+        _sync.ForgetLastSent();
+
+        if (_currentCidHash is not { Length: > 0 } cidHash)
+        {
+            return;
+        }
+
+        _gearsetMapping.ExpireMapping(cidHash);
+
+        // The position table is refreshed below and not emptied first, which it used to be. Emptying it
+        // makes every set number in the interface vanish for as long as the refresh takes, and a missing
+        // number is not nothing here: it is this window's way of saying the set is not in the game any
+        // more. Putting one aside moves no identity at all, so answering a single question wrongly
+        // announced that about every set the player owns.
+        //
+        // What the emptying guarded against is a number that has moved, and only a link can move one. Even
+        // then the row it retires is the row whose card just closed, so nothing is left asking about it,
+        // and the refresh that follows lands within a second. Keeping the last known table until then is
+        // what the rest of this plugin does when something might have changed, and it is the same reason:
+        // stale for a moment beats wrong for a moment.
+        _ = Task.Run(async () =>
+        {
+            await _gearsetMapping.EnsureMappingAsync(cidHash, CancellationToken.None).ConfigureAwait(false);
+            await _bisService.RefreshAsync(CancellationToken.None).ConfigureAwait(false);
+        });
+    }
 
     private void OpenWhatsNew() => _whatsNewWindow.Open();
 
@@ -366,6 +605,60 @@ public sealed class Plugin : IDalamudPlugin
             Click = _ => OpenReport(where),
             ShowTooltip = () => ImGui.SetTooltip(_localizer.Get(LocKeys.ReportOpen)),
         });
+
+#if EORZEA_ARSENAL_DEVTOOLS
+    /// <summary>Reads the identity cache again for this character.</summary>
+    /// <remarks>
+    /// The question the diagnostics window exists to answer is usually "is this stale or is it wrong",
+    /// and the two look identical on screen. One press separates them.
+    /// <para>
+    /// It used to forget the cache first, which sounded like the thorough version and was the destructive
+    /// one: a read carries no items, so pressing this threw away everything a push had established and
+    /// left every same-named pair on the character unresolvable. The button says re-read, so it re-reads.
+    /// </para>
+    /// </remarks>
+    private void RefreshIdentitiesNow()
+    {
+        if (_currentCidHash is not { Length: > 0 } cidHash)
+        {
+            return;
+        }
+
+        _gearsetMapping.ExpireMapping(cidHash);
+        _ = Task.Run(() => _gearsetMapping.EnsureMappingAsync(cidHash, CancellationToken.None));
+    }
+
+    /// <summary>Drops the BiS cache and the position table with it, and fetches again.</summary>
+    private void RefreshBisNow()
+    {
+        _bisService.Invalidate();
+        _ = Task.Run(() => _bisService.RefreshAsync(CancellationToken.None));
+    }
+
+    /// <summary>Re-reads the reconciliation state, the same call the window's own button makes.</summary>
+    private void RefreshReviewNow()
+    {
+        if (_currentCidHash is { Length: > 0 } cidHash)
+        {
+            _ = Task.Run(() => _review.RefreshAsync(cidHash, CancellationToken.None));
+        }
+    }
+
+    /// <summary>
+    /// Puts a wrench in a window's title bar that opens the diagnostics window. Compiled in only with
+    /// the developer-tools symbol, which comes from a git-ignored local props file — a released build
+    /// does not have this method, rather than having it behind a flag somebody could find.
+    /// </summary>
+    /// <param name="window">The window to add the button to.</param>
+    private void AddDevToolsButton(IWindow window) =>
+        window.TitleBarButtons.Add(new TitleBarButton
+        {
+            Icon = FontAwesomeIcon.Wrench,
+            IconOffset = new Vector2(2f, 1f),
+            Click = _ => _devWindow.IsOpen = true,
+            ShowTooltip = () => ImGui.SetTooltip("Developer window"),
+        });
+#endif
 
     /// <summary>
     /// The situation a report is written in: who is playing, on what, with which versions.
@@ -527,6 +820,9 @@ public sealed class Plugin : IDalamudPlugin
             case "whatsnew":
                 OpenWhatsNew();
                 break;
+            case "gearsets":
+                RunGearsetProbe();
+                break;
             case "obtainprobe":
                 RunObtainProbe();
                 break;
@@ -575,6 +871,96 @@ public sealed class Plugin : IDalamudPlugin
     /// so a "base owned" mismatch can be told apart — a plugin one (slot naming) from a server one
     /// (the base not classified as tome, or no info returned). Written to <c>/xivarsenal log</c>.
     /// </summary>
+    /// <summary>
+    /// Read-only dump of the gearset identity mapping: what the live list looks like, which
+    /// <c>set_uid</c> each set resolves to, and on which rung the server matched it. Hidden and kept on
+    /// purpose — verifying "reorder, push, every pin still right" needs the uids visible before and
+    /// after, and a support answer needs the rung. Never writes; a mapping read is a read.
+    /// </summary>
+    private void RunGearsetProbe() => SampleGearsetIdentity(toChat: true);
+
+    /// <summary>
+    /// Samples the mapping into <see cref="GearsetDebugView"/>, and optionally prints it to chat. Both
+    /// the command and the diagnostics window go through here, so the two cannot come to disagree about
+    /// what the state is.
+    /// </summary>
+    /// <param name="toChat">Whether to also print each line to chat.</param>
+    private void SampleGearsetIdentity(bool toChat)
+    {
+        if (_gearsetDebug.IsSampling)
+        {
+            return;
+        }
+
+        if (!_store.HasKey)
+        {
+            _gearsetDebug.Set([], DateTimeOffset.UtcNow, "not connected");
+            if (toChat)
+            {
+                Chat(_localizer.Get(LocKeys.PushNotConnected));
+            }
+
+            return;
+        }
+
+        _gearsetDebug.IsSampling = true;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var snapshot = await _gearSource.ReadAsync(CancellationToken.None).ConfigureAwait(false);
+                if (snapshot is null)
+                {
+                    _gearsetDebug.Set([], DateTimeOffset.UtcNow, "not logged in");
+                    if (toChat)
+                    {
+                        Chat("gearsets: not logged in.");
+                    }
+
+                    return;
+                }
+
+                var clean = GearSanitizer.Sanitize(snapshot);
+                var cid = clean.Character.CidHash;
+
+                // A read, never a push: asking the server what it already knows must not write.
+                var read = await _gearsetMapping.EnsureMappingAsync(cid, CancellationToken.None).ConfigureAwait(false);
+
+                // Hashing every set happens here, off the framework thread (P1).
+                var rows = _gearsetMapping.Snapshot(cid, clean.Gearsets);
+                _gearsetDebug.Set(rows, DateTimeOffset.UtcNow, read ? null : "mapping unavailable");
+
+                if (!toChat)
+                {
+                    return;
+                }
+
+                Chat($"gearsets: {rows.Count} live, {_gearsetMapping.MappingStatus(cid)}, " +
+                     $"server mints uids: {_gearsetMapping.ServerMintsUids}.");
+                foreach (var row in rows)
+                {
+                    Chat($"  #{row.GearIndex,-3} {row.Job} {row.ShortUid,-9} {row.Rung,-15} {row.Name}");
+                }
+
+                Chat($"gearsets: {_gearsetDebug.Resolved}/{rows.Count} identified, " +
+                     $"{_gearsetDebug.Ambiguous} ambiguous, " +
+                     $"{_gearsetMapping.UncertainMatches(cid).Count} the server was unsure about.");
+            }
+            catch (Exception ex)
+            {
+                _gearsetDebug.Set([], DateTimeOffset.UtcNow, $"probe failed ({ex.GetType().Name})");
+                if (toChat)
+                {
+                    Chat($"gearsets: probe failed ({ex.GetType().Name}).");
+                }
+            }
+            finally
+            {
+                _gearsetDebug.IsSampling = false;
+            }
+        });
+    }
+
     private void RunObtainProbe()
     {
         if (!_store.HasKey)
@@ -833,7 +1219,30 @@ public sealed class Plugin : IDalamudPlugin
                     return; // no balance, or the character's server id is not known yet
                 }
 
+                // Unchanged since the last accepted push: nothing to tell the server, and nothing worth
+                // a log line. Only a real change is news.
+                lock (_tomeGate)
+                {
+                    if (_lastTomeBalance.TryGetValue(id, out var sent) && sent == balance.Value)
+                    {
+                        return;
+                    }
+                }
+
                 var result = await _api.PutTomeBalanceAsync(key, id, balance.Value, CancellationToken.None).ConfigureAwait(false);
+                lock (_tomeGate)
+                {
+                    // Remember only what the server took. A failed push must be retried, not forgotten.
+                    if (result.IsSuccess)
+                    {
+                        _lastTomeBalance[id] = balance.Value;
+                    }
+                    else
+                    {
+                        _lastTomeBalance.Remove(id);
+                    }
+                }
+
                 _log.Info(result.IsSuccess
                     ? $"Tome balance pushed: {balance} ({trigger})."
                     : $"Tome balance push: {result.Error?.Kind} ({trigger}).");
@@ -884,6 +1293,13 @@ public sealed class Plugin : IDalamudPlugin
     {
         // Each login starts a fresh diagnostics log for the new game session.
         _logBuffer.Clear();
+
+        // A session boundary is the one place worth re-sending an unchanged balance: it costs one write
+        // and covers the case where the server lost it while nothing here changed.
+        lock (_tomeGate)
+        {
+            _lastTomeBalance.Clear();
+        }
         _log.Info("New game session (logged in).");
 
         RecordCurrentCharacter();
@@ -896,19 +1312,31 @@ public sealed class Plugin : IDalamudPlugin
         // retainer-scan dedup so the next visited retainer is re-scanned.
         _lastRetainerScope = null;
 
+        // And the questions belong to a character, so a new one gets its own read.
+        _reviewNeverRead = true;
+        _nextReviewReadTicks = 0;
+
         // Learn which consumables to also report (materials/tokens for the active tier), so a later
         // inventory sync uploads their counts and "have / need" can be answered server-side.
         RefreshTrackedItems();
 
         // Upload owned items once per session start so the web app reflects this character on login.
-        if (_config is { Enabled: true, TosAccepted: true, SyncInventory: true } && _store.HasKey && CurrentCharacterAllowed())
+        //
+        // Two switches, and both have to be on. The settings read as "what may be sent" above "when it is
+        // sent", and the wording follows that: "also send what you own" is an addition to the transfers
+        // already happening, not a schedule of its own. It was one all the same, so somebody who had
+        // turned every timing switch off to send only by hand still had their inventory go out at login
+        // and their checklist with it, with nothing on the page saying so.
+        if (_config is { Enabled: true, TosAccepted: true, SyncInventory: true, PushOnLogin: true } &&
+            _store.HasKey && CurrentCharacterAllowed())
         {
             RequestCharacterInventorySync(InventoryTrigger.Login);
         }
 
         // Sync the weekly checklist on login. If this character's server id isn't known yet, the sync
         // reports NotResolved and retries after the gear push records it (see OnPushCompleted).
-        if (_config is { Enabled: true, TosAccepted: true, SyncWeekly: true } && _store.HasKey && CurrentCharacterAllowed())
+        if (_config is { Enabled: true, TosAccepted: true, SyncWeekly: true, PushOnLogin: true } &&
+            _store.HasKey && CurrentCharacterAllowed())
         {
             _weeklySync.RequestSync(WeeklyTrigger.Login);
 
@@ -949,6 +1377,13 @@ public sealed class Plugin : IDalamudPlugin
         {
             _whatsNewPending = false;
             _whatsNewWindow.Open();
+        }
+
+        // A reconciliation row nobody has seen yet, and a moment where a window may appear.
+        if (_reviewOpenRequested && CanInterrupt())
+        {
+            _reviewOpenRequested = false;
+            _reviewWindow.Open();
         }
 
         // Hidden-refresh drivers (no-op while idle): the Raid-Finder (Savage) and Duty-Finder
@@ -997,11 +1432,32 @@ public sealed class Plugin : IDalamudPlugin
             _ = Task.Run(() => _bisService.RefreshAsync(CancellationToken.None));
         }
 
+        // Find out once whether the server is waiting for an answer about a gearset.
+        //
+        // This was read only after a push that reported something, so a session that pushed nothing never
+        // learned there was a question at all: the menu entry that opens the window is drawn from this
+        // state, so with nothing read there was no entry, and the only way to reach a waiting question was
+        // to push and hope the push mentioned it. Reloading the plugin put it back into that state every
+        // time. It is a read like the BiS fetch above and is treated like one, gated on having a key
+        // rather than on any transfer switch: those say when to send, and this sends nothing.
+        if (_reviewNeverRead &&
+            _config is { Enabled: true, TosAccepted: true } &&
+            _store.HasKey &&
+            _currentCidHash is { Length: > 0 } reviewCid &&
+            now >= _nextReviewReadTicks)
+        {
+            _reviewNeverRead = false;
+            _nextReviewReadTicks = now + 60_000;
+            _ = Task.Run(() => _review.RefreshAsync(reviewCid, CancellationToken.None));
+        }
+
         if (_config.SyncInventory)
         {
             // Periodic character-scope refresh so sold/looted items reconcile. The service throttles
             // (≥ 15 min) and skips unchanged scans, so this is cheap and never spams the upload budget.
-            if (now >= _nextInventoryAutoTicks)
+            // Behind the automatic-transfer switch, which is what that switch says: this loop ran whatever
+            // it was set to, so turning automatic transfers off silenced the gear and nothing else.
+            if (_config.AutoPush && now >= _nextInventoryAutoTicks)
             {
                 _nextInventoryAutoTicks = now + 300_000;
                 RequestCharacterInventorySync(InventoryTrigger.Auto);
@@ -1013,7 +1469,7 @@ public sealed class Plugin : IDalamudPlugin
             }
         }
 
-        if (_config.SyncWeekly && now >= _nextWeeklyAutoTicks)
+        if (_config.SyncWeekly && _config.AutoPush && now >= _nextWeeklyAutoTicks)
         {
             // Hourly is ample: the service GETs the server state and sends only changed fields, so an
             // unchanged week costs one read and no write. Refresh the Savage state first (invisible
@@ -1199,9 +1655,42 @@ public sealed class Plugin : IDalamudPlugin
 
         if (report.Outcome == PushOutcome.Sent)
         {
+            // The push just said what is open. Where that disagrees with what the review service is
+            // holding, the service is holding a state that is over, and the badge in the menu is drawn
+            // from it.
+            _review.NoteFromPush(_sync.LastReview);
+
+            if (_sync.LastReview is { NeedsAttention: true })
+            {
+                AnnounceReviewIfNew();
+            }
+        }
+
+        if (report.Outcome == PushOutcome.Sent)
+        {
             // The advisor ranks against the gear the server has on file, which just changed — drop the
             // cached advice so a job switch does not keep showing the previous set's next step.
             _advisorService.InvalidateOptions();
+
+            // The same sentence applies to the BiS targets and used to be missing here. That cache is
+            // keyed on the live position, and a push is exactly the moment the positions may have moved:
+            // reorder three sets and the tooltip goes on answering from the old order until somebody
+            // happens to open the gear window. Cleared first so a stale key cannot answer at all, then
+            // refetched so it is right again without anybody having to visit a window.
+            _bisService.Invalidate();
+            _ = Task.Run(() => _bisService.RefreshAsync(CancellationToken.None));
+
+            // And the questions themselves, which is the one thing here that was never refreshed. A push
+            // is exactly the moment they change: a gearset deleted in game parks a row, a new one raises a
+            // question, and an open window went on showing the reading from before the push with no sign
+            // that it was stale. Automatic pushes are held back while the window is open (see
+            // PauseAutomatic), so this is a manual push somebody asked for, and they are entitled to see
+            // what it did. Only while the window is open: with it closed the badge is already fed from the
+            // summary the push answered with, and a second request would buy nothing.
+            if (_review.IsOpen && _currentCidHash is { Length: > 0 } reviewCid)
+            {
+                _ = Task.Run(() => _review.RefreshAsync(reviewCid, CancellationToken.None));
+            }
 
             // A successful push just recorded this character's server id — sync the weekly checklist
             // now (covers a first-time character whose id was not yet known at login).
@@ -1294,6 +1783,71 @@ public sealed class Plugin : IDalamudPlugin
         _ => _localizer.Get(LocKeys.ErrorUnexpected),
     };
 
+
+    /// <summary>
+    /// A push reported something waiting. Reads the reconciliation state once and opens the window if it
+    /// holds a row this player has never been shown. Runs at most one read per push that reports
+    /// anything, and none at all when a push reports nothing.
+    /// </summary>
+    private void AnnounceReviewIfNew()
+    {
+        if (_reviewAnnounceRunning || _reviewWindow.IsOpen || string.IsNullOrEmpty(_currentCidHash))
+        {
+            return;
+        }
+
+        _reviewAnnounceRunning = true;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (await _review.RefreshAsync(_currentCidHash!, _shutdown.Token).ConfigureAwait(false) != ReviewOutcome.Ok ||
+                    _review.Current is not { } state)
+                {
+                    return;
+                }
+
+                var seen = new HashSet<string>(_config.SeenReviewRows, StringComparer.Ordinal);
+                var fresh = ReviewRules.Unannounced(state, seen);
+                if (fresh.Count == 0)
+                {
+                    return;
+                }
+
+                // Remembered before the window opens, not after: whether the player reads it is their
+                // business, and a second announcement for the same row is the thing being avoided.
+                _config.SeenReviewRows.AddRange(fresh);
+                Save();
+                _reviewOpenRequested = true;
+                _log.Info($"Reconciliation: {fresh.Count} row(s) nobody has seen yet.");
+            }
+            catch (OperationCanceledException)
+            {
+                // Reload during the read. Nothing to say.
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"Reconciliation announcement failed: {ex.GetType().Name}.");
+            }
+            finally
+            {
+                _reviewAnnounceRunning = false;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Whether a window may open itself right now. The same quiet-moment test the hidden refresh uses,
+    /// because the cost of getting it wrong is the same: something appearing over a pull is what people
+    /// uninstall a plugin for, and it would discredit the one feature whose whole point is being trusted.
+    /// </summary>
+    private bool CanInterrupt() =>
+        _clientState.IsLoggedIn
+        && !_condition[ConditionFlag.InCombat]
+        && !_condition[ConditionFlag.BoundByDuty]
+        && !_condition[ConditionFlag.BetweenAreas]
+        && !_condition[ConditionFlag.OccupiedInCutSceneEvent]
+        && !_condition[ConditionFlag.WatchingCutscene];
     /// <summary>Whether the invisible Savage refresh may run right now (safe, idle game state).</summary>
     private bool CanHiddenRefresh() =>
         _store.HasKey

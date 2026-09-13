@@ -186,7 +186,17 @@ public sealed class BisWindow : Window
         ImGui.Separator();
 
         var currentIndex = _gearSource.GetCurrentGearsetIndex();
-        var scoped = _bis.Comparisons.Where(c => _config.BisShowAllSets || c.GearIndex == currentIndex);
+
+        // A target no gearset in game answers to is left out of this window entirely. Every view built a
+        // comparison out of that nothing: the list said "0 of 11 slots match" with all eleven pieces in
+        // red, and the shopping list counted a whole set as still to buy. Both are verdicts about a set
+        // that does not exist, and the window is called gear against BiS: with no gear there is no
+        // comparison to draw. Nothing is hidden by leaving them out, because that is exactly what the
+        // reconciliation window is for, and each of them is already a card or a candidate in it.
+        var scoped = _bis.Comparisons
+            .Where(c => c.HasLiveGearset)
+            .Where(c => _config.BisShowAllSets || c.GearIndex == currentIndex)
+            .ToList();
 
         if (_config.BisShoppingList)
         {
@@ -194,29 +204,179 @@ public sealed class BisWindow : Window
             return;
         }
 
-        if (_config.BisGridView)
-        {
-            DrawGrids(scoped);
-            return;
-        }
+        // Materialised once: this runs every frame, and the role loop would otherwise walk the list three
+        // times over and recompute the same heading decision three times with it.
+        var all = scoped;
+        var label = RolesPresent(all) > 1;
 
+        // One ordering, two renderers. The grid used to walk the comparisons on its own, which is how it
+        // came to be missing both the role groups and every set with no target: switching the view made
+        // sets disappear that the list had just been showing.
         var shownAny = false;
-        foreach (var comparison in scoped)
+        foreach (var role in RoleOrder)
         {
-            var slots = comparison.Slots.Where(Included).ToList();
-            if (slots.Count == 0)
-            {
-                continue;
-            }
-
-            DrawGearset(comparison, slots);
-            shownAny = true;
+            shownAny |= DrawRoleGroup(role, all, currentIndex, label, _config.BisGridView);
         }
 
-        if (!shownAny && _bis.Comparisons.Count > 0)
+        if (!shownAny && (_bis.Comparisons.Count > 0 || _bis.WithoutTarget.Count > 0))
         {
             ImGui.TextDisabled(T(LocKeys.BisNothingShown));
         }
+    }
+
+
+    /// <summary>
+    /// Battle first, then the crafters, then the gatherers. The groups are fixed; the order <i>inside</i> a
+    /// group is the player order, because that list is theirs and re-sorting it would hide the position
+    /// they navigate by.
+    /// </summary>
+    private static readonly string[] RoleOrder = [JobMap.RoleCombat, JobMap.RoleHand, JobMap.RoleLand];
+
+    private static string RoleLabel(string role) => role switch
+    {
+        JobMap.RoleHand => LocKeys.BisRoleHand,
+        JobMap.RoleLand => LocKeys.BisRoleLand,
+        _ => LocKeys.BisRoleCombat,
+    };
+
+    /// <summary>One line in the list: either a comparison, or a live set that has no target.</summary>
+    /// <param name="Index">The position the player will find it at.</param>
+    /// <param name="Comparison">The comparison, when there is a target.</param>
+    /// <param name="Set">The live gearset, when there is not.</param>
+    private readonly record struct Row(int Index, GearsetComparison? Comparison, GearsetDto? Set);
+
+    /// <summary>
+    /// Draws one role group: the comparisons that belong to it, and the live sets in it that have no
+    /// target at all, both in the player order and interleaved by position.
+    /// </summary>
+    /// <param name="role">The role group to draw.</param>
+    /// <param name="scoped">The comparisons already narrowed by the current-set filter.</param>
+    /// <param name="currentIndex">The gearset the player is wearing.</param>
+    /// <param name="label">Whether the group heading is worth drawing at all.</param>
+    /// <param name="grid">
+    /// Whether a comparison is drawn as the icon grid rather than the per-slot list. The only difference
+    /// between the two views: what is in a group, and in which order, is one decision made here.
+    /// </param>
+    /// <returns>Whether anything was drawn.</returns>
+    private bool DrawRoleGroup(
+        string role,
+        IReadOnlyList<GearsetComparison> scoped,
+        int currentIndex,
+        bool label,
+        bool grid)
+    {
+        var comparisons = scoped
+            .Where(c => (JobMap.RoleOf(c.Job) ?? JobMap.RoleCombat) == role)
+            .Select(c => new Row(_bis.DisplayIndex(c), c, null))
+            .ToList();
+
+        var orphaned = _bis.WithoutTarget
+            .Where(s => (JobMap.RoleOf(s.Job) ?? JobMap.RoleCombat) == role)
+            .Where(s => _config.BisShowAllSets || s.GearIndex == currentIndex)
+            .Select(s => new Row(s.GearIndex, null, s));
+
+        var rows = comparisons.Concat(orphaned).OrderBy(r => r.Index).ToList();
+        if (rows.Count == 0)
+        {
+            return false;
+        }
+
+        // Only label the groups once there is more than one to tell apart. A player with battle sets only
+        // does not need a heading that says "Battle" over their whole list.
+        if (label)
+        {
+            ImGui.TextDisabled(T(RoleLabel(role)));
+        }
+
+        var drewSomething = false;
+        foreach (var row in rows)
+        {
+            if (row.Comparison is { } comparison)
+            {
+                if (grid)
+                {
+                    // No slot filter here, by the same rule as before: it narrows the per-slot list, and
+                    // the grid is a picture of the whole set.
+                    DrawGrid(comparison);
+                    drewSomething = true;
+                    continue;
+                }
+
+                var slots = comparison.Slots.Where(Included).ToList();
+                if (slots.Count == 0)
+                {
+                    continue;
+                }
+
+                DrawGearset(comparison, slots);
+                drewSomething = true;
+            }
+            else if (row.Set is { } set)
+            {
+                DrawWithoutTarget(set, row.Index);
+                drewSomething = true;
+            }
+        }
+
+        return drewSomething;
+    }
+
+    /// <summary>
+    /// How many role groups have anything in them. Used to decide whether the headings are worth drawing:
+    /// a player with battle sets only does not need one saying "Battle" over their whole list.
+    /// </summary>
+    /// <param name="scoped">The comparisons after the current-set filter.</param>
+    /// <returns>The number of distinct roles present.</returns>
+    private int RolesPresent(IReadOnlyList<GearsetComparison> scoped)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var comparison in scoped)
+        {
+            seen.Add(JobMap.RoleOf(comparison.Job) ?? JobMap.RoleCombat);
+        }
+
+        foreach (var set in _bis.WithoutTarget)
+        {
+            seen.Add(JobMap.RoleOf(set.Job) ?? JobMap.RoleCombat);
+        }
+
+        return seen.Count;
+    }
+    /// <summary>
+    /// A live gearset with no comparison: named, placed, and told which of the two reasons it is.
+    /// </summary>
+    /// <param name="set">The live gearset.</param>
+    /// <param name="index">Its position in the player list.</param>
+    /// <remarks>
+    /// The two are not the same sentence. A combat job has lists and simply has none pinned, which the
+    /// player can fix in one place; a crafter, a gatherer or a base class has nothing to pin, and saying
+    /// "pin one" there sends somebody looking for a page that does not exist. Both are synced either way,
+    /// and that is the part worth saying out loud so neither gets reported as a fault.
+    /// </remarks>
+    private void DrawWithoutTarget(GearsetDto set, int index)
+    {
+        var name = string.IsNullOrWhiteSpace(set.Name) ? string.Empty : $" · {set.Name}";
+        using (ImRaii.PushColor(ImGuiCol.Text, Accent))
+        {
+            ImGui.TextUnformatted($"#{index + 1} {set.Job}{name}");
+        }
+
+        // Three reasons, and the third one arrived with the rule that stops this side guessing between
+        // gearsets it cannot tell apart. Such a set has a target and cannot be matched to it, so it lands
+        // in this list for want of a claim; telling that player to pin a target would send them to do
+        // something they already did. A wrong remedy is worse than none, which is why the three are told
+        // apart at all. That third one names no single cause any more: two sets sharing a job and a name
+        // is one way in, a copy the server has not been told about is another, and a push that disagreed
+        // with what was remembered is a third. Only the first is ended by renaming.
+        var reason = _bis.AmbiguousLive.Contains(set.GearIndex)
+            ? T(LocKeys.BisUnattributed)
+            : JobMap.HasBisCatalogue(set.Job)
+                ? T(LocKeys.BisNoTarget)
+                : T(LocKeys.BisNoCatalogue);
+
+        ImGui.SameLine();
+        ImGui.TextDisabled(reason);
+        ImGui.Spacing();
     }
 
     private void DrawToolbar()
@@ -319,8 +479,33 @@ public sealed class BisWindow : Window
 
     private void DrawSetHeader(GearsetComparison comparison)
     {
-        var name = string.IsNullOrEmpty(comparison.Name) ? string.Empty : $" — {comparison.Name}";
-        ImGui.TextColored(Accent, $"#{comparison.GearIndex} {comparison.Job}{name}");
+        // A held gearset still shows numbers, because it gets the job default target like any new row. The
+        // marker is what keeps those numbers from looking settled while the question is open.
+        var provisional = _bis.IsProvisional(comparison);
+
+        var name = string.IsNullOrEmpty(comparison.Name) ? string.Empty : $" · {comparison.Name}";
+        // Unformatted: the target name comes from the server, so a percent sign in it stays one.
+        // The position the player sees, which is one more than the index everything else counts with:
+        // the API and the game module count gearsets from zero, the gearset list shows them from one.
+        // The reconciliation window has added the one for a while; this window never did, so every
+        // number in it named the neighbour above. And a row with no gearset in game gets no number at
+        // all rather than its stored one, which for a hand-made row is a band value like 1000 and for a
+        // parked row is where it used to sit.
+        using (ImRaii.PushColor(ImGuiCol.Text, Accent))
+        {
+            ImGui.TextUnformatted(comparison.HasLiveGearset
+                ? $"#{_bis.DisplayIndex(comparison) + 1} {comparison.Job}{name}"
+                : $"{comparison.Job}{name}");
+        }
+        if (provisional)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(Orange, "?");
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip(T(LocKeys.BisProvisional));
+            }
+        }
         ImGui.SameLine();
 
         var total = comparison.Slots.Count;
@@ -462,7 +647,7 @@ public sealed class BisWindow : Window
             var suffix = slots is null ? string.Empty : $"   ·   {slots}";
             ClickableItem(
                 owned >= need.Need ? Green : Orange,
-                $"{_gearSource.GetItemName(itemId)} — {owned}/{need.Need}{suffix}",
+                $"{_gearSource.GetItemName(itemId)} · {owned}/{need.Need}{suffix}",
                 itemId,
                 $"##need{comparison.GearIndex}_{need.Id}");
         }
@@ -579,22 +764,8 @@ public sealed class BisWindow : Window
         ClickableItem(Muted, line, itemId, $"##shop{itemId}");
     }
 
-    /// <summary>Renders each shown gearset as a character-screen-style two-column icon grid.</summary>
-    private void DrawGrids(IEnumerable<GearsetComparison> scoped)
-    {
-        var shownAny = false;
-        foreach (var comparison in scoped)
-        {
-            DrawGrid(comparison);
-            shownAny = true;
-        }
-
-        if (!shownAny && _bis.Comparisons.Count > 0)
-        {
-            ImGui.TextDisabled(T(LocKeys.BisNothingShown));
-        }
-    }
-
+    /// <summary>Renders one gearset as a character-screen-style two-column icon grid.</summary>
+    /// <param name="comparison">The set to draw.</param>
     private void DrawGrid(GearsetComparison comparison)
     {
         DrawSetHeader(comparison);

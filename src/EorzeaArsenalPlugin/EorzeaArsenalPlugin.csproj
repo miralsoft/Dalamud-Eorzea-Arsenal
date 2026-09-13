@@ -7,7 +7,7 @@
     logic lives in EorzeaArsenal.Core behind interfaces (R8/R9, R10/R11).
   -->
   <PropertyGroup>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <AssemblyName>EorzeaArsenalPlugin</AssemblyName>
     <RootNamespace>EorzeaArsenal.Plugin</RootNamespace>
     <Authors>Sanaka</Authors>
@@ -24,7 +24,28 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!--
+      Dalamud resolves the icon along two paths and a plugin that feeds only one shows a different
+      picture depending on where you look: the list of available plugins downloads IconUrl from the
+      manifest, an installed plugin reads images/icon.png out of its own directory. Exactly 512 by 512,
+      or it is dropped in favour of the default icon rather than scaled, and nothing reports it.
+    -->
+    <Content Include="images/icon.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\EorzeaArsenal.Core\EorzeaArsenal.Core.csproj" />
   </ItemGroup>
 
+
+  <!--
+    The packager enumerates the output folder without descending into it, so a subfolder never reaches
+    the archive. It copies images/icon.png next to the archive and leaves it out of it, which is the
+    worst of both: the developer build has an icon and every installed copy does not. Appending it here
+    is a line rather than a fork of the packager, and the picture is the same one IconUrl serves.
+  -->
+  <Target Name="AddIconToPackage" AfterTargets="DefaultDalamudPackagerRelease" Condition="'$(Configuration)' == 'Release'">
+    <Exec WorkingDirectory="$(ProjectDir)"
+          Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\..\scripts\add-icon-to-package.ps1&quot; -Archive &quot;$(OutputPath)$(AssemblyName)\latest.zip&quot; -Icon &quot;images\icon.png&quot;" />
+  </Target>
 </Project>

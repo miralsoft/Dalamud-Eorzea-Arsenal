@@ -55,6 +55,85 @@ public interface IApiClient
     Task<ApiResult<BisResponse>> GetBisAsync(string apiKey, string? cidHash, CancellationToken ct);
 
     /// <summary>
+    /// Reads the gearset mapping via <c>GET /gear/sets</c> (requires <c>gear:read</c>): every stored
+    /// gearset with the <c>set_uid</c> the server minted for it. This is how a cache miss is answered —
+    /// pushing to learn the mapping would be a write in order to read.
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>gear:read</c>).</param>
+    /// <param name="cidHash">Optional character hash to narrow to one character; <see langword="null"/> for all.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>
+    /// The stored gearsets, or a classified error. A server that does not know the route answers 404,
+    /// which is not a failure of the plugin: the mapping simply is not available there yet.
+    /// </returns>
+    Task<ApiResult<GearSetsResponse>> GetGearSetsAsync(string apiKey, string? cidHash, CancellationToken ct);
+
+    /// <summary>
+    /// Reads the job table via <c>GET /gear/jobs</c>: which codes this server accepts, their roles, and
+    /// the base-class relation that decides compatibility. Read-only and cacheable.
+    /// </summary>
+    /// <remarks>
+    /// A <b>404 means an old server</b>, and that is a fact worth acting on rather than an error: the
+    /// plugin then reports only the frozen combat floor and says so with <c>scope</c>. What may be sent
+    /// is governed by the table this server published, never by the copy shipped with the plugin — that
+    /// copy is for display, because assuming what a server accepts is the one thing "on any disagreement
+    /// the server wins" forbids in the send direction too.
+    /// </remarks>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The table, or a classified error — <see cref="ApiErrorKind.NotFound"/> for an old server.</returns>
+    Task<ApiResult<JobTableResponse>> GetJobTableAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Reads the open questions and the orphan inventory for one character via <c>GET /gear/review</c>
+    /// (requires <c>gear:read</c>).
+    /// </summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="characterId">The server numeric character id.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The state, which always carries a token even when both lists are empty.</returns>
+    Task<ApiResult<ReviewState>> GetReviewAsync(string apiKey, string characterId, CancellationToken ct);
+
+    /// <summary>
+    /// Answers one question via <c>POST /gear/review</c> (requires <c>gear:review</c>).
+    /// </summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="characterId">The server numeric character id.</param>
+    /// <param name="stateToken">The token the state was read with.</param>
+    /// <param name="decision">The row, the verb, and the target for a link.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>
+    /// What was done and the fresh state. A stale token comes back as a <b>value</b> with
+    /// <see cref="ReviewState.Conflicts"/> filled and nothing applied, because that body is the state to
+    /// render rather than an error to report.
+    /// </returns>
+    Task<ApiResult<ReviewDecisionResponse>> PostReviewDecisionAsync(
+        string apiKey,
+        string characterId,
+        string stateToken,
+        ReviewDecision decision,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Accepts a whole mapping the server composed, via <c>POST /gear/review/accept</c> (requires
+    /// <c>gear:review</c>).
+    /// </summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="characterId">The server numeric character id.</param>
+    /// <param name="stateToken">The token the mapping was read with.</param>
+    /// <param name="pairs">
+    /// The pairs to apply. Every one must come from the server own proposal for this token: a player may
+    /// strike a pair out, and nothing else. One transaction, so all of them or none.
+    /// </param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>One result per pair, and the fresh state. A stale token is a value, as above.</returns>
+    Task<ApiResult<ReviewAcceptResponse>> AcceptReviewMappingAsync(
+        string apiKey,
+        string characterId,
+        string stateToken,
+        IReadOnlyList<ReviewDecision> pairs,
+        CancellationToken ct);
+
+    /// <summary>
     /// Reads the server-stored weekly checklist for a character via
     /// <c>GET /characters/{characterId}/weekly</c> (requires <c>gear:read</c>). Used to send only the
     /// fields that actually changed, so manual web-app entries are never overwritten.

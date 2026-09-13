@@ -27,7 +27,7 @@ public sealed class PreviewWindow : Window
     /// <param name="localizer">UI string resolver.</param>
     /// <param name="log">Diagnostics sink.</param>
     public PreviewWindow(IGearSource gearSource, Localizer localizer, ILog log)
-        : base("Eorzea Arsenal — Preview###EorzeaArsenalPreview")
+        : base("Eorzea Arsenal · Preview###EorzeaArsenalPreview")
     {
         _gearSource = gearSource;
         _localizer = localizer;
@@ -105,7 +105,7 @@ public sealed class PreviewWindow : Window
 
                 var clean = GearSanitizer.Sanitize(data);
                 _lines = clean.Gearsets
-                    .Select(g => $"#{g.GearIndex} {g.Job}{(string.IsNullOrEmpty(g.Name) ? string.Empty : $" — {g.Name}")} ({g.Items.Count} items)")
+                    .Select(g => $"#{g.GearIndex} {g.Job}{(string.IsNullOrEmpty(g.Name) ? string.Empty : $" · {g.Name}")} ({g.Items.Count} items)")
                     .ToArray();
             }
             catch (Exception ex)

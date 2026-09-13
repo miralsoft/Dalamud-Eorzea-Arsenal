@@ -50,20 +50,36 @@ public sealed class GearMappingTests
         Assert.Equal(expected, JobMap.ToCode(classJobId));
     }
 
+    /// <summary>
+    /// The widening to 42 means the base classes, the crafters, the gatherers and Blue Mage all have a
+    /// code now. Naming them is not permission to send them — that is <c>JobPolicy</c>, and these ids used
+    /// to be dropped here, which was the same decision made in the wrong place.
+    /// </summary>
     [Theory]
-    [InlineData(1u)]   // Gladiator (base class)
-    [InlineData(26u)]  // Arcanist (base class)
-    [InlineData(36u)]  // Blue Mage (not whitelisted)
-    [InlineData(999u)] // unknown
-    public void JobMap_returns_null_for_non_whitelisted(uint classJobId)
+    [InlineData(1u, "GLA")]   // base class
+    [InlineData(26u, "ACN")]  // base class of two jobs, and the reason compatibility is a relation
+    [InlineData(36u, "BLU")]  // combat, and still not on the compatibility floor
+    [InlineData(8u, "CRP")]   // Disciple of the Hand
+    [InlineData(16u, "MIN")]  // Disciple of the Land
+    public void JobMap_names_the_widened_codes(uint classJobId, string expected)
     {
-        Assert.Null(JobMap.ToCode(classJobId));
+        Assert.Equal(expected, JobMap.ToCode(classJobId));
+    }
+
+    [Theory]
+    [InlineData(0u)]   // adventurer, which has no gearsets
+    [InlineData(43u)]  // past the compiled floor; the game may teach this one at runtime
+    [InlineData(999u)] // unknown
+    public void JobMap_returns_null_for_ids_that_are_not_jobs(uint classJobId)
+    {
+        Assert.False(JobMap.Floor.ContainsKey(classJobId));
     }
 
     [Fact]
-    public void JobMap_whitelist_has_21_unique_codes()
+    public void JobMap_names_42_unique_codes()
     {
-        Assert.Equal(21, JobMap.ValidCodes.Count);
+        Assert.Equal(42, JobMap.Floor.Count);
+        Assert.Equal(42, JobMap.Floor.Values.Distinct(StringComparer.Ordinal).Count());
     }
 
     [Theory]

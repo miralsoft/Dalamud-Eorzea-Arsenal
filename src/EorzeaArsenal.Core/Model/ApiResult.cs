@@ -61,6 +61,15 @@ public sealed class ApiError
 
     /// <summary>For <see cref="ApiErrorKind.RateLimited"/>: how long to back off, if the server said so.</summary>
     public TimeSpan? RetryAfter { get; init; }
+
+    /// <summary>
+    /// The machine-readable cause the server named, where it named one. A detector for the caller rather
+    /// than a sentence for a window: what a player gets shown is the plugin's own wording.
+    /// </summary>
+    public string? Code { get; init; }
+
+    /// <summary>For <see cref="Code"/> <c>job_unknown</c>: the job codes this server rejected.</summary>
+    public IReadOnlyList<string>? Jobs { get; init; }
 }
 
 /// <summary>

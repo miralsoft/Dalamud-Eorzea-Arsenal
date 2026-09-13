@@ -35,7 +35,7 @@ public sealed class ImageWindow : Window, IDisposable
     /// <param name="localizer">UI string resolver.</param>
     /// <param name="log">Diagnostics sink.</param>
     public ImageWindow(TeamsService teams, ITextureProvider textures, Localizer localizer, ILog log)
-        : base("Eorzea Arsenal — Image###EorzeaArsenalImage")
+        : base("Eorzea Arsenal · Image###EorzeaArsenalImage")
     {
         _teams = teams;
         _textures = textures;

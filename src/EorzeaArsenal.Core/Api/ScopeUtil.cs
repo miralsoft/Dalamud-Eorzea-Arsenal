@@ -20,6 +20,16 @@ public static class ScopeUtil
     /// <summary>The scope required to read (<c>GET …/weekly</c>, <c>GET /gear/bis</c>).</summary>
     public const string GearRead = WeeklyProtocol.ReadScope;
 
+    /// <summary>
+    /// The scope the deciding paths need, and it is deliberately not <c>gear:write</c>.
+    /// </summary>
+    /// <remarks>
+    /// A key with <c>gear:write</c> may add and update and nothing else; folding "may remove a row" into it
+    /// would silently widen every key already handed out. An existing key collects this one on its next
+    /// request, so this check exists to explain a 403 rather than to ask anybody to reconnect.
+    /// </remarks>
+    public const string GearReview = "gear:review";
+
     /// <summary>Whether the given scope list grants <c>inventory:write</c>.</summary>
     /// <param name="scopes">Scopes from <c>GET /version</c> (may be <see langword="null"/>).</param>
     /// <returns><see langword="true"/> if <c>inventory:write</c> is present (case-insensitive).</returns>
@@ -29,6 +39,11 @@ public static class ScopeUtil
     /// <param name="scopes">Scopes from <c>GET /version</c> (may be <see langword="null"/>).</param>
     /// <returns><see langword="true"/> if <c>characters:write</c> is present (case-insensitive).</returns>
     public static bool HasCharactersWrite(IEnumerable<string>? scopes) => Has(scopes, CharactersWrite);
+
+    /// <summary>Whether the given scope list grants <c>gear:review</c> (reconciliation).</summary>
+    /// <param name="scopes">Scopes from <c>GET /version</c> (may be <see langword="null"/>).</param>
+    /// <returns><see langword="true"/> if <c>gear:review</c> is present (case-insensitive).</returns>
+    public static bool HasGearReview(IEnumerable<string>? scopes) => Has(scopes, GearReview);
 
     /// <summary>Whether the given scope list grants <c>gear:read</c>.</summary>
     /// <param name="scopes">Scopes from <c>GET /version</c> (may be <see langword="null"/>).</param>

@@ -23,4 +23,12 @@
     <ProjectReference Include="..\..\src\EorzeaArsenal.Core\EorzeaArsenal.Core.csproj" />
   </ItemGroup>
 
+  <!--
+    Recorded answers from the API, copied verbatim. A shape test is only worth running against what the
+    server actually sends: one hand-written to match the model would agree with it by construction.
+  -->
+  <ItemGroup>
+    <None Include="TestData\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

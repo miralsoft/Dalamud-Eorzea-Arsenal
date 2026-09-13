@@ -84,4 +84,50 @@ public sealed class ProblemDetails
 
     /// <summary>Server-assigned correlation id — safe to log for support.</summary>
     public string? RequestId { get; init; }
+
+    /// <summary>
+    /// The machine-readable cause, where the server names one: <c>job_unknown</c>,
+    /// <c>job_incompatible</c>, <c>verb_not_applicable</c>, <c>verb_not_allowed_here</c>.
+    /// </summary>
+    /// <remarks>
+    /// Not part of RFC 7807, and read from the same body on purpose: a 422 can just as well be an item id
+    /// out of range or a name too long, so a client acting on the status code alone would refetch the job
+    /// table after every failed push and write about jobs into a log that has nothing to do with jobs.
+    /// The rule turns on the cause, never on the code.
+    /// </remarks>
+    public string? Error { get; init; }
+
+    /// <summary>
+    /// For <c>job_unknown</c>: the codes this server does not accept. The most useful line a rollback can
+    /// leave behind, and the only cause today that carries a list.
+    /// </summary>
+    public List<string>? Jobs { get; init; }
+}
+
+/// <summary>
+/// The machine-readable causes the API names in an error body, as agreed in the identity contract.
+/// </summary>
+/// <remarks>
+/// Every one of these is a <b>detector</b>, not a sentence for a window: it says the caller offered
+/// something it should not have, so it belongs in a log line and the player gets the plugin's own wording.
+/// The list is closed for the deciding paths — anything outside it is a fault on the server side and
+/// belongs in a bug report rather than in error handling here.
+/// </remarks>
+public static class ApiErrorCodes
+{
+    /// <summary>
+    /// A job code this server does not accept. The one cause that discards the cached job table: it means
+    /// the table in hand is wrong, which is the only way a client can believe something about a server
+    /// that was true and is not any more.
+    /// </summary>
+    public const string JobUnknown = "job_unknown";
+
+    /// <summary>A <c>link</c> aimed at a row whose job is not compatible. Never allowed, so a 422.</summary>
+    public const string JobIncompatible = "job_incompatible";
+
+    /// <summary>A verb that does not apply to the row it names.</summary>
+    public const string VerbNotApplicable = "verb_not_applicable";
+
+    /// <summary>A verb this endpoint does not take, which is a different statement from the one above.</summary>
+    public const string VerbNotAllowedHere = "verb_not_allowed_here";
 }

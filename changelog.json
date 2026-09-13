@@ -1,6 +1,201 @@
 {
   "entries": [
     {
+      "id": "reordering-gearsets-keeps-everything",
+      "version": "1.1.0",
+      "date": "2026-09-13",
+      "kind": "fix",
+      "source": "plugin",
+      "de": {
+        "title": "Umsortieren verliert nichts mehr",
+        "body": "<p>Dein BiS-Ziel, deine Team-Freigaben und die Verborgen-Markierung bleiben am Set, egal wohin du es in der Liste schiebst.</p>"
+      },
+      "en": {
+        "title": "Reordering loses nothing any more",
+        "body": "<p>Your BiS target, your team shares and the hidden flag stay with the set wherever you move it in the list.</p>"
+      }
+    },
+    {
+      "id": "crafter-and-gatherer-sets-are-sent",
+      "version": "1.1.0",
+      "date": "2026-09-13",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Handwerker und Sammler kommen mit",
+        "body": "<p>Auch deine Sets für Zimmerer, Gärtner und alle anderen werden jetzt übertragen.</p>"
+      },
+      "en": {
+        "title": "Crafters and gatherers come along",
+        "body": "<p>Your sets for Carpenter, Botanist and all the others are now synced too.</p>"
+      }
+    },
+    {
+      "id": "gear-list-splits-by-role",
+      "version": "1.1.0",
+      "date": "2026-09-13",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Das Ausrüstungsfenster ist nach Rollen geteilt",
+        "body": "<p>Kampf, Handwerker, Sammler. Innerhalb einer Gruppe bleibt deine eigene Reihenfolge.</p>"
+      },
+      "en": {
+        "title": "The gear window splits by role",
+        "body": "<p>Battle, crafters, gatherers. Inside a group your own order stays.</p>"
+      }
+    },
+    {
+      "id": "sets-without-a-bis-target-stay-visible",
+      "version": "1.1.0",
+      "date": "2026-09-13",
+      "kind": "fix",
+      "source": "plugin",
+      "de": {
+        "title": "Sets ohne BiS-Ziel verschwinden nicht mehr",
+        "body": "<p>Sie stehen mit Nummer und Namen da und sagen dir, ob es für den Job noch kein BiS gibt oder du nur keins gewählt hast.</p>"
+      },
+      "en": {
+        "title": "Sets with no BiS target no longer vanish",
+        "body": "<p>They appear with number and name, and tell you whether the job has no BiS yet or you just picked none.</p>"
+      }
+    },
+    {
+      "id": "the-plugin-asks-instead-of-guessing",
+      "version": "1.1.0",
+      "date": "2026-09-13",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Der neue Gearset-Abgleich",
+        "body": "<p>Ist unklar, welches Set in der Webapp zu welchem im Spiel gehört, fragt dich das Plugin, statt zu raten.</p>"
+      },
+      "en": {
+        "title": "The new gearset reconciliation",
+        "body": "<p>When it is unclear which set in the web app belongs to which one in game, the plugin asks you instead of guessing.</p>"
+      }
+    },
+    {
+      "id": "sets-with-no-counterpart-in-game",
+      "version": "1.1.0",
+      "date": "2026-09-13",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Sets, die es im Spiel nicht mehr gibt",
+        "body": "<p>Der Abgleich zeigt sie dir mit BiS-Ziel und Freigaben, und du entscheidest, ob sie bleiben oder weg können.</p>"
+      },
+      "en": {
+        "title": "Sets that are no longer in game",
+        "body": "<p>The reconciliation shows them with their BiS target and shares, and you decide whether they stay or go.</p>"
+      }
+    },
+    {
+      "id": "the-settings-page-is-tidied-up",
+      "version": "1.1.0",
+      "date": "2026-09-13",
+      "kind": "change",
+      "source": "plugin",
+      "de": {
+        "title": "Die Einstellungen sind aufgeräumt",
+        "body": "<p>Die Erklärungen liegen jetzt hinter einem Fragezeichen, und jeder Block hat eine Überschrift.</p>"
+      },
+      "en": {
+        "title": "The settings are tidied up",
+        "body": "<p>Each explanation now sits behind a question mark, and every block has a heading.</p>"
+      }
+    },
+    {
+      "id": "new-jobs-are-recognised",
+      "version": "1.1.0",
+      "date": "2026-09-13",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Neue Jobs erkennt das Plugin von selbst",
+        "body": "<p>Kommt im Spiel ein Job dazu, verschwindet dein Set dafür nicht mehr aus dem Ausrüstungsfenster.</p>"
+      },
+      "en": {
+        "title": "New jobs are recognised on their own",
+        "body": "<p>When the game adds a job, your set for it no longer goes missing from the gear window.</p>"
+      }
+    },
+    {
+      "id": "beastmaster-sets-are-sent",
+      "version": "1.1.0",
+      "date": "2026-09-13",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Bestienbändiger wird übertragen",
+        "body": "<p>Die neue limitierte Klasse kommt mit, sobald du ein Set dafür angelegt hast.</p>"
+      },
+      "en": {
+        "title": "Beastmaster is synced",
+        "body": "<p>The new limited job comes along as soon as you have a gearset for it.</p>"
+      }
+    },
+    {
+      "id": "sets-are-shown-side-by-side",
+      "version": "1.1.0",
+      "date": "2026-09-13",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Im Abgleich stehen beide Sets nebeneinander",
+        "body": "<p>Für jedes Ausrüstungsteil zeigt dir eine Farbe, ob es gleich ist, nur andere Materia hat oder ein ganz anderes Teil ist.</p>"
+      },
+      "en": {
+        "title": "In the reconciliation both sets stand side by side",
+        "body": "<p>A colour on each piece tells you whether it is the same, has different materia, or is a different item.</p>"
+      }
+    },
+    {
+      "id": "bis-set-numbers-were-off-by-one",
+      "version": "1.1.0",
+      "date": "2026-09-13",
+      "kind": "fix",
+      "source": "plugin",
+      "de": {
+        "title": "Die Setnummern im Ausrüstungsfenster stimmen",
+        "body": "<p>Bisher stand dort die Nummer des Sets darüber.</p>"
+      },
+      "en": {
+        "title": "The set numbers in the gear window are right",
+        "body": "<p>They used to name the set above the one they meant.</p>"
+      }
+    },
+    {
+      "id": "when-to-send-now-covers-everything",
+      "version": "1.1.0",
+      "date": "2026-09-13",
+      "kind": "fix",
+      "source": "plugin",
+      "de": {
+        "title": "\"Beim Login\" und \"Automatisch übertragen\" gelten für alles",
+        "body": "<p>Vorher schalteten sie nur die Ausrüstung, Inventar und Checkliste liefen trotzdem mit.</p>"
+      },
+      "en": {
+        "title": "\"On login\" and \"push automatically\" cover everything",
+        "body": "<p>They used to switch the gear alone, while inventory and checklist ran anyway.</p>"
+      }
+    },
+    {
+      "id": "language-follows-dalamud",
+      "version": "1.1.0",
+      "date": "2026-09-13",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Die Sprache folgt Dalamud",
+        "body": "<p>Neu in den Einstellungen, und Deutsch oder Englisch kannst du weiterhin selbst wählen.</p>"
+      },
+      "en": {
+        "title": "The language follows Dalamud",
+        "body": "<p>New in the settings, and you can still pick German or English yourself.</p>"
+      }
+    },
+    {
       "id": "report-a-problem-from-inside",
       "version": "1.0.0",
       "date": "2026-07-27",

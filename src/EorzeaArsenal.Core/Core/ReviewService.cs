@@ -1,0 +1,563 @@
+using EorzeaArsenal.Abstractions;
+using EorzeaArsenal.Model;
+
+namespace EorzeaArsenal.Core;
+
+/// <summary>The classified outcome of a reconciliation call.</summary>
+public enum ReviewOutcome
+{
+    /// <summary>The call went through and the state in hand is fresh.</summary>
+    Ok,
+
+    /// <summary>No API key stored.</summary>
+    NotConnected,
+
+    /// <summary>The character numeric id is not known yet, so there is nothing to ask about.</summary>
+    NotResolved,
+
+    /// <summary>
+    /// The state moved under the caller. Nothing was applied, and the state now in hand is the fresh one:
+    /// redraw from it rather than diffing, and let the player answer again.
+    /// </summary>
+    Stale,
+
+    /// <summary>The route is unknown to this server, which is the normal answer until it ships.</summary>
+    Unavailable,
+
+    /// <summary>
+    /// Too many decisions in the hour. The service holds off until <c>Retry-After</c> has passed rather
+    /// than letting a person keep clicking into the same limit.
+    /// </summary>
+    RateLimited,
+
+    /// <summary>Something else went wrong; see the log.</summary>
+    Failed,
+}
+
+/// <summary>
+/// Holds the open questions for one character and sends the answers, one decision at a time.
+/// </summary>
+/// <remarks>
+/// <para>
+/// The state and its token are kept together and replaced together, because they only mean anything as a
+/// pair: counters from one snapshot with a token from another would offer a decision the server has
+/// already moved past. Every answer carries a fresh state, so ten decisions are ten calls and no extra
+/// reads.
+/// </para>
+/// <para>
+/// This service decides nothing about gear. It asks, it relays what a person chose, and it keeps what came
+/// back. The rules about what may be offered live in <see cref="ReviewRules"/>.
+/// </para>
+/// </remarks>
+public sealed class ReviewService : IDisposable
+{
+    private readonly IApiClient _api;
+    private readonly ITokenStore _tokens;
+    private readonly CharacterDirectory _directory;
+    private readonly GearsetMappingService? _mapping;
+    private readonly IClock _clock;
+    private readonly ILog _log;
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly CancellationTokenSource _cts = new();
+
+    // Captured once at construction: a token stays usable after its source is disposed, a source does not.
+    private readonly CancellationToken _shutdown;
+    private bool _disposed;
+
+    /// <summary>Creates the service.</summary>
+    /// <param name="api">The API client.</param>
+    /// <param name="tokens">Holds the API key.</param>
+    /// <param name="directory">Resolves <c>cid_hash</c> to the numeric character id.</param>
+    /// <param name="clock">Time source, for the back-off window.</param>
+    /// <param name="mapping">
+    /// The identity cache, told to re-read a character after a decision that moved identities. Optional
+    /// only so the service can be tested on its own.
+    /// </param>
+    /// <param name="log">Diagnostics sink.</param>
+    public ReviewService(
+        IApiClient api,
+        ITokenStore tokens,
+        CharacterDirectory directory,
+        IClock clock,
+        GearsetMappingService? mapping = null,
+        ILog? log = null)
+    {
+        _api = api;
+        _tokens = tokens;
+        _directory = directory;
+        _clock = clock;
+        _mapping = mapping;
+        _log = log ?? NullLog.Instance;
+        _shutdown = _cts.Token;
+    }
+
+    /// <summary>The questions and the inventory as last read, or <see langword="null"/> before any read.</summary>
+    public ReviewState? Current { get; private set; }
+
+    /// <summary>
+    /// The same counts a push answers with, taken from what this service last read, or
+    /// <see langword="null"/> when it has read nothing yet.
+    /// </summary>
+    /// <returns>The summary, for a caller that shows a badge.</returns>
+    /// <remarks>
+    /// A push answer is a snapshot of the moment it was sent, and acting in the review window moves the
+    /// state without one. A badge fed only by the push therefore keeps announcing work that is already
+    /// done, and a marker that does not clear when the work is finished is the fastest way to teach
+    /// somebody to ignore it. Whoever shows the badge prefers this and falls back to the push answer.
+    /// </remarks>
+    public ReviewSummary? Summary()
+    {
+        var state = Current;
+        if (state is null)
+        {
+            return null;
+        }
+
+        var open = 0;
+        var aside = 0;
+        foreach (var orphan in state.Orphans)
+        {
+            if (orphan.IsPutAside)
+            {
+                aside++;
+            }
+            else
+            {
+                open++;
+            }
+        }
+
+        return new ReviewSummary
+        {
+            StateToken = state.StateToken,
+            Held = state.Held.Count,
+            Orphans = new OrphanCounts { Open = open, Ignored = aside },
+        };
+    }
+
+    /// <summary>The character <see cref="Current"/> belongs to.</summary>
+    public string? CurrentCidHash { get; private set; }
+
+    /// <summary>Whether a call is in flight, so a window can disable its buttons rather than queue clicks.</summary>
+    public bool IsBusy { get; private set; }
+
+    /// <summary>How the last call ended.</summary>
+    public ReviewOutcome LastOutcome { get; private set; } = ReviewOutcome.Ok;
+
+    /// <summary>
+    /// Whether a person currently has the review open. Read by the sync path, which holds automatic pushes
+    /// back while it is true.
+    /// </summary>
+    /// <remarks>
+    /// This carries less than it used to and not nothing: the fingerprint covers the position, reordering
+    /// in game changes it, and reordering triggers a push. What the narrower fingerprint took away is the
+    /// case that happens while the player does nothing at all. What is left needs a hand on the keyboard,
+    /// and a window that redraws then is an answer rather than a surprise.
+    /// </remarks>
+    public bool IsOpen { get; set; }
+
+    /// <summary>Raised after any call completes, on the calling thread.</summary>
+    public event Action? Changed;
+
+    /// <summary>
+    /// Takes the summary a push just answered with and drops what is cached here when the two describe
+    /// different states.
+    /// </summary>
+    /// <param name="pushed">The summary from the push answer, or <see langword="null"/> where a server sent none.</param>
+    /// <remarks>
+    /// <para>
+    /// <see cref="Summary"/> prefers this service's own reading over a push answer, and for good reason:
+    /// answering a question in the window moves the state without any push, so a badge fed only by pushes
+    /// keeps announcing work that is already done. The other direction was left open. A push moves the
+    /// state too, and the reading here then goes stale with nothing to notice it: a set deleted and made
+    /// again is attributed to the row it left behind, that row stops being an orphan, and the menu went on
+    /// offering two decisions that led to an empty window.
+    /// </para>
+    /// <para>
+    /// The token is what settles it, and it exists for exactly this. It fingerprints which rows are being
+    /// asked about rather than their contents, so an ordinary push that only writes fresh numbers leaves an
+    /// open review valid, and one that changes the question invalidates it. Where it disagrees with the
+    /// cached reading, that reading described a state that is over: it is dropped, and the badge falls back
+    /// to the push answer, which is the newer of the two.
+    /// </para>
+    /// </remarks>
+    public void NoteFromPush(ReviewSummary? pushed)
+    {
+        if (pushed?.StateToken is not { Length: > 0 } token || Current is not { } state)
+        {
+            return;
+        }
+
+        // A reading with no token of its own cannot be compared, and guessing it is stale would throw away
+        // a good one on every push.
+        if (state.StateToken is not { Length: > 0 } known || string.Equals(known, token, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        Current = null;
+        Changed?.Invoke();
+    }
+
+    /// <summary>
+    /// Cancels anything in flight and releases the gate, so a plugin reload does not leave a decision
+    /// running against a world that is being torn down.
+    /// </summary>
+    /// <remarks>
+    /// A Dalamud plugin is reloaded often, and every reload used to leak a semaphore and could land a
+    /// continuation in disposed state. The token is handed to the API call rather than only checked here,
+    /// so a request already on the wire is abandoned rather than waited out.
+    /// </remarks>
+    public void Dispose()
+    {
+        // Idempotent: a reload racing a shutdown disposes twice, and cancelling a disposed source throws.
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _cts.Cancel();
+        _cts.Dispose();
+        _gate.Dispose();
+    }
+
+    /// <summary>
+    /// The caller token joined with this service own lifetime, captured once: it stays cancelled after
+    /// <see cref="Dispose"/> and never reads a disposed source.
+    /// </summary>
+    /// <param name="ct">The caller token.</param>
+    /// <returns>A linked source the caller must dispose.</returns>
+    private CancellationTokenSource Linked(CancellationToken ct) =>
+        CancellationTokenSource.CreateLinkedTokenSource(ct, _shutdown);
+
+    /// <summary>Reads the open questions for a character.</summary>
+    /// <param name="cidHash">The character to ask about.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>How it went.</returns>
+    public async Task<ReviewOutcome> RefreshAsync(string cidHash, CancellationToken ct)
+    {
+        if (BackoffRemaining is { } wait)
+        {
+            _log.Info($"Review: still waiting {wait.TotalSeconds:F0}s after a rate limit.");
+            return Finish(ReviewOutcome.RateLimited);
+        }
+
+        if (!_tokens.HasKey)
+        {
+            return Finish(ReviewOutcome.NotConnected);
+        }
+
+        if (!_directory.TryGet(cidHash, out var characterId))
+        {
+            // The numeric id is learned from a push answer. Until one has landed there is nothing to ask
+            // about, and asking with a guess would be a request about somebody else.
+            return Finish(ReviewOutcome.NotResolved);
+        }
+
+        // Before the gate, and before the linked source: after Dispose the gate would answer with an
+        // ObjectDisposedException, which callers do not expect and which every reload would log as a fault.
+        // A cancellation is what this actually is, and the window already treats it as nothing to say.
+        _shutdown.ThrowIfCancellationRequested();
+        ct.ThrowIfCancellationRequested();
+
+        using var scope = Linked(ct);
+        await _gate.WaitAsync(scope.Token).ConfigureAwait(false);
+        IsBusy = true;
+        try
+        {
+            var result = await _api.GetReviewAsync(_tokens.ApiKey!, characterId, scope.Token).ConfigureAwait(false);
+            if (!result.IsSuccess)
+            {
+                return Record(Classify(result.Error!));
+            }
+
+            Current = result.Value;
+            CurrentCidHash = cidHash;
+            return Record(ReviewOutcome.Ok);
+        }
+        finally
+        {
+            // One release, always, and the listeners hear about it only after the gate is free.
+            IsBusy = false;
+            _gate.Release();
+            Notify();
+        }
+    }
+
+    /// <summary>Answers one question, or acts on one row.</summary>
+    /// <param name="decision">The row, the verb, and the target for a link.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>
+    /// <see cref="ReviewOutcome.Stale"/> when the state moved: nothing was applied, and
+    /// <see cref="Current"/> now holds the fresh state to redraw from.
+    /// </returns>
+    public async Task<ReviewOutcome> DecideAsync(ReviewDecision decision, CancellationToken ct)
+    {
+        if (BackoffRemaining is { } wait)
+        {
+            _log.Info($"Review: still waiting {wait.TotalSeconds:F0}s after a rate limit.");
+            return Finish(ReviewOutcome.RateLimited);
+        }
+
+        if (!_tokens.HasKey)
+        {
+            return Finish(ReviewOutcome.NotConnected);
+        }
+
+        if (CurrentCidHash is not { Length: > 0 } cidHash ||
+            Current?.StateToken is not { Length: > 0 } token ||
+            !_directory.TryGet(cidHash, out var characterId))
+        {
+            return Finish(ReviewOutcome.NotResolved);
+        }
+
+        // Before the gate, and before the linked source: after Dispose the gate would answer with an
+        // ObjectDisposedException, which callers do not expect and which every reload would log as a fault.
+        // A cancellation is what this actually is, and the window already treats it as nothing to say.
+        _shutdown.ThrowIfCancellationRequested();
+        ct.ThrowIfCancellationRequested();
+
+        using var scope = Linked(ct);
+        await _gate.WaitAsync(scope.Token).ConfigureAwait(false);
+        IsBusy = true;
+        try
+        {
+            var result = await _api
+                .PostReviewDecisionAsync(_tokens.ApiKey!, characterId, token, decision, scope.Token)
+                .ConfigureAwait(false);
+
+            if (!result.IsSuccess)
+            {
+                return Record(Classify(result.Error!));
+            }
+
+            var answer = result.Value!;
+            Current = answer;
+
+            if (answer.IsConflict)
+            {
+                _log.Info($"Review: the state moved ({answer.Conflicts.Count} row(s)); nothing was applied.");
+                return Record(ReviewOutcome.Stale);
+            }
+
+            Applied(answer.Result, answer.AlsoResolved, cidHash);
+            return Record(ReviewOutcome.Ok);
+        }
+        finally
+        {
+            // One release, always, and the listeners hear about it only after the gate is free.
+            IsBusy = false;
+            _gate.Release();
+            Notify();
+        }
+    }
+
+    /// <summary>
+    /// Accepts the whole mapping the server composed, minus what the player struck out.
+    /// </summary>
+    /// <param name="struckOut">Held rows to leave out, by uid, or <see langword="null"/> for none.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>How it went. <see cref="ReviewOutcome.Ok"/> with nothing to send is also Ok.</returns>
+    /// <remarks>
+    /// One press over eighteen pairings, and one transaction: all of them or none, so there is no partial
+    /// result to render. A pair the server did not propose is refused, which is why the payload is composed
+    /// here from the proposals rather than assembled from whatever is on screen.
+    /// </remarks>
+    public async Task<ReviewOutcome> AcceptMappingAsync(IReadOnlySet<string>? struckOut, CancellationToken ct)
+    {
+        if (BackoffRemaining is { } wait)
+        {
+            _log.Info($"Review: still waiting {wait.TotalSeconds:F0}s after a rate limit.");
+            return Finish(ReviewOutcome.RateLimited);
+        }
+
+        if (!_tokens.HasKey)
+        {
+            return Finish(ReviewOutcome.NotConnected);
+        }
+
+        if (CurrentCidHash is not { Length: > 0 } cidHash ||
+            Current is not { } state ||
+            state.StateToken is not { Length: > 0 } token ||
+            !_directory.TryGet(cidHash, out var characterId))
+        {
+            return Finish(ReviewOutcome.NotResolved);
+        }
+
+        var pairs = ReviewRules.MappingToAccept(state, struckOut);
+        if (pairs.Count == 0)
+        {
+            // Nothing left to accept is not a failure. It is what striking every pair out looks like, and
+            // the player then answers them one at a time.
+            return Finish(ReviewOutcome.Ok);
+        }
+
+        // Before the gate, and before the linked source: after Dispose the gate would answer with an
+        // ObjectDisposedException, which callers do not expect and which every reload would log as a fault.
+        // A cancellation is what this actually is, and the window already treats it as nothing to say.
+        _shutdown.ThrowIfCancellationRequested();
+        ct.ThrowIfCancellationRequested();
+
+        using var scope = Linked(ct);
+        await _gate.WaitAsync(scope.Token).ConfigureAwait(false);
+        IsBusy = true;
+        try
+        {
+            var result = await _api
+                .AcceptReviewMappingAsync(_tokens.ApiKey!, characterId, token, pairs, scope.Token)
+                .ConfigureAwait(false);
+
+            if (!result.IsSuccess)
+            {
+                return Record(Classify(result.Error!));
+            }
+
+            var answer = result.Value!;
+            Current = answer;
+
+            if (answer.IsConflict)
+            {
+                _log.Info($"Review: the mapping was stale ({answer.Conflicts.Count} row(s)); nothing was applied.");
+                return Record(ReviewOutcome.Stale);
+            }
+
+            foreach (var applied in answer.Results)
+            {
+                Applied(applied, [], cidHash);
+            }
+
+            if (answer.AlsoResolved.Count > 0)
+            {
+                _log.Info($"Review: {answer.AlsoResolved.Count} further question(s) settled themselves.");
+            }
+
+            return Record(ReviewOutcome.Ok);
+        }
+        finally
+        {
+            // One release, always, and the listeners hear about it only after the gate is free.
+            IsBusy = false;
+            _gate.Release();
+            Notify();
+        }
+    }
+
+
+    /// <summary>How long to wait when the server did not say.</summary>
+    private static readonly TimeSpan DefaultBackoff = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// Until when this service refuses to call, after the server said there had been enough.
+    /// </summary>
+    /// <remarks>
+    /// The deciding paths have their own bucket, 120 an hour, so clearing a backlog cannot eat somebody
+    /// ability to sync. Reaching it anyway means a person is clicking faster than the limit allows, and the
+    /// honest answer is to say for how long rather than to let them keep clicking into it.
+    /// </remarks>
+    public DateTimeOffset? BackoffUntilUtc { get; private set; }
+
+    /// <summary>How long the caller should wait, when it is waiting.</summary>
+    public TimeSpan? BackoffRemaining =>
+        BackoffUntilUtc is { } until && until > _clock.UtcNow ? until - _clock.UtcNow : null;
+
+    private ReviewOutcome Classify(ApiError error)
+    {
+        if (error.Kind == ApiErrorKind.NotFound)
+        {
+            // Two different things arrive as a 404 and both are answers rather than faults: the route does
+            // not exist on this server yet, or the row is not this caller. Neither is worth alarming about.
+            return ReviewOutcome.Unavailable;
+        }
+
+        if (error.Kind == ApiErrorKind.RateLimited)
+        {
+            var wait = error.RetryAfter ?? DefaultBackoff;
+            BackoffUntilUtc = _clock.UtcNow + wait;
+            _log.Warning($"Review: rate limited, waiting {wait.TotalSeconds:F0}s. request_id={error.RequestId}.");
+            return ReviewOutcome.RateLimited;
+        }
+
+        // A named cause here says the offer was wrong, which is a fault on this side rather than something
+        // to put in front of the player. It belongs in the log, and the window redraws from a fresh read.
+        if (error.Code is { Length: > 0 } code)
+        {
+            _log.Warning($"Review: the server refused it ({code}). The offered actions were wrong; re-reading.");
+        }
+
+        return ReviewOutcome.Failed;
+    }
+
+    /// <summary>Records the outcome without telling anybody. Safe to call while the gate is held.</summary>
+    private ReviewOutcome Record(ReviewOutcome outcome)
+    {
+        LastOutcome = outcome;
+        return outcome;
+    }
+
+    /// <summary>
+    /// Tells listeners. Called <b>after</b> the gate is released, never while it is held.
+    /// </summary>
+    /// <remarks>
+    /// Nothing subscribes synchronously today, and that is exactly why it is worth getting right now: a
+    /// handler that called back into this service while the semaphore was still held would sit on itself,
+    /// and the fault would look like a hang rather than a mistake in the handler.
+    /// </remarks>
+    private void Notify()
+    {
+        try
+        {
+            Changed?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Review Changed handler threw: {ex.GetType().Name}.");
+        }
+    }
+
+    /// <summary>Records and tells, for the paths that never took the gate.</summary>
+    private ReviewOutcome Finish(ReviewOutcome outcome)
+    {
+        Record(outcome);
+        Notify();
+        return outcome;
+    }
+
+    /// <summary>
+    /// Records what a decision did. The identity cache is re-read for the character whenever a link
+    /// survived, because after a link the target uid is the one that lives on and the held row uid ceases
+    /// to exist: keeping it would attach a live gearset to a row that is gone.
+    /// </summary>
+    /// <remarks>
+    /// Re-read, not forgotten. It dropped the cache outright, and that is a far larger thing than it
+    /// sounds: a read carries no items, so everything only a push can know went with it, and the rungs
+    /// that separate two sets of one job stopped working until the next push. One link cost the whole
+    /// character's gear knowledge. The stale row goes anyway, because the refresh drops what the server no
+    /// longer lists, and that is exactly the row a link retires.
+    /// </remarks>
+    /// <param name="result">What the server did, if it said.</param>
+    /// <param name="alsoResolved">Questions that settled as a consequence.</param>
+    /// <param name="cidHash">The character.</param>
+    private void Applied(ReviewResult? result, IReadOnlyList<string> alsoResolved, string cidHash)
+    {
+        if (result is null)
+        {
+            return;
+        }
+
+        if (result.WasConverted)
+        {
+            _log.Info($"Review: asked for {result.Requested}, the server performed {result.Action}.");
+        }
+
+        if (alsoResolved.Count > 0)
+        {
+            _log.Info($"Review: {alsoResolved.Count} further question(s) settled themselves.");
+        }
+
+        if (string.Equals(result.Action, ReviewAction.Link, StringComparison.Ordinal))
+        {
+            _mapping?.ExpireMapping(cidHash);
+        }
+    }
+}

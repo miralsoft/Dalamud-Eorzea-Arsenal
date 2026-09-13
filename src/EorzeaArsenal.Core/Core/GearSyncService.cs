@@ -50,6 +50,9 @@ public enum PushOutcome
     /// <summary>The local data failed client-side validation; nothing was sent (R18).</summary>
     InvalidLocal,
 
+    /// <summary>Somebody has the reconciliation open, so automatic pushes are holding back.</summary>
+    SkippedReviewOpen,
+
     /// <summary>The server rejected the push (see <see cref="PushReport.ErrorKind"/>).</summary>
     Failed,
 }
@@ -60,12 +63,18 @@ public enum PushOutcome
 /// <param name="ErrorKind">The API error kind (on <see cref="PushOutcome.Failed"/>).</param>
 /// <param name="RequestId">Server correlation id, if any — safe to log/show.</param>
 /// <param name="Detail">Optional extra detail (never a secret/body).</param>
+/// <param name="Review">
+/// What the server says is waiting for the player, when it answers with it. Present on every successful
+/// push from a server that reports it, including the quiet case where every count is zero: absence means
+/// "this server does not say", never "nothing waits".
+/// </param>
 public readonly record struct PushReport(
     PushOutcome Outcome,
     int? GearsetCount = null,
     ApiErrorKind? ErrorKind = null,
     string? RequestId = null,
-    string? Detail = null);
+    string? Detail = null,
+    ReviewSummary? Review = null);
 
 /// <summary>
 /// Orchestrates reading gear and pushing it, enforcing the plugin's hard runtime rules:
@@ -89,6 +98,8 @@ public sealed class GearSyncService : IDisposable
     private readonly IClock _clock;
     private readonly ILog _log;
     private readonly CharacterDirectory? _directory;
+    private readonly GearsetMappingService? _mapping;
+    private readonly JobTableCache? _jobTable;
 
     private readonly Lock _gate = new();
     private bool _running;
@@ -107,7 +118,12 @@ public sealed class GearSyncService : IDisposable
     /// <param name="clock">Time source (injectable for tests).</param>
     /// <param name="log">Diagnostics sink.</param>
     /// <param name="directory">Optional registry that learns this character's server id from the push response.</param>
-    public GearSyncService(IGearSource gearSource, IApiClient api, ITokenStore tokens, IClock clock, ILog? log = null, CharacterDirectory? directory = null)
+    /// <param name="mapping">Optional cache that learns the gearset identities the push response returns.</param>
+    /// <param name="jobTable">
+    /// Optional holder of the job table this server published. Absent, the push reports the frozen combat
+    /// floor and says so — the same conservative answer as a server that has no table.
+    /// </param>
+    public GearSyncService(IGearSource gearSource, IApiClient api, ITokenStore tokens, IClock clock, ILog? log = null, CharacterDirectory? directory = null, GearsetMappingService? mapping = null, JobTableCache? jobTable = null)
     {
         _gearSource = gearSource;
         _api = api;
@@ -115,10 +131,52 @@ public sealed class GearSyncService : IDisposable
         _clock = clock;
         _log = log ?? NullLog.Instance;
         _directory = directory;
+        _mapping = mapping;
+        _jobTable = jobTable;
     }
 
     /// <summary>Raised after each push attempt completes (on a background thread).</summary>
     public event Action<PushReport>? PushCompleted;
+
+    /// <summary>
+    /// What the last successful push said is waiting for the player, or <see langword="null"/> when no
+    /// push has succeeded yet or the server does not report it.
+    /// </summary>
+    /// <remarks>
+    /// Kept here rather than recomputed, because the counters and the token come out of one snapshot on
+    /// the server and only mean anything together. A window that combined a fresh count with an older
+    /// token would offer a decision the server has already moved past.
+    /// </remarks>
+    public ReviewSummary? LastReview { get; private set; }
+
+    /// <summary>
+    /// Asked before every <b>automatic</b> push: while it answers true, the timer, the login and the
+    /// gearset-change trigger hold back. A manual push is never held.
+    /// </summary>
+    /// <remarks>
+    /// Set while a person has the reconciliation open. It carries less than it once did and not nothing:
+    /// the state fingerprint covers the position, reordering in game changes it, and reordering triggers a
+    /// push, so an unlucky moment turns the next decision into a 409. What the narrower fingerprint took
+    /// away is the case that happens while the player does nothing at all.
+    /// </remarks>
+    public Func<bool>? PauseAutomatic { get; set; }
+
+    /// <summary>
+    /// Drops the "nothing changed since the last push" guard, so the next push actually goes out.
+    /// </summary>
+    /// <remarks>
+    /// Called after a reconciliation decision. The gear did not change, so the guard would skip that push
+    /// perfectly correctly — and the push answer is the cheap way the mapping gets re-learned after a
+    /// decision dropped it. Without this the plugin would show nothing for the set that was just decided
+    /// about, until the periodic read came round.
+    /// </remarks>
+    public void ForgetLastSent()
+    {
+        lock (_gate)
+        {
+            _lastSentHash = null;
+        }
+    }
 
     /// <summary>The most recent push report, or <see langword="null"/> if nothing has run yet.</summary>
     public PushReport? LastReport { get; private set; }
@@ -224,6 +282,14 @@ public sealed class GearSyncService : IDisposable
             return new PushReport(PushOutcome.SkippedBackoff);
         }
 
+        // Held back while somebody is answering questions: a push can move the state token under them and
+        // turn their next decision into a 409. Reordering in game is the case that actually happens, and it
+        // arrives as a gearset change rather than on the timer, so this gate is NOT the "force" one. Only a
+        // manual push goes through, because that is a person asking and they can see what happened.
+        if (trigger != PushTrigger.Manual && PauseAutomatic?.Invoke() == true)
+        {
+            return new PushReport(PushOutcome.SkippedReviewOpen);
+        }
         if (!force && now - _lastPushUtc < MinAutoPushInterval)
         {
             return new PushReport(PushOutcome.SkippedThrottled);
@@ -245,13 +311,19 @@ public sealed class GearSyncService : IDisposable
             return new PushReport(PushOutcome.NotLoggedIn);
         }
 
-        var clean = GearSanitizer.Sanitize(snapshot);
+        // What may leave this machine is decided by the table the server at THIS address published, not
+        // by what the plugin can name. Absent a cache, the frozen floor governs and the push says so.
+        var policy = _jobTable is null
+            ? JobPolicy.Floor
+            : await _jobTable.GetPolicyAsync(ct).ConfigureAwait(false);
+
+        var clean = policy.Apply(GearSanitizer.Sanitize(snapshot));
         if (clean.Gearsets.Count == 0)
         {
             return new PushReport(PushOutcome.Nothing);
         }
 
-        var payload = GearPayload.From(clean);
+        var payload = GearPayload.From(clean, policy.Scope);
         var validation = GearValidator.Validate(payload);
         if (!validation.IsValid)
         {
@@ -266,11 +338,12 @@ public sealed class GearSyncService : IDisposable
         }
 
         var result = await _api.PushGearAsync(_tokens.ApiKey!, payload, ct).ConfigureAwait(false);
-        return HandleResult(result, hash, payload.Character.CidHash);
+        return HandleResult(result, hash, payload);
     }
 
-    private PushReport HandleResult(ApiResult<GearPushResult> result, string hash, string cidHash)
+    private PushReport HandleResult(ApiResult<GearPushResult> result, string hash, GearPayload payload)
     {
+        var cidHash = payload.Character.CidHash;
         if (result.IsSuccess)
         {
             _lastPushUtc = _clock.UtcNow;
@@ -279,12 +352,39 @@ public sealed class GearSyncService : IDisposable
             // Learn the server's numeric character id so per-character paths (weekly, …) can resolve it.
             _directory?.Record(cidHash, result.Value!.CharacterId);
 
+            // And the gearset identities it minted. This is the cheap path: the answer covers exactly
+            // the list that was just sent, so no extra request is needed to learn the mapping.
+            _mapping?.RecordPush(cidHash, payload.Gearsets, result.Value!.Sets);
+
             var count = result.Value!.Gearsets;
-            _log.Info($"Push OK: {count} gearset(s).");
-            return new PushReport(PushOutcome.Sent, GearsetCount: count);
+            var review = result.Value!.Review;
+            LastReview = review;
+
+            if (review is not null && review.HasAnything)
+            {
+                var orphans = review.Orphans;
+                _log.Info(
+                    $"Push OK: {count} gearset(s). Waiting: {review.Held} question(s), " +
+                    $"{orphans?.Open ?? 0} open row(s), {orphans?.Ignored ?? 0} put aside.");
+            }
+            else
+            {
+                _log.Info($"Push OK: {count} gearset(s).");
+            }
+
+            return new PushReport(PushOutcome.Sent, GearsetCount: count, Review: review);
         }
 
         var error = result.Error!;
+
+        // A rejected job code means the table in hand is wrong. Discard it, so the next push refetches and
+        // reports the floor until a fresh one arrives. Only this cause: every other 422 leaves it alone, or
+        // a client would refetch after every failed push and write about jobs into a log about item ids.
+        if (error.Code == ApiErrorCodes.JobUnknown)
+        {
+            _jobTable?.Invalidate(error.Jobs);
+        }
+
         if (error.Kind == ApiErrorKind.RateLimited)
         {
             var backoff = error.RetryAfter ?? DefaultBackoff;

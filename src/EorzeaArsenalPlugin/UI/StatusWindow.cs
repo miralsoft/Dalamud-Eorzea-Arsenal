@@ -6,6 +6,7 @@ using Dalamud.Interface.Windowing;
 using Dalamud.Utility;
 using EorzeaArsenal.Core;
 using EorzeaArsenal.Localization;
+using EorzeaArsenal.Model;
 using EorzeaArsenal.Plugin.Configuration;
 
 namespace EorzeaArsenal.Plugin.UI;
@@ -27,6 +28,7 @@ public sealed class StatusWindow : Window
     private readonly ConfigStore _store;
     private readonly Localizer _localizer;
     private readonly GearSyncService _sync;
+    private readonly GearsetMappingService _gearsetMapping;
     private readonly InventorySyncService _inventory;
     private readonly WeeklySyncService _weekly;
     private readonly Action _requestManualPush;
@@ -36,6 +38,17 @@ public sealed class StatusWindow : Window
     private readonly Action _openBis;
     private readonly Action _openAdvisor;
     private readonly Action _openLog;
+    private readonly Action _openReview;
+
+    // Preferred over the last push answer, which is a snapshot of the moment it was sent: acting in the
+    // review window moves the state without a push, and a badge that keeps announcing finished work is
+    // one people learn to ignore.
+    private readonly Func<ReviewSummary?> _currentReview;
+
+    /// <summary>How many live gearsets this side cannot tell apart from another of the player's own.</summary>
+    private readonly Func<int> _twinCount;
+
+    private readonly Func<string?> _currentCharacter;
     private readonly Action _openReport;
     private readonly Action _openTeams;
     private readonly Action _openCalendar;
@@ -56,16 +69,28 @@ public sealed class StatusWindow : Window
     /// <param name="openBis">Callback to open the BiS comparison window.</param>
     /// <param name="openAdvisor">Callback to open the purchase-advisor window.</param>
     /// <param name="openLog">Callback to open the diagnostics log window.</param>
+    /// <param name="openReview">Opens the reconciliation window. Shown only while something waits.</param>
+    /// <param name="currentReview">The freshest reconciliation counts, or <see langword="null"/> when none are known.</param>
     /// <param name="openReport">Callback to open the "report a problem" window.</param>
     /// <param name="openTeams">Callback to open the Teams companion window.</param>
     /// <param name="openCalendar">Callback to open the calendar window.</param>
     /// <param name="openPreview">Callback to open the preview window.</param>
     /// <param name="openWhatsNew">Callback to open the what's-new window.</param>
+    /// <param name="gearsetMapping">The gearset identity cache, for the uncertain-match warning.</param>
+    /// <param name="twinCount">
+    /// How many live gearsets this side declined to identify because another one is indistinguishable
+    /// from it. Measured locally: the server has distinct rows and reports no doubt at all.
+    /// </param>
+    /// <param name="currentCharacter">
+    /// Who is logged in, because everything the identity cache reports is about one character and two of
+    /// them share this plugin.
+    /// </param>
     public StatusWindow(
         PluginConfig config,
         ConfigStore store,
         Localizer localizer,
         GearSyncService sync,
+        GearsetMappingService gearsetMapping,
         InventorySyncService inventory,
         WeeklySyncService weekly,
         Action requestManualPush,
@@ -75,17 +100,22 @@ public sealed class StatusWindow : Window
         Action openBis,
         Action openAdvisor,
         Action openLog,
+        Action openReview,
+        Func<ReviewSummary?> currentReview,
         Action openReport,
         Action openTeams,
         Action openCalendar,
         Action openPreview,
-        Action openWhatsNew)
+        Action openWhatsNew,
+        Func<int> twinCount,
+        Func<string?> currentCharacter)
         : base("Eorzea Arsenal###EorzeaArsenalStatus")
     {
         _config = config;
         _store = store;
         _localizer = localizer;
         _sync = sync;
+        _gearsetMapping = gearsetMapping;
         _inventory = inventory;
         _weekly = weekly;
         _requestManualPush = requestManualPush;
@@ -95,11 +125,15 @@ public sealed class StatusWindow : Window
         _openBis = openBis;
         _openAdvisor = openAdvisor;
         _openLog = openLog;
+        _openReview = openReview;
+        _currentReview = currentReview;
         _openReport = openReport;
         _openTeams = openTeams;
         _openCalendar = openCalendar;
         _openPreview = openPreview;
         _openWhatsNew = openWhatsNew;
+        _twinCount = twinCount;
+        _currentCharacter = currentCharacter;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -123,6 +157,41 @@ public sealed class StatusWindow : Window
         {
             var seconds = Math.Max(0, (int)(_sync.BackoffUntilUtc - DateTimeOffset.UtcNow).TotalSeconds);
             ImGui.TextColored(Yellow, _localizer.Get(LocKeys.StatusRateLimited, seconds));
+        }
+
+        // The server guessed on at least one gearset. Nothing is broken and no data is at risk, but the
+        // comparison may sit on the wrong set. Two rungs, told apart on purpose: a shared name is
+        // something the player can end by renaming, a positional match is not, and offering the wrong
+        // remedy is worse than offering none. A line, not a dialog.
+        var character = _currentCharacter();
+        var ambiguous = _gearsetMapping.AmbiguousMatches(character);
+        var positional = _gearsetMapping.PositionalMatches(character);
+        if (ambiguous > 0 || positional > 0)
+        {
+            using var wrap = ImRaii.PushColor(ImGuiCol.Text, Yellow);
+            if (ambiguous > 0)
+            {
+                ImGui.TextWrapped(_localizer.Get(LocKeys.StatusGearsetIdentityAmbiguous, ambiguous));
+            }
+
+            if (positional > 0)
+            {
+                ImGui.TextWrapped(_localizer.Get(LocKeys.StatusGearsetIdentityPositional, positional));
+            }
+        }
+
+        // And the one this side works out for itself. The two above repeat what the server said about its
+        // own matching, and the server has distinct rows and reports no doubt; the case where two of the
+        // player's own gearsets are indistinguishable here is invisible to it. Without this line the only
+        // symptom is a BiS comparison that stays empty for those sets, which reads as a fault rather than
+        // as a refusal to guess. It carries the remedy, because there is one.
+        var twins = _twinCount();
+        if (twins > 0)
+        {
+            using var wrap = ImRaii.PushColor(ImGuiCol.Text, Yellow);
+            ImGui.TextWrapped(_localizer.Get(
+                twins == 1 ? LocKeys.StatusGearsetUnattributedOne : LocKeys.StatusGearsetUnattributedMany,
+                twins));
         }
 
         ImGui.Spacing();
@@ -208,6 +277,44 @@ public sealed class StatusWindow : Window
             _openWhatsNew();
         }
 
+
+        // Shown while something waits, and also while anything is merely archived. A normal player who
+        // builds sets in game sees neither, which is the whole point of the mechanism behind it:
+        // ambiguity raises a question, unfamiliarity does not.
+        //
+        // The second half arrived late and it was a real hole. Putting a row aside has an undo,
+        // `reopen`, and this entry was the only route into the window: once nothing else was waiting the
+        // entry vanished, the window closed itself, and the archive with it. A button whose undo cannot
+        // be reached is a one-way door however the contract describes it, which is the same fault
+        // `release` had until `released_at` existed.
+        //
+        // Told apart by colour and by wording, because they are different states. Something waiting is
+        // yellow and says how many decisions; an archive is quiet, says how many rows are in it, and is
+        // there for whoever goes looking rather than for whoever needs telling.
+        if (_currentReview() is { } review && (review.NeedsAttention || (review.Orphans?.Ignored ?? 0) > 0))
+        {
+            // The sum, not one of the two halves. It used to name the questions and fall back to the rows
+            // only when there were no questions at all, so one question beside one orphan read as "one
+            // question" and the row behind it was invisible until the window was opened. Naming both was
+            // honest and did not fit: the row is one line in a panel and the text ran off it. So the sum,
+            // in a word that covers both kinds without borrowing either one's name. Calling an inventory
+            // row a "question" here would be the window using two names for two different things, and
+            // "decision" is what they already are: one carousel walks them together.
+            var waiting = review.Held + (review.Orphans?.Open ?? 0);
+            var label = waiting > 0
+                ? waiting == 1
+                    ? _localizer.Get(LocKeys.ReviewDecisionsOne)
+                    : _localizer.Get(LocKeys.ReviewDecisionsMany, waiting)
+                : _localizer.Get(LocKeys.ReviewOrphansAside, review.Orphans?.Ignored ?? 0);
+
+            if (MenuButton(
+                FontAwesomeIcon.QuestionCircle,
+                $"{T(LocKeys.ReviewTitle)}   ·   {label}",
+                accent: waiting > 0 ? Yellow : null))
+            {
+                _openReview();
+            }
+        }
         if (MenuButton(FontAwesomeIcon.ClipboardList, T(LocKeys.OpenLog)))
         {
             _openLog();

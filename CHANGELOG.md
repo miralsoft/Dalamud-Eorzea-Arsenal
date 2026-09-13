@@ -4,6 +4,618 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-09-13
+
+Gearsets carry a server-minted identity instead of being keyed on their position in the list. Everything
+that was attached to a position (pinned BiS target, team share, hidden flag) now follows the set itself.
+
+### Added
+- **Gearset identity.** A push carries no uid; the server matches each set and answers with one, on a
+  named rung (`exact`, `name`, `name_ambiguous`, `items`, `index`, `new`). The plugin caches the mapping
+  per character and resolves a live set back to it through its own short ladder: first where the set sits,
+  then what is in it. Position and job with the same gear settles it, which survives a rename and is the
+  only thing that separates two sets a player never named apart; position and job with the same name
+  settles it where that name belongs to no other set, which survives a re-gear and declines where a swap
+  of two same-named sets could produce a confident wrong answer. Anything moved falls through to the
+  strong key (job, name, items) and the weak one (job, name). Every rung reports ambiguity rather than
+  guessing, the strong key included: same job, same name, same gear is the best evidence the contents can
+  give and it is still not a distinction.
+  The position had been left out of the cache on the grounds that reordering makes it unreliable. That
+  reasoning skipped a fact about the game: the player is never asked for a name when a set is made, so the
+  game writes the job in and two sets of one job are called the same thing from the start. Asking the name
+  to tell them apart was asking it to do work it was never able to do, and a freshly copied set lost its
+  BiS comparison until somebody renamed it by hand. Only a reorder moves the number, and a reorder is
+  exactly the case the content ladder was built for. The server needed no change: a push is index-aligned
+  and `GET /gear/sets` already returns `gear_index`; neither was being kept.
+  The ladder is ordered by how specific each rung is and not by how sure it is, which took a second look
+  to get right. The position is the surer evidence and the strong key the more discriminating one, and
+  putting the surer first meant a set whose full description matched another row exactly was handed to
+  whoever happened to sit at its number. Copy a set, rename the copy, reorder: two sets hold the same gear
+  under different names, the position rung ignores the name by design, and it answered with the
+  neighbour's identity and no doubt attached. The strong key goes first and the position answers what the
+  contents cannot.
+- **The server's guesses are checked against what this side remembered.** Its `name_ambiguous` rung means
+  it searched by name, found more than one candidate and broke the tie by position; its `index` rung means
+  the name and the gear both failed and only the position was left. Both are guesses on the position, and
+  the position is what a reorder has just changed, so they are least reliable in exactly the situation
+  this feature exists for. The server cannot check itself there, because from where it stands the two
+  candidates are the same. This side holds one thing it does not: which gear sat under which identity at
+  the last push. Where a gearset's contents identified one uid on their own and the answer has just put
+  them under a different one, the two accounts contradict each other, and neither is provably right, so
+  both identities stop being used until they agree again. Until now the only sign was a log line once per
+  session advising that the sets be given different names, which is no advice at all: the game names a new
+  gearset after its job, so the player never chose those names and two sets of one job share one from the
+  start. Four conditions have to hold together, and the ones that keep it quiet matter more than the one
+  that makes it speak: a rung worth checking, gear that identified exactly one remembered row, an identity
+  that differs from the remembered one, and a remembered identity that did not keep that same gear in this
+  same push. The last is what tells a copied gearset from a mix-up, and copying is the most common thing a
+  player does here. A pair of true copies stays silent throughout, because their gear was never a
+  distinction and saying so anyway would be noise on the one case that is honestly undecidable. Recomputed
+  on every push, so the doubt lasts exactly as long as the evidence for it and nobody has to clear
+  anything.
+  "A rung worth checking" is not the same as "a rung the server called uncertain", and reading it that way
+  left the check firing only where the server had already owned up. Its `exact` rung is job, name and
+  position together: for a set whose name is its own that is strong evidence, and for one of two sets
+  sharing a name it is the position and nothing else. Swap two such sets and the server matches both on
+  `exact`, confidently and the wrong way round, never reaching a rung it would have called a guess. So any
+  rung at all is checked once a second set in the same push carries the same job and name, which since the
+  game names a set after its job is the ordinary case rather than a corner of it.
+- **Answering one question no longer costs the character's gear knowledge.** A decision in the
+  reconciliation window can move an attribution, so the mapping was dropped and read again rather than
+  left to expire. Dropping it was too much: a read carries no items, so everything derived from them went
+  with it, and each row came back holding its identity, its job and its name and nothing else. The gear is
+  what separates two sets of one job, which the game names identically the moment they are made, so
+  answering a single question turned every same-named pair on the character unresolvable and left them
+  that way until the next push. Five sets lost their BiS comparison to one click. Expiring the schedule
+  says the same thing without the loss: the merge already drops rows the server no longer lists, so an
+  identity that was just linked away goes, and everything still listed keeps what a push established.
+  Forgetting outright stays for the case that means it, such as disconnecting.
+  The same confusion sat at three call sites, and only measuring found the third. Linking a row is the one
+  decision that really does retire an identity, so the service that sends it dropped the cache as well,
+  and that is the site a link actually reaches: every link cost the whole character's gear knowledge, and
+  a test demanded exactly that. The stale row still goes, because a refresh drops what the server no
+  longer lists, and that is precisely the row a link retires. The developer window's
+  "re-read identities" had the same fault for the same reason: forgetting first sounded like the thorough
+  version and was the destructive one, so pressing the button that diagnoses a mapping problem created
+  one. It now does what its label says.
+- **Answering a question no longer blanks every set number on screen.** The position table was emptied
+  after each decision and refetched right afterwards, and for as long as that took, no gearset anywhere in
+  the interface carried a number. A missing number is not nothing: it is how this window says a set is not
+  in the game any more, so putting one row aside announced that about every set the player owns, for a
+  second, untruthfully. What the emptying guarded against is a number that has moved, and only a link can
+  move one; even then the row it retires is the row whose card just closed. The refresh is what makes the
+  state right and it runs either way, so the last known table stays until it lands. Stale for a moment
+  beats wrong for a moment, which is the same rule the rest of this plugin follows when a refresh fails.
+- **Rows put aside are counted in words.** The heading read "Put aside (1)", and a bare number in brackets
+  is the one counter shape this interface does not use.
+- **The menu no longer offers decisions that are already made.** The badge prefers the review service's
+  own reading over a push answer, and rightly: answering a question in the window moves the state without
+  any push, so a badge fed only by pushes keeps announcing work that is done. The other direction was left
+  open. A push moves the state too, and the reading then went stale with nothing to notice it. Delete a
+  gearset and make it again: the server attributes the new one to the row it left behind, that row stops
+  being an orphan, and the menu went on saying "two decisions" and led to a window with nothing in it. The
+  state token settles it and exists for exactly this, fingerprinting which rows are being asked about
+  rather than their contents: where it disagrees with the cached reading, that reading is over and the
+  badge falls back to the push answer, which is the newer of the two. An ordinary push that only writes
+  fresh numbers keeps its token and changes nothing here.
+- **A refresh also says which attributions are still open.** Which gearsets the server is waiting on came
+  from a push and from nothing else, and it is not kept across a restart. So every reload began believing
+  nothing was outstanding and stayed that way until the next push happened to mention it: a set whose
+  attribution was open showed its provisional target as though it were settled, and the diagnostics dump
+  read "none open" with a card sitting in the review window. `GET /gear/sets` carries the state per row and
+  was not being read for it. A server that reports no state still clears nothing, since silence about what
+  is open is not the same as saying nothing is.
+- **A refresh no longer forgets the gear when a name moved.** `GET /gear/sets` returns no items, so the
+  ten-minute refresh keeps whatever a push established rather than writing a thinner row over it. That
+  only held while the name matched: rename a set on the website and the cached row was rebuilt from the
+  read, losing the strong key and the gear key together. The strong key has to go, since the name is part
+  of what it hashes. The gear key does not, and a rename is the one case it exists for. Worse, the game
+  keeps calling the set what it always did, so after such a refresh the cached name and the live name
+  disagree and both name rungs retire too: the gear was the only thing left that could still recognise it,
+  and it was the one thing being thrown away. It now carries over, and so does a contradiction found by
+  the cross-check, since a read brings no gear and cannot settle what it cannot see.
+- **An identity claimed by two live gearsets is withdrawn from both.** The mapping declines where two
+  remembered rows fit one live set, and that is the only doubt it can see; the other direction is
+  invisible to it, because two live sets fitting one remembered row are two separate questions with one
+  confident answer each. Copy a gearset and the copy is indistinguishable from the original until the next
+  push tells the server it exists. The position table wrote the second over the first, so it stayed full
+  and pointed at whichever came last, and a wrong set number with somebody else's BiS target beside it
+  read exactly like a right one. Both claims are dropped now and both positions say they are undecided,
+  which is the same rule the mapping already followed one layer up. Moved out of the service into
+  `LivePositionMap` on the way, so the rule is proven rather than read.
+  The comparison had its own copy of the same fault and did not learn from the fix, which a live report
+  showed within the hour: the position table dropped all the claims on a doubled identity while the
+  resolver the comparison consults answered the same way as before, because it went straight back to the
+  mapping and never asked the table. So a BiS target was still drawn against one gearset and labelled with
+  another one's number, and only one of the copies was reported as having no target. The resolver now
+  treats a withdrawn position as no identity, and the comparison's own index refuses a second claimant on
+  the same key instead of letting it overwrite the first.
+- **Job scope.** `GET /gear/jobs` decides which of the 42 class and job codes may be sent; a server
+  without the route leaves a frozen 21-code combat floor in place. Every push declares which range it
+  covered, so the server can park what a sync could have reported and did not.
+- **The reconciliation window.** Questions as a carousel, the inventory of rows with no gearset as one
+  card per decision, with the gear as icons, why the row is there, what hangs on it, and the six verbs
+  the contract defines (`link`, `new`, `ignore`, `reopen`, `delete`, `release`). It opens by itself once
+  for a row nobody has seen, keyed on identity rather than on a count, and only at a moment where
+  interrupting is acceptable.
+- **Two sets side by side, slot by slot.** A row the game no longer reports is drawn against the set it
+  resembles (`orphans[].similar[]`); a question is drawn against each candidate. Three states per slot,
+  because the server compares the item and not the materia: same, same item with other melds, different.
+  The colour never carries it alone, the counts are written out and every slot names its state on hover,
+  and the numbers stay the server's own (`probability`, `matched_slots`, `total_slots` are shown, never
+  recomputed).
+- **Role groups in the gear window**, and sets with no BiS target are listed instead of being absent.
+- A fourth release-note kind, `Removed`, which the framework profile names alongside the other three.
+- `images/icon.png` ships inside the package. The packager does not descend into subfolders, so it is
+  appended after packaging; without it every installed copy showed Dalamud's default icon.
+- **The language follows Dalamud unless somebody says otherwise.** It never read the host at all: the
+  default was English, so anybody running the game and Dalamud in German was greeted in the wrong one and
+  had to find a setting to fix it. "Same as Dalamud" is the first entry and the new default, and it names
+  what it currently resolves to in brackets, because otherwise it is a choice made blind. A host language
+  with no catalogue here lands on English rather than on raw keys. Existing installations keep an explicit
+  German; a stored English moves onto following the host, since that value is both the old default and a
+  real choice and cannot be told apart, and on an English host the two resolve the same anyway.
+- **A diagnostics report in the developer build.** Identity, the uid-to-live-position table the set
+  numbers are drawn from, and the whole reconciliation state down to each candidate and each similar row,
+  in plain lines, with a button that puts the lot on the clipboard and buttons that re-read each cache.
+  Built after a bug cost a dozen guesses: two gearsets shared a job and a name, one identity swallowed
+  both, and two windows printed the same set number for two different sets. Every value needed to see
+  that was in memory and none of it was anywhere a person could read, so diagnosing it meant asking for
+  another screenshot and reasoning from it. The report is composed as text and then drawn, so what is
+  copied is exactly what was on screen. It is a window of its own rather than a section above the log,
+  because the two are read differently: the log is an account of what happened and is read from the top,
+  the report is the state right now and is read against what is on screen. The wrench that opens it sits
+  in every window title bar, driven off the window registration so one added later carries it without
+  anybody remembering to say so. Absent from a released build like every developer surface here: not in
+  the assembly, rather than switched off in it. Its shape is a fixed bar of buttons over one output area:
+  the first version drew every section inline and had the fault it was built to remove, since finding a
+  value meant scrolling and reaching a button meant scrolling back. A probe replaces the output, the copy
+  button takes it, and one of the probes is "duplicates", which is the diagnosis above in a single press
+  rather than in a dozen exchanges.
+- **A job the game adds after this release is named from the game's own sheet.** The map from `ClassJob`
+  row to three-letter code was transcribed by hand and stopped at row 42, so Beastmaster, added to the
+  game later, could not be named at all. A gearset whose job cannot be named is skipped when the list is
+  read, which leaves a gap in the numbering and nothing else: no warning, no entry, and a gap that looks
+  exactly like a deleted set. The same `Abbreviation` column that table was transcribed from is there at
+  runtime, so it is read at startup instead of transcribed again. Only gaps are filled and a row the
+  compiled floor names keeps the name the floor gave it, so no quirk in the sheet can rename `PLD` under
+  a running plugin. Four rejections, each for something a sheet really contains: row 0, an empty
+  abbreviation, anything that is not three uppercase letters, and a code some other row already carries.
+  Naming is still not permission to send. What may leave the machine stays with the table the server
+  published, so a job learned here is filtered out of every push until that table lists it, and the
+  mechanism therefore fails in the safe direction. Beastmaster synced the day the server added it, with
+  no plugin release in between, which was the whole point.
+- **The diagnostics hold three lists of jobs against each other:** what the game has, what this plugin
+  can name, what the server accepts. Only the disagreements are printed, with the abbreviation in both
+  languages and both names, because a row id is not something anybody can check and the last block is the
+  message somebody has to carry to the server side. The code that is sent comes from the English column
+  on purpose, and the report now counts how many the client spells differently: 30 of 43, so that choice
+  rests on a number rather than on a belief.
+- **`orphans[].similar[]` carries what the row it names is:** its state, the position the server last
+  recorded for it, and when a push last claimed it. The position is what reaches the screen, and only
+  where the live list has withdrawn its claim: printed as "last at #9" and never as "#9", because the
+  live list is the one that is current and this whole feature exists to say that a stored position moves.
+  That is exactly the case the label was written for, two sets of one job with one name, where the live
+  table declines to answer at all. The other two are carried and reported rather than drawn; see the note
+  under Internal for why that is the right amount.
+
+### Fixed
+- **Switching character asked the server once per frame.** The guard that stops the window showing one
+  character's questions while another is on screen re-read inside `Draw` with nothing holding it back.
+  The service has a lock, so the calls could not overlap, but they queued rather than being dropped and
+  every one of them became a request: the switch would fire them as fast as the server answered until the
+  rate limiter closed the door, which is exactly when the new character needs its questions read. Once
+  every two seconds now, still on a timer rather than once ever, so a failed read is tried again.
+- **And it explained itself with the word "Re-read".** That is the label off a button, shown as the whole
+  content of an otherwise empty window. It says which character it is reading for and why.
+- **"Take it out of the plugin" was printed on a row already out of the plugin.** The share line carried
+  its consequence unconditionally, so a released row, whose only remaining verb is "ask about it again",
+  was told to do two things that are not on it. The fact and the consequence are separate sentences now,
+  and the second one appears only where a delete could otherwise have been pressed.
+- **"Nothing open" was not said when anything had ever been put aside.** The line hung on a condition that
+  counted archived rows, so a player with an archive got no word at all: the last answer landed, the cards
+  vanished, and the window closed two seconds later with nothing having said it was finished. Rows in the
+  archive are decided, and "nothing open" is true beside them.
+- **A confirmation opened with the result instead of the deed.** The team line came first, on the
+  argument that the part reaching somebody outside the room comes first. That argument belongs to a
+  delete, where the word on the button is wrong and has to be corrected before anything else; everywhere
+  else it put what follows above what was pressed and left the reader working backwards. The order is now
+  what somebody agrees to, then what it costs, and a test holds it rather than a comment.
+- **The confirmation for a release never said what a release does.** With a team it listed only what the
+  team would keep seeing; with neither team nor pin it came out empty and fell back to repeating the
+  label on the button. The one thing the press actually does, that the row stays and stops being the
+  plugin's and stops following the game, was in none of them. It is said on every release now, and on a
+  delete that a share turns into one.
+- **The advice recommended deleting on a row where delete is not offered.** Each verdict ends with a
+  sentence about what to do and every one of them names deleting, so the card said "otherwise delete it"
+  two lines under "this cannot be deleted". Where a team follows the row that closing sentence is
+  replaced by the thing a reader would ask next: drop the share on the website first, and then it can
+  really be deleted.
+- **A team name stood in a sentence with nothing saying it was a team.** "Programmiertest folgt dieser
+  Zeile" reads as a word rather than as somebody else, and a team can be called "Test" or "Mo". Every
+  line that names one says "the team" or "the teams" now, with each name in quotes, and singular and
+  plural are separate strings because "the team A, B" is not a sentence.
+- **Delete is no longer offered on a row a team follows.** Its tooltip promised "permanent, the row and
+  everything on it is gone" on the one row where nothing of the sort can happen: the server carries a
+  delete out as a release there, so that one person cannot remove a set other people depend on. The first
+  fix was to say so on the button, and that was the wrong fix. A press would still have worked and done
+  something else, and the button that does that something else was already on the card with the right
+  word on it: two buttons doing one thing, one of them lying about it, is not a choice. `OfferedVerbs`
+  already leaves delete out where the server refuses it, on hand-made rows, and this is the same category
+  one step removed. Not the refusal the contract rejected either, which was about the server erroring and
+  leaving the player to un-share on the website first: nothing is blocked, the path is one button to the
+  left, and the card says why this one is missing.
+- **"Otherwise delete" was printed above the reason not to.** A row a team follows, or one carrying a
+  pinned target, said so under the gear grid, four lines below the advice that ends by suggesting the
+  delete. The old argument for that position was that the warning must not hide behind a hover, which is
+  right and not enough: in plain sight below the reason to act is still below it. Both lines come before
+  the advice now.
+- **A row put aside could not be reached again.** Putting one aside has an undo, `reopen`, and the status
+  entry was the only route into the window: it appeared while something waited, so once the last thing
+  waiting was the archive itself the entry was gone and the archive with it. A button whose undo cannot
+  be reached is a one-way door however the contract describes it, which is the fault `release` had until
+  `released_at` existed. The entry stays while anything is archived, quiet instead of yellow and saying
+  how many rows are in there rather than how many decisions wait.
+- **The reconciliation window closes itself once nothing is left to decide.** It is only ever reached
+  from the status entry, and that entry appears only while something waits, so after the last answer
+  there is nothing to come back for and leaving it open made the player dismiss a window whose whole
+  content was the word "done". It waits a couple of seconds first: the answer that emptied it has just
+  landed, and the line saying so, the count of questions that settled themselves with it included, would
+  otherwise be gone in the frame it appeared. A window that vanishes on a press reads as a mis-click. It
+  stays open while a call is in flight, while the archive of put-aside rows is unfolded, and for anyone
+  who opened it with nothing waiting, since they came for the archive rather than to answer something.
+- **The delete confirmation warned about losing a pinned target the row did not have.** On a row with no
+  pin and no share that sentence was the only line in the dialog, and it was about something that was not
+  there; nothing said the row itself was being removed, and nothing said the gearset in game is not
+  touched, which under a button labelled "delete" is the question somebody actually has. The pin sentence
+  is now conditional on there being a pin, and every delete carries the plain one.
+- **A target with no gearset in game was drawn as a comparison against nothing.** The list said "0 of 11
+  slots match" with all eleven pieces in red, and the shopping list counted a whole set as still to buy;
+  both are verdicts about a set that does not exist. Three ways to land there and all of them ordinary: a
+  row built in the web app for a set not made yet, one left behind by a gearset deleted in game, and one
+  waiting on an answer. The window is called gear against BiS, and with no gear there is nothing to draw,
+  so they are left out of all three views. Nothing is hidden by that: each is already a card or a
+  candidate in the reconciliation window, which is the window whose job they are.
+- **A gearset that could not be identified was told to pin a target it already had.** Such a set cannot
+  be claimed by any target, so it falls into the "no target pinned" list for want of a match, and that
+  list offered the one remedy that does nothing here. It gets the true reason instead, with the remedy
+  that works: give one of the two a different name. Same principle as the two reasons that list already
+  told apart, that a wrong remedy is worse than none.
+- **A gearset the plugin cannot identify now says so, instead of only going quiet.** Where two of the
+  player's own gearsets share a job and a name, this side declines to pick between them, which is right
+  and also means their BiS comparison stays empty. Nothing said why: the two warnings that existed repeat
+  what the server reported about its own matching, and the server has distinct rows and reports no doubt
+  at all, so the local blindness was invisible and the empty comparison read as a fault. The status
+  window counts it for itself now and names the remedy, which is to give one of each pair a different
+  name.
+- **Every set number in the BiS window was one too low.** The API and the game module count gearsets
+  from zero and the gearset list shows them from one; the reconciliation window has added the one for a
+  while, this one never did, so each row named the gearset above the one it was about. And a row with no
+  gearset in game is drawn without a number now instead of with its stored one, which for a hand-made row
+  is a band value like 1000 and for a parked row is where it used to sit.
+- **Two gearsets with the same job, the same name and the same gear resolved to one identity.** The
+  strong key, job plus name plus items, was searched by returning the first row that matched it. Where
+  two stored rows carried the same one, that first row was handed back with the rung reported as exact.
+  Three pairs of a real player's gearsets did exactly that: the position table wrote one identity twice
+  so the last write won, the BiS window drew three sets against the wrong targets, and nothing anywhere
+  reported a doubt, because the doubt was never detected. The weak key had this guard from the start;
+  the strong key now has the same one. Same job, same name, same items is the strongest evidence this
+  side has and it is still not a distinction, so where it matches twice the answer is that this side
+  cannot tell.
+- **The bulk accept sent a pairing the window had just said it would not send.** A question with several
+  candidates and no vouching may not ride along, and the panel showed exactly that: the line greyed out,
+  a sentence saying the decision belongs on the card, no way to pull it in, "2 of 2" on the button and two
+  pairings in the confirmation. Then the request was composed from the player's own strikes alone, because
+  the safety rule had been computed in the drawing code and never reached the builder, and three pairs went
+  to the server. The rule now lives in `MappingToAccept`, which is what composes the request, and the panel
+  reads back the pairs it produced rather than deciding a second time which those are. Two tests hold it:
+  a contested question stays out of the mapping unstruck, and a lone candidate stays in whatever it scores.
+- **The tests that missed it were testing the wrong layer.** They asserted what the rule composes, and the
+  rule was right: the two callers fed it different inputs, which a test on the rule cannot see. Six tests
+  now assert the payload the service actually sends, including one that compares it pair for pair against
+  what the rule composes over a state carrying every shape at once. Removing the guard turns three of them
+  red, which is the only evidence that a regression test is one.
+- **The button counted against something other than what it would send.** Its denominator was the number
+  of questions that look safe, which is not the number that can be pairs: a question the server sent no
+  proposal for passes the safety rule and can never be applied, so with nothing struck out the button read
+  "(2/3)" and no press could reach three. Both halves come from the same rule now, once with the strikes
+  and once without.
+- **Only a delete may say "this cannot be undone" now.** A link is one-way as a verb, and that was taken
+  as licence for the strongest sentence the window has. It is not the same claim: the target survives with
+  its uid, its pin and its shares, and the set it used to hold can be built again in the web editor. What
+  a link earns is a second look, which is `NeedsConfirming`, the wider list the two predicates were split
+  apart to make possible. A test now holds the pair from the other side as well, so nothing can claim the
+  strong sentence without also asking twice.
+- **The bulk confirmation said "this cannot be undone" by construction.** Its test was "there is no single
+  decision here", which is not a question about consequences. A bulk carries attribution and nothing else:
+  no row is removed, every target keeps its identity, its pin and its shares. It asks rather than warns,
+  and the strong sentence keeps its credit for the verb that earns it.
+- **The bulk accept applied what the card had just called unbacked.** The server marks a proposal it does
+  not vouch for, the card says so and asks the reader to check the gear, and the shortcut two lines higher
+  offered to accept twenty of them unlooked at. A question with several possible rows and no vouching is
+  now listed but never applied, and cannot be pulled in either: `/gear/review/accept` takes only the pairs
+  the server proposed for this token, in one transaction, so the alternative could not be offered there
+  even as an option, and pressing a button to accept a pick whose alternative is off screen is the blind
+  decision the rest of the window refuses to make. That pairing belongs on the card, where the picker is.
+  A lone candidate rides along whatever its score, because nothing is being decided there and the person
+  the shortcut exists for, who left the website alone for a year, has low scores on every row.
+- **The bulk accept showed a count where it needed to show the mapping.** "Accept all four proposals" meant
+  paging through four carousel cards first and holding them in your head, and the strike-out that makes the
+  door safe was scattered one per card, so the one screen that should have shown the whole mapping never
+  existed. It is now the list itself: one line per pairing, the set out of the game and the row it becomes,
+  each strikeable, and the confirmation repeats the lines rather than a number.
+- **The question card says what the question is and which button answers it.** It had the comparison, the
+  percentages and four controls, and nothing that told a first-time reader which of them was theirs. Now
+  two sentences come first: what arrived and could not be placed, and what the server makes of it. Whether
+  a button may be named as the ordinary answer is a rule in the core (`QuestionAdvisor`), and it says yes
+  only where the server vouched for its own suggestion: at 75 % it proposes without vouching, and a card
+  that reads the two the same puts its own certainty on somebody else's guess.
+- **The question card was brought onto the inventory card's shape.** One headline with the name, the
+  server's percentage and the breakdown this side counts; the same tiled grid; an eye that turns the
+  comparison round so the row being offered can be looked at whole, which is the only way to answer "is
+  this that one" by seeing rather than by trusting a number. The verbs became icons that say what they do
+  and what it costs, the two about the question sit in the bar at the top beside the arrows, and the two
+  about a candidate stay with the candidate they name.
+- **"Take out of the plugin" explained itself with the behaviour that was fixed before release.** The
+  sentence beside it promised that the next sync would write a fresh row for the set in game, so the player
+  would end up with two. That was the pre-resolution behaviour of `release` on a held row, raised against
+  the server as open item 6 and answered: the row becomes `manual` **and** `ignored`, keeps its pin and its
+  shares, and never raises a question again. The same sentence was also hung on the inventory card, where
+  there is no set in game at all for a fresh row to be written for. Two sentences now, one per card, each
+  claiming only what the contract states. The verb is renamed too, because "take it out of the plugin" over
+  a gearset that is plainly still in the game reads as impossible: what leaves is the governance, not the
+  set.
+- **Three things on the question card said less than they knew.** The row's origin sat behind a bare
+  "(?)", which reads like a string that failed to load and hides the one fact that explains a score in the
+  teens: the row was typed on the website and was never in game. It is written out now. The line of counts
+  went green on the proposed candidate, so a reassuring colour sat over the words "9 different"; it is
+  quiet in every case, and that a row is the suggestion is said in words by the picker and by the sentence
+  at the top. And an empty tile was outlined in the off hand of a job that has none, which invites the
+  reader to look for missing data; only that one slot loses its outline when neither side fills it, so a
+  Paladin's shield and a crafter's second tool are unaffected and nothing in the layout moves.
+- **"On 2 of them the set from the game replaces the stored contents" named a consequence nobody could
+  picture.** The warning over a bulk accept now says what is actually at stake: these pairings land on sets
+  built by hand on the website, and the gear stored there is replaced by the gear from the game. Singular
+  and plural are separate strings, because German has no honest single form and "Bei 1 Zuordnungen" is
+  the kind of seam that makes a warning read as machine output. It no longer claims the step cannot be
+  undone: nothing is destroyed, the row and its contents remain editable on the website, and a warning
+  that overstates its case teaches people to read past the ones that do not. The button under it counts
+  the same way:
+  "Accept all 1 proposals" was ungrammatical and, worse, silent about the pairing struck out just above it,
+  so it names what is selected out of what could be.
+- **An answer in the window left the plugin resolving gearsets against the picture from before it.**
+  `OnReviewDecision` cleared the push cache and nothing else, so the identity mapping, which is what turns
+  a live gearset into a stored row, kept the state the answer had just replaced. With two gearsets sharing
+  a job and a name that produced a wrong attribution rather than a missing one: before a bulk accept only
+  one row was called "BRD / Barde", afterwards the adopted row carried that name too, and the live set
+  went on resolving to the row it used to be. The window then showed a position belonging to a different
+  gearset. The mapping is dropped and read again after every answer, and the BiS cache with it.
+- **The only three actions on an inventory card were unlabelled glyphs.** They sat at the top, they were
+  the whole decision, and one of them removes a row and the target pinned to it for good. An unlabelled
+  icon is a matter of taste anywhere else; over a delete it is a red square somebody is invited to guess
+  at. They are words now, like every other answer in this window, and the difference had become impossible
+  to defend once one carousel took a reader straight from a row of labelled buttons to a row of glyphs.
+- **Twelve gear tiles answered a question nobody had asked yet.** On an inventory card the decision is
+  keep or delete, and the verdict and the counts answer it two lines above the grid; the grid is the
+  working out, for the reader who wants to check it, and reaching the one slot that differs meant walking
+  eleven that do not. It folds away behind a button there. On a row nothing resembles it stays in the
+  open, because there the gear is the only thing anybody would recognise the row by months later.
+- **The evidence on an inventory card read like an offer.** The comparison there is drawn by the same
+  method as the one on a question card, which was the point, and the shared shape carried the shared
+  reading with it: a list of sets the row resembles looked like a list of things to pick, when nothing on
+  that card offers attribution at all and never can. A line above it says what it is. The rows in it are
+  A second half of this, naming each row with where it sits in game, was written and taken out again: the
+  plugin resolved the wrong one of two gearsets sharing a job and a name, which is precisely the case the
+  label existed for. `similar[]` carries no state, no date and no position, so the fact has to come from
+  the server rather than be reconstructed here. A player with two gearsets called "Barde" still sees the
+  same name twice with no way to tell them apart; that is open, and written down as such.
+- **The status entry named the questions and hid the rest.** It said "one question" beside a window
+  holding one question and one row with no gearset, because it fell back to the rows only when there were
+  no questions at all. It names the sum now, as decisions rather than as questions: naming both kinds was
+  honest and ran off the end of the row, and calling an inventory row a "question" there would have been
+  the plugin using two names for two different things. One carousel already walks them together.
+- **The window was two card stacks deep.** Questions were a carousel and the rows with no gearset were a
+  second carousel, and both were drawn, one under the other, so what you were answering depended on how
+  far you had scrolled and every decision arrived with another one already open beneath it. They are one
+  carousel now: questions first, because a push can invalidate them, then the inventory rows, one set of
+  arrows over all of it and exactly one decision on screen. The card says which kind it is, since the
+  arrows walk both. Rows already put aside stay out of it, folded under a line at the bottom: they are
+  decided, and walking eight of them to reach the one question that matters would cost the arrows their
+  worth every time somebody archives something.
+- **A push changed the questions and the open window did not notice.** Everything else a push touches is
+  refreshed when it finishes, the advisor options and the BiS targets among them; the reconciliation state
+  was not, so deleting a gearset in game and pushing left the window showing the reading from before it,
+  with nothing saying so. It re-reads now, but only while it is open: with it closed the badge is already
+  fed by the summary the push answered with.
+- **A choice made against one reading of the state survived into the next.** The picked candidate, the
+  flipped comparisons and the struck-out pairings were kept in the window and cleared, when they were
+  cleared at all, one path at a time. So after a bulk accept a candidate picked minutes earlier was still
+  in the box, against a mapping the server had since recomputed. They are cleared on the state token now,
+  which is the name of the reading they were made against, so every way the state can change is covered by
+  one rule rather than by remembering to add a clear to each new path.
+- **The advice on a question named the proposal even when the reader had picked something else.** The card
+  said "it might be Web DRG C" over a comparison with Web DRG A and two buttons that would have written
+  Web DRG A, and on the press the lower half won. Picking another candidate now changes the sentence to
+  say which row was picked and which was suggested, and it drops the reassuring colour, which belonged to
+  a recommendation the reader had just declined.
+- **One card carried two identical links to the website.** One under the buttons for the question and one
+  under the comparison, same icon and same tooltip, with nothing to tell them apart. The rule the
+  inventory card states, that the website earns a button only where the set cannot be looked at in game,
+  applies with more force to a question than anywhere else: the set came out of the game a moment ago. It
+  is gone, and the one that remains follows the same rule as the inventory card, which it had not been.
+- **Counts said "3 Frage(n)" in the window's first line.** Every count in this window now has a singular
+  and a plural, including the one the status window shows beside the entry that opens it.
+- **Two tables in the bulk panel did not line up.** The lower group has no strike buttons, so its first
+  column sized itself to nothing and every line in it sat one button to the left of the group above. The
+  column has a width now rather than taking one from its contents.
+- **The two comparisons were two pieces of code, and they had drifted.** The question card and the
+  inventory card each drew their own version of "two sets, slot by slot", so a fix on one never reached the
+  other: the origin of a row was written out on one and folded behind a "(?)" on the other, and the swap
+  button had been moved out of the sentence on one while still sitting inside it on the other. There is one
+  method now, `DrawComparisonHead`, and both cards call it. Two pieces of code doing the same job always
+  end up looking like two different features.
+- **The swap button names the action, not the destination.** Its label used to change with its state, so
+  pressing it changed its own width and shifted whatever stood beside it. It says "switch which set is
+  shown" whatever the state, the icon carries the direction, and the specific sentence stays on the hover.
+- **The link to the website rode along at the end of a wrapping sentence.** How far that sentence wraps
+  depends on the row's name and the window's width, so the button moved every time either changed and on
+  a narrow window it was pushed off the edge entirely. It sits among the buttons now, behind two labels of
+  fixed width.
+- **The floor on the window size was a number somebody typed.** 520 by 340 was picked while looking at an
+  English build at one interface scale; dragged to it, the button rows ran off the edge and the header
+  wrapped into the toolbar. The width now has a measured part, so a longer translation raises it instead
+  of overflowing, under a floor taken from the size the window was actually being read at. Both are capped
+  against the display, since a floor larger than the screen is a window nobody can move.
+- **A button sat inside a sentence, and pressing it moved the words around it.** The eye that turns the
+  comparison round stood between the counts and the row's origin, so a press rewrote the line it was
+  standing in and everything after it shifted under the cursor. The counts and the origin are two lines of
+  their own now, and the eye moved down into the row of buttons as the last control in it, labelled, with
+  the link to the website in front of it: the one control whose width changes has nothing after it to move.
+- **The window was legible and unreadable at the same time.** The text was scaled up for a page somebody
+  reads before pressing something irreversible, and the spacing was left at ImGui's defaults for a dense
+  tool panel, so buttons touched, an icon sat against the sentence it was not about, and the two halves of
+  the gear grid ran together into one paragraph with pictures in it. Spacing, frame padding and cell
+  padding are set for this window; the bulk accept is drawn inside its own border instead of as a stretch
+  of text above the first card; and a rule separates the answers that need no candidate from everything
+  below them, which all belongs to one stored row.
+- **A question with two candidates put four buttons on one card and no way to tell them apart.** Each
+  candidate carried its own "that is the one" and "stop asking", identical and stacked, so the button said
+  nothing about which row it would answer for. The candidates are a picker now: one box naming each stored
+  row with its score, the server's suggestion marked, one comparison and one pair of buttons underneath.
+  This works on the card and cannot work in the bulk accept, and the difference is the endpoint rather than
+  the layout, since a single decision goes to `POST /gear/review` where every candidate is a valid target.
+- **The same row was drawn twice, with a delete button under the copy.** A set renamed, re-geared and moved
+  arrives as a question, and the row it used to be is parked: genuinely both an unclaimed candidate and an
+  orphan, so the server lists it twice and the window drew it twice with a full comparison under each.
+  Deleting it in the inventory and then answering "that is the one" would have named a target that no
+  longer existed, and the observed row carried a pinned target. A row an open question asks about is no
+  longer offered in the inventory until the question is answered.
+- **"This cannot be undone" stopped being true of a release.** It became reversible the hour `released_at`
+  landed: `reopen` on a released row puts it back to a parked plugin row. The rule outlived the fact, so
+  the heading is now picked per verb, and it claims irreversibility only for a delete and a link. A dialog
+  that overclaims teaches people the sentence is decoration, which is what it must not be where it holds.
+- **The delete confirmation said the opposite of what it does.** ""PLD Test 1" keeps its pinned BiS set"
+  belongs to a candidate answered away with `new`; in front of a delete it promised exactly what the delete
+  was about to take, and it was the last sentence read before the row was gone. The rule moved into the
+  core as `ReviewRules.ConsequencesOf`, which also draws the distinction the wording had flattened: a
+  delete on a row with a team share is performed as a release, the row survives, and there the pin really
+  is kept. Four tests, one per case.
+- **The BiS tooltip answered from the previous order.** The map from live position to identity was rebuilt
+  only when a window opened, so after a reorder the tooltip handed out a neighbouring set's target with
+  nothing to suggest a doubt, and opening the gear window silently made it right again. A push now clears
+  that map and refetches it, and the clearing comes first: with no map, a position resolves to no
+  identity, so the tooltip says nothing rather than something wrong.
+- **The BiS tooltip compared against nothing** from the day the server began minting identities: a target
+  carrying a uid is looked up by uid, and the tooltip passed no resolver, so every slot read as missing.
+- The mapping cache was written by a push and read while drawing, without a lock.
+- `GET /gear/sets` answers with the whole account; rows of another character are dropped rather than
+  cached, where they would have made a real set ambiguous.
+- The uncertainty warning gave the advice for the wrong rung: renaming ends an ambiguity and does nothing
+  for a positional match.
+- A missing `last_seen_at` printed "never in game", a claim built out of an absence.
+- The what's-new window appeared on a first installation, which the framework profile forbids.
+- The tome balance was pushed every five minutes whether or not it had changed.
+- The reconciliation badge counted what the last push said rather than the current state.
+- **What one character learned was reported for the other.** Two characters on one account share a
+  plugin and a configuration file, and nine values of the identity cache were single fields rather than
+  keyed by character, so they described whichever character was touched last. After a switch the report
+  read "learned from a push, 10 row(s)" directly above "cached rows : 34", contradicting itself in two
+  adjacent lines. No identity was ever wrong: a `set_uid` is unique across the account and the row store
+  and the refresh schedule were always separated properly, so the flat fields could only lose a marker,
+  never invent one. The damage was to the measurement, and a number that names the wrong character is
+  worse than a missing one. They are now one immutable summary per `cid_hash`, published whole for the
+  same reason the fields were volatile before. The warning about uncertain rungs is said once per
+  character too, so the second one is not swallowed by the first one's silence.
+- **The grid view showed fewer sets than the list.** It walked the comparisons in its own loop, so
+  switching the view made every set with no BiS target disappear, and the role headings with them. Two
+  things missing, not one, and both because the ordering was decided twice. It is decided once now; the
+  view only decides how a comparison is drawn. "Nothing shown" also appeared only when there were
+  comparisons, so filtering to the current set while wearing one with no target left a blank window.
+- **The reconciliation card said "last reported" twice, three lines apart, about two different sets.**
+  Every row it can name as a resemblance is one the player still has, so that date is the date of the
+  last push and says nothing about the pair being compared.
+- **The same set was called three different things on one card.** Two sentences named it through the
+  live list alone and one through the fallback above, so the moment the fallback mattered the card read:
+  a copy of "Weber", everything in it is also in "Weber", looks like "Weber" (last at #9). Found the
+  first time that case was staged in game and only then, because while the live list can place the row
+  all three agree by accident.
+
+### Changed
+- **The diagnostics report says which rung found each gearset.** It printed one rung, and that was the
+  server's, recorded when the mapping was minted and carried along unchanged ever since. What this side
+  did to arrive at the answer was nowhere, so a set recognised by its contents and one recognised by where
+  it sits read identically, and a test of the position rungs could not be told from one where nothing had
+  changed. The two are named apart now, "found by" beside "server rung": `job+name+gear`, `place+gear`,
+  `place+name`, `job+name`, and the three ways of not answering.
+- **A gearset in a sentence now carries the number it has in game.** The reconciliation window named sets
+  by name alone, and the name is the one thing that does not identify them: the game writes a new set's
+  name from its job and never asks, so two sets of one job are called the same thing from the moment they
+  exist. A card then read "this is a copy of X" and two lines below "also resembles X", naming two
+  different sets identically with nothing to tell them apart. The number was tried once during this cycle
+  and taken straight back out, because the lookup behind it resolved the wrong one of two same-named sets:
+  a label whose whole purpose is to separate them, wrong in exactly that case. It works now because the
+  table it reads withdraws every claim it cannot be sure of, so a number is either right or absent, and
+  absent is a real answer rather than a failure: the set may be one the game no longer holds, which is
+  usually why it is on that card. The quotes moved out of the sentences and into the piece that builds the
+  name, so the number sits outside them and does not read as part of what the set is called.
+- **"When" and "what" are two questions, and the settings page now answers them that way.** The three
+  timing switches governed the gear push and nothing else. What you own went out at login and again every
+  five minutes, the weekly checklist at login and again every hour, both of them behind their own switch
+  and neither behind the timing ones. Somebody who had turned every timing switch off in order to send
+  only by hand still had two of the three payloads leaving on a schedule, with nothing on the page saying
+  so, under a master opt-in that promises the plugin never contacts the API while it is off. The wording
+  had already said otherwise: "also send what you own" is an addition to the transfers already happening,
+  not a schedule of its own. So the login switch and the automatic switch now cover everything switched on
+  beneath them, and both say so. The gearset-change switch stays with the gear, since an inventory scan
+  set off by a gearset change would answer nobody's question. Two triggers are left alone and are now
+  described rather than left to be discovered: a retainer's bags and the Raid Finder's weekly state can
+  only be read while those windows are open, so they are read then, and opening them is the player's own
+  doing rather than a schedule.
+- **A released row is told apart from a hand-made one**, by `released_at` and by nothing else. Both are
+  `manual`, and while they read as one case the card called a player's own set a stranger and the single
+  button on it promised a way back that led out of the window instead. Found in the field on a real row,
+  which the server side then split with a mark rather than a second `source`. The sentence in front of a
+  `link` changed with it: the door that cannot be reopened is the overwrite of the target's contents, not
+  the change of governance, so all three targets name the overwrite and only the price differs.
+- **The card says what the row is and what to do about it.** A comparison and then silence left "73 %,
+  three slots different" as the whole answer to a question nobody could answer from it. Now the first
+  thing on the card is the verdict (a copy of a set still there, the same pieces with other melds, a
+  resemblance that is not the same gear, or nothing resembling it at all) and the sentence that follows
+  from it. A verb is named outright only where naming one cannot be wrong, and never while a pinned
+  target or a team share hangs on the row; the button it names is ringed in the bar above.
+- **The reconciliation card was rebuilt around what is being decided.** The gear is a grid in the shape
+  the gear window uses rather than a second arrangement to learn; the verbs are one row of icons that say
+  what they do and what that costs on hover; the explaining sentences moved behind a mark, and the two
+  that name what a delete takes away stayed in plain sight. One way to the website per set, beside the
+  name it belongs to.
+- No shipped string carries an em-dash (I-02), and two tests keep it that way.
+- The what's-new window reads at a larger scale and lays its notes out as a table.
+- **The settings page moved its explanations behind a question mark and gained headings.** Two dozen
+  full-width grey paragraphs, one under every switch. Each was right on its own; together they buried the
+  switches, which are the thing somebody opens that window for. The texts are unchanged and one hover
+  away, and the page reads as sections instead of a list. Two of the headings are load-bearing rather
+  than decorative: when something is sent and what is sent are separate questions, confused until the
+  distinction was written into those hint texts, and with the prose folded into tooltips the heading is
+  the only place it is still said out loud.
+
+### Internal
+- A release refuses to publish when the tag disagrees with the manifest inside the archive.
+- The localisation test gained its other half: a catalogue may not carry a key nobody declares.
+- The review model is held against a recorded answer of the real server rather than a hand-written one.
+  Two fields were missing and neither had failed anything: an undeclared property is dropped in silence.
+- The format gate was finally run the way CI runs it, against a fresh clone rather than the working tree.
+  In the working tree the same tool reports sixteen thousand line-ending failures that do not exist, and
+  two real violations were hiding behind that noise: an import out of order and an object initializer
+  indented one level short. Both were introduced on this branch and neither had ever been seen by CI.
+- `similar[]` never names a row that is gone, and that is now a guarantee rather than an observation.
+  Measured here first, with two parked twins that matched each other completely and named each other in
+  neither list; confirmed by the API afterwards and held by a test on that side. A sentence built for the
+  other reading, and the rule behind it, came back out: code that guards against the impossible reads as
+  if it were possible. The note that sent us down that path was right about the position rule and wrong
+  in the section it sat in, and a later paragraph in the same section already said the truth. The
+  measurement caught it, not the reasoning.
+- Test count: 1231 to 2770.
+
 ## [1.0.0] - 2026-07-27
 
 The plugin leaves its trial phase. `0.x` in SemVer means "anything may change"; that is no longer
