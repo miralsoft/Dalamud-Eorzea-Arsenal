@@ -1814,9 +1814,17 @@ public sealed class ReviewWindow : Window
     /// <param name="advice">The judgement, made before the buttons were drawn so they can mark it.</param>
     private void DrawAdvice(OrphanRow row, OrphanAdvice advice)
     {
-        var other = Named(
-            string.IsNullOrWhiteSpace(advice.OtherName) ? "-" : advice.OtherName!,
-            advice.OtherUid);
+        // Named through the same route as the comparison below it, because it is the same set. Named()
+        // knows only the live list; where that list has withdrawn its claim, the comparison falls back to
+        // the position the server recorded and this did not, so one card called it "Weber" twice and
+        // "Weber" (last at #9) once. Three names for one set, and the reader has to work out that they are
+        // one. Only where the advice really points at a row in this list, which is where it comes from.
+        var pointedAt = row.Similar.FirstOrDefault(
+            s => s.SetUid is { Length: > 0 } uid && string.Equals(uid, advice.OtherUid, StringComparison.Ordinal));
+
+        var other = pointedAt is not null
+            ? NamedSimilar(pointedAt)
+            : Named(string.IsNullOrWhiteSpace(advice.OtherName) ? "-" : advice.OtherName!, advice.OtherUid);
 
         var (what, todo) = advice.Verdict switch
         {
