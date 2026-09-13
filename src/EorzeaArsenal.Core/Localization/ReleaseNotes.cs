@@ -46,38 +46,38 @@ public static class ReleaseNotes
     /// <summary>Every release worth telling the user about, newest first.</summary>
     public static IReadOnlyList<ReleaseNote> All { get; } =
     [
-        new ReleaseNote("1.1.0", "2026-08-22",
+        new ReleaseNote("1.1.0", "2026-09-13",
         [
             new ReleaseNoteItem(
                 ReleaseNoteKind.Fixed,
                 "reordering-gearsets-keeps-everything",
-                "Umsortieren verliert nichts mehr: festgelegtes BiS-Set, Team-Freigabe und Verborgen-Markierung bleiben am Gearset, egal wohin es in der Liste rutscht.",
-                "Reordering loses nothing any more: a pinned BiS set, a team share and the hidden flag stay with the gearset wherever it moves in the list."),
+                "Umsortieren verliert nichts mehr: Dein BiS-Ziel, deine Team-Freigaben und die Verborgen-Markierung bleiben am Set, egal wohin du es in der Liste schiebst.",
+                "Reordering loses nothing any more: your BiS target, your team shares and the hidden flag stay with the set wherever you move it in the list."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "crafter-and-gatherer-sets-are-sent",
-                "Handwerker und Sammler kommen mit: das Plugin überträgt jede Klasse und jeden Job, sobald der Server sie annimmt.",
-                "Crafters and gatherers come along: the plugin syncs every class and job as soon as the server accepts them."),
+                "Handwerker und Sammler kommen mit: Auch deine Sets für Zimmerer, Gärtner und alle anderen werden jetzt übertragen.",
+                "Crafters and gatherers come along: your sets for Carpenter, Botanist and all the others are now synced too."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "gear-list-splits-by-role",
-                "Die Ausrüstungsliste ist nach Rollen geteilt: Kampf, Handwerker, Sammler. Deine Reihenfolge innerhalb einer Gruppe bleibt.",
-                "The gear list splits by role: battle, crafters, gatherers. Your own order inside a group stays."),
+                "Das Ausrüstungsfenster ist nach Rollen geteilt: Kampf, Handwerker, Sammler. Innerhalb einer Gruppe bleibt deine eigene Reihenfolge.",
+                "The gear window splits by role: battle, crafters, gatherers. Inside a group your own order stays."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Fixed,
                 "sets-without-a-bis-target-stay-visible",
-                "Sets ohne BiS-Ziel bleiben sichtbar: sie stehen mit Position und Namen in der Liste und sagen, ob es für den Job noch keine Liste gibt oder nur kein Ziel festgelegt ist.",
-                "Sets with no BiS target stay visible: they are listed with position and name, and say whether the job has no list yet or you have simply not pinned a target."),
+                "Sets ohne BiS-Ziel verschwinden nicht mehr: Sie stehen mit Nummer und Namen da und sagen dir, ob es für den Job noch kein BiS gibt oder du nur keins gewählt hast.",
+                "Sets with no BiS target no longer vanish: they appear with number and name, and tell you whether the job has no BiS yet or you just picked none."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "the-plugin-asks-instead-of-guessing",
-                "Der neue Gearset-Abgleich: Wo unklar ist, welches Set in der Webapp zu welchem im Spiel gehört, fragt das Plugin nach statt zu raten.",
-                "The new gearset reconciliation: where it is unclear which set in the web app belongs to which one in game, the plugin asks instead of guessing."),
+                "Der neue Gearset-Abgleich: Ist unklar, welches Set in der Webapp zu welchem im Spiel gehört, fragt dich das Plugin, statt zu raten.",
+                "The new gearset reconciliation: when it is unclear which set in the web app belongs to which one in game, the plugin asks you instead of guessing."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "sets-with-no-counterpart-in-game",
-                "Sets ohne Gegenstück im Spiel: Der Abgleich listet sie mit allem, was daran hängt, und du entscheidest, ob sie bleiben.",
-                "Sets with no counterpart in game: the reconciliation lists them with everything attached to them, and you decide whether they stay."),
+                "Sets, die es im Spiel nicht mehr gibt: Der Abgleich zeigt sie dir mit BiS-Ziel und Freigaben, und du entscheidest, ob sie bleiben oder weg können.",
+                "Sets that are no longer in game: the reconciliation shows them with their BiS target and shares, and you decide whether they stay or go."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Improved,
                 "the-settings-page-is-tidied-up",
@@ -86,8 +86,8 @@ public static class ReleaseNotes
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "new-jobs-are-recognised",
-                "Neue Jobs erkennt das Plugin selbst: Ein Set für einen Job, den diese Fassung noch nicht kannte, fehlt nicht mehr in der Liste.",
-                "New jobs are recognised on their own: a set for a job this version had never heard of no longer goes missing from the list."),
+                "Neue Jobs erkennt das Plugin von selbst: Kommt im Spiel ein Job dazu, verschwindet dein Set dafür nicht mehr aus dem Ausrüstungsfenster.",
+                "New jobs are recognised on their own: when the game adds a job, your set for it no longer goes missing from the gear window."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "beastmaster-sets-are-sent",
@@ -96,23 +96,23 @@ public static class ReleaseNotes
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "sets-are-shown-side-by-side",
-                "Beide Sets nebeneinander: Teil für Teil, mit Farbe je Platz für gleich, andere Materia oder anders.",
-                "Both sets side by side: piece by piece, with a colour per slot for same, other materia or different."),
+                "Im Abgleich stehen beide Sets nebeneinander: Für jedes Ausrüstungsteil zeigt dir eine Farbe, ob es gleich ist, nur andere Materia hat oder ein ganz anderes Teil ist.",
+                "In the reconciliation both sets stand side by side: a colour on each piece tells you whether it is the same, has different materia, or is a different item."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Fixed,
                 "bis-set-numbers-were-off-by-one",
-                "Die Setnummern im Ausrüstungsfenster stimmen: bisher stand dort die Nummer des Sets darüber.",
+                "Die Setnummern im Ausrüstungsfenster stimmen: Bisher stand dort die Nummer des Sets darüber.",
                 "The set numbers in the gear window are right: they used to name the set above the one they meant."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Fixed,
                 "when-to-send-now-covers-everything",
-                "\"Beim Login\" und \"Automatisch übertragen\" gelten für alles: bisher steuerten sie nur die Ausrüstung, nicht Besitz und Checkliste.",
-                "\"On login\" and \"push automatically\" cover everything: they used to govern the gear alone, not what you own or the checklist."),
+                "\"Beim Login\" und \"Automatisch übertragen\" gelten für alles: Vorher schalteten sie nur die Ausrüstung, Inventar und Checkliste liefen trotzdem mit.",
+                "\"On login\" and \"push automatically\" cover everything: they used to switch the gear alone, while inventory and checklist ran anyway."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "language-follows-dalamud",
-                "Die Sprache folgt Dalamud: neu in den Einstellungen, Englisch und Deutsch bleiben frei wählbar.",
-                "The language follows Dalamud: new in the settings, with English and German still selectable."),
+                "Die Sprache folgt Dalamud: Neu in den Einstellungen, und Deutsch oder Englisch kannst du weiterhin selbst wählen.",
+                "The language follows Dalamud: new in the settings, and you can still pick German or English yourself."),
         ]),
         new ReleaseNote("1.0.0", "2026-07-27",
         [
