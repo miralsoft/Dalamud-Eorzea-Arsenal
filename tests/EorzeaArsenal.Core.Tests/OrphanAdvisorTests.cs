@@ -24,21 +24,21 @@ public sealed class OrphanAdvisorTests
         string? released = null,
         Dictionary<string, ItemDto>? items = null,
         Dictionary<string, ItemDto>? similar = null) => new()
-    {
-        SetUid = "aaaa",
-        Job = "DRK",
-        Name = "Set 29",
-        Source = source,
-        State = state,
-        HasPin = pin,
-        HasTeamShare = share,
-        ReleasedAt = released,
-        TeamNames = share ? ["Kreszentia"] : [],
-        Items = items ?? new Dictionary<string, ItemDto>(StringComparer.Ordinal) { ["Weapon"] = Piece(1) },
-        Similar = similar is null
+        {
+            SetUid = "aaaa",
+            Job = "DRK",
+            Name = "Set 29",
+            Source = source,
+            State = state,
+            HasPin = pin,
+            HasTeamShare = share,
+            ReleasedAt = released,
+            TeamNames = share ? ["Kreszentia"] : [],
+            Items = items ?? new Dictionary<string, ItemDto>(StringComparer.Ordinal) { ["Weapon"] = Piece(1) },
+            Similar = similar is null
             ? []
             : [new SimilarSet { SetUid = "bbbb", Job = "DRK", Name = "DRK Kreszentia", Items = similar }],
-    };
+        };
 
     private static OrphanAdvice Advise(OrphanRow row) =>
         OrphanAdvisor.For(row, row.Similar.Count > 0 ? SetComparison.Compare(row.Items, row.Similar[0].Items) : []);
