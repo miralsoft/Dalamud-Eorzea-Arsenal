@@ -54,20 +54,43 @@ tests:
 - **it never mints a uid** — only the server does;
 - **on a miss it shows nothing**, never something wrong.
 
-It is indexed by two keys, neither of which includes the position:
+`Resolve` walks four rungs, **ordered by how specific each one is, not by how sure it is**:
 
-| key | over | survives | used for |
+| rung | over | survives | ends where |
 |---|---|---|---|
-| strong | job, name, item id per slot | being moved | the normal case |
-| weak | job, name | being moved, re-geared | rows from `GET /gear/sets`, which carry no items |
+| `job+name+gear` | job, name, item id per slot | being moved | two sets share all three |
+| `place+gear` | position, job, item id per slot | being renamed | the set moved |
+| `place+name` | position, job, name that no second row carries | being re-geared | the set moved, or the name is shared |
+| `job+name` | job, name | being moved, being re-geared | two sets share both |
 
-A rename changes both, so the cache misses and the interface shows nothing until the next push, where
-the server recognises the set on its items rung and the mapping is repaired. That is the intended
-behaviour, not a gap.
+The order is load-bearing and was once the other way round. The position is the **surer** indication, the
+strong key the **more precise** one. With the position on top, a set whose whole description matched one
+stored row was handed the uid of whoever happened to sit on its number, confidently. Every rung reports
+ambiguity rather than guessing, the strong key included: same job, same name, same gear is the best
+evidence the contents can give, and it is still not a distinction.
 
-Two live gearsets sharing a job **and** a name are reported as ambiguous rather than guessed at. The
-server pairs such rows in position order; this side declines, because the position is precisely what
-cannot be trusted here.
+The position had been left out on the grounds that reordering makes it unreliable. That skipped a fact
+about the game: the player is never asked for a name when a set is made, so the game writes the job in and
+two sets of one job are called the same thing from the moment they exist. Only a reorder moves a number,
+and a reorder is exactly the case the content rungs were built for.
+
+> **`GearKey` and `GearIndex` are filled by a push and by nothing else.** `GET /gear/sets` returns no
+> items, so a read cannot supply them, and everything that separates two sets of one job hangs off them.
+> They must not be discarded anywhere that only means "read this again": that was wrong at **four** call
+> sites on 2026-09-07 and cost an evening, because the loss was invisible. Use `ExpireMapping`, which
+> clears only the refresh schedule; `Forget` genuinely forgets and belongs to disconnecting. The
+> diagnostics line `cached keys` exists so the difference can be seen rather than reasoned about.
+
+Where two live gearsets still resolve to one identity, `LivePositionMap` withdraws the claim from **both**
+rather than letting the last one win, and a third claimant cannot restore it. The status window says how
+many, and names the remedy: give one of each pair a different name.
+
+Everything the cache reports about a character is held **per `cid_hash`**, in one immutable
+`CharacterSummary` published whole: the status line, the last read, the counts, and which attributions are
+held, uncertain or contested. As flat fields these described whichever character was touched last, so
+after a switch the report read "learned from a push, 10 row(s)" directly above "cached rows : 34". No
+identity was ever wrong, because a `set_uid` is unique across the account; the damage was to the
+measurement, which is the one thing this view exists to make trustworthy.
 
 ## Rules that are load-bearing
 
@@ -220,3 +243,38 @@ It also widens what leaves the machine (R25/R27) — eleven more jobs' worth of 
 justification is stated rather than assumed: it is what makes the deletion path honest. And there is an
 upside beyond safety, which is not this repository's call to make: the website could then show crafter
 and gatherer gear at all.
+
+### A job the game adds later names itself
+
+The map from `ClassJob` row to three-letter code was transcribed by hand and stopped at row 42.
+Beastmaster arrived in the game afterwards, and a gearset whose job cannot be named is skipped where the
+list is read: no warning, no entry, just a gap in the numbering that looks exactly like a deleted set. It
+took half an hour of one session to work out that the gaps at 7, 8 and 18 were not all deletions.
+
+The `Abbreviation` column that table was transcribed from is there at runtime, so `GameJobSheet` reads it
+at startup and `JobMap.LearnFromGame` fills what the compiled floor does not know. **Only gaps.** A row
+the floor names keeps the name the floor gave it, so no quirk in the sheet and no future renaming in the
+game can turn `PLD` into something else under a running plugin. Four rejections, each for something a
+sheet really contains: row 0, an empty abbreviation, anything that is not three uppercase letters, and a
+code some other row already carries. The merge is a pure function, so the whole decision is testable
+without touching the tables a running plugin is using.
+
+Two things make this safe rather than a widening:
+
+- **Naming is not permission to send.** `JobMap` answers "what is this?"; `JobPolicy`, built from the
+  table the server published, answers "may I?". A job learned from the sheet is filtered out of every
+  push until that table lists it, so the mechanism fails in the safe direction. It also had to teach
+  `GearSanitizer`, which drops a set whose code it cannot name and runs *before* the policy.
+- **The code comes from the English column**, because that is what the API speaks. The client shows a
+  different abbreviation for **30 of 43** rows, and a client reading its own column would send a code no
+  server knows for two thirds of all jobs. The diagnostics count that, so the choice rests on a number.
+
+The report's `== jobs ==` section holds three lists against each other, what the game has, what the
+plugin can name and what the server accepts, and prints only the disagreements, with both names, because
+a row id is not something anybody can check. That block is the message to carry to the server side.
+
+Beastmaster synced the day the server added `BST` to its table, with no plugin release in between, which
+was the point. **One hazard belongs to whoever adds a job over there:** a client older than this
+mechanism cannot name the new job but still fetches the table, works under it and therefore declares
+`scope: all`. The server would read that as "the job is gone from the game" and park the row. It is the
+same shape as the mistake `scope` itself replaced, one level further in.

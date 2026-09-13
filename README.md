@@ -20,6 +20,16 @@ then push gear**.
 - Shows an in-game **"Gear vs BiS"** comparison window and a hover overlay, plus a compact status
   entry in the **server-info bar** (DTR) — time since last push, click to open the menu window
   (toggleable).
+- A **gearset reconciliation** window, opened from the menu window and by itself when there is something
+  to answer. Identity is minted by the server and travels with the set, so
+  reordering, renaming and re-gearing no longer move a pinned BiS target, a team share or a hidden flag.
+  Where it is genuinely unclear which stored set a live one is, the plugin **asks instead of guessing**:
+  one card per question with the two sets side by side, and six answers (link, new, ignore, reopen,
+  release, delete). Sets the game no longer has are listed with what hangs on them, so keep-or-delete is
+  a decision rather than a guess. A job the game adds after a release names itself from the game's own
+  `ClassJob` sheet; whether it may be **sent** still rests with the job table the server publishes.
+- A **purchase advisor** (`/xivarsenal advisor`): what to buy next for a pinned target, with its
+  tomestone price, whether you can afford it now or in N weeks, the vendor and the material per step.
 - A **diagnostics log window** (`/xivarsenal log`) with copy/clear for support.
 - A **"what's new"** window (`/xivarsenal whatsnew`, or the highlighted menu entry) summarising what
   each version changed in plain language; it opens once after an update.

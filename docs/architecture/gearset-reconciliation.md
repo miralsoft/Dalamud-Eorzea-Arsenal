@@ -157,6 +157,28 @@ candidates. And an **`ignored` row never raises a question**; it can only be an 
 Without that, setting an orphan aside and building a new set of the same job weeks later would bring the
 dismissed question straight back.
 
+### `orphans[].similar[]` only ever names a row the player still has
+
+Guaranteed by the API since 2026-09-12, and held by a test over there: this list is built from
+`state = 'active'`, `state = 'held'`, and hand-made rows nobody put aside. So `state` here is `active`,
+`held` or `null` and **never `parked` or `ignored`**, and `gear_index` is null only for the hand-made
+case, which is the only reason that field is nullable at all.
+
+That matters because it decides what the card can argue. A resemblance to a set still standing in the
+list answers "do I still need this"; a resemblance to a row that is just as gone answers nothing. The
+guarantee makes the second case impossible rather than something the client has to detect, and a
+sentence built for the other reading came back out of the plugin again.
+
+It was measured before it was asked: two parked twins that matched each other completely, and neither
+named in the other's list. The note that had suggested otherwise counted the position rule over the whole
+state space and sat in this section, where a later paragraph already said the truth. **Two halves of one
+document disagreed, and the client read the wrong half.**
+
+Of the three fields, only `gear_index` reaches the screen, and only where the live list has withdrawn its
+claim: printed as "last at #9", never as "#9", because the live list is the current one. `state` and
+`last_seen_at` are carried and reported in the diagnostics, which is how the guarantee stays checkable
+from this side. Telling two parked twins apart is the job of the orphan's own fields.
+
 ## What this side commits to
 
 - **`candidates[]` is the whole offer.** It is filtered by job compatibility and never empty while a set is

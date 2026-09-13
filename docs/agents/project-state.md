@@ -3,9 +3,28 @@
 > The complete in-repo memory so an AI/contributor on another machine can continue without losing
 > context (R3). Keep this current **in the same commit** as the change it describes.
 
-_Last updated: 2026-06-12._
+_Last updated: 2026-09-13._
 
-## Status: first implementation complete (pre-release, not yet in-game verified)
+## Status: 1.1.0 ready, verified in game, not yet pushed or tagged
+
+1.0.0 shipped. The branch `feat/stable-gearset-identity` carries 1.1.0: gearsets have a server-minted
+identity, the reconciliation window is in, the plugin names a job the game added after the release, and
+everything below was walked through in game on 2026-09-12 and 2026-09-13.
+
+**What was verified in game**, so that nobody repeats it and nobody assumes more than was done: all four
+resolution rungs, the cross-check firing and not falsely firing, a doubled identity withdrawn from both
+claimants, all six reconciliation verbs, the question card, the candidate picker, bulk booking with a row
+struck out, the window opening and closing by itself, set numbers, role groups, the grid view, the
+settings page, persistence across reloads, a second character including the migration path from a build
+without gear keys, switching characters both ways, and Beastmaster synced end to end the day the server
+accepted `BST`.
+
+**What was not:** the login switches (the operator does those separately), a hand-made row offered as a
+resemblance, and crafter/gatherer BiS, which does not exist yet.
+
+The four CI gates were run against a **fresh clone** rather than the working tree, where the format check
+reports sixteen thousand line-ending failures that do not exist. Two real violations were hiding behind
+that noise. Judge the format gate from a clone, never from the working tree.
 
 ### Done
 - Repo scaffolding: `.slnx`, two projects + tests, `.editorconfig` (CRLF, naming), `global.json`
@@ -63,10 +82,15 @@ _Last updated: 2026-06-12._
 - **Feature B (inventory) stays deferred** to `protocol_version: 2` (see agent memory).
 
 ### Next / open
-- **In-game verification (operator):** load the dev build, run `/xivarsenal`, confirm gearsets,
-  materia ids, world name and `cid_hash` are correct. The `GameGearSource` mapping
-  (materia resolution via the `Materia` Excel sheet, HQ-offset stripping) is **best-effort and
-  not yet validated in-game** — most likely place for adjustments.
+- **Waiting on the server, not on us:** nothing. Both open questions of 2026-09-12 came back. `BST` is in
+  the job table since version `2026-08-22`, and `orphans[].similar[]` is now guaranteed never to name a
+  row that is not in game. One hazard was handed over with the first and is theirs to decide: a client
+  older than the self-detection cannot name a newly added job, still declares `scope: all`, and would
+  have its row parked. Either the push grows a `named_jobs[]` list, or the plugin ships before the table
+  does.
+- **`pluginmaster.json` in the repo root still says `0.4.0.0`.** The release workflow generates it from
+  the tag and attaches it to the release, so nobody reads the committed copy; it misleads anyone who
+  looks. Delete it or keep it current, but do not leave it as it is.
 - **CI:** workflows run on `windows-latest` with the Dalamud distrib download. **CodeQL** is active
   (`codeql.yml`, free on the now-public repo); actions are SHA-pinned + Dependabot-managed.
 - **Custom repo:** the release workflow ships `pluginmaster.json` + `latest.zip` as **release
