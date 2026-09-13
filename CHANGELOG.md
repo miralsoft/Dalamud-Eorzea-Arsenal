@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - 2026-08-26
+## [1.1.0] - 2026-09-13
 
 Gearsets carry a server-minted identity instead of being keyed on their position in the list. Everything
 that was attached to a position (pinned BiS target, team share, hidden flag) now follows the set itself.
@@ -172,6 +172,32 @@ that was attached to a position (pinned BiS target, team share, hidden flag) now
   value meant scrolling and reaching a button meant scrolling back. A probe replaces the output, the copy
   button takes it, and one of the probes is "duplicates", which is the diagnosis above in a single press
   rather than in a dozen exchanges.
+- **A job the game adds after this release is named from the game's own sheet.** The map from `ClassJob`
+  row to three-letter code was transcribed by hand and stopped at row 42, so Beastmaster, added to the
+  game later, could not be named at all. A gearset whose job cannot be named is skipped when the list is
+  read, which leaves a gap in the numbering and nothing else: no warning, no entry, and a gap that looks
+  exactly like a deleted set. The same `Abbreviation` column that table was transcribed from is there at
+  runtime, so it is read at startup instead of transcribed again. Only gaps are filled and a row the
+  compiled floor names keeps the name the floor gave it, so no quirk in the sheet can rename `PLD` under
+  a running plugin. Four rejections, each for something a sheet really contains: row 0, an empty
+  abbreviation, anything that is not three uppercase letters, and a code some other row already carries.
+  Naming is still not permission to send. What may leave the machine stays with the table the server
+  published, so a job learned here is filtered out of every push until that table lists it, and the
+  mechanism therefore fails in the safe direction. Beastmaster synced the day the server added it, with
+  no plugin release in between, which was the whole point.
+- **The diagnostics hold three lists of jobs against each other:** what the game has, what this plugin
+  can name, what the server accepts. Only the disagreements are printed, with the abbreviation in both
+  languages and both names, because a row id is not something anybody can check and the last block is the
+  message somebody has to carry to the server side. The code that is sent comes from the English column
+  on purpose, and the report now counts how many the client spells differently: 30 of 43, so that choice
+  rests on a number rather than on a belief.
+- **`orphans[].similar[]` carries what the row it names is:** its state, the position the server last
+  recorded for it, and when a push last claimed it. The position is what reaches the screen, and only
+  where the live list has withdrawn its claim: printed as "last at #9" and never as "#9", because the
+  live list is the one that is current and this whole feature exists to say that a stored position moves.
+  That is exactly the case the label was written for, two sets of one job with one name, where the live
+  table declines to answer at all. The other two are carried and reported rather than drawn; see the note
+  under Internal for why that is the right amount.
 
 ### Fixed
 - **Switching character asked the server once per frame.** The guard that stops the window showing one
@@ -490,6 +516,29 @@ that was attached to a position (pinned BiS target, team share, hidden flag) now
 - The what's-new window appeared on a first installation, which the framework profile forbids.
 - The tome balance was pushed every five minutes whether or not it had changed.
 - The reconciliation badge counted what the last push said rather than the current state.
+- **What one character learned was reported for the other.** Two characters on one account share a
+  plugin and a configuration file, and nine values of the identity cache were single fields rather than
+  keyed by character, so they described whichever character was touched last. After a switch the report
+  read "learned from a push, 10 row(s)" directly above "cached rows : 34", contradicting itself in two
+  adjacent lines. No identity was ever wrong: a `set_uid` is unique across the account and the row store
+  and the refresh schedule were always separated properly, so the flat fields could only lose a marker,
+  never invent one. The damage was to the measurement, and a number that names the wrong character is
+  worse than a missing one. They are now one immutable summary per `cid_hash`, published whole for the
+  same reason the fields were volatile before. The warning about uncertain rungs is said once per
+  character too, so the second one is not swallowed by the first one's silence.
+- **The grid view showed fewer sets than the list.** It walked the comparisons in its own loop, so
+  switching the view made every set with no BiS target disappear, and the role headings with them. Two
+  things missing, not one, and both because the ordering was decided twice. It is decided once now; the
+  view only decides how a comparison is drawn. "Nothing shown" also appeared only when there were
+  comparisons, so filtering to the current set while wearing one with no target left a blank window.
+- **The reconciliation card said "last reported" twice, three lines apart, about two different sets.**
+  Every row it can name as a resemblance is one the player still has, so that date is the date of the
+  last push and says nothing about the pair being compared.
+- **The same set was called three different things on one card.** Two sentences named it through the
+  live list alone and one through the fallback above, so the moment the fallback mattered the card read:
+  a copy of "Weber", everything in it is also in "Weber", looks like "Weber" (last at #9). Found the
+  first time that case was staged in game and only then, because while the live list can place the row
+  all three agree by accident.
 
 ### Changed
 - **The diagnostics report says which rung found each gearset.** It printed one rung, and that was the
@@ -541,13 +590,31 @@ that was attached to a position (pinned BiS target, team share, hidden flag) now
   name it belongs to.
 - No shipped string carries an em-dash (I-02), and two tests keep it that way.
 - The what's-new window reads at a larger scale and lays its notes out as a table.
+- **The settings page moved its explanations behind a question mark and gained headings.** Two dozen
+  full-width grey paragraphs, one under every switch. Each was right on its own; together they buried the
+  switches, which are the thing somebody opens that window for. The texts are unchanged and one hover
+  away, and the page reads as sections instead of a list. Two of the headings are load-bearing rather
+  than decorative: when something is sent and what is sent are separate questions, confused until the
+  distinction was written into those hint texts, and with the prose folded into tooltips the heading is
+  the only place it is still said out loud.
 
 ### Internal
 - A release refuses to publish when the tag disagrees with the manifest inside the archive.
 - The localisation test gained its other half: a catalogue may not carry a key nobody declares.
 - The review model is held against a recorded answer of the real server rather than a hand-written one.
   Two fields were missing and neither had failed anything: an undeclared property is dropped in silence.
-- Test count: 1231 to 2559.
+- The format gate was finally run the way CI runs it, against a fresh clone rather than the working tree.
+  In the working tree the same tool reports sixteen thousand line-ending failures that do not exist, and
+  two real violations were hiding behind that noise: an import out of order and an object initializer
+  indented one level short. Both were introduced on this branch and neither had ever been seen by CI.
+- `similar[]` never names a row that is gone, and that is now a guarantee rather than an observation.
+  Measured here first, with two parked twins that matched each other completely and named each other in
+  neither list; confirmed by the API afterwards and held by a test on that side. A sentence built for the
+  other reading, and the rule behind it, came back out: code that guards against the impossible reads as
+  if it were possible. The note that sent us down that path was right about the position rule and wrong
+  in the section it sat in, and a later paragraph in the same section already said the truth. The
+  measurement caught it, not the reasoning.
+- Test count: 1231 to 2770.
 
 ## [1.0.0] - 2026-07-27
 

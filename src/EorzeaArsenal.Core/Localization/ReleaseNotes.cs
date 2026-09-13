@@ -56,8 +56,8 @@ public static class ReleaseNotes
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "crafter-and-gatherer-sets-are-sent",
-                "Handwerker und Sammler kommen mit: das Plugin überträgt alle 42 Klassen und Jobs, sobald der Server sie annimmt.",
-                "Crafters and gatherers come along: the plugin syncs all 42 classes and jobs as soon as the server accepts them."),
+                "Handwerker und Sammler kommen mit: das Plugin überträgt jede Klasse und jeden Job, sobald der Server sie annimmt.",
+                "Crafters and gatherers come along: the plugin syncs every class and job as soon as the server accepts them."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "gear-list-splits-by-role",
@@ -88,6 +88,11 @@ public static class ReleaseNotes
                 "new-jobs-are-recognised",
                 "Neue Jobs erkennt das Plugin selbst: Ein Set für einen Job, den diese Fassung noch nicht kannte, fehlt nicht mehr in der Liste.",
                 "New jobs are recognised on their own: a set for a job this version had never heard of no longer goes missing from the list."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "beastmaster-sets-are-sent",
+                "Bestienbändiger wird übertragen: Die neue limitierte Klasse kommt mit, sobald du ein Set dafür angelegt hast.",
+                "Beastmaster is synced: the new limited job comes along as soon as you have a gearset for it."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "sets-are-shown-side-by-side",

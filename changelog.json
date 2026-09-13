@@ -23,11 +23,11 @@
       "source": "plugin",
       "de": {
         "title": "Handwerker und Sammler kommen mit",
-        "body": "<p>Das Plugin überträgt alle 42 Klassen und Jobs, sobald der Server sie annimmt.</p>"
+        "body": "<p>Das Plugin überträgt jede Klasse und jeden Job, sobald der Server sie annimmt.</p>"
       },
       "en": {
         "title": "Crafters and gatherers come along",
-        "body": "<p>The plugin syncs all 42 classes and jobs as soon as the server accepts them.</p>"
+        "body": "<p>The plugin syncs every class and job as soon as the server accepts them.</p>"
       }
     },
     {
@@ -118,6 +118,21 @@
       "en": {
         "title": "New jobs are recognised on their own",
         "body": "<p>A set for a job this version had never heard of no longer goes missing from the list.</p>"
+      }
+    },
+    {
+      "id": "beastmaster-sets-are-sent",
+      "version": "1.1.0",
+      "date": "2026-08-22",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Bestienbändiger wird übertragen",
+        "body": "<p>Die neue limitierte Klasse kommt mit, sobald du ein Set dafür angelegt hast.</p>"
+      },
+      "en": {
+        "title": "Beastmaster is synced",
+        "body": "<p>The new limited job comes along as soon as you have a gearset for it.</p>"
       }
     },
     {
