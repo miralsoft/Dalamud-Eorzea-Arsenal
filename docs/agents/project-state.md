@@ -3,11 +3,14 @@
 > The complete in-repo memory so an AI/contributor on another machine can continue without losing
 > context (R3). Keep this current **in the same commit** as the change it describes.
 
-_Last updated: 2026-09-13._
+_Last updated: 2026-09-27._
 
-## Status: 1.1.0 ready, verified in game, not yet pushed or tagged
+## Status: 1.1.0 merged into `main` (PR #24, `768a5ff`), not tagged, not live. Work on 1.2.0 happens in `release/v1.2.0`.
 
-1.0.0 shipped. The branch `feat/stable-gearset-identity` carries 1.1.0: gearsets have a server-minted
+From 1.2.0 on, nothing reaches `main` except through a release branch; see
+`docs/operations/build-test-release.md`. 1.1.0 was the last version merged straight into `main`.
+
+1.0.0 shipped. The branch `feat/stable-gearset-identity` carried 1.1.0: gearsets have a server-minted
 identity, the reconciliation window is in, the plugin names a job the game added after the release, and
 everything below was walked through in game on 2026-09-12 and 2026-09-13.
 

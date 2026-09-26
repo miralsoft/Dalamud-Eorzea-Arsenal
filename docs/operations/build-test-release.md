@@ -58,33 +58,53 @@ Users add this stable URL under Dalamud → Settings → Experimental → Custom
 
 ### Cutting a release
 
-> **The release preparation belongs in the same PR as the work it ships.** `main` is branch-protected,
-> so every change needs a PR anyway — and a separate "prepare the release" PR afterwards is a second
-> review round for the same action. Worse, two open branches that each pass alone can fail once merged
-> (a date change in `ReleaseNotes.cs` invalidates the generated `changelog.json`). One PR per release.
+> **Nothing is merged into `main` that has not first been brought together in a release branch.** A
+> version is assembled in `release/vX.Y.Z`; `main` receives it once, whole, through a single PR. This
+> rule dates from 2026-09-27: 1.1.0 was merged straight into `main`, and although that matched every
+> release before it, the maintainer wants `main` to carry only what was finished and combined first.
+>
+> **The release preparation still travels with the work**, now inside that release branch. A separate
+> "prepare the release" PR afterwards is a second review round for the same action, and two branches that
+> each pass alone can fail once combined: a date change in `ReleaseNotes.cs` invalidates the generated
+> `changelog.json`, which is exactly what happened on 2026-07-27.
 
-1. In the feature branch, alongside the work: bump `<Version>` in `EorzeaArsenalPlugin.csproj`, turn
-   `[Unreleased]` in `CHANGELOG.md` into the new dated version section.
-2. Add the user-facing lines to `ReleaseNotes.cs` (each with a **new, hand-written, kebab-case `Id`**
-   — see below) and regenerate the public changelog:
+1. At the start of a version, branch `release/vX.Y.Z` off `main` and push it. Minor for new features,
+   patch for fixes only; a branch is cheap to rename if the content turns out otherwise.
+2. Feature and fix branches open their PRs **against the release branch**, never against `main`.
+3. In the release branch, alongside the work: bump `<Version>` in `EorzeaArsenalPlugin.csproj`, keep the
+   version's section in `CHANGELOG.md` current, and add the user-facing lines to `ReleaseNotes.cs` (each
+   with a **new, hand-written, kebab-case `Id`**, see below). Regenerate the public changelog:
    ```bash
    EORZEA_UPDATE_CHANGELOG=1 dotnet test --filter FullyQualifiedName~ChangelogJsonTests
    ```
-3. Verify from clean — an incremental build hides warnings:
+4. Verify from clean, because an incremental build hides warnings, and judge the format gate from a
+   **fresh clone** rather than the working tree, where it reports line-ending failures that do not exist:
    ```bash
    dotnet clean -c Release && dotnet build -c Release && dotnet test && dotnet format --verify-no-changes
    ```
-4. Open the PR. **CI is the quality gate** — the release workflow only builds and packages, it does not
-   test. A tag must therefore only ever sit on a commit CI has already passed, i.e. on merged `main`.
-5. The maintainer tests in game and merges.
-6. Tag the merge commit and push it:
+5. The maintainer tests the release branch in game.
+6. Open **one** PR `release/vX.Y.Z` → `main`. **CI is the quality gate**: the release workflow only builds
+   and packages, it does not test, so a tag must only ever sit on a commit CI has passed, i.e. on merged
+   `main`. The maintainer merges.
+7. Tag the merge commit and push it, **only when asked**:
    ```bash
    git checkout main && git pull
    git tag -a vX.Y.Z -m "vX.Y.Z - what it is" && git push origin vX.Y.Z
    ```
    Never tag unasked, and never before the merge: the tag has to point at the commit that is actually
    on `main`, and that commit does not exist until the PR is merged.
-7. The release workflow does the rest.
+8. The release workflow does the rest.
+
+A fix for a version already out branches `release/vX.Y.Z+1` from **that version's tag**, not from a
+release branch that has moved on, so the fix does not ship half of the next version with it.
+
+**A gap in CI worth knowing about.** `ci.yml` runs on pushes to `main` and on every pull request;
+`codeql.yml` on pushes to `main` and on pull requests **into `main`**. So a feature PR into a release
+branch is built and tested, but the release branch itself is not checked after that PR merges, and
+CodeQL does not look at it until the final PR into `main`. Two feature PRs that are each green can
+therefore combine into a red release branch unnoticed, which is the 2026-07-27 failure in a new place.
+Adding `release/**` to the `push` trigger of `ci.yml` would close it; that is a decision about CI, not
+taken here.
 
 ### `changelog.json` — the public feed
 
