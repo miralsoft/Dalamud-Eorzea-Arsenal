@@ -1,6 +1,51 @@
 {
   "entries": [
     {
+      "id": "team-lineup-in-game",
+      "version": "1.2.0",
+      "date": "2026-09-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Die Aufstellung deines Teams im Spiel",
+        "body": "<p>Ein neuer Reiter zeigt Tanks, Heiler und DPS gegen das Ziel, wer welche Position hat und welche Jobs dem Stamm noch fehlen.</p>"
+      },
+      "en": {
+        "title": "Your team's line-up in game",
+        "body": "<p>A new tab shows tanks, healers and DPS against the target, who holds which position and which jobs the core still lacks.</p>"
+      }
+    },
+    {
+      "id": "what-each-team-still-needs",
+      "version": "1.2.0",
+      "date": "2026-09-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Was jedem Team fehlt",
+        "body": "<p>In der Teamauswahl steht bei jedem Team, wie viele Tanks, Heiler oder DPS noch gebraucht werden.</p>"
+      },
+      "en": {
+        "title": "What each team still needs",
+        "body": "<p>The team picker shows for every team how many tanks, healers or DPS it is still looking for.</p>"
+      }
+    },
+    {
+      "id": "who-is-missing-on-a-date",
+      "version": "1.2.0",
+      "date": "2026-09-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Wer bei einem Termin fehlt",
+        "body": "<p>\"Besetzung\" unter jedem kommenden Termin zeigt, welche Positionen offen sind, wer vertritt und wer einspringen könnte.</p>"
+      },
+      "en": {
+        "title": "Who is missing on a date",
+        "body": "<p>\"Who's in\" under every upcoming date shows which positions are open, who covers them and who could step in.</p>"
+      }
+    },
+    {
       "id": "reordering-gearsets-keeps-everything",
       "version": "1.1.0",
       "date": "2026-09-13",

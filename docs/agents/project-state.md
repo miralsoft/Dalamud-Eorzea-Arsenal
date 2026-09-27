@@ -10,6 +10,13 @@ _Last updated: 2026-09-27._
 From 1.2.0 on, nothing reaches `main` except through a release branch; see
 `docs/operations/build-test-release.md`. 1.1.0 was the last version merged straight into `main`.
 
+**1.2.0 in progress: Phase E, team line-up** (`feat/team-lineup` against `release/v1.2.0`). Steps 1 to 4
+are built: the line-up and coverage reads, what each team needs in the picker, the line-up tab, and who
+is in on each upcoming date. **Step 5, the invitation link, is deferred** until the server ships a
+per-team `capabilities` list on `GET /me/teams` and a fixed 403 field (`missing_scope` or
+`missing_capability`); the button shows only for `manage_members`, and neither a right nor a 403 cause is
+ever read from the presence of a field or the text of `detail`. Not yet walked through in game.
+
 1.0.0 shipped. The branch `feat/stable-gearset-identity` carried 1.1.0: gearsets have a server-minted
 identity, the reconciliation window is in, the plugin names a job the game added after the release, and
 everything below was walked through in game on 2026-09-12 and 2026-09-13.

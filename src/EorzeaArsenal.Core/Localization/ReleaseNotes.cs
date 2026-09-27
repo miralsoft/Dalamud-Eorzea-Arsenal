@@ -46,6 +46,24 @@ public static class ReleaseNotes
     /// <summary>Every release worth telling the user about, newest first.</summary>
     public static IReadOnlyList<ReleaseNote> All { get; } =
     [
+        new ReleaseNote("1.2.0", "2026-09-27",
+        [
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "team-lineup-in-game",
+                "Die Aufstellung deines Teams im Spiel: Ein neuer Reiter zeigt Tanks, Heiler und DPS gegen das Ziel, wer welche Position hat und welche Jobs dem Stamm noch fehlen.",
+                "Your team's line-up in game: a new tab shows tanks, healers and DPS against the target, who holds which position and which jobs the core still lacks."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "what-each-team-still-needs",
+                "Was jedem Team fehlt: In der Teamauswahl steht bei jedem Team, wie viele Tanks, Heiler oder DPS noch gebraucht werden.",
+                "What each team still needs: the team picker shows for every team how many tanks, healers or DPS it is still looking for."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "who-is-missing-on-a-date",
+                "Wer bei einem Termin fehlt: \"Besetzung\" unter jedem kommenden Termin zeigt, welche Positionen offen sind, wer vertritt und wer einspringen könnte.",
+                "Who is missing on a date: \"Who's in\" under every upcoming date shows which positions are open, who covers them and who could step in."),
+        ]),
         new ReleaseNote("1.1.0", "2026-09-13",
         [
             new ReleaseNoteItem(

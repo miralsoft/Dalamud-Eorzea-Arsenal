@@ -58,6 +58,19 @@ public sealed class TeamsWindow : Window
     private readonly Slot<LogsResponse> _logsSlot = new();
     private readonly Slot<AbsencesResponse> _absenceSlot = new();
 
+    // Both carry the names of team members. They live here and nowhere else: never persisted, and dropped
+    // together with every other team read the moment the key is gone.
+    private readonly Slot<LineupResponse> _lineupSlot = new();
+    private readonly Slot<CoverageResponse> _coverageSlot = new();
+
+    // The one date whose coverage is unfolded, as "team|event|date", or null. One at a time: the list of
+    // dates is long, and several unfolded panels would push the rest of it off the screen.
+    private string? _coverageOpen;
+
+    // Whether a key was present on the last frame, so its disappearance can be noticed once and the team
+    // reads dropped with it rather than lingering in memory behind the "not connected" hint.
+    private bool _hadKey;
+
     private int _teamIndex;
     private int _planIndex;
     private string? _selectedJob;
@@ -148,7 +161,18 @@ public sealed class TeamsWindow : Window
     /// <inheritdoc />
     public override void Draw()
     {
-        if (!_store.HasKey || !_config.Enabled || !_config.SyncTeams)
+        // Disconnecting drops every team read, not only the new ones. The line-up and the coverage carry
+        // member names and the farm always did; none of it belongs in memory once there is no key to have
+        // asked for it with.
+        var hasKey = _store.HasKey;
+        if (_hadKey && !hasKey)
+        {
+            ForgetTeamReads();
+        }
+
+        _hadKey = hasKey;
+
+        if (!hasKey || !_config.Enabled || !_config.SyncTeams)
         {
             using (ImRaii.PushColor(ImGuiCol.Text, Dim))
             {
@@ -179,6 +203,7 @@ public sealed class TeamsWindow : Window
         }
 
         Tab(LocKeys.TeamsTabEvents, "termine", DrawEvents);
+        Tab(LocKeys.TeamsTabLineup, "overview", DrawLineup);
         Tab(LocKeys.TeamsTabMit, "mit", DrawMit);
         Tab(LocKeys.TeamsTabContent, "inhalte", DrawContent);
         Tab(LocKeys.TeamsTabFarm, "farm", DrawFarm);
@@ -225,8 +250,10 @@ public sealed class TeamsWindow : Window
                 }
             }
 
-            var names = teams.Select(t => t.Name ?? $"#{t.Id}").ToArray();
-            ImGui.SetNextItemWidth(240f);
+            // The short form of what each team still needs rides on its entry, so the whole list can be read
+            // without switching teams. The written-out form for the selected team follows below the row.
+            var names = teams.Select(t => LineupText.TeamLabel(t.Name ?? $"#{t.Id}", t.LineupSummary, _localizer)).ToArray();
+            ImGui.SetNextItemWidth(320f);
             var idxRef = _teamIndex;
             if (ImGui.Combo(T(LocKeys.TeamsTeamLabel), ref idxRef, names, names.Length))
             {
@@ -267,6 +294,13 @@ public sealed class TeamsWindow : Window
         if (ImGui.Button(T(LocKeys.TeamsHelp)))
         {
             OpenApp("/hilfe/plugin-sync");
+        }
+
+        // Written out for the team that is selected, and only while something is missing: a team that has
+        // everything it needs gets no line at all, as the contract asks.
+        if (CurrentTeam() is { } selected && LineupText.MissingDetail(selected.LineupSummary, _localizer) is { } need)
+        {
+            ImGui.TextColored(Yellow, need);
         }
 
         if (_actionMessage is { } msg)
@@ -358,31 +392,166 @@ public sealed class TeamsWindow : Window
         ImGui.TextDisabled($"· {kind}" + (string.IsNullOrEmpty(content) ? string.Empty : $" · {content}"));
 
         using var pad = ImRaii.PushStyle(ImGuiStyleVar.CellPadding, new Vector2(6f, 4f) * scale);
-        if (!ImGui.BeginTable("##occ", 4, ImGuiTableFlags.NoSavedSettings))
+
+        // The table is closed after an unfolded date and opened again for the rest, so the coverage panel
+        // sits directly under the row it belongs to with the whole width to itself. The columns are set up
+        // identically each time, which makes the pieces read as one table.
+        var segment = 0;
+        if (!BeginOccurrenceTable(segment, scale))
         {
             return;
         }
 
+        var tableOpen = true;
         try
         {
-            ImGui.TableSetupColumn("##st", ImGuiTableColumnFlags.WidthFixed, 14f * scale);
-            ImGui.TableSetupColumn("##when", ImGuiTableColumnFlags.WidthFixed, ImGui.CalcTextSize("Mo., 00.00.0000    00:00-00:00").X);
-            ImGui.TableSetupColumn("##cnt", ImGuiTableColumnFlags.WidthFixed, ImGui.CalcTextSize(_localizer.Get(LocKeys.TeamsAttendCounts, 88, 88, 88, 88)).X);
-            ImGui.TableSetupColumn("##rsvp", ImGuiTableColumnFlags.WidthStretch);
-
             for (var i = 0; i < occs.Count; i++)
             {
+                if (!tableOpen)
+                {
+                    if (!BeginOccurrenceTable(++segment, scale))
+                    {
+                        return;
+                    }
+
+                    tableOpen = true;
+                }
+
                 var occ = occs[i];
-                using var id = ImRaii.PushId($"occ_{occ.Date}");
-                DrawOccurrenceRow(occ, IsPast(occ.Date, today), scale, i % 2 == 1);
+                using (ImRaii.PushId($"occ_{occ.Date}"))
+                {
+                    DrawOccurrenceRow(occ, IsPast(occ.Date, today), scale, i % 2 == 1);
+                }
+
+                if (_coverageOpen is { } open && open == CoverageKey(occ))
+                {
+                    ImGui.EndTable();
+                    tableOpen = false;
+                    DrawCoveragePanel(occ, scale);
+                }
             }
         }
         finally
         {
-            ImGui.EndTable();
+            if (tableOpen)
+            {
+                ImGui.EndTable();
+            }
         }
 
         ImGui.Spacing();
+    }
+
+    /// <summary>Opens one piece of an event's date table, with the same columns every time.</summary>
+    /// <param name="segment">Which piece this is, so each gets its own table id.</param>
+    /// <param name="scale">The list's text scale.</param>
+    /// <returns>Whether the table is open and has to be ended.</returns>
+    private bool BeginOccurrenceTable(int segment, float scale)
+    {
+        if (!ImGui.BeginTable($"##occ{segment}", 4, ImGuiTableFlags.NoSavedSettings))
+        {
+            return false;
+        }
+
+        ImGui.TableSetupColumn("##st", ImGuiTableColumnFlags.WidthFixed, 14f * scale);
+        ImGui.TableSetupColumn("##when", ImGuiTableColumnFlags.WidthFixed, ImGui.CalcTextSize("Mo., 00.00.0000    00:00-00:00").X);
+        ImGui.TableSetupColumn("##cnt", ImGuiTableColumnFlags.WidthFixed, ImGui.CalcTextSize(_localizer.Get(LocKeys.TeamsAttendCounts, 88, 88, 88, 88)).X);
+        ImGui.TableSetupColumn("##rsvp", ImGuiTableColumnFlags.WidthStretch);
+        return true;
+    }
+
+    private static string CoverageKey(CalendarOccurrence occ) => $"{occ.TeamId}|{occ.EventId}|{occ.Date}";
+
+    /// <summary>
+    /// Who is in and who is missing on one date: the open positions, the unsure, the covered, and who could
+    /// step in. Read when unfolded, all of it the server's.
+    /// </summary>
+    private void DrawCoveragePanel(CalendarOccurrence occ, float scale)
+    {
+        if (occ.Date is not { } date)
+        {
+            return;
+        }
+
+        Ensure(_coverageSlot, CoverageKey(occ), ct => _teams.GetCoverageAsync(occ.TeamId, occ.EventId, date, ct));
+
+        using var indent = ImRaii.PushIndent(24f * scale);
+        ImGui.Spacing();
+
+        if (_coverageSlot.Loading)
+        {
+            ImGui.TextDisabled(T(LocKeys.TeamsLoading));
+            ImGui.Spacing();
+            return;
+        }
+
+        if (_coverageSlot.Error is { } err)
+        {
+            ImGui.TextColored(Red, err);
+            ImGui.Spacing();
+            return;
+        }
+
+        if (_coverageSlot.Value?.Data is not { } coverage)
+        {
+            return;
+        }
+
+        var open = coverage.Open ?? [];
+        var unsure = coverage.Unsure ?? [];
+        var covered = coverage.Covered ?? [];
+        if (open.Count == 0 && unsure.Count == 0 && covered.Count == 0)
+        {
+            ImGui.TextColored(Green, T(LocKeys.TeamsCoverageAllFilled));
+            ImGui.Spacing();
+            return;
+        }
+
+        DrawCoverageSection(LocKeys.TeamsCoverageOpen, open, Red);
+        DrawCoverageSection(LocKeys.TeamsCoverageUnsure, unsure, Yellow);
+        DrawCoverageSection(LocKeys.TeamsCoverageCovered, covered, Green);
+
+        // In the server's order, which puts the ones who fit the role of an open position first. It is not
+        // re-sorted here: the website shows the same list in the same order.
+        if (coverage.Suggestions is { Count: > 0 } suggestions)
+        {
+            ImGui.TextDisabled(T(LocKeys.TeamsCoverageSuggestions));
+            using var inner = ImRaii.PushIndent();
+            foreach (var s in suggestions)
+            {
+                var who = string.IsNullOrWhiteSpace(s.Member) ? s.Name : $"{s.Name} ({s.Member})";
+                var jobs = s.Jobs is { Count: > 0 } j ? $" · {string.Join(", ", j)}" : string.Empty;
+                ImGui.TextUnformatted($"{who}{jobs}");
+                if (s.Matches)
+                {
+                    ImGui.SameLine();
+                    ImGui.TextColored(Green, T(LocKeys.TeamsCoverageMatches));
+                }
+            }
+        }
+
+        // Putting somebody in stays on the website, and the button says so.
+        if (open.Count > 0 && ImGui.SmallButton($"{T(LocKeys.TeamsCoverageSetSubstitute)}##sub"))
+        {
+            OpenApp($"/teams/{occ.TeamId}/termine?event={occ.EventId}&date={date}");
+        }
+
+        ImGui.Spacing();
+    }
+
+    private void DrawCoverageSection(string headingKey, List<CoverageEntry> entries, Vector4 colour)
+    {
+        if (entries.Count == 0)
+        {
+            return;
+        }
+
+        ImGui.TextColored(colour, T(headingKey));
+        using var indent = ImRaii.PushIndent();
+        foreach (var entry in entries)
+        {
+            DrawCoverageEntry(entry, colour);
+        }
     }
 
     private void DrawOccurrenceRow(CalendarOccurrence occ, bool past, float scale, bool oddRow)
@@ -433,6 +602,22 @@ public sealed class TeamsWindow : Window
         if (ImGui.SmallButton(T(LocKeys.TeamsOpenWeb)) && occ.Date is { } date)
         {
             OpenApp($"/teams/{occ.TeamId}/termine?event={occ.EventId}&date={date}");
+        }
+
+        // Who is in and who is missing, for dates still to come. A second press folds it again; pressing it
+        // on another date moves the one unfolded panel there.
+        if (!past)
+        {
+            ImGui.SameLine();
+            var key = CoverageKey(occ);
+            var unfolded = _coverageOpen == key;
+            // Yellow while unfolded. No arrow glyph: the game font does not reliably carry one, and a box
+            // where an arrow was meant is worse than a colour.
+            using var colour = ImRaii.PushColor(ImGuiCol.Text, Yellow, unfolded);
+            if (ImGui.SmallButton($"{T(LocKeys.TeamsCoverageToggle)}##cov"))
+            {
+                _coverageOpen = unfolded ? null : key;
+            }
         }
     }
 
@@ -487,6 +672,311 @@ public sealed class TeamsWindow : Window
 
     private static bool IsPast(string? isoDate, DateOnly today) =>
         DateOnly.TryParseExact(isoDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) && d < today;
+
+    // --- Aufstellung (line-up) ---------------------------------------------------------------------
+    //
+    // Rendered, never computed. Every count, every gap and every open position is the server's, so the
+    // plugin and the website cannot disagree about what a team needs.
+
+    private void DrawLineup()
+    {
+        var team = CurrentTeam();
+        if (team is null)
+        {
+            ImGui.TextDisabled(T(LocKeys.TeamsNoTeams));
+            return;
+        }
+
+        Ensure(_lineupSlot, team.Id.ToString(CultureInfo.InvariantCulture), ct => _teams.GetLineupAsync(team.Id, ct));
+        if (_lineupSlot.Loading)
+        {
+            ImGui.TextDisabled(T(LocKeys.TeamsLoading));
+            return;
+        }
+
+        if (_lineupSlot.Error is { } err)
+        {
+            ImGui.TextColored(Red, err);
+            return;
+        }
+
+        if (_lineupSlot.Value?.Data is not { } lineup)
+        {
+            return;
+        }
+
+        DrawNextOpen(team, lineup.NextOpen);
+        ImGui.Spacing();
+        DrawRoles(lineup.Roles);
+        DrawLineupCounts(lineup.Counts);
+        DrawAllows(lineup.Allow);
+        ImGui.Separator();
+        DrawLineupCharacters(lineup.Characters);
+    }
+
+    /// <summary>The first date in the next 60 days that leaves a position open, with what it leaves open.</summary>
+    private void DrawNextOpen(TeamSummary team, OpenDate? next)
+    {
+        if (next is null)
+        {
+            ImGui.TextDisabled(T(LocKeys.TeamsLineupNoOpen));
+            return;
+        }
+
+        ImGui.TextColored(Yellow, _localizer.Get(LocKeys.TeamsLineupNextOpen, next.Title ?? string.Empty, LocalDate(next.Date), next.Time ?? string.Empty));
+        ImGui.SameLine();
+        if (ImGui.SmallButton($"{T(LocKeys.TeamsOpenWeb)}##nextopen") && next.Date is { } date)
+        {
+            OpenApp($"/teams/{team.Id}/termine?event={next.EventId}&date={date}");
+        }
+
+        using var indent = ImRaii.PushIndent();
+        foreach (var entry in next.Open ?? [])
+        {
+            DrawCoverageEntry(entry, Red);
+        }
+    }
+
+    /// <summary>One line per role: the core against the target, and what the core lacks.</summary>
+    private void DrawRoles(LineupRoles? roles)
+    {
+        if (roles is null)
+        {
+            return;
+        }
+
+        if (!ImGui.BeginTable("##lineuproles", 3, ImGuiTableFlags.NoSavedSettings | ImGuiTableFlags.SizingFixedFit))
+        {
+            return;
+        }
+
+        try
+        {
+            ImGui.TableSetupColumn("##role", ImGuiTableColumnFlags.WidthFixed);
+            ImGui.TableSetupColumn("##core", ImGuiTableColumnFlags.WidthFixed);
+            ImGui.TableSetupColumn("##detail", ImGuiTableColumnFlags.WidthStretch);
+            DrawRoleRow(LocKeys.TeamsRoleTank, roles.Tank);
+            DrawRoleRow(LocKeys.TeamsRoleHealer, roles.Healer);
+            DrawRoleRow(LocKeys.TeamsRoleDps, roles.Dps);
+        }
+        finally
+        {
+            ImGui.EndTable();
+        }
+    }
+
+    private void DrawRoleRow(string roleKey, LineupRole? role)
+    {
+        if (role is null)
+        {
+            return;
+        }
+
+        // Yellow while the core lacks somebody, green once it has what it needs, grey where the team sets
+        // no target and there is nothing to measure against.
+        var colour = role.Target <= 0 ? Dim : role.Missing > 0 ? Yellow : Green;
+
+        ImGui.TableNextRow();
+        ImGui.TableNextColumn();
+        ImGui.TextColored(colour, T(roleKey));
+
+        ImGui.TableNextColumn();
+        ImGui.TextColored(colour, role.Target > 0
+            ? _localizer.Get(LocKeys.TeamsLineupCoreOfTarget, role.Count, role.Target)
+            : _localizer.Get(LocKeys.TeamsLineupCoreNoTarget, role.Count));
+
+        ImGui.TableNextColumn();
+        var parts = new List<string>(3);
+        if (role.Jobs is { Count: > 0 } jobs)
+        {
+            parts.Add(_localizer.Get(LocKeys.TeamsLineupJobs, string.Join(", ", jobs)));
+        }
+
+        if (role.Positions is { Count: > 0 } positions)
+        {
+            parts.Add(_localizer.Get(LocKeys.TeamsLineupPositions, string.Join(", ", positions.Select(p => $"{p.Position} {p.Job}"))));
+        }
+
+        // "Missing from the core", never just "missing": a substitute may play the very job named here,
+        // and the same job listed as missing directly above a character who plays it reads as a fault.
+        if (role.NotPresent is { Count: > 0 } absent)
+        {
+            parts.Add(_localizer.Get(LocKeys.TeamsLineupNotPresent, string.Join(", ", absent)));
+        }
+
+        ImGui.TextWrapped(string.Join(" · ", parts));
+    }
+
+    /// <summary>Head counts on one line; the ones that are zero and say nothing are left out.</summary>
+    private void DrawLineupCounts(LineupCounts? counts)
+    {
+        if (counts is null)
+        {
+            return;
+        }
+
+        var parts = new List<string>(5)
+        {
+            Count(counts.Members, LocKeys.TeamsLineupMembersOne, LocKeys.TeamsLineupMembersMany),
+            Count(counts.Core, LocKeys.TeamsLineupCoreCountOne, LocKeys.TeamsLineupCoreCountMany),
+            Count(counts.Substitutes, LocKeys.TeamsLineupSubsOne, LocKeys.TeamsLineupSubsMany),
+        };
+
+        if (counts.SharingNothing > 0)
+        {
+            parts.Add(Count(counts.SharingNothing, LocKeys.TeamsLineupSharingNothingOne, LocKeys.TeamsLineupSharingNothingMany));
+        }
+
+        // Shown because the server sent it, and read as nothing more. Its presence happens to follow the
+        // right to manage members, but a right is not inferred from a field that is there or not: the team's
+        // own capability list is what answers that question.
+        if (counts.Pending is > 0 and var pending)
+        {
+            parts.Add(Count(pending, LocKeys.TeamsLineupPendingOne, LocKeys.TeamsLineupPendingMany));
+        }
+
+        ImGui.TextDisabled(string.Join(" · ", parts));
+    }
+
+    private void DrawAllows(LineupAllow? allow)
+    {
+        if (allow is null || (!allow.Blu && !allow.Bst))
+        {
+            return;
+        }
+
+        var jobs = new List<string>(2);
+        if (allow.Blu)
+        {
+            jobs.Add(T(LocKeys.TeamsJobBlu));
+        }
+
+        if (allow.Bst)
+        {
+            jobs.Add(T(LocKeys.TeamsJobBst));
+        }
+
+        ImGui.TextDisabled(_localizer.Get(LocKeys.TeamsLineupAllows, string.Join(", ", jobs)));
+    }
+
+    /// <summary>Every character and placeholder, in the server's order, with what it is to the team.</summary>
+    private void DrawLineupCharacters(List<LineupCharacter>? characters)
+    {
+        if (characters is not { Count: > 0 })
+        {
+            ImGui.TextDisabled(T(LocKeys.TeamsLineupNoCharacters));
+            return;
+        }
+
+        if (!ImGui.BeginTable("##lineupchars", 5, ImGuiTableFlags.NoSavedSettings | ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp))
+        {
+            return;
+        }
+
+        try
+        {
+            ImGui.TableSetupColumn(T(LocKeys.TeamsLineupColName));
+            ImGui.TableSetupColumn(T(LocKeys.TeamsLineupColMember));
+            ImGui.TableSetupColumn(T(LocKeys.TeamsLineupColPosition));
+            ImGui.TableSetupColumn(T(LocKeys.TeamsLineupColJobs));
+            ImGui.TableSetupColumn(T(LocKeys.TeamsLineupColStatus));
+            ImGui.TableHeadersRow();
+
+            foreach (var c in characters)
+            {
+                // Paused, blocked and set-less characters count for nothing in the line-up above, so they
+                // are drawn dimmed here: present in the team, absent from its numbers.
+                var dimmed = c.Paused || c.Blocked || c.SharesNothing;
+                using var colour = ImRaii.PushColor(ImGuiCol.Text, Dim, dimmed);
+
+                ImGui.TableNextRow();
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted(c.IsPlaceholder
+                    ? $"{c.Name} ({T(LocKeys.TeamsLineupPlaceholder)})"
+                    : c.Name ?? string.Empty);
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted(c.Member ?? string.Empty);
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted(c.Position ?? string.Empty);
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted(c.Jobs is { Count: > 0 } jobs ? string.Join(", ", jobs) : string.Empty);
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted(CharacterStatus(c));
+            }
+        }
+        finally
+        {
+            ImGui.EndTable();
+        }
+    }
+
+    private string CharacterStatus(LineupCharacter c)
+    {
+        var parts = new List<string>(4) { T(c.IsCore ? LocKeys.TeamsLineupStatusCore : LocKeys.TeamsLineupStatusSub) };
+        if (c.Paused)
+        {
+            parts.Add(T(LocKeys.TeamsLineupStatusPaused));
+        }
+
+        if (c.Blocked)
+        {
+            parts.Add(T(LocKeys.TeamsLineupStatusBlocked));
+        }
+
+        if (c.SharesNothing)
+        {
+            parts.Add(T(LocKeys.TeamsLineupStatusSharesNothing));
+        }
+
+        return string.Join(", ", parts);
+    }
+
+    /// <summary>A count in the singular or the plural, never with a bracketed suffix.</summary>
+    private string Count(int n, string one, string many) => _localizer.Get(n == 1 ? one : many, n);
+
+    /// <summary>
+    /// One position of a coverage list: the position (or the name where there is none), who it is, and why
+    /// it is open. The note only where the server sent it, which it does only for callers who may see it.
+    /// </summary>
+    private void DrawCoverageEntry(CoverageEntry entry, Vector4 colour)
+    {
+        var who = string.IsNullOrWhiteSpace(entry.Member) ? entry.Name : $"{entry.Name} ({entry.Member})";
+        var head = string.IsNullOrWhiteSpace(entry.Position) ? who : $"{entry.Position} · {who}";
+
+        var tail = new List<string>(2);
+        if (Reason(entry.Reason) is { } reason)
+        {
+            tail.Add(reason);
+        }
+
+        if (!string.IsNullOrWhiteSpace(entry.Substitute))
+        {
+            tail.Add(_localizer.Get(LocKeys.TeamsCoverageBy, entry.Substitute));
+        }
+
+        ImGui.TextColored(colour, head ?? string.Empty);
+        if (tail.Count > 0)
+        {
+            ImGui.SameLine();
+            ImGui.TextDisabled(string.Join(", ", tail));
+        }
+
+        if (!string.IsNullOrWhiteSpace(entry.Note))
+        {
+            using var indent = ImRaii.PushIndent();
+            ImGui.TextDisabled($"\"{entry.Note}\"");
+        }
+    }
+
+    /// <summary>The reason in words; an unknown value is shown as sent rather than dropped.</summary>
+    private string? Reason(string? reason) => reason switch
+    {
+        null or "" => null,
+        "declined" => T(LocKeys.TeamsCoverageReasonDeclined),
+        "absent" => T(LocKeys.TeamsCoverageReasonAbsent),
+        "away" => T(LocKeys.TeamsCoverageReasonAway),
+        _ => reason,
+    };
 
     // --- Mit cheat sheet (time-axis timeline) -----------------------------------------------------
 
@@ -1846,13 +2336,39 @@ public sealed class TeamsWindow : Window
 
     private void RefreshAll()
     {
+        ResetSlots();
+        _teams.RequestPoll(force: true);
+    }
+
+    /// <summary>Marks every team read as stale, so the next frame asks again.</summary>
+    private void ResetSlots()
+    {
         _teamsSlot.Reset();
         _mitSlot.Reset();
         _contentSlot.Reset();
         _farmSlot.Reset();
         _logsSlot.Reset();
         _absenceSlot.Reset();
-        _teams.RequestPoll(force: true);
+        _lineupSlot.Reset();
+        _coverageSlot.Reset();
+    }
+
+    /// <summary>Drops every team read, values included, after the key went away.</summary>
+    /// <remarks>
+    /// <see cref="Slot{T}.Reset"/> only marks a slot stale and keeps its value, which is right for a
+    /// refresh and wrong here: the names in it would stay in memory until the next successful read.
+    /// </remarks>
+    private void ForgetTeamReads()
+    {
+        _teamsSlot.Forget();
+        _mitSlot.Forget();
+        _contentSlot.Forget();
+        _farmSlot.Forget();
+        _logsSlot.Forget();
+        _absenceSlot.Forget();
+        _lineupSlot.Forget();
+        _coverageSlot.Forget();
+        _coverageOpen = null;
     }
 
     private void Ensure<T>(Slot<T> slot, string key, Func<CancellationToken, Task<ApiResult<T>>> call)
@@ -1951,6 +2467,13 @@ public sealed class TeamsWindow : Window
             Key = null;
             Has = false;
             Error = null;
+        }
+
+        /// <summary>Like <see cref="Reset"/>, and lets go of the value too.</summary>
+        public void Forget()
+        {
+            Reset();
+            Value = null;
         }
     }
 }

@@ -4,6 +4,36 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - unreleased
+
+Built in `release/v1.2.0`; the date is set when it ships. The invitation link (Phase E, step 5) waits for
+the server's per-team capability list and is not in yet.
+
+### Added
+- **A team's line-up in game (Phase E).** A new tab shows, per role, the core against the target, the
+  jobs present, the positions they hold and the jobs the core still lacks; below it every character and
+  placeholder with what it is to the team, and at the top the next date in sixty days that leaves a
+  position open. `GET /teams/{id}/lineup`.
+- **What each team still needs, in the team picker.** The short form rides on every entry, so the whole
+  list reads without switching teams; the written-out form, one part per role with a target, sits under
+  it for the selected team. From `lineup_summary` on `GET /me/teams`. Nothing is shown for a team that
+  lacks nothing, and nothing for a server that does not send the summary yet, which is not the same.
+- **Who is in on a date.** Every upcoming date unfolds its coverage in place: open positions with the
+  reason, the unsure, the covered with their substitute, and who could step in, matching roles first. One
+  date at a time. Putting somebody in stays on the website, behind a button that opens that date there.
+  `GET /teams/{id}/events/{eventId}/coverage`.
+
+Everything in it is the server's arithmetic, shown as delivered. `LineupText` picks words and singular or
+plural and nothing else, so the plugin and the website cannot disagree about what a team needs.
+
+The recordings and the briefing disagreed three times and the recordings were right each time. The one
+that matters on screen: `not_present` means **missing from the core**, so a job a substitute plays is
+still listed, and the label says "missing from the core" rather than "missing" for that reason.
+
+### Changed
+- **Disconnecting drops every team read from memory**, values included, not only marking them stale. The
+  line-up and the coverage carry member names; so did the farm all along.
+
 ## [1.1.0] - 2026-09-13
 
 Gearsets carry a server-minted identity instead of being keyed on their position in the list. Everything
