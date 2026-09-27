@@ -201,6 +201,25 @@ public interface IApiClient
     /// <returns>The farm entries, or a classified error.</returns>
     Task<ApiResult<FarmResponse>> GetFarmAsync(string apiKey, long teamId, CancellationToken ct);
 
+    /// <summary>Reads a team's line-up via <c>GET /teams/{id}/lineup</c> (<c>teams:read</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The line-up, or a classified error. It carries member names; never persist it.</returns>
+    Task<ApiResult<LineupResponse>> GetLineupAsync(string apiKey, long teamId, CancellationToken ct);
+
+    /// <summary>
+    /// Reads which positions one date of an event leaves open via
+    /// <c>GET /teams/{id}/events/{eventId}/coverage?date=</c> (<c>teams:read</c>).
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="eventId">The event id.</param>
+    /// <param name="date">The occurrence date, <c>YYYY-MM-DD</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The coverage, or a classified error. It carries member names; never persist it.</returns>
+    Task<ApiResult<CoverageResponse>> GetCoverageAsync(string apiKey, long teamId, long eventId, string date, CancellationToken ct);
+
     /// <summary>
     /// Reads impersonal "how to get it" sourcing for gear pieces via <c>GET /gear/obtain?item_ids=…</c>.
     /// The data is the same for every player, so any valid bearer passes; no personal scope is needed.

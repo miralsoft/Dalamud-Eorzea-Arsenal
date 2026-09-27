@@ -1,0 +1,11 @@
+{
+  "data": [
+    {
+      "id": 6,
+      "name": "Test Static Lineup",
+      "type": "static",
+      "mit_plans": [],
+      "lineup_summary": { "targets": { "tank": 1, "healer": 2, "dps": 3 }, "missing": { "tank": 1, "healer": 0, "dps": 2 } }
+    }
+  ]
+}

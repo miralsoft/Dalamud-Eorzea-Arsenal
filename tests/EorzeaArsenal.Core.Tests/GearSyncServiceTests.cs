@@ -323,6 +323,12 @@ public sealed class GearSyncServiceTests
         public Task<ApiResult<FarmResponse>> GetFarmAsync(string apiKey, long teamId, CancellationToken ct) =>
             throw new NotSupportedException();
 
+        public Task<ApiResult<LineupResponse>> GetLineupAsync(string apiKey, long teamId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<CoverageResponse>> GetCoverageAsync(string apiKey, long teamId, long eventId, string date, CancellationToken ct) =>
+            throw new NotSupportedException();
+
         public Task<ApiResult<LogsResponse>> GetLogsAsync(string apiKey, long teamId, CancellationToken ct) =>
             throw new NotSupportedException();
 
