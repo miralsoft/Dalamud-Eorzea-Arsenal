@@ -329,6 +329,9 @@ public sealed class GearSyncServiceTests
         public Task<ApiResult<CoverageResponse>> GetCoverageAsync(string apiKey, long teamId, long eventId, string date, CancellationToken ct) =>
             throw new NotSupportedException();
 
+        public Task<ApiResult<InviteResponse>> CreateInviteAsync(string apiKey, long teamId, InviteRequest request, CancellationToken ct) =>
+            throw new NotSupportedException();
+
         public Task<ApiResult<LogsResponse>> GetLogsAsync(string apiKey, long teamId, CancellationToken ct) =>
             throw new NotSupportedException();
 

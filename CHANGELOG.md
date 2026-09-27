@@ -6,8 +6,7 @@ All notable changes to this project are documented here. The format is based on
 
 ## [1.2.0] - unreleased
 
-Built in `release/v1.2.0`; the date is set when it ships. The invitation link (Phase E, step 5) waits for
-the server's per-team capability list and is not in yet.
+Built in `release/v1.2.0`; the date is set when it ships.
 
 ### Added
 - **A team's line-up in game (Phase E).** A new tab shows, per role, the core against the target, the
@@ -22,6 +21,19 @@ the server's per-team capability list and is not in yet.
   reason, the unsure, the covered with their substitute, and who could step in, matching roles first. One
   date at a time. Putting somebody in stays on the website, behind a button that opens that date there.
   `GET /teams/{id}/events/{eventId}/coverage`.
+- **An invitation link from the game.** In the line-up, for a player whose team lists `manage_members`
+  in `capabilities` on `GET /me/teams` and for nobody else: without the list there is no button either.
+  Uses and days are forced into 1 to 100 and 1 to 30 and always sent, because a `max_uses` out of range
+  means *unlimited* on the server. The link is shown once, copied on request with a confirmation in the
+  player's own chat log that does not carry it, and dropped on close, on a team switch and on disconnect.
+  Never stored, logged or reported; `InviteResponse.ToString` prints the id and nothing secret, so a
+  stray interpolation cannot leak it. `POST /teams/{id}/invite`.
+- **A 403 says which of two things is missing**, from the members `missing_scope` and
+  `missing_capability` the server added for it, never from the wording of `detail`. The key lacking a
+  permission gets "reconnect"; the user lacking a right in the team gets "the team lead can grant it",
+  because reconnecting there only returns the same key to the same refusal. The team reads used to look
+  for the word "scope" in the message and now read the members too. A 429 says how long to wait, from
+  `Retry-After`, rounded up; a 400 shows the server's own words without the plugin branching on them.
 
 Everything in it is the server's arithmetic, shown as delivered. `LineupText` picks words and singular or
 plural and nothing else, so the plugin and the website cannot disagree about what a team needs.

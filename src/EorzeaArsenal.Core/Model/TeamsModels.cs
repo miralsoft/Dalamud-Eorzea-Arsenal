@@ -54,6 +54,27 @@ public sealed class TeamSummary
     /// server that does not send it yet, which is not the same as "nothing missing".
     /// </summary>
     public LineupSummary? LineupSummary { get; init; }
+
+    /// <summary>The caller's own rights in this team; the owner holds every one.</summary>
+    /// <remarks>
+    /// The only source for "may I": an action is offered when its right is in this list and at no other
+    /// time. In particular no right is read from some other field happening to be present, such as the
+    /// join-request count that only managers are sent. A server that sends no list grants nothing here.
+    /// </remarks>
+    public List<string>? Capabilities { get; init; }
+
+    /// <summary>Whether the caller holds a right in this team.</summary>
+    /// <param name="capability">One of <see cref="TeamCapability"/>.</param>
+    /// <returns><see langword="true"/> only when the server listed it.</returns>
+    public bool Can(string capability) =>
+        Capabilities is { } held && held.Contains(capability, StringComparer.Ordinal);
+}
+
+/// <summary>The team rights this plugin asks about.</summary>
+public static class TeamCapability
+{
+    /// <summary>May manage members, which includes creating invitation links.</summary>
+    public const string ManageMembers = "manage_members";
 }
 
 /// <summary>A team's targets and what is still missing against them, as the team list shows it.</summary>
@@ -1276,4 +1297,100 @@ public sealed class CoverageSuggestion
 
     /// <summary>Whether it shares a set in the role of an open position.</summary>
     public bool Matches { get; init; }
+}
+
+// --- Phase E: POST /teams/{id}/invite --------------------------------------------------------------
+//
+// The one write of Phase E. The answer carries the invitation code, which is a secret: it is shown once,
+// put on the clipboard when asked, and never stored, logged or written into a diagnostics report. The
+// website lists open invitations without it, so there is nothing this side would ever need it for later.
+
+/// <summary>Body of <c>POST /teams/{id}/invite</c> for a link.</summary>
+public sealed class InviteRequest
+{
+    /// <summary>The fewest uses a link may be given.</summary>
+    public const int MinUses = 1;
+
+    /// <summary>The most uses a link may be given.</summary>
+    public const int MaxUsesLimit = 100;
+
+    /// <summary>The shortest life a link may be given, in days.</summary>
+    public const int MinDays = 1;
+
+    /// <summary>The longest life a link may be given, in days.</summary>
+    public const int MaxDays = 30;
+
+    /// <summary>What the server would pick if both were left out: one use, seven days.</summary>
+    public const int DefaultUses = 1;
+
+    /// <summary>The default life in days.</summary>
+    public const int DefaultDays = 7;
+
+    /// <summary>Always <c>link</c> from the plugin.</summary>
+    public string Kind { get; init; } = "link";
+
+    /// <summary>How many times the link may be used.</summary>
+    public int MaxUses { get; init; } = DefaultUses;
+
+    /// <summary>How many days it stays valid.</summary>
+    [JsonPropertyName("ttl_days")]
+    public int TtlDays { get; init; } = DefaultDays;
+
+    /// <summary>A link request with both numbers forced into the range the server accepts.</summary>
+    /// <param name="uses">The uses asked for.</param>
+    /// <param name="days">The days asked for.</param>
+    /// <returns>The request.</returns>
+    /// <remarks>
+    /// Clamped rather than passed through, and the reason is asymmetric. A <c>ttl_days</c> out of range
+    /// falls back to seven days on the server, which is harmless; a <c>max_uses</c> out of range means
+    /// <b>unlimited</b>, which turns a link meant for one person into one that anybody who sees it can use.
+    /// Both are always sent, so the server's own defaults never decide.
+    /// </remarks>
+    public static InviteRequest Link(int uses, int days) => new()
+    {
+        MaxUses = Math.Clamp(uses, MinUses, MaxUsesLimit),
+        TtlDays = Math.Clamp(days, MinDays, MaxDays),
+    };
+}
+
+/// <summary>Answer of <c>POST /teams/{id}/invite</c>. The code and the link in it are a secret.</summary>
+public sealed class InviteResponse
+{
+    /// <summary>The invitation code. Never store, log or report it.</summary>
+    public string? Code { get; init; }
+
+    /// <summary>The link that carries the code. Never store, log or report it.</summary>
+    public string? Link { get; init; }
+
+    /// <summary>Seconds until it expires.</summary>
+    public long ExpiresIn { get; init; }
+
+    /// <summary>The invitation as the website lists it, without the code.</summary>
+    public InviteInfo? Invite { get; init; }
+
+    /// <inheritdoc />
+    /// <remarks>Overridden so that a stray interpolation into a log line prints nothing secret.</remarks>
+    public override string ToString() => $"InviteResponse(id={Invite?.Id})";
+}
+
+/// <summary>An invitation without its code, as the website lists it.</summary>
+public sealed class InviteInfo
+{
+    /// <summary>The invitation id.</summary>
+    public long Id { get; init; }
+
+    /// <summary>Always <c>link</c> here.</summary>
+    public string? Kind { get; init; }
+
+    /// <summary>A label, if one was given.</summary>
+    public string? Label { get; init; }
+
+    /// <summary>How often it has been used.</summary>
+    public int Uses { get; init; }
+
+    /// <summary>How often it may be used.</summary>
+    public int? MaxUses { get; init; }
+
+    /// <summary>When it expires, server-local <c>YYYY-MM-DD HH:MM:SS</c>.</summary>
+    public string? ExpiresAt { get; init; }
 }

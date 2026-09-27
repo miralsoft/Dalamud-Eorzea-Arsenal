@@ -348,6 +348,14 @@ public sealed class TeamsService : IDisposable
     public Task<ApiResult<CoverageResponse>> GetCoverageAsync(long teamId, long eventId, string date, CancellationToken ct) =>
         WithKey(key => _api.GetCoverageAsync(key, teamId, eventId, date, ct));
 
+    /// <summary>Creates an invitation link. The code in the answer is a secret: never store, log or report it.</summary>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="request">Uses and life of the link, already within range.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The link, or an error.</returns>
+    public Task<ApiResult<InviteResponse>> CreateInviteAsync(long teamId, InviteRequest request, CancellationToken ct) =>
+        WithKey(key => _api.CreateInviteAsync(key, teamId, request, ct));
+
     /// <summary>Reads the FFLogs mirror (best-effort).</summary>
     /// <param name="teamId">The team id.</param>
     /// <param name="ct">Cancellation token.</param>

@@ -110,12 +110,8 @@ public sealed class TeamLineupShapeTests
         Assert.Null(characters[2].Position);
     }
 
-    /// <summary>
-    /// The event id arrived as a string in these two responses while the calendar sends a number. The API
-    /// makes it a number; this side reads both, so neither the old recording nor the new server breaks it.
-    /// </summary>
     [Fact]
-    public void TheNextOpenDateReadsItsEventIdFromAString()
+    public void TheNextOpenDateNamesItsEventAndWhatItLeavesOpen()
     {
         var next = Recorded<LineupResponse>("team-lineup.json").Data!.NextOpen!;
 
@@ -127,8 +123,21 @@ public sealed class TeamLineupShapeTests
         Assert.Null(open.Note);
     }
 
+    /// <summary>
+    /// The first recordings sent the event id as a string, while the calendar sends a number. The API made
+    /// it a number, and the recordings above now carry one; this side still reads the string, so an answer
+    /// cached or replayed from before the change cannot break it.
+    /// </summary>
     [Fact]
-    public void CoverageCarriesItsListsAndReadsItsEventIdFromAString()
+    public void AnEventIdSentAsAStringStillReads()
+    {
+        const string json = """{ "event_id": "9", "title": "Raid Montag", "date": "2026-10-05", "time": "20:00", "open": [] }""";
+
+        Assert.Equal(9, JsonSerializer.Deserialize<OpenDate>(json, EorzeaJson.Options)!.EventId);
+    }
+
+    [Fact]
+    public void CoverageCarriesItsLists()
     {
         var coverage = Recorded<CoverageResponse>("team-coverage.json").Data!;
 
@@ -138,21 +147,59 @@ public sealed class TeamLineupShapeTests
         Assert.Equal("u5", open.ParticipantKey);
         Assert.Empty(coverage.Unsure!);
         Assert.Empty(coverage.Covered!);
-        Assert.Empty(coverage.Suggestions!);
+    }
+
+    /// <summary>
+    /// Recorded with one suggestion in the role of the open position and one in another, and both are
+    /// placeholders: no player behind them, so <c>member</c> is null. The order is the server's, fitting
+    /// role first, and the window keeps it.
+    /// </summary>
+    [Fact]
+    public void SuggestionsComeInTheServersOrderWithTheFittingRoleFirst()
+    {
+        var suggestions = Recorded<CoverageResponse>("team-coverage.json").Data!.Suggestions!;
+
+        Assert.Equal(2, suggestions.Count);
+        Assert.Equal(("Aushilfe Mira", true), (suggestions[0].Name, suggestions[0].Matches));
+        Assert.Equal(("Aushilfe Theo", false), (suggestions[1].Name, suggestions[1].Matches));
+        Assert.All(suggestions, s => Assert.Equal("placeholder", s.Kind));
+        Assert.All(suggestions, s => Assert.Null(s.Member));
+        Assert.Equal(9, suggestions[0].RosterEntryId);
+        Assert.Null(suggestions[0].CharacterId);
+    }
+}
+
+/// <summary>The caller's rights in a team: from the list the server sends, and from nothing else.</summary>
+public sealed class TeamCapabilityTests
+{
+    private static TeamSummary Recorded()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "TestData", "me-teams-lineup-summary.json");
+        return JsonSerializer.Deserialize<TeamsResponse>(File.ReadAllText(path), EorzeaJson.Options)!.Data![0];
     }
 
     [Fact]
-    public void ASuggestionReadsFromTheShapeTheBriefingGives()
+    public void TheOwnerMayManageMembers()
     {
-        const string json = """
-        { "kind": "character", "participant_key": "u12", "character_id": 40, "roster_entry_id": null, "name": "Bench", "member": "Player 12", "position": null, "jobs": ["SCH"], "roles": ["healer"], "matches": true }
-        """;
+        Assert.True(Recorded().Can(TeamCapability.ManageMembers));
+    }
 
-        var suggestion = JsonSerializer.Deserialize<CoverageSuggestion>(json, EorzeaJson.Options)!;
+    [Fact]
+    public void ARightTheListDoesNotNameIsNotHeld()
+    {
+        var team = new TeamSummary { Id = 1, Capabilities = ["view_history"] };
 
-        Assert.Equal(40, suggestion.CharacterId);
-        Assert.Equal(["SCH"], suggestion.Jobs);
-        Assert.True(suggestion.Matches);
+        Assert.False(team.Can(TeamCapability.ManageMembers));
+    }
+
+    /// <summary>
+    /// A server that sends no list grants nothing. The invitation button then does not appear, which is the
+    /// safe side: the alternative is every member meeting a 403, which is the design this replaced.
+    /// </summary>
+    [Fact]
+    public void NoListGrantsNothing()
+    {
+        Assert.False(new TeamSummary { Id = 1 }.Can(TeamCapability.ManageMembers));
     }
 }
 

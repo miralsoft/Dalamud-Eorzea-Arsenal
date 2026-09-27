@@ -6,8 +6,11 @@
     ],
     "unsure": [],
     "covered": [],
-    "suggestions": [],
-    "event_id": "9",
+    "suggestions": [
+      { "kind": "placeholder", "participant_key": "r9", "character_id": null, "roster_entry_id": 9, "name": "Aushilfe Mira", "member": null, "position": null, "jobs": ["RPR"], "roles": ["dps"], "matches": true },
+      { "kind": "placeholder", "participant_key": "r10", "character_id": null, "roster_entry_id": 10, "name": "Aushilfe Theo", "member": null, "position": null, "jobs": ["WHM"], "roles": ["healer"], "matches": false }
+    ],
+    "event_id": 9,
     "title": "Raid Montag",
     "time": "20:00"
   }

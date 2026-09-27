@@ -1198,6 +1198,48 @@ public static class LocKeys
     /// <summary>Button: put in a substitute on the website.</summary>
     public const string TeamsCoverageSetSubstitute = "teams.coverage.setsubstitute";
 
+    /// <summary>Button: create an invitation link. Shown only with the right to manage members.</summary>
+    public const string TeamsInviteButton = "teams.invite.button";
+
+    /// <summary>Field: how many times the link may be used.</summary>
+    public const string TeamsInviteUses = "teams.invite.uses";
+
+    /// <summary>Field: how many days the link stays valid.</summary>
+    public const string TeamsInviteDays = "teams.invite.days";
+
+    /// <summary>Button: create it.</summary>
+    public const string TeamsInviteCreate = "teams.invite.create";
+
+    /// <summary>Button: close the invitation panel.</summary>
+    public const string TeamsInviteClose = "teams.invite.close";
+
+    /// <summary>Button: copy the link.</summary>
+    public const string TeamsInviteCopy = "teams.invite.copy";
+
+    /// <summary>Above a new link: shown once and stored nowhere.</summary>
+    public const string TeamsInviteCreated = "teams.invite.created";
+
+    /// <summary>Line in the player's own chat log after copying. It never carries the link.</summary>
+    public const string TeamsInviteCopied = "teams.invite.copied";
+
+    /// <summary>The user lacks the right to manage members in that team.</summary>
+    public const string TeamsInviteNoRight = "teams.invite.noright";
+
+    /// <summary>The key lacks a permission; reconnecting once helps.</summary>
+    public const string TeamsInviteReconnect = "teams.invite.reconnect";
+
+    /// <summary>Too many invitations, with no wait named.</summary>
+    public const string TeamsInviteRateLimited = "teams.invite.ratelimited";
+
+    /// <summary>Too many invitations; possible again in one minute (arg: 1).</summary>
+    public const string TeamsInviteRateLimitedOne = "teams.invite.ratelimited.one";
+
+    /// <summary>Too many invitations; possible again in several minutes (arg: minutes).</summary>
+    public const string TeamsInviteRateLimitedMany = "teams.invite.ratelimited.many";
+
+    /// <summary>The server refused the invitation and said why (arg: the server's own words).</summary>
+    public const string TeamsInviteRejected = "teams.invite.rejected";
+
     /// <summary>Refresh button.</summary>
     public const string TeamsRefresh = "teams.refresh";
 

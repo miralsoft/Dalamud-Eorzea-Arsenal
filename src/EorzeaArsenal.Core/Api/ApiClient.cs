@@ -252,6 +252,17 @@ public sealed class ApiClient : IApiClient
             $"/teams/{teamId}/events/{eventId}/coverage?date={Uri.EscapeDataString(date)}", apiKey, ct);
 
     /// <inheritdoc />
+    public async Task<ApiResult<InviteResponse>> CreateInviteAsync(string apiKey, long teamId, InviteRequest request, CancellationToken ct)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Post, Url($"/teams/{teamId}/invite"))
+        {
+            Content = JsonBody(request),
+        };
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<InviteResponse>(message, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public Task<ApiResult<ObtainResponse>> GetGearObtainAsync(string apiKey, IReadOnlyCollection<long> itemIds, CancellationToken ct)
     {
         var ids = string.Join(',', itemIds);
@@ -598,6 +609,8 @@ public sealed class ApiClient : IApiClient
             RetryAfter = retryAfter is { Ticks: > 0 } ? retryAfter : null,
             Code = problem?.Error,
             Jobs = problem?.Jobs,
+            MissingScope = problem?.MissingScope,
+            MissingCapability = problem?.MissingCapability,
         };
     }
 

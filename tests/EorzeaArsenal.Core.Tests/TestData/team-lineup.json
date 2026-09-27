@@ -16,7 +16,7 @@
       { "kind": "character", "user_id": 38, "character_id": 30, "name": "Char 30", "member": "Dev Test Admin", "is_core": false, "paused": false, "blocked": false, "position": null, "jobs": ["DRK"], "roles": ["tank"], "shares_nothing": false }
     ],
     "next_open": {
-      "event_id": "9", "title": "Raid Montag", "date": "2026-10-05", "time": "20:00",
+      "event_id": 9, "title": "Raid Montag", "date": "2026-10-05", "time": "20:00",
       "open": [
         { "kind": "character", "participant_key": "u5", "character_id": 3, "roster_entry_id": null, "name": "Char 3", "member": "Spieler 5", "position": "M1", "roles": ["dps"], "reason": "absent", "note": null }
       ]

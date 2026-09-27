@@ -46,6 +46,21 @@
       }
     },
     {
+      "id": "invitation-link-from-the-game",
+      "version": "1.2.0",
+      "date": "2026-09-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Einladungslink aus dem Spiel",
+        "body": "<p>Wer im Team Mitglieder verwalten darf, erstellt den Link in der Aufstellung und kopiert ihn mit einem Klick.</p>"
+      },
+      "en": {
+        "title": "Invitation link from the game",
+        "body": "<p>Whoever may manage members creates the link in the line-up and copies it with one click.</p>"
+      }
+    },
+    {
       "id": "reordering-gearsets-keeps-everything",
       "version": "1.1.0",
       "date": "2026-09-13",

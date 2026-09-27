@@ -63,6 +63,11 @@ public static class ReleaseNotes
                 "who-is-missing-on-a-date",
                 "Wer bei einem Termin fehlt: \"Besetzung\" unter jedem kommenden Termin zeigt, welche Positionen offen sind, wer vertritt und wer einspringen könnte.",
                 "Who is missing on a date: \"Who's in\" under every upcoming date shows which positions are open, who covers them and who could step in."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "invitation-link-from-the-game",
+                "Einladungslink aus dem Spiel: Wer im Team Mitglieder verwalten darf, erstellt den Link in der Aufstellung und kopiert ihn mit einem Klick.",
+                "Invitation link from the game: whoever may manage members creates the link in the line-up and copies it with one click."),
         ]),
         new ReleaseNote("1.1.0", "2026-09-13",
         [

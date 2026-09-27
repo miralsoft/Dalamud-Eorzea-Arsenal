@@ -50,6 +50,7 @@ public sealed class TeamsWindow : Window
     private readonly Action _save;
     private readonly Action _openConfig;
     private readonly Action<long, long, string?> _openImage;
+    private readonly Action<string> _ownChatNotice;
 
     private readonly Slot<TeamsResponse> _teamsSlot = new();
     private readonly Slot<MitSheetResponse> _mitSlot = new();
@@ -70,6 +71,15 @@ public sealed class TeamsWindow : Window
     // Whether a key was present on the last frame, so its disappearance can be noticed once and the team
     // reads dropped with it rather than lingering in memory behind the "not connected" hint.
     private bool _hadKey;
+
+    // The invitation panel. The link is a secret: it lives in this one field while the panel shows it, is
+    // never logged or persisted, and is dropped on close, on a team switch and on disconnect.
+    private bool _inviteOpen;
+    private int _inviteUses = InviteRequest.DefaultUses;
+    private int _inviteDays = InviteRequest.DefaultDays;
+    private volatile bool _inviteBusy;
+    private volatile string? _inviteLink;
+    private volatile string? _inviteError;
 
     private int _teamIndex;
     private int _planIndex;
@@ -109,6 +119,10 @@ public sealed class TeamsWindow : Window
     /// teammate's — only their own may be measured against what the plugin can see.
     /// </param>
     /// <param name="openImage">Opens a content-hub image in the image window (teamId, resourceId, title).</param>
+    /// <param name="ownChatNotice">
+    /// Writes one line into the player's own chat log, which nobody else sees. Used to confirm a copied
+    /// invitation link, and never with the link in it.
+    /// </param>
     public TeamsWindow(
         PluginConfig config,
         ConfigStore store,
@@ -124,7 +138,8 @@ public sealed class TeamsWindow : Window
         ILog log,
         Action save,
         Action openConfig,
-        Action<long, long, string?> openImage)
+        Action<long, long, string?> openImage,
+        Action<string> ownChatNotice)
         : base("Eorzea Arsenal · Teams###EorzeaArsenalTeams")
     {
         _myCharacterId = myCharacterId;
@@ -143,6 +158,7 @@ public sealed class TeamsWindow : Window
         _save = save;
         _openConfig = openConfig;
         _openImage = openImage;
+        _ownChatNotice = ownChatNotice;
 
         // The tabs manage their own scroll (mit = table, others = child), so the window itself never
         // shows a second scrollbar.
@@ -261,6 +277,11 @@ public sealed class TeamsWindow : Window
                 _planIndex = 0;
                 _selectedJob = null;
                 _config.TeamsLastTeamId = teams[_teamIndex].Id;
+
+                // A link belongs to the team it was made for; showing it under another would invite
+                // somebody to the wrong team.
+                CloseInvite();
+                _coverageOpen = null;
                 _save();
             }
         }
@@ -705,6 +726,7 @@ public sealed class TeamsWindow : Window
             return;
         }
 
+        DrawInvite(team);
         DrawNextOpen(team, lineup.NextOpen);
         ImGui.Spacing();
         DrawRoles(lineup.Roles);
@@ -712,6 +734,140 @@ public sealed class TeamsWindow : Window
         DrawAllows(lineup.Allow);
         ImGui.Separator();
         DrawLineupCharacters(lineup.Characters);
+    }
+
+    /// <summary>
+    /// The invitation link, for a player who may manage members in this team and for nobody else.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The button exists only when the server listed <c>manage_members</c> for this team. Without the list it
+    /// does not exist either: offering an action and letting most members meet a 403 is the design this
+    /// replaced, and reading the right from some other field happening to be present is the guess it
+    /// replaced.
+    /// </para>
+    /// <para>
+    /// The link is shown once and copied on request. Copying confirms in the player's own chat log without
+    /// the link in the line, because the chat log ends up in log files and screenshots. Nothing is typed
+    /// into the game's chat input.
+    /// </para>
+    /// </remarks>
+    private void DrawInvite(TeamSummary team)
+    {
+        if (!team.Can(TeamCapability.ManageMembers))
+        {
+            return;
+        }
+
+        if (!_inviteOpen)
+        {
+            if (ImGui.SmallButton($"{T(LocKeys.TeamsInviteButton)}##invite"))
+            {
+                _inviteOpen = true;
+                _inviteError = null;
+            }
+
+            ImGui.Spacing();
+            return;
+        }
+
+        using var indent = ImRaii.PushIndent();
+        if (_inviteLink is { } link)
+        {
+            ImGui.TextDisabled(T(LocKeys.TeamsInviteCreated));
+            ImGui.TextColored(Green, link);
+            if (ImGui.SmallButton($"{T(LocKeys.TeamsInviteCopy)}##invitecopy"))
+            {
+                ImGui.SetClipboardText(link);
+                _ownChatNotice(T(LocKeys.TeamsInviteCopied));
+            }
+
+            ImGui.SameLine();
+        }
+        else
+        {
+            ImGui.SetNextItemWidth(110f);
+            if (ImGui.InputInt($"{T(LocKeys.TeamsInviteUses)}##inviteuses", ref _inviteUses))
+            {
+                _inviteUses = Math.Clamp(_inviteUses, InviteRequest.MinUses, InviteRequest.MaxUsesLimit);
+            }
+
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(110f);
+            if (ImGui.InputInt($"{T(LocKeys.TeamsInviteDays)}##invitedays", ref _inviteDays))
+            {
+                _inviteDays = Math.Clamp(_inviteDays, InviteRequest.MinDays, InviteRequest.MaxDays);
+            }
+
+            using (ImRaii.Disabled(_inviteBusy))
+            {
+                if (ImGui.SmallButton($"{T(LocKeys.TeamsInviteCreate)}##invitecreate"))
+                {
+                    CreateInvite(team.Id);
+                }
+            }
+
+            ImGui.SameLine();
+        }
+
+        if (ImGui.SmallButton($"{T(LocKeys.TeamsInviteClose)}##inviteclose"))
+        {
+            CloseInvite();
+        }
+
+        if (_inviteBusy)
+        {
+            ImGui.TextDisabled(T(LocKeys.TeamsWorking));
+        }
+        else if (_inviteError is { } error)
+        {
+            ImGui.TextColored(Red, error);
+        }
+
+        ImGui.Spacing();
+    }
+
+    private void CreateInvite(long teamId)
+    {
+        _inviteBusy = true;
+        _inviteError = null;
+        var request = InviteRequest.Link(_inviteUses, _inviteDays);
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var res = await _teams.CreateInviteAsync(teamId, request, CancellationToken.None).ConfigureAwait(false);
+                if (res.IsSuccess && res.Value?.Link is { Length: > 0 } link)
+                {
+                    _inviteLink = link;
+                }
+                else
+                {
+                    // Status, endpoint and request id only. Never the body: on success it is the secret.
+                    _log.Warning($"Invite failed: {res.Error?.Kind} (HTTP {res.Error?.StatusCode}) {res.Error?.Endpoint} req={res.Error?.RequestId}");
+                    _inviteError = TeamErrors.DescribeInvite(res.Error, _localizer);
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"Invite failed: {ex.GetType().Name}.");
+                _inviteError = T(LocKeys.TeamsErrorGeneric);
+            }
+            finally
+            {
+                _inviteBusy = false;
+            }
+        });
+    }
+
+    /// <summary>Closes the panel and lets go of the link.</summary>
+    private void CloseInvite()
+    {
+        _inviteOpen = false;
+        _inviteLink = null;
+        _inviteError = null;
+        _inviteUses = InviteRequest.DefaultUses;
+        _inviteDays = InviteRequest.DefaultDays;
     }
 
     /// <summary>The first date in the next 60 days that leaves a position open, with what it leaves open.</summary>
@@ -2369,6 +2525,15 @@ public sealed class TeamsWindow : Window
         _lineupSlot.Forget();
         _coverageSlot.Forget();
         _coverageOpen = null;
+        CloseInvite();
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Closing the window lets go of an invitation link: it is shown once, not kept for later.</remarks>
+    public override void OnClose()
+    {
+        CloseInvite();
+        base.OnClose();
     }
 
     private void Ensure<T>(Slot<T> slot, string key, Func<CancellationToken, Task<ApiResult<T>>> call)
@@ -2418,9 +2583,18 @@ public sealed class TeamsWindow : Window
             return T(LocKeys.TeamsErrorGeneric);
         }
 
+        // The two kinds of 403 from the members the server names them with, not from the wording of its
+        // message: that text is for people, and a reworded sentence must not turn into a wrong remedy here.
+        switch (TeamErrors.CauseOf(error))
+        {
+            case ForbiddenCause.MissingScope:
+                return T(LocKeys.TeamsScopeHint);
+            case ForbiddenCause.MissingCapability:
+                return T(LocKeys.TeamsErrorForbidden);
+        }
+
         return error.Kind switch
         {
-            ApiErrorKind.Forbidden when error.Message?.Contains("scope", StringComparison.OrdinalIgnoreCase) == true => T(LocKeys.TeamsScopeHint),
             ApiErrorKind.Forbidden => T(LocKeys.TeamsErrorForbidden),
             ApiErrorKind.NotFound => T(LocKeys.TeamsNotMember),
             ApiErrorKind.Unauthorized => T(LocKeys.TeamsDisabledHint),
