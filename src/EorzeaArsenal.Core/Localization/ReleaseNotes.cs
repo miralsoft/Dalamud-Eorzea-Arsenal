@@ -66,8 +66,8 @@ public static class ReleaseNotes
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "invitation-link-from-the-game",
-                "Einladungslink aus dem Spiel: Wer im Team Mitglieder verwalten darf, erstellt den Link in der Aufstellung und kopiert ihn mit einem Klick.",
-                "Invitation link from the game: whoever may manage members creates the link in the line-up and copies it with one click."),
+                "Einladungslink jetzt auch aus dem Spiel: Wer im Team Mitglieder verwalten darf, kann ihn in der Aufstellung erstellen und mit einem Klick kopieren.",
+                "Invitation links from the game too: whoever may manage members can create one in the line-up and copy it with one click."),
         ]),
         new ReleaseNote("1.1.0", "2026-09-13",
         [
