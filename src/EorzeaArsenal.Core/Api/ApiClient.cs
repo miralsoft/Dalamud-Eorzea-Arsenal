@@ -589,6 +589,8 @@ public sealed class ApiClient : IApiClient
             RetryAfter = retryAfter is { Ticks: > 0 } ? retryAfter : null,
             Code = problem?.Error,
             Jobs = problem?.Jobs,
+            MissingScope = problem?.MissingScope,
+            MissingCapability = problem?.MissingCapability,
         };
     }
 

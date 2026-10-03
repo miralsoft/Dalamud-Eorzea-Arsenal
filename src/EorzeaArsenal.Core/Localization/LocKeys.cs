@@ -528,6 +528,21 @@ public static class LocKeys
     /// <summary>Too many decisions in the hour; how long the window is holding off (arg: seconds).</summary>
     public const string ReviewWaiting = "review.waiting";
 
+    /// <summary>A delete was refused because the key lacks gear:delete; how to get it.</summary>
+    public const string ReviewRefusedDelete = "review.refused.delete";
+
+    /// <summary>A decision was refused because the key lacks some other scope.</summary>
+    public const string ReviewRefusedReconnect = "review.refused.reconnect";
+
+    /// <summary>A decision was refused because the player lacks a right in a team.</summary>
+    public const string ReviewRefusedTeamRight = "review.refused.teamright";
+
+    /// <summary>A decision was refused with a 403 that names no cause.</summary>
+    public const string ReviewRefused = "review.refused";
+
+    /// <summary>A decision failed for any other reason.</summary>
+    public const string ReviewTryLater = "review.trylater";
+
     /// <summary>Header of the inventory half.</summary>
     public const string ReviewInventory = "review.inventory";
 

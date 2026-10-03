@@ -3,7 +3,7 @@
 > The complete in-repo memory so an AI/contributor on another machine can continue without losing
 > context (R3). Keep this current **in the same commit** as the change it describes.
 
-_Last updated: 2026-09-27._
+_Last updated: 2026-10-03._
 
 ## Status: 1.1.0 merged into `main` (PR #24, `768a5ff`), not tagged, not live. Work on 1.2.0 happens in `release/v1.2.0`.
 
@@ -85,6 +85,13 @@ that noise. Judge the format gate from a clone, never from the working tree.
 - **Feature B (inventory) stays deferred** to `protocol_version: 2` (see agent memory).
 
 ### Next / open
+- **A refused review decision now says why** (`fix/review-refusal-says-so`, for 1.2.0). Until then
+  `ReviewWindow.AfterCall` returned in silence on anything but a missing route, so a refused click looked
+  like a dead button. `ReviewService.LastError` keeps the error, `ReviewRules.RefusalOf` names the cause
+  from `missing_scope` / `missing_capability` (never from `detail`), and the window shows one sentence.
+  It matters from server 1.4 on: deleting needs `gear:delete`, and keys paired before the split are never
+  topped up, so their delete is refused with `missing_scope: "gear:delete"`. No release note: 1.1.0, the
+  version with the silent window, was never installable, so no player saw the fault.
 - **Waiting on the server, not on us:** nothing. Both open questions of 2026-09-12 came back. `BST` is in
   the job table since version `2026-08-22`, and `orphans[].similar[]` is now guaranteed never to name a
   row that is not in game. One hazard was handed over with the first and is theirs to decide: a client

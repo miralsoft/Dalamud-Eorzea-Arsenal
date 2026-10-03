@@ -1,3 +1,4 @@
+using EorzeaArsenal.Api;
 using EorzeaArsenal.Model;
 
 namespace EorzeaArsenal.Core;
@@ -81,6 +82,32 @@ public enum ReviewConsequence
 }
 
 /// <summary>
+/// Why the server refused a decision, as far as the answer says, named rather than phrased. The window
+/// turns it into one sentence; before it existed a refused click showed nothing at all and the button
+/// simply looked dead.
+/// </summary>
+public enum ReviewRefusal
+{
+    /// <summary>The key may not delete. Reconnecting once or allowing it on the website fixes that.</summary>
+    NeedsDeleteRight,
+
+    /// <summary>The key lacks some other scope. Reconnecting fixes that.</summary>
+    NeedsReconnect,
+
+    /// <summary>The player lacks a right in a team. Reconnecting does not help; the team lead can grant it.</summary>
+    NeedsTeamRight,
+
+    /// <summary>The key is invalid, revoked or expired.</summary>
+    KeyRejected,
+
+    /// <summary>A 403 that names no cause. Say it was refused and guess no further.</summary>
+    Refused,
+
+    /// <summary>Anything else: a network fault, a server error, an offer the server did not accept.</summary>
+    TryLater,
+}
+
+/// <summary>
 /// What a window may offer, and what it must preselect. Pure decisions over one answer, kept apart from
 /// the service that fetches so they can be read and tested on their own.
 /// </summary>
@@ -91,6 +118,33 @@ public enum ReviewConsequence
 /// </remarks>
 public static class ReviewRules
 {
+    /// <summary>Why a decision was refused, read from the error the service kept.</summary>
+    /// <param name="error">The error behind a failed call, or <see langword="null"/> when none was kept.</param>
+    /// <returns>The cause the window should name.</returns>
+    /// <remarks>
+    /// The cause of a 403 is read from <c>missing_scope</c> and <c>missing_capability</c> and never from the
+    /// text of <c>detail</c>, which is written for people and may change. Telling a player to reconnect when
+    /// it is their team that withholds the right sends them round in a circle, so a 403 without either
+    /// member stays a plain refusal instead of guessing.
+    /// </remarks>
+    public static ReviewRefusal RefusalOf(ApiError? error)
+    {
+        switch (error?.Kind)
+        {
+            case ApiErrorKind.Unauthorized:
+                return ReviewRefusal.KeyRejected;
+            case ApiErrorKind.Forbidden when string.Equals(error.MissingScope, ScopeUtil.GearDelete, StringComparison.OrdinalIgnoreCase):
+                return ReviewRefusal.NeedsDeleteRight;
+            case ApiErrorKind.Forbidden when error.MissingScope is { Length: > 0 }:
+                return ReviewRefusal.NeedsReconnect;
+            case ApiErrorKind.Forbidden when error.MissingCapability is { Length: > 0 }:
+                return ReviewRefusal.NeedsTeamRight;
+            case ApiErrorKind.Forbidden:
+                return ReviewRefusal.Refused;
+            default:
+                return ReviewRefusal.TryLater;
+        }
+    }
 
 
     /// <summary>

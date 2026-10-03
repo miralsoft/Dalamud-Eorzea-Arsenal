@@ -121,6 +121,12 @@ public sealed class ReviewWindow : Window
     private bool _showAside;
     private bool _staleNotice;
 
+    /// <summary>
+    /// Why the last click was refused, or <see langword="null"/>. Set on the task that ran the call and read
+    /// by the drawing thread, like <see cref="_staleNotice"/>; a boxed enum is written in one step.
+    /// </summary>
+    private ReviewRefusal? _refusal;
+
     /// <summary>Creates the window.</summary>
     /// <param name="review">The service that holds the questions.</param>
     /// <param name="localizer">UI string resolver.</param>
@@ -233,6 +239,7 @@ public sealed class ReviewWindow : Window
         WindowName = T(LocKeys.ReviewTitle) + "###EorzeaArsenalReview";
         _review.IsOpen = true;
         _staleNotice = false;
+        _refusal = null;
         _settledSince = null;
 
         // Whether closing itself is the right thing at all, decided once, here. The window shuts when the
@@ -388,6 +395,11 @@ public sealed class ReviewWindow : Window
         if (_staleNotice)
         {
             Text(Warn, T(LocKeys.ReviewStale));
+        }
+
+        if (_refusal is { } refusal)
+        {
+            Wrapped(Warn, Refusal(refusal));
         }
 
         if (_alsoSettled > 0)
@@ -2479,6 +2491,17 @@ public sealed class ReviewWindow : Window
 
         return lines;
     }
+
+    private string Refusal(ReviewRefusal refusal) => T(refusal switch
+    {
+        ReviewRefusal.NeedsDeleteRight => LocKeys.ReviewRefusedDelete,
+        ReviewRefusal.NeedsReconnect => LocKeys.ReviewRefusedReconnect,
+        ReviewRefusal.NeedsTeamRight => LocKeys.ReviewRefusedTeamRight,
+        ReviewRefusal.KeyRejected => LocKeys.Error401,
+        ReviewRefusal.Refused => LocKeys.ReviewRefused,
+        _ => LocKeys.ReviewTryLater,
+    });
+
     private void Decide(ReviewDecision decision) => Run(async () =>
     {
         var outcome = await _review.DecideAsync(decision, CancellationToken.None).ConfigureAwait(false);
@@ -2500,6 +2523,10 @@ public sealed class ReviewWindow : Window
     private void AfterCall(ReviewOutcome outcome)
     {
         _staleNotice = outcome == ReviewOutcome.Stale;
+
+        // A refused click used to end here in silence, and the button looked dead. A rate limit and a
+        // missing route already have their own lines, so only a plain failure gets a sentence.
+        _refusal = outcome == ReviewOutcome.Failed ? ReviewRules.RefusalOf(_review.LastError) : null;
 
         // What the click settled beyond the row it named. Read from the answer rather than diffed, because
         // a held row can also leave the list because its set vanished from the game, and a diff cannot tell

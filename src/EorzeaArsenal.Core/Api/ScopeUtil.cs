@@ -30,6 +30,15 @@ public static class ScopeUtil
     /// </remarks>
     public const string GearReview = "gear:review";
 
+    /// <summary>The scope the review verb "delete" needs from server 1.4 on.</summary>
+    /// <remarks>
+    /// Split off <c>gear:review</c> so that a key which may sort rows cannot also remove them. Unlike
+    /// <c>gear:review</c>, an existing key is <b>never</b> topped up with it: the player reconnects once, or
+    /// allows it for that key on the website's API keys page. Until then a delete is refused with a 403
+    /// that names this scope in <c>missing_scope</c>.
+    /// </remarks>
+    public const string GearDelete = "gear:delete";
+
     /// <summary>Whether the given scope list grants <c>inventory:write</c>.</summary>
     /// <param name="scopes">Scopes from <c>GET /version</c> (may be <see langword="null"/>).</param>
     /// <returns><see langword="true"/> if <c>inventory:write</c> is present (case-insensitive).</returns>

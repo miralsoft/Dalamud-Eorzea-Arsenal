@@ -102,6 +102,22 @@ public sealed class ProblemDetails
     /// leave behind, and the only cause today that carries a list.
     /// </summary>
     public List<string>? Jobs { get; init; }
+
+    /// <summary>
+    /// On a 403: the permission the <b>key</b> lacks, such as <c>teams:write</c>. Reconnecting helps.
+    /// </summary>
+    /// <remarks>
+    /// One of two members that tell the two kinds of 403 apart, added on 2026-09-27. They exist so that
+    /// nobody reads the cause out of <see cref="Detail"/>: that text is for people and may change. Telling a
+    /// player to reconnect when their team has not granted a right sends them round in a circle.
+    /// </remarks>
+    public string? MissingScope { get; init; }
+
+    /// <summary>
+    /// On a 403: the right the <b>user</b> lacks in that team, such as <c>manage_members</c>. Reconnecting
+    /// does not help; the team lead can grant it.
+    /// </summary>
+    public string? MissingCapability { get; init; }
 }
 
 /// <summary>
