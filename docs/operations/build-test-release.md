@@ -58,6 +58,25 @@ Users add this stable URL under Dalamud → Settings → Experimental → Custom
 
 ### Cutting a release
 
+> **A merge into `main` publishes the notes. Only the tag publishes the plugin.** The website reads
+> `changelog.json` from `main` and announces every new entry on `/neu` and in Discord as soon as it
+> lands. Players, however, can install a version only once its tag has produced a GitHub release: the
+> repository's own index and the shared one at `xivarsenal.app/plugin.json` both read the newest
+> release. A merge without the tag therefore announces a version that nobody can get.
+>
+> That happened with 1.1.0. Merged into `main` on 2026-09-13 and announced the same day, it was never
+> tagged. For three weeks the site and Discord described features that the installable 1.0.0 did not
+> have, and nobody noticed, because "merged" read as "released" to everyone involved, this guide's
+> author included. 1.1.0 was then skipped: players go from 1.0.0 straight to 1.2.0. Its notes stay as
+> they are, because they were published, and the in-game "what's new" lists every version, so players
+> coming from 1.0.0 find 1.1.0's notes directly under 1.2.0's.
+>
+> So: **merge into `main` only a version that is ready to ship now, and tag it in the same sitting.**
+> Check every gate the tag depends on **before** the merge, not after: a server release the notes
+> rely on, the job codes a note promises, an open fix. If the tag has to wait, the merge waits with it.
+> And when somebody asks whether a version is out, the answer is the release list and the index, not
+> the state of `main`.
+>
 > **Nothing is merged into `main` that has not first been brought together in a release branch.** A
 > version is assembled in `release/vX.Y.Z`; `main` receives it once, whole, through a single PR. This
 > rule dates from 2026-09-27: 1.1.0 was merged straight into `main`, and although that matched every
@@ -99,13 +118,13 @@ Users add this stable URL under Dalamud → Settings → Experimental → Custom
 A fix for a version already out branches `release/vX.Y.Z+1` from **that version's tag**, not from a
 release branch that has moved on, so the fix does not ship half of the next version with it.
 
-**A gap in CI worth knowing about.** `ci.yml` runs on pushes to `main` and on every pull request;
-`codeql.yml` on pushes to `main` and on pull requests **into `main`**. So a feature PR into a release
-branch is built and tested, but the release branch itself is not checked after that PR merges, and
-CodeQL does not look at it until the final PR into `main`. Two feature PRs that are each green can
-therefore combine into a red release branch unnoticed, which is the 2026-07-27 failure in a new place.
-Adding `release/**` to the `push` trigger of `ci.yml` would close it; that is a decision about CI, not
-taken here.
+**One discipline for PRs into a release branch.** `ci.yml` runs on every pull request, and a pull
+request is checked out as the result of merging it into its base, so a feature PR is tested against
+what the release branch holds at that moment. The one way two green PRs still combine into a red
+branch is when both are open at once: both were tested against the old base, and once the first is
+merged the second one's green is stale. So merge them one at a time, and re-run the second one's checks
+before merging it. That is enough; no extra trigger is needed. (`codeql.yml` runs only on pull requests
+into `main`, so CodeQL sees a release branch at its final PR.)
 
 ### `changelog.json` — the public feed
 
@@ -135,7 +154,9 @@ Three rules it depends on:
   mint a new entry. Ids are namespaced by source (`plugin:<our-id>`), so they cannot collide with the
   website's own. (The pre-0.5.0 ids were slugged once from their English text and are frozen.)
 - **It is stamped in the release commit, not by a workflow.** `main` is branch-protected and nothing
-  pushes to it, so the file is regenerated locally in step 2 and travels with the release PR.
+  pushes to it, so the file is regenerated locally in step 3 and travels with the release PR. Because
+  the site reads it from `main`, merging that PR **is** the announcement; see the first rule under
+  "Cutting a release".
 
 ## In-game smoke test (operator)
 
