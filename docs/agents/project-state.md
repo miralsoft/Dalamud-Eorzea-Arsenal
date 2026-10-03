@@ -10,6 +10,13 @@ _Last updated: 2026-09-27._
 From 1.2.0 on, nothing reaches `main` except through a release branch; see
 `docs/operations/build-test-release.md`. 1.1.0 was the last version merged straight into `main`.
 
+> **Do not tag 1.1.0 before the website's 1.4 is live.** Agreed with the server side for the 43 job
+> codes: the website goes first, then the plugin version that sends them. The plugin enforces the order on
+> its own, because `JobPolicy` never sends a code the server's table at that address lacks. But 1.1.0's
+> what's-new promises that Beastmaster and the crafters and gatherers are synced, and against a production
+> table without those codes they would be filtered out in silence, so the notes would be untrue for every
+> player who reads them. The same holds for 1.2.0, which carries 1.1.0.
+
 **1.2.0 in progress: Phase E, team line-up** (`feat/team-lineup` against `release/v1.2.0`). All five
 steps are built: the line-up and coverage reads, what each team needs in the picker, the line-up tab, who
 is in on each upcoming date, and the invitation link. The link is offered only when the team's

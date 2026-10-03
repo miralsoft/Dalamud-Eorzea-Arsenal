@@ -489,6 +489,12 @@ public sealed class FarmEntry
     /// base is there and the upgrade is not — the one case where "upgrade it" is the right advice.
     /// Slots the target does not name are absent rather than <see langword="false"/>. Says nothing
     /// about bags, materials or tomestones, and only appears for sets already shared with the team.
+    /// <para>
+    /// From the website's 1.4 on, a slot marker counts only for the target piece it was set for; a marker
+    /// from before then still counts for any target. Hands and wrists are reported as held where a marker
+    /// stands, which they were not before. The shape did not change, and this side reads the value as it
+    /// comes, so none of that needed a plugin release.
+    /// </para>
     /// </remarks>
     public Dictionary<string, bool>? Owned { get; init; }
 
