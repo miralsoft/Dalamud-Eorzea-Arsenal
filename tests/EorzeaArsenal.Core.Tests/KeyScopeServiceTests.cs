@@ -118,6 +118,39 @@ public sealed class KeyScopeServiceTests
         Assert.Equal(false, service.Has(ScopeUtil.GearDelete));
     }
 
+    /// <summary>
+    /// Allowing the scope on the website keeps the same key. While the button is locked each opening asks
+    /// again, and a list that now carries the scope lifts both the list's lock and a remembered refusal.
+    /// </summary>
+    [Fact]
+    public async Task AllowingItOnTheWebsiteUnlocksOnTheNextOpening()
+    {
+        var (service, api, _) = Build();
+        api.KeyScopesResult = Scopes("gear:write", "gear:review");
+        await service.RecheckAsync(ScopeUtil.GearDelete, CancellationToken.None);
+        service.NoteRefused(ScopeUtil.GearDelete);
+        Assert.True(service.IsKnownToLack(ScopeUtil.GearDelete));
+
+        api.KeyScopesResult = Scopes("gear:write", "gear:review", "gear:delete");
+        await service.RecheckAsync(ScopeUtil.GearDelete, CancellationToken.None);
+
+        Assert.False(service.IsKnownToLack(ScopeUtil.GearDelete));
+        Assert.Equal(2, api.KeyScopesCalls);
+    }
+
+    /// <summary>Nothing locked means nothing to re-check: an opening does not ask a second time.</summary>
+    [Fact]
+    public async Task AnUnlockedButtonIsNotReasked()
+    {
+        var (service, api, _) = Build();
+        api.KeyScopesResult = Scopes("gear:write", "gear:delete");
+
+        await service.RecheckAsync(ScopeUtil.GearDelete, CancellationToken.None);
+        await service.RecheckAsync(ScopeUtil.GearDelete, CancellationToken.None);
+
+        Assert.Equal(1, api.KeyScopesCalls);
+    }
+
     [Fact]
     public async Task NoKeyAsksNothing()
     {

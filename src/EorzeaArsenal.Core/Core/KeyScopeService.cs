@@ -127,6 +127,21 @@ public sealed class KeyScopeService
         }
     }
 
+    /// <summary>
+    /// Like <see cref="EnsureAsync"/>, but asks again while the key is known to lack
+    /// <paramref name="scope"/>.
+    /// </summary>
+    /// <param name="scope">The scope whose lock should be re-checked, such as <see cref="ScopeUtil.GearDelete"/>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The state afterwards.</returns>
+    /// <remarks>
+    /// Allowing a scope on the website changes the key without replacing it, so nothing here would notice:
+    /// the button would stay locked until the plugin restarts. Asking again on each opening while it is
+    /// locked costs one read per opening, and only for a player who is looking at a locked button.
+    /// </remarks>
+    public Task<KeyScopeState> RecheckAsync(string scope, CancellationToken ct) =>
+        IsKnownToLack(scope) ? RefreshAsync(ct) : EnsureAsync(ct);
+
     /// <summary>Asks the server once for the stored key, unless an answer for it is already held.</summary>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The state afterwards.</returns>
@@ -193,6 +208,10 @@ public sealed class KeyScopeService
             {
                 _scopes = new HashSet<string>(result.Value!.Scopes.Select(s => s.Trim()), StringComparer.OrdinalIgnoreCase);
                 _state = KeyScopeState.Known;
+
+                // A right granted since the refusal, on the website's API keys page, keeps the same key.
+                // The list is the newer word, so a refusal it contradicts no longer locks anything.
+                _refused.ExceptWith(_scopes);
             }
             else if (result.Error!.Kind == ApiErrorKind.NotFound)
             {

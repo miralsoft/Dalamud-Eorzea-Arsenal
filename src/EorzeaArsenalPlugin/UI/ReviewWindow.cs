@@ -247,10 +247,11 @@ public sealed class ReviewWindow : Window
         _refusal = null;
         _settledSince = null;
 
-        // Once per key, so a delete the key may not do is drawn locked before anybody presses it. Nothing
+        // Once per key, so a delete the key may not do is drawn locked before anybody presses it, and again
+        // on each opening while it is locked, because allowing it on the website keeps the same key. Nothing
         // waits on it: until it answers, and on a server that cannot answer, the button stays live and a
         // 403 decides.
-        _ = _keyScopes.EnsureAsync(CancellationToken.None);
+        _ = _keyScopes.RecheckAsync(ScopeUtil.GearDelete, CancellationToken.None);
 
         // Whether closing itself is the right thing at all, decided once, here. The window shuts when the
         // last decision is answered, which is what somebody who came to answer them wants. Somebody who
