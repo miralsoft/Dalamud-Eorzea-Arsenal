@@ -92,6 +92,13 @@ that noise. Judge the format gate from a clone, never from the working tree.
   It matters from server 1.4 on: deleting needs `gear:delete`, and keys paired before the split are never
   topped up, so their delete is refused with `missing_scope: "gear:delete"`. No release note: 1.1.0, the
   version with the silent window, was never installable, so no player saw the fault.
+- **The key's own scopes come from `GET /device/key`** (`feat/device-key-scopes`, for 1.2.0, on top of
+  the refusal fix). `KeyScopeService` asks once per key and holds `Known`, `NotOffered` (404, a server
+  before 1.4) or `Failed`. Only a known list without `gear:delete`, or a 403 that named it, locks the
+  delete verb: the button stays visible, disabled, with the sentence how to get the right. A 404 or a
+  failed question checks nothing and lets a 403 decide, because on a pre-1.4 server deleting works
+  without the scope. "Verbindung testen" now judges `gear:write` from the same answer; it used to check
+  the `/version` scopes, which are the server's catalogue and so could never fail.
 - **Waiting on the server, not on us:** nothing. Both open questions of 2026-09-12 came back. `BST` is in
   the job table since version `2026-08-22`, and `orphans[].similar[]` is now guaranteed never to name a
   row that is not in game. One hazard was handed over with the first and is theirs to decide: a client

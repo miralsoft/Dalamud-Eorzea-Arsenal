@@ -84,6 +84,19 @@ public interface IApiClient
     Task<ApiResult<JobTableResponse>> GetJobTableAsync(CancellationToken ct);
 
     /// <summary>
+    /// Reads what the given key may do via <c>GET /device/key</c> (server 1.4).
+    /// </summary>
+    /// <remarks>
+    /// <c>/version</c> lists the server's catalogue, the same for everybody, so it cannot answer this. A
+    /// <b>404 means a server before 1.4</b>: there <c>gear:delete</c> does not exist yet and deleting works
+    /// without it, so the caller checks nothing and lets a 403 decide.
+    /// </remarks>
+    /// <param name="apiKey">The key to ask about.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The key's scopes, or a classified error.</returns>
+    Task<ApiResult<KeyScopesResponse>> GetKeyScopesAsync(string apiKey, CancellationToken ct);
+
+    /// <summary>
     /// Reads the open questions and the orphan inventory for one character via <c>GET /gear/review</c>
     /// (requires <c>gear:read</c>).
     /// </summary>

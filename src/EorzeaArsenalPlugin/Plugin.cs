@@ -107,6 +107,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly PreviewWindow _previewWindow;
     private readonly ReviewWindow _reviewWindow;
     private readonly ReviewService _review;
+    private readonly KeyScopeService _keyScopes;
     private readonly WhatsNewWindow _whatsNewWindow;
     private readonly ReportWindow _reportWindow;
     private bool _whatsNewPending;
@@ -277,7 +278,8 @@ public sealed class Plugin : IDalamudPlugin
         // Where a person answers what a sync could not. Automatic pushes hold back while it is open,
         // because a push moves the state token and would turn their next decision into a 409.
         _review = new ReviewService(api, _store, _characterDirectory, new SystemClock(), _gearsetMapping, _log);
-        _reviewWindow = new ReviewWindow(_review, _localizer, () => _currentCidHash, OnReviewDecision, _gearSource.GetItemName, _gearSource.GetItemIconId, textureProvider, OpenExternalLink, LiveNumberOf, _log);
+        _keyScopes = new KeyScopeService(api, _store, _log);
+        _reviewWindow = new ReviewWindow(_review, _keyScopes, _localizer, () => _currentCidHash, OnReviewDecision, _gearSource.GetItemName, _gearSource.GetItemIconId, textureProvider, OpenExternalLink, LiveNumberOf, _log);
         _sync.PauseAutomatic = () => _review.IsOpen;
         _inventorySync = new InventorySyncService(_inventorySource, api, _store, new SystemClock(), _log, _characterDirectory);
         _inventorySync.SyncCompleted += OnInventoryCompleted;
@@ -334,7 +336,7 @@ public sealed class Plugin : IDalamudPlugin
         _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReview, () => _review.Summary() ?? _sync.LastReview, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew, () => _bisService.AmbiguousLive.Count, () => _currentCidHash);
         _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
-        _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _log, Save, () => Localizer.Nearest(_pluginInterface.UiLanguage));
+        _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _keyScopes, _log, Save, () => Localizer.Nearest(_pluginInterface.UiLanguage));
         _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _obtainService, _worldActions, _holdingsService, _log);
         _windowSystem.AddWindow(_previewWindow);
         _windowSystem.AddWindow(_reviewWindow);

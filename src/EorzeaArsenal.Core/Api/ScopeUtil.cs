@@ -4,7 +4,9 @@ namespace EorzeaArsenal.Api;
 
 /// <summary>
 /// Helpers for reasoning about the scopes a key carries. Used to warn the user after a
-/// connection test if the issued key is missing <c>gear:write</c> (least-privilege check, R17).
+/// connection test if the issued key is missing <c>gear:write</c> (least-privilege check, R17). The list
+/// comes from <c>GET /device/key</c>; the <c>scopes</c> of <c>GET /version</c> are the server's catalogue,
+/// the same for everybody, and checking a key against them can never fail.
 /// </summary>
 public static class ScopeUtil
 {
@@ -40,22 +42,22 @@ public static class ScopeUtil
     public const string GearDelete = "gear:delete";
 
     /// <summary>Whether the given scope list grants <c>inventory:write</c>.</summary>
-    /// <param name="scopes">Scopes from <c>GET /version</c> (may be <see langword="null"/>).</param>
+    /// <param name="scopes">A key's own scopes, from <c>GET /device/key</c> (may be <see langword="null"/>).</param>
     /// <returns><see langword="true"/> if <c>inventory:write</c> is present (case-insensitive).</returns>
     public static bool HasInventoryWrite(IEnumerable<string>? scopes) => Has(scopes, InventoryWrite);
 
     /// <summary>Whether the given scope list grants <c>characters:write</c> (weekly checklist upload).</summary>
-    /// <param name="scopes">Scopes from <c>GET /version</c> (may be <see langword="null"/>).</param>
+    /// <param name="scopes">A key's own scopes, from <c>GET /device/key</c> (may be <see langword="null"/>).</param>
     /// <returns><see langword="true"/> if <c>characters:write</c> is present (case-insensitive).</returns>
     public static bool HasCharactersWrite(IEnumerable<string>? scopes) => Has(scopes, CharactersWrite);
 
     /// <summary>Whether the given scope list grants <c>gear:review</c> (reconciliation).</summary>
-    /// <param name="scopes">Scopes from <c>GET /version</c> (may be <see langword="null"/>).</param>
+    /// <param name="scopes">A key's own scopes, from <c>GET /device/key</c> (may be <see langword="null"/>).</param>
     /// <returns><see langword="true"/> if <c>gear:review</c> is present (case-insensitive).</returns>
     public static bool HasGearReview(IEnumerable<string>? scopes) => Has(scopes, GearReview);
 
     /// <summary>Whether the given scope list grants <c>gear:read</c>.</summary>
-    /// <param name="scopes">Scopes from <c>GET /version</c> (may be <see langword="null"/>).</param>
+    /// <param name="scopes">A key's own scopes, from <c>GET /device/key</c> (may be <see langword="null"/>).</param>
     /// <returns><see langword="true"/> if <c>gear:read</c> is present (case-insensitive).</returns>
     public static bool HasGearRead(IEnumerable<string>? scopes) => Has(scopes, GearRead);
 
@@ -78,7 +80,7 @@ public static class ScopeUtil
     }
 
     /// <summary>Whether the given scope list grants <c>gear:write</c>.</summary>
-    /// <param name="scopes">Scopes from <c>GET /version</c> (may be <see langword="null"/>).</param>
+    /// <param name="scopes">A key's own scopes, from <c>GET /device/key</c> (may be <see langword="null"/>).</param>
     /// <returns><see langword="true"/> if <c>gear:write</c> is present (case-insensitive).</returns>
     public static bool HasGearWrite(IEnumerable<string>? scopes)
     {

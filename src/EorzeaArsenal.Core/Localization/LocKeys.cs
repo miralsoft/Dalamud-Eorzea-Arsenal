@@ -543,6 +543,9 @@ public static class LocKeys
     /// <summary>A decision failed for any other reason.</summary>
     public const string ReviewTryLater = "review.trylater";
 
+    /// <summary>Under a locked delete button: the key lacks gear:delete, and how to get it.</summary>
+    public const string ReviewDeleteLocked = "review.deletelocked";
+
     /// <summary>Header of the inventory half.</summary>
     public const string ReviewInventory = "review.inventory";
 

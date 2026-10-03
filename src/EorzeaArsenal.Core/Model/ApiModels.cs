@@ -58,10 +58,24 @@ public sealed class VersionResponse
     /// <b>array</b> (e.g. <c>["profile:read","gear:write"]</c>), so this must be a list —
     /// a scalar string here makes <see cref="System.Text.Json"/> throw on parse.
     /// </summary>
+    /// <remarks>
+    /// This is the server's <b>catalogue</b>, the same for everybody, and says nothing about a key. What a
+    /// key may do is read from <c>GET /device/key</c> (<see cref="KeyScopesResponse"/>).
+    /// </remarks>
     public List<string>? Scopes { get; init; }
 
     /// <summary>Webhook event names the server can emit (informational; unused by the plugin).</summary>
     public List<string>? WebhookEvents { get; init; }
+}
+
+/// <summary>
+/// Response of <c>GET /device/key</c> (server 1.4): the scopes of the key in the <c>Authorization</c>
+/// header, after the automatic top-up, and of nothing else.
+/// </summary>
+public sealed class KeyScopesResponse
+{
+    /// <summary>The key's scopes, such as <c>gear:write</c> or <c>gear:delete</c>.</summary>
+    public List<string> Scopes { get; init; } = [];
 }
 
 /// <summary>

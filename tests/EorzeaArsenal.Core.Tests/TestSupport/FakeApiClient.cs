@@ -123,6 +123,20 @@ public sealed class FakeApiClient : IApiClient
         return Task.FromResult(JobTableResult);
     }
 
+    /// <summary>Result returned by <see cref="GetKeyScopesAsync"/>. A 404 stands for a server before 1.4.</summary>
+    public ApiResult<KeyScopesResponse> KeyScopesResult { get; set; } =
+        ApiResult<KeyScopesResponse>.Fail(new ApiError { Kind = ApiErrorKind.NotFound, Message = "not found" });
+
+    /// <summary>How many times the key's scopes were read.</summary>
+    public int KeyScopesCalls { get; private set; }
+
+    /// <inheritdoc />
+    public Task<ApiResult<KeyScopesResponse>> GetKeyScopesAsync(string apiKey, CancellationToken ct)
+    {
+        KeyScopesCalls++;
+        return Task.FromResult(KeyScopesResult);
+    }
+
     /// <summary>Result returned by <see cref="GetReviewAsync"/>.</summary>
     public ApiResult<ReviewState> ReviewResult { get; set; } = ApiResult<ReviewState>.Ok(new ReviewState());
 
