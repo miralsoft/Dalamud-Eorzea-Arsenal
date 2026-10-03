@@ -219,7 +219,14 @@ public sealed class TeamsWindow : Window
         }
 
         Tab(LocKeys.TeamsTabEvents, "termine", DrawEvents);
-        Tab(LocKeys.TeamsTabLineup, "overview", DrawLineup);
+        // Only where the server sends the line-up summary. A server before 1.4 answers the line-up read with
+        // a 404, which this window would have to render as "not a member of this team": false, and alarming
+        // to a member reading it. The field's presence is the test, agreed with the server side, not a
+        // version number.
+        if (ServesLineup(CurrentTeam()))
+        {
+            Tab(LocKeys.TeamsTabLineup, "overview", DrawLineup);
+        }
         Tab(LocKeys.TeamsTabMit, "mit", DrawMit);
         Tab(LocKeys.TeamsTabContent, "inhalte", DrawContent);
         Tab(LocKeys.TeamsTabFarm, "farm", DrawFarm);
@@ -331,6 +338,15 @@ public sealed class TeamsWindow : Window
 
         ImGui.Separator();
     }
+
+    /// <summary>Whether the server behind this team serves the Phase E line-up reads.</summary>
+    /// <param name="team">The selected team, if any.</param>
+    /// <returns><see langword="true"/> when the team list carried a line-up summary for it.</returns>
+    /// <remarks>
+    /// Read from a field rather than from a version, as the server side asked: the summary arrives together
+    /// with the line-up and coverage endpoints in server 1.4, so its presence says those endpoints exist.
+    /// </remarks>
+    private static bool ServesLineup(TeamSummary? team) => team?.LineupSummary is not null;
 
     private TeamSummary? CurrentTeam()
     {
@@ -626,8 +642,9 @@ public sealed class TeamsWindow : Window
         }
 
         // Who is in and who is missing, for dates still to come. A second press folds it again; pressing it
-        // on another date moves the one unfolded panel there.
-        if (!past)
+        // on another date moves the one unfolded panel there. Only where the server serves the line-up, for
+        // the same reason as the tab: before 1.4 the coverage read answers 404.
+        if (!past && ServesLineup(CurrentTeam()))
         {
             ImGui.SameLine();
             var key = CoverageKey(occ);
