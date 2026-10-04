@@ -56,6 +56,7 @@ public sealed class BisWindow : Window
     private readonly Action _save;
     private readonly Action<int> _linkItem;
     private readonly Func<string?, long?> _resolveCharacterId;
+    private readonly Func<JobTableResponse?> _jobTable;
 
     // Target ids we have already asked the obtain service to resolve, so Draw fires one prefetch per
     // new set of pieces instead of a task every frame.
@@ -75,6 +76,7 @@ public sealed class BisWindow : Window
     /// <param name="resolveCharacterId">Fallback <c>cid_hash</c> → server character id, learned from pushes.</param>
     /// <param name="save">Persists the config (filter/scope choices).</param>
     /// <param name="linkItem">Posts a clickable item link to the game chat (arg: item id).</param>
+    /// <param name="jobTable">The job table held for this server, which says per job whether BiS lists exist.</param>
     public BisWindow(
         PluginConfig config,
         ConfigStore store,
@@ -88,7 +90,8 @@ public sealed class BisWindow : Window
         AdvisorService advisor,
         Func<string?, long?> resolveCharacterId,
         Action save,
-        Action<int> linkItem)
+        Action<int> linkItem,
+        Func<JobTableResponse?> jobTable)
         : base("Eorzea Arsenal###EorzeaArsenalBis")
     {
         _config = config;
@@ -104,6 +107,7 @@ public sealed class BisWindow : Window
         _save = save;
         _linkItem = linkItem;
         _resolveCharacterId = resolveCharacterId;
+        _jobTable = jobTable;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -370,7 +374,7 @@ public sealed class BisWindow : Window
         // with what was remembered is a third. Only the first is ended by renaming.
         var reason = _bis.AmbiguousLive.Contains(set.GearIndex)
             ? T(LocKeys.BisUnattributed)
-            : JobMap.HasBisCatalogue(set.Job)
+            : JobMap.HasBisCatalogue(set.Job, _jobTable())
                 ? T(LocKeys.BisNoTarget)
                 : T(LocKeys.BisNoCatalogue);
 

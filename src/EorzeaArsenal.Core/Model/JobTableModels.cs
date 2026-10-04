@@ -27,6 +27,13 @@ public sealed class JobEntry
 
     /// <summary>The job or jobs this class becomes.</summary>
     public List<string> To { get; init; } = [];
+
+    /// <summary>
+    /// Whether the server's BiS catalogue has lists for this job, from server 1.4 on. <see langword="null"/>
+    /// on an older server, which says nothing either way; then <see cref="Gear.JobMap.HasBisCatalogue(string?)"/>
+    /// decides as before.
+    /// </summary>
+    public bool? Bis { get; init; }
 }
 
 /// <summary>

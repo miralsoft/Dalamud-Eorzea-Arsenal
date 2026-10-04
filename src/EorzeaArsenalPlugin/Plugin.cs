@@ -299,7 +299,7 @@ public sealed class Plugin : IDalamudPlugin
         _advisorService = new AdvisorService(api, _store, _log);
         _worldActions = new WorldActions(gameGui, dataManager, GameNameLanguage);
 
-        _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, _obtainService, _worldActions, _holdingsService, _advisorService, ServerCharacterId, Save, LinkItemInChat);
+        _bisWindow = new BisWindow(_config, _store, _localizer, _bisService, _gearSource, textureProvider, _obtainService, _worldActions, _holdingsService, _advisorService, ServerCharacterId, Save, LinkItemInChat, () => _jobTable.Current);
         _advisorWindow = new AdvisorWindow(_config, _store, _localizer, _bisService, _advisorService, _trackedItems, _holdingsService, _obtainService, _gearSource, _worldActions, textureProvider, ServerCharacterId, LinkItemInChat);
 #if EORZEA_ARSENAL_DEVTOOLS
         // Named once, used twice: each probe is a button, and "Everything" is all of them in order. A

@@ -140,6 +140,12 @@ that noise. Judge the format gate from a clone, never from the working tree.
   because touching it there would have mixed a cosmetic sweep into a feature branch. Same fix: one key
   pair per string, both catalogues, and the caller picks. Note German has cases the suffix hides, so
   `InventorySuccess` needs "einen Gegenstand" and not just a swapped ending.
+- **Whether a job has BiS lists now comes from the server** (`feat/bis-per-job`, for 1.2.0). From server
+  1.4 on, `GET /gear/jobs` carries `"bis": true|false` per job; `JobMap.HasBisCatalogue(code, table)` takes
+  that word when it is there and falls back to the compiled rule (combat, not a base class) when the
+  field or the job is missing. The BiS window reads the cached table, so the day the website adds crafter
+  lists a carpenter is told "nothing pinned yet" rather than "nothing to pin". Live did not send the field
+  on 2026-10-03.
 
 ## Key facts
 - Build needs **.NET 10 SDK** + local Dalamud dev libs (`%AppData%\XIVLauncher\addon\Hooks\dev`,

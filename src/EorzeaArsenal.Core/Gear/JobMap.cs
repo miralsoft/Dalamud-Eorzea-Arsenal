@@ -1,3 +1,5 @@
+using EorzeaArsenal.Model;
+
 namespace EorzeaArsenal.Gear;
 
 /// <summary>
@@ -259,4 +261,32 @@ public static class JobMap
     /// </remarks>
     public static bool HasBisCatalogue(string? code) =>
         RoleOf(code) == RoleCombat && !IsBaseClass(code);
+
+    /// <summary>
+    /// Whether a BiS catalogue has lists for this job, asking the server's job table first.
+    /// </summary>
+    /// <param name="code">The uppercase 3-letter code.</param>
+    /// <param name="table">The job table held for this server, or <see langword="null"/>.</param>
+    /// <returns>The table's <c>bis</c> for this job when it says so, otherwise <see cref="HasBisCatalogue(string?)"/>.</returns>
+    /// <remarks>
+    /// The rule above is a guess the plugin carries, and it goes wrong the day the website adds crafter or
+    /// gatherer lists: the window would go on telling a carpenter there is nothing to pin. The server knows,
+    /// and from 1.4 on says so per job. A table without the field, or without the job, says nothing, and
+    /// then the guess still stands.
+    /// </remarks>
+    public static bool HasBisCatalogue(string? code, JobTableResponse? table)
+    {
+        if (code is not null && table is not null)
+        {
+            foreach (var job in table.Jobs)
+            {
+                if (string.Equals(job.Code, code, StringComparison.OrdinalIgnoreCase) && job.Bis is { } bis)
+                {
+                    return bis;
+                }
+            }
+        }
+
+        return HasBisCatalogue(code);
+    }
 }
