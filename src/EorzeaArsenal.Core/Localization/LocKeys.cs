@@ -1022,6 +1022,224 @@ public static class LocKeys
     /// <summary>No teams placeholder.</summary>
     public const string TeamsNoTeams = "teams.noteams";
 
+    // --- Phase E: line-up, open positions ----------------------------------------------------------
+
+    /// <summary>Role name: tank.</summary>
+    public const string TeamsRoleTank = "teams.role.tank";
+
+    /// <summary>Role name: healer.</summary>
+    public const string TeamsRoleHealer = "teams.role.healer";
+
+    /// <summary>Role name: DPS.</summary>
+    public const string TeamsRoleDps = "teams.role.dps";
+
+    /// <summary>One tank (arg: 1).</summary>
+    public const string TeamsRoleTankCountOne = "teams.role.tank.one";
+
+    /// <summary>Several tanks (arg: count).</summary>
+    public const string TeamsRoleTankCountMany = "teams.role.tank.many";
+
+    /// <summary>One healer (arg: 1).</summary>
+    public const string TeamsRoleHealerCountOne = "teams.role.healer.one";
+
+    /// <summary>Several healers (arg: count).</summary>
+    public const string TeamsRoleHealerCountMany = "teams.role.healer.many";
+
+    /// <summary>One DPS (arg: 1).</summary>
+    public const string TeamsRoleDpsCountOne = "teams.role.dps.one";
+
+    /// <summary>Several DPS (arg: count).</summary>
+    public const string TeamsRoleDpsCountMany = "teams.role.dps.many";
+
+    /// <summary>Team picker entry with what is missing (args: team name, list).</summary>
+    public const string TeamsLineupTeamMissing = "teams.lineup.teammissing";
+
+    /// <summary>One missing in a role (args: role, missing, target).</summary>
+    public const string TeamsLineupRoleMissingOne = "teams.lineup.rolemissing.one";
+
+    /// <summary>Several missing in a role (args: role, missing, target).</summary>
+    public const string TeamsLineupRoleMissingMany = "teams.lineup.rolemissing.many";
+
+    /// <summary>A role that has what it needs (arg: role).</summary>
+    public const string TeamsLineupRoleFull = "teams.lineup.rolefull";
+
+    /// <summary>The line-up tab.</summary>
+    public const string TeamsTabLineup = "teams.tab.lineup";
+
+    /// <summary>Core characters against the target (args: count, target).</summary>
+    public const string TeamsLineupCoreOfTarget = "teams.lineup.coreoftarget";
+
+    /// <summary>Core characters where the team sets no target (arg: count).</summary>
+    public const string TeamsLineupCoreNoTarget = "teams.lineup.corenotarget";
+
+    /// <summary>Jobs of a role that no core character plays (arg: job list).</summary>
+    public const string TeamsLineupNotPresent = "teams.lineup.notpresent";
+
+    /// <summary>The positions a role's jobs hold (arg: list).</summary>
+    public const string TeamsLineupPositions = "teams.lineup.positions";
+
+    /// <summary>The jobs present in a role (arg: list).</summary>
+    public const string TeamsLineupJobs = "teams.lineup.jobs";
+
+    /// <summary>One member (arg: 1).</summary>
+    public const string TeamsLineupMembersOne = "teams.lineup.members.one";
+
+    /// <summary>Several members (arg: count).</summary>
+    public const string TeamsLineupMembersMany = "teams.lineup.members.many";
+
+    /// <summary>One core character (arg: 1).</summary>
+    public const string TeamsLineupCoreCountOne = "teams.lineup.corecount.one";
+
+    /// <summary>Several core characters (arg: count).</summary>
+    public const string TeamsLineupCoreCountMany = "teams.lineup.corecount.many";
+
+    /// <summary>One substitute (arg: 1).</summary>
+    public const string TeamsLineupSubsOne = "teams.lineup.subs.one";
+
+    /// <summary>Several substitutes (arg: count).</summary>
+    public const string TeamsLineupSubsMany = "teams.lineup.subs.many";
+
+    /// <summary>One character sharing no set (arg: 1).</summary>
+    public const string TeamsLineupSharingNothingOne = "teams.lineup.sharingnothing.one";
+
+    /// <summary>Several characters sharing no set (arg: count).</summary>
+    public const string TeamsLineupSharingNothingMany = "teams.lineup.sharingnothing.many";
+
+    /// <summary>One open join request (arg: 1).</summary>
+    public const string TeamsLineupPendingOne = "teams.lineup.pending.one";
+
+    /// <summary>Several open join requests (arg: count).</summary>
+    public const string TeamsLineupPendingMany = "teams.lineup.pending.many";
+
+    /// <summary>The limited jobs a team also takes (arg: list).</summary>
+    public const string TeamsLineupAllows = "teams.lineup.allows";
+
+    /// <summary>Job name: Blue Mage.</summary>
+    public const string TeamsJobBlu = "teams.job.blu";
+
+    /// <summary>Job name: Beastmaster.</summary>
+    public const string TeamsJobBst = "teams.job.bst";
+
+    /// <summary>Column: character.</summary>
+    public const string TeamsLineupColName = "teams.lineup.col.name";
+
+    /// <summary>Column: player.</summary>
+    public const string TeamsLineupColMember = "teams.lineup.col.member";
+
+    /// <summary>Column: position.</summary>
+    public const string TeamsLineupColPosition = "teams.lineup.col.position";
+
+    /// <summary>Column: jobs.</summary>
+    public const string TeamsLineupColJobs = "teams.lineup.col.jobs";
+
+    /// <summary>Column: status.</summary>
+    public const string TeamsLineupColStatus = "teams.lineup.col.status";
+
+    /// <summary>Status: core character.</summary>
+    public const string TeamsLineupStatusCore = "teams.lineup.status.core";
+
+    /// <summary>Status: substitute.</summary>
+    public const string TeamsLineupStatusSub = "teams.lineup.status.sub";
+
+    /// <summary>Status: paused.</summary>
+    public const string TeamsLineupStatusPaused = "teams.lineup.status.paused";
+
+    /// <summary>Status: blocked.</summary>
+    public const string TeamsLineupStatusBlocked = "teams.lineup.status.blocked";
+
+    /// <summary>Status: shares no set.</summary>
+    public const string TeamsLineupStatusSharesNothing = "teams.lineup.status.sharesnothing";
+
+    /// <summary>Marker for a placeholder instead of a real character.</summary>
+    public const string TeamsLineupPlaceholder = "teams.lineup.placeholder";
+
+    /// <summary>No characters in the team yet.</summary>
+    public const string TeamsLineupNoCharacters = "teams.lineup.nocharacters";
+
+    /// <summary>The next date that leaves a position open (args: title, date, time).</summary>
+    public const string TeamsLineupNextOpen = "teams.lineup.nextopen";
+
+    /// <summary>No date in the next 60 days leaves a position open.</summary>
+    public const string TeamsLineupNoOpen = "teams.lineup.noopen";
+
+    /// <summary>Button on a date: show who is in and who is missing.</summary>
+    public const string TeamsCoverageToggle = "teams.coverage.toggle";
+
+    /// <summary>Heading: open positions.</summary>
+    public const string TeamsCoverageOpen = "teams.coverage.open";
+
+    /// <summary>Heading: players who answered "maybe".</summary>
+    public const string TeamsCoverageUnsure = "teams.coverage.unsure";
+
+    /// <summary>Heading: positions a substitute covers.</summary>
+    public const string TeamsCoverageCovered = "teams.coverage.covered";
+
+    /// <summary>Heading: who could step in.</summary>
+    public const string TeamsCoverageSuggestions = "teams.coverage.suggestions";
+
+    /// <summary>Every position of the date is filled.</summary>
+    public const string TeamsCoverageAllFilled = "teams.coverage.allfilled";
+
+    /// <summary>Reason: declined.</summary>
+    public const string TeamsCoverageReasonDeclined = "teams.coverage.reason.declined";
+
+    /// <summary>Reason: absent.</summary>
+    public const string TeamsCoverageReasonAbsent = "teams.coverage.reason.absent";
+
+    /// <summary>Reason: away, for a caller who may not see the absence itself.</summary>
+    public const string TeamsCoverageReasonAway = "teams.coverage.reason.away";
+
+    /// <summary>Who covers a position (arg: substitute name).</summary>
+    public const string TeamsCoverageBy = "teams.coverage.by";
+
+    /// <summary>Marker for a suggestion that fits the role of an open position.</summary>
+    public const string TeamsCoverageMatches = "teams.coverage.matches";
+
+    /// <summary>Button: put in a substitute on the website.</summary>
+    public const string TeamsCoverageSetSubstitute = "teams.coverage.setsubstitute";
+
+    /// <summary>Button: create an invitation link. Shown only with the right to manage members.</summary>
+    public const string TeamsInviteButton = "teams.invite.button";
+
+    /// <summary>Field: how many times the link may be used.</summary>
+    public const string TeamsInviteUses = "teams.invite.uses";
+
+    /// <summary>Field: how many days the link stays valid.</summary>
+    public const string TeamsInviteDays = "teams.invite.days";
+
+    /// <summary>Button: create it.</summary>
+    public const string TeamsInviteCreate = "teams.invite.create";
+
+    /// <summary>Button: close the invitation panel.</summary>
+    public const string TeamsInviteClose = "teams.invite.close";
+
+    /// <summary>Button: copy the link.</summary>
+    public const string TeamsInviteCopy = "teams.invite.copy";
+
+    /// <summary>Above a new link: shown once and stored nowhere.</summary>
+    public const string TeamsInviteCreated = "teams.invite.created";
+
+    /// <summary>Line in the player's own chat log after copying. It never carries the link.</summary>
+    public const string TeamsInviteCopied = "teams.invite.copied";
+
+    /// <summary>The user lacks the right to manage members in that team.</summary>
+    public const string TeamsInviteNoRight = "teams.invite.noright";
+
+    /// <summary>The key lacks a permission; reconnecting once helps.</summary>
+    public const string TeamsInviteReconnect = "teams.invite.reconnect";
+
+    /// <summary>Too many invitations, with no wait named.</summary>
+    public const string TeamsInviteRateLimited = "teams.invite.ratelimited";
+
+    /// <summary>Too many invitations; possible again in one minute (arg: 1).</summary>
+    public const string TeamsInviteRateLimitedOne = "teams.invite.ratelimited.one";
+
+    /// <summary>Too many invitations; possible again in several minutes (arg: minutes).</summary>
+    public const string TeamsInviteRateLimitedMany = "teams.invite.ratelimited.many";
+
+    /// <summary>The server refused the invitation and said why (arg: the server's own words).</summary>
+    public const string TeamsInviteRejected = "teams.invite.rejected";
+
     /// <summary>Refresh button.</summary>
     public const string TeamsRefresh = "teams.refresh";
 

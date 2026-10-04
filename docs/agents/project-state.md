@@ -18,6 +18,14 @@ From 1.2.0 on, nothing reaches `main` except through a release branch, and a bra
 branch only when the operator asks. 1.2.0 waits for server 1.4 on live, because its notes promise the
 team line-up that only arrives there.
 
+**1.2.0 in progress: Phase E, team line-up** (`feat/team-lineup` against `release/v1.2.0`). All five
+steps are built: the line-up and coverage reads, what each team needs in the picker, the line-up tab, who
+is in on each upcoming date, and the invitation link. The link is offered only when the team's
+`capabilities` list `manage_members`, and a 403's cause is read from `missing_scope` or
+`missing_capability`, never from a field's presence or the text of `detail`. The server shipped both to
+dev on 2026-09-27. Not yet walked through in game; there is no recorded answer for the invitation
+itself, so its shape rests on the briefing alone until it has been seen.
+
 1.0.0 shipped. The branch `feat/stable-gearset-identity` carried 1.1.0: gearsets have a server-minted
 identity, the reconciliation window is in, the plugin names a job the game added after the release, and
 everything below was walked through in game on 2026-09-12 and 2026-09-13.

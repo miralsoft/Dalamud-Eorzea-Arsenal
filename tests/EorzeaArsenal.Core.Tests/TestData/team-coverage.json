@@ -1,0 +1,17 @@
+{
+  "data": {
+    "date": "2026-10-05",
+    "open": [
+      { "kind": "character", "participant_key": "u5", "character_id": 3, "roster_entry_id": null, "name": "Char 3", "member": "Spieler 5", "position": "M1", "roles": ["dps"], "reason": "absent", "note": null }
+    ],
+    "unsure": [],
+    "covered": [],
+    "suggestions": [
+      { "kind": "placeholder", "participant_key": "r9", "character_id": null, "roster_entry_id": 9, "name": "Aushilfe Mira", "member": null, "position": null, "jobs": ["RPR"], "roles": ["dps"], "matches": true },
+      { "kind": "placeholder", "participant_key": "r10", "character_id": null, "roster_entry_id": 10, "name": "Aushilfe Theo", "member": null, "position": null, "jobs": ["WHM"], "roles": ["healer"], "matches": false }
+    ],
+    "event_id": 9,
+    "title": "Raid Montag",
+    "time": "20:00"
+  }
+}
