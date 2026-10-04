@@ -70,6 +70,12 @@ public sealed class ApiError
 
     /// <summary>For <see cref="Code"/> <c>job_unknown</c>: the job codes this server rejected.</summary>
     public IReadOnlyList<string>? Jobs { get; init; }
+
+    /// <summary>On a 403: the permission the key lacks. Reconnecting helps.</summary>
+    public string? MissingScope { get; init; }
+
+    /// <summary>On a 403: the right the user lacks in that team. Reconnecting does not help.</summary>
+    public string? MissingCapability { get; init; }
 }
 
 /// <summary>

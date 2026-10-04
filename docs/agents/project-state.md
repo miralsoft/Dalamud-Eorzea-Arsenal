@@ -5,10 +5,26 @@
 
 _Last updated: 2026-10-03._
 
-## Status: 1.1.0 merged into `main` (PR #24, `768a5ff`), not tagged, not live. Work on 1.2.0 happens in `release/v1.2.0`.
+## Status: 1.1.0 is skipped. Players have 1.0.0; the next version they get is 1.2.0, built in `release/v1.2.0`.
 
-From 1.2.0 on, nothing reaches `main` except through a release branch; see
-`docs/operations/build-test-release.md`. 1.1.0 was the last version merged straight into `main`.
+1.1.0 was merged into `main` on 2026-09-13 (PR #24, `768a5ff`) and **announced** the same day, because
+the website reads `changelog.json` from `main`. It was never tagged, so it was never **installable**:
+the index at `xivarsenal.app/plugin.json` still serves 1.0.0. On 2026-10-03 the operator decided not to
+tag it after the fact. Everything in it ships with 1.2.0, and its notes stay as published. The rule
+that came out of it, merge and tag in the same sitting, opens "Cutting a release" in
+`docs/operations/build-test-release.md`.
+
+From 1.2.0 on, nothing reaches `main` except through a release branch, and a branch reaches the release
+branch only when the operator asks. 1.2.0 waits for server 1.4 on live, because its notes promise the
+team line-up that only arrives there.
+
+**1.2.0 in progress: Phase E, team line-up** (`feat/team-lineup` against `release/v1.2.0`). All five
+steps are built: the line-up and coverage reads, what each team needs in the picker, the line-up tab, who
+is in on each upcoming date, and the invitation link. The link is offered only when the team's
+`capabilities` list `manage_members`, and a 403's cause is read from `missing_scope` or
+`missing_capability`, never from a field's presence or the text of `detail`. The server shipped both to
+dev on 2026-09-27. Not yet walked through in game; there is no recorded answer for the invitation
+itself, so its shape rests on the briefing alone until it has been seen.
 
 1.0.0 shipped. The branch `feat/stable-gearset-identity` carried 1.1.0: gearsets have a server-minted
 identity, the reconciliation window is in, the plugin names a job the game added after the release, and
@@ -85,6 +101,20 @@ that noise. Judge the format gate from a clone, never from the working tree.
 - **Feature B (inventory) stays deferred** to `protocol_version: 2` (see agent memory).
 
 ### Next / open
+- **A refused review decision now says why** (`fix/review-refusal-says-so`, for 1.2.0). Until then
+  `ReviewWindow.AfterCall` returned in silence on anything but a missing route, so a refused click looked
+  like a dead button. `ReviewService.LastError` keeps the error, `ReviewRules.RefusalOf` names the cause
+  from `missing_scope` / `missing_capability` (never from `detail`), and the window shows one sentence.
+  It matters from server 1.4 on: deleting needs `gear:delete`, and keys paired before the split are never
+  topped up, so their delete is refused with `missing_scope: "gear:delete"`. No release note: 1.1.0, the
+  version with the silent window, was never installable, so no player saw the fault.
+- **The key's own scopes come from `GET /device/key`** (`feat/device-key-scopes`, for 1.2.0, on top of
+  the refusal fix). `KeyScopeService` asks once per key and holds `Known`, `NotOffered` (404, a server
+  before 1.4) or `Failed`. Only a known list without `gear:delete`, or a 403 that named it, locks the
+  delete verb: the button stays visible, disabled, with the sentence how to get the right. A 404 or a
+  failed question checks nothing and lets a 403 decide, because on a pre-1.4 server deleting works
+  without the scope. "Verbindung testen" now judges `gear:write` from the same answer; it used to check
+  the `/version` scopes, which are the server's catalogue and so could never fail.
 - **Waiting on the server, not on us:** nothing. Both open questions of 2026-09-12 came back. `BST` is in
   the job table since version `2026-08-22`, and `orphans[].similar[]` is now guaranteed never to name a
   row that is not in game. One hazard was handed over with the first and is theirs to decide: a client

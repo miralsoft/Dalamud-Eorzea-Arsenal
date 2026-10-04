@@ -123,6 +123,10 @@ public sealed class ApiClient : IApiClient
         return await SendAsync<JobTableResponse>(request, ct).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
+    public Task<ApiResult<KeyScopesResponse>> GetKeyScopesAsync(string apiKey, CancellationToken ct) =>
+        GetAsync<KeyScopesResponse>("/device/key", apiKey, ct);
+
 
     /// <inheritdoc />
     public async Task<ApiResult<ReviewState>> GetReviewAsync(string apiKey, string characterId, CancellationToken ct)
@@ -241,6 +245,26 @@ public sealed class ApiClient : IApiClient
     /// <inheritdoc />
     public Task<ApiResult<FarmResponse>> GetFarmAsync(string apiKey, long teamId, CancellationToken ct) =>
         GetAsync<FarmResponse>($"/teams/{teamId}/farm", apiKey, ct);
+
+    /// <inheritdoc />
+    public Task<ApiResult<LineupResponse>> GetLineupAsync(string apiKey, long teamId, CancellationToken ct) =>
+        GetAsync<LineupResponse>($"/teams/{teamId}/lineup", apiKey, ct);
+
+    /// <inheritdoc />
+    public Task<ApiResult<CoverageResponse>> GetCoverageAsync(string apiKey, long teamId, long eventId, string date, CancellationToken ct) =>
+        GetAsync<CoverageResponse>(
+            $"/teams/{teamId}/events/{eventId}/coverage?date={Uri.EscapeDataString(date)}", apiKey, ct);
+
+    /// <inheritdoc />
+    public async Task<ApiResult<InviteResponse>> CreateInviteAsync(string apiKey, long teamId, InviteRequest request, CancellationToken ct)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Post, Url($"/teams/{teamId}/invite"))
+        {
+            Content = JsonBody(request),
+        };
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<InviteResponse>(message, ct).ConfigureAwait(false);
+    }
 
     /// <inheritdoc />
     public Task<ApiResult<ObtainResponse>> GetGearObtainAsync(string apiKey, IReadOnlyCollection<long> itemIds, CancellationToken ct)
@@ -589,6 +613,8 @@ public sealed class ApiClient : IApiClient
             RetryAfter = retryAfter is { Ticks: > 0 } ? retryAfter : null,
             Code = problem?.Error,
             Jobs = problem?.Jobs,
+            MissingScope = problem?.MissingScope,
+            MissingCapability = problem?.MissingCapability,
         };
     }
 

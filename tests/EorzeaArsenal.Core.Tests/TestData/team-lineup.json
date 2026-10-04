@@ -1,0 +1,25 @@
+{
+  "data": {
+    "targets": { "tank": 1, "healer": 2, "dps": 3 },
+    "allow": { "blu": true, "bst": true },
+    "roles": {
+      "tank":   { "count": 0, "target": 1, "missing": 1, "jobs": [], "positions": [], "not_present": ["PLD", "WAR", "DRK", "GNB"] },
+      "healer": { "count": 2, "target": 2, "missing": 0, "jobs": ["WHM", "SCH"], "positions": [{ "job": "SCH", "position": "H1" }, { "job": "WHM", "position": "H1" }], "not_present": [] },
+      "dps":    { "count": 1, "target": 3, "missing": 2, "jobs": ["RPR"], "positions": [{ "job": "RPR", "position": "M1" }], "not_present": ["MNK", "DRG", "NIN", "SAM", "VPR", "BRD", "MCH", "DNC", "BLM", "SMN", "RDM", "PCT", "BLU", "BST"] }
+    },
+    "missing": { "tank": 1, "healer": 0, "dps": 2 },
+    "counts": { "members": 2, "stamm": 3, "ersatz": 1, "sharing_nothing": 0, "pending": 0 },
+    "characters": [
+      { "kind": "character", "user_id": 38, "character_id": 29, "name": "Char 29", "member": "Dev Test Admin", "is_core": true, "paused": false, "blocked": false, "position": "H1", "jobs": ["WHM", "SCH"], "roles": ["healer"], "shares_nothing": false },
+      { "kind": "character", "user_id": 5, "character_id": 3, "name": "Char 3", "member": "Spieler 5", "is_core": true, "paused": false, "blocked": false, "position": "M1", "jobs": ["RPR"], "roles": ["dps"], "shares_nothing": false },
+      { "kind": "character", "user_id": 38, "character_id": 33, "name": "Leer Test", "member": "Dev Test Admin", "is_core": true, "paused": false, "blocked": false, "position": null, "jobs": ["WHM"], "roles": ["healer"], "shares_nothing": false },
+      { "kind": "character", "user_id": 38, "character_id": 30, "name": "Char 30", "member": "Dev Test Admin", "is_core": false, "paused": false, "blocked": false, "position": null, "jobs": ["DRK"], "roles": ["tank"], "shares_nothing": false }
+    ],
+    "next_open": {
+      "event_id": 9, "title": "Raid Montag", "date": "2026-10-05", "time": "20:00",
+      "open": [
+        { "kind": "character", "participant_key": "u5", "character_id": 3, "roster_entry_id": null, "name": "Char 3", "member": "Spieler 5", "position": "M1", "roles": ["dps"], "reason": "absent", "note": null }
+      ]
+    }
+  }
+}
