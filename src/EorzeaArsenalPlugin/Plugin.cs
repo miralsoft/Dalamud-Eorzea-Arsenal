@@ -334,7 +334,7 @@ public sealed class Plugin : IDalamudPlugin
         _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
         _reportWindow = new ReportWindow(_store, _localizer, api, _log, DescribeClient);
         _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReview, () => _review.Summary() ?? _sync.LastReview, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew, () => _bisService.AmbiguousLive.Count, () => _currentCidHash);
-        _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage);
+        _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage, OwnChatNotice);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _keyScopes, _log, Save, () => Localizer.Nearest(_pluginInterface.UiLanguage));
         _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _obtainService, _worldActions, _holdingsService, _log);
@@ -773,6 +773,25 @@ public sealed class Plugin : IDalamudPlugin
     /// Prints a clickable item link to the game chat so the user can inspect it or jump to the
     /// marketboard. The link text is the game's localized item name (P2: wrapped, never throws).
     /// </summary>
+    /// <summary>One line in the player's own chat log, which nobody else sees.</summary>
+    /// <param name="text">The line, already translated.</param>
+    /// <remarks>
+    /// Printed locally, never sent: nothing here types into the game's chat input, which has no supported
+    /// way in and would be a guess at game memory. The callers pass a confirmation and never a secret: the
+    /// chat log lands in log files and screenshots, which is exactly where an invitation code must not go.
+    /// </remarks>
+    private void OwnChatNotice(string text)
+    {
+        try
+        {
+            _chatGui.Print($"{ChatPrefix}{text}");
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Chat notice failed: {ex.GetType().Name}.");
+        }
+    }
+
     private void LinkItemInChat(int itemId)
     {
         if (itemId <= 0)

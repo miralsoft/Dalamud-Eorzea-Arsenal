@@ -48,6 +48,56 @@ public sealed class TeamSummary
 
     /// <summary>Active mit plans for the team/plan picker.</summary>
     public List<MitPlanRef>? MitPlans { get; init; }
+
+    /// <summary>
+    /// How far the team is from its target line-up, per role (Phase E). <see langword="null"/> from a
+    /// server that does not send it yet, which is not the same as "nothing missing".
+    /// </summary>
+    public LineupSummary? LineupSummary { get; init; }
+
+    /// <summary>The caller's own rights in this team; the owner holds every one.</summary>
+    /// <remarks>
+    /// The only source for "may I": an action is offered when its right is in this list and at no other
+    /// time. In particular no right is read from some other field happening to be present, such as the
+    /// join-request count that only managers are sent. A server that sends no list grants nothing here.
+    /// </remarks>
+    public List<string>? Capabilities { get; init; }
+
+    /// <summary>Whether the caller holds a right in this team.</summary>
+    /// <param name="capability">One of <see cref="TeamCapability"/>.</param>
+    /// <returns><see langword="true"/> only when the server listed it.</returns>
+    public bool Can(string capability) =>
+        Capabilities is { } held && held.Contains(capability, StringComparer.Ordinal);
+}
+
+/// <summary>The team rights this plugin asks about.</summary>
+public static class TeamCapability
+{
+    /// <summary>May manage members, which includes creating invitation links.</summary>
+    public const string ManageMembers = "manage_members";
+}
+
+/// <summary>A team's targets and what is still missing against them, as the team list shows it.</summary>
+public sealed class LineupSummary
+{
+    /// <summary>The target per role. A target of 0 means the team sets none for that role.</summary>
+    public RoleCounts? Targets { get; init; }
+
+    /// <summary>How many are missing per role: <c>max(0, target - count)</c>, computed by the server.</summary>
+    public RoleCounts? Missing { get; init; }
+}
+
+/// <summary>One number per role. The roles are tank, healer and DPS (melee, ranged and caster together).</summary>
+public sealed class RoleCounts
+{
+    /// <summary>Tanks.</summary>
+    public int Tank { get; init; }
+
+    /// <summary>Healers.</summary>
+    public int Healer { get; init; }
+
+    /// <summary>DPS of every kind.</summary>
+    public int Dps { get; init; }
 }
 
 /// <summary>A reference to a mit plan (for the picker; no detail).</summary>
@@ -439,6 +489,12 @@ public sealed class FarmEntry
     /// base is there and the upgrade is not — the one case where "upgrade it" is the right advice.
     /// Slots the target does not name are absent rather than <see langword="false"/>. Says nothing
     /// about bags, materials or tomestones, and only appears for sets already shared with the team.
+    /// <para>
+    /// From the website's 1.4 on, a slot marker counts only for the target piece it was set for; a marker
+    /// from before then still counts for any target. Hands and wrists are reported as held where a marker
+    /// stands, which they were not before. The shape did not change, and this side reads the value as it
+    /// comes, so none of that needed a plugin release.
+    /// </para>
     /// </remarks>
     public Dictionary<string, bool>? Owned { get; init; }
 
@@ -943,4 +999,404 @@ public sealed class NotificationEntry
 
     /// <summary>Server-local created timestamp <c>YYYY-MM-DD HH:MM:SS</c>.</summary>
     public string? CreatedAt { get; init; }
+}
+
+// --- Phase E: GET /teams/{id}/lineup ---------------------------------------------------------------
+//
+// Everything here is computed by the server and shown as delivered. "What is missing" and "which
+// positions a date leaves open" are the website's numbers too, and the two must agree, so none of it is
+// derived on this side. These responses carry the names of team members: they are held in memory while
+// shown and never written anywhere.
+
+/// <summary>Response of <c>GET /teams/{id}/lineup</c>.</summary>
+public sealed class LineupResponse
+{
+    /// <summary>The team's line-up.</summary>
+    public Lineup? Data { get; init; }
+}
+
+/// <summary>A team's line-up: targets, who fills which role and position, and the next date with a gap.</summary>
+public sealed class Lineup
+{
+    /// <summary>The target per role, 0 to 8; 0 means no target.</summary>
+    public RoleCounts? Targets { get; init; }
+
+    /// <summary>Whether the team takes Blue Mage and Beastmaster sets.</summary>
+    public LineupAllow? Allow { get; init; }
+
+    /// <summary>One entry per role.</summary>
+    public LineupRoles? Roles { get; init; }
+
+    /// <summary>How many are missing per role, the same numbers as in each role entry.</summary>
+    public RoleCounts? Missing { get; init; }
+
+    /// <summary>Head counts for the team.</summary>
+    public LineupCounts? Counts { get; init; }
+
+    /// <summary>Every character and placeholder in the team.</summary>
+    public List<LineupCharacter>? Characters { get; init; }
+
+    /// <summary>The first date in the next 60 days that leaves a position open, or <see langword="null"/>.</summary>
+    public OpenDate? NextOpen { get; init; }
+}
+
+/// <summary>Which limited jobs a team takes.</summary>
+public sealed class LineupAllow
+{
+    /// <summary>Blue Mage.</summary>
+    public bool Blu { get; init; }
+
+    /// <summary>Beastmaster.</summary>
+    public bool Bst { get; init; }
+}
+
+/// <summary>The three role entries of a line-up.</summary>
+public sealed class LineupRoles
+{
+    /// <summary>Tanks.</summary>
+    public LineupRole? Tank { get; init; }
+
+    /// <summary>Healers.</summary>
+    public LineupRole? Healer { get; init; }
+
+    /// <summary>DPS of every kind.</summary>
+    public LineupRole? Dps { get; init; }
+}
+
+/// <summary>One role of a line-up.</summary>
+public sealed class LineupRole
+{
+    /// <summary>
+    /// Core characters (neither paused nor blocked) and core placeholders filling this role. A character
+    /// sharing sets for two roles counts in both. Substitutes are not counted.
+    /// </summary>
+    public int Count { get; init; }
+
+    /// <summary>The target for this role, 0 meaning none.</summary>
+    public int Target { get; init; }
+
+    /// <summary><c>max(0, target - count)</c>, from the server.</summary>
+    public int Missing { get; init; }
+
+    /// <summary>Job codes present in this role.</summary>
+    public List<string>? Jobs { get; init; }
+
+    /// <summary>
+    /// The positions those jobs hold: spots, not people. A job held by two characters with different
+    /// positions appears twice. Always a list, empty when none.
+    /// </summary>
+    public List<LineupPosition>? Positions { get; init; }
+
+    /// <summary>
+    /// Job codes of this role that no core character plays, where that character is neither paused nor
+    /// blocked. Listed only while the role still needs somebody. Substitutes do not count, so a job a
+    /// substitute plays can appear here: it is missing <b>from the core</b>, and must be labelled so.
+    /// </summary>
+    public List<string>? NotPresent { get; init; }
+}
+
+/// <summary>A job and the position it holds, such as <c>SCH</c> as <c>H1</c>.</summary>
+public sealed class LineupPosition
+{
+    /// <summary>The job code.</summary>
+    public string? Job { get; init; }
+
+    /// <summary>The position, free text.</summary>
+    public string? Position { get; init; }
+}
+
+/// <summary>Head counts of a team.</summary>
+public sealed class LineupCounts
+{
+    /// <summary>Active members, counted as players.</summary>
+    public int Members { get; init; }
+
+    /// <summary>Core characters.</summary>
+    [JsonPropertyName("stamm")]
+    public int Core { get; init; }
+
+    /// <summary>Substitute characters.</summary>
+    [JsonPropertyName("ersatz")]
+    public int Substitutes { get; init; }
+
+    /// <summary>Characters that share no gearset with the team.</summary>
+    public int SharingNothing { get; init; }
+
+    /// <summary>
+    /// Open join requests, sent only to callers who may manage members. Shown when present, and never read
+    /// as a statement about anybody's rights: that is what the team's own capability list is for.
+    /// </summary>
+    public int? Pending { get; init; }
+}
+
+/// <summary>A character or placeholder in a team's line-up.</summary>
+public sealed class LineupCharacter
+{
+    /// <summary><c>character</c> or <c>placeholder</c>.</summary>
+    public string? Kind { get; init; }
+
+    /// <summary>The owning player's id, when it is a character.</summary>
+    public long? UserId { get; init; }
+
+    /// <summary>The character id, when it is a character.</summary>
+    public long? CharacterId { get; init; }
+
+    /// <summary>The character's name.</summary>
+    public string? Name { get; init; }
+
+    /// <summary>The player's display name.</summary>
+    public string? Member { get; init; }
+
+    /// <summary>Whether this is a core character.</summary>
+    public bool IsCore { get; init; }
+
+    /// <summary>Whether it is paused.</summary>
+    public bool Paused { get; init; }
+
+    /// <summary>Whether it is blocked.</summary>
+    public bool Blocked { get; init; }
+
+    /// <summary>The position, free text, or <see langword="null"/>.</summary>
+    public string? Position { get; init; }
+
+    /// <summary>The jobs it shares sets for.</summary>
+    public List<string>? Jobs { get; init; }
+
+    /// <summary>The roles those jobs belong to.</summary>
+    public List<string>? Roles { get; init; }
+
+    /// <summary>Whether it shares no gearset at all.</summary>
+    public bool SharesNothing { get; init; }
+
+    /// <summary>Whether this is a placeholder rather than a real character.</summary>
+    [JsonIgnore]
+    public bool IsPlaceholder => string.Equals(Kind, "placeholder", StringComparison.Ordinal);
+}
+
+/// <summary>A date that leaves positions open, as the line-up points to it.</summary>
+public sealed class OpenDate
+{
+    /// <summary>The event id. Read from a number or a string, since the two responses disagreed at first.</summary>
+    public long EventId { get; init; }
+
+    /// <summary>The event title.</summary>
+    public string? Title { get; init; }
+
+    /// <summary>The date, <c>YYYY-MM-DD</c>.</summary>
+    public string? Date { get; init; }
+
+    /// <summary>The time, <c>HH:MM</c>.</summary>
+    public string? Time { get; init; }
+
+    /// <summary>The positions it leaves open.</summary>
+    public List<CoverageEntry>? Open { get; init; }
+}
+
+// --- Phase E: GET /teams/{id}/events/{eventId}/coverage?date= --------------------------------------
+
+/// <summary>Response of the coverage read for one date of one event.</summary>
+public sealed class CoverageResponse
+{
+    /// <summary>The coverage.</summary>
+    public Coverage? Data { get; init; }
+}
+
+/// <summary>Which positions a date leaves open, which are unsure, which are covered, and who could step in.</summary>
+public sealed class Coverage
+{
+    /// <summary>The date, <c>YYYY-MM-DD</c>.</summary>
+    public string? Date { get; init; }
+
+    /// <summary>The event id.</summary>
+    public long EventId { get; init; }
+
+    /// <summary>The event title.</summary>
+    public string? Title { get; init; }
+
+    /// <summary>The time, <c>HH:MM</c>.</summary>
+    public string? Time { get; init; }
+
+    /// <summary>Positions a core character leaves open that date.</summary>
+    public List<CoverageEntry>? Open { get; init; }
+
+    /// <summary>Players who answered "maybe".</summary>
+    public List<CoverageEntry>? Unsure { get; init; }
+
+    /// <summary>Positions a substitute covers.</summary>
+    public List<CoverageEntry>? Covered { get; init; }
+
+    /// <summary>Who could step in, sent only while something is open; matching roles first.</summary>
+    public List<CoverageSuggestion>? Suggestions { get; init; }
+}
+
+/// <summary>One position in a coverage list.</summary>
+public sealed class CoverageEntry
+{
+    /// <summary><c>character</c> or <c>placeholder</c>.</summary>
+    public string? Kind { get; init; }
+
+    /// <summary><c>u&lt;userId&gt;</c> or <c>r&lt;rosterId&gt;</c>.</summary>
+    public string? ParticipantKey { get; init; }
+
+    /// <summary>The character id, when it is a character.</summary>
+    public long? CharacterId { get; init; }
+
+    /// <summary>The roster entry id, when it is a placeholder.</summary>
+    public long? RosterEntryId { get; init; }
+
+    /// <summary>The character's name.</summary>
+    public string? Name { get; init; }
+
+    /// <summary>The player's display name.</summary>
+    public string? Member { get; init; }
+
+    /// <summary>The position, or <see langword="null"/>; then the name stands in for it.</summary>
+    public string? Position { get; init; }
+
+    /// <summary>The roles it fills.</summary>
+    public List<string>? Roles { get; init; }
+
+    /// <summary>
+    /// <c>declined</c>, <c>absent</c>, or <c>away</c> when the caller may not see other people's absences.
+    /// </summary>
+    public string? Reason { get; init; }
+
+    /// <summary>The reason text, sent only when the caller may see it. Shown only when present.</summary>
+    public string? Note { get; init; }
+
+    /// <summary>The substitute's name, on a covered position.</summary>
+    public string? Substitute { get; init; }
+
+    /// <summary>The substitute's character id, on a covered position.</summary>
+    public long? SubstituteCharacterId { get; init; }
+}
+
+/// <summary>Somebody who could step in on a date.</summary>
+public sealed class CoverageSuggestion
+{
+    /// <summary><c>character</c> or <c>placeholder</c>.</summary>
+    public string? Kind { get; init; }
+
+    /// <summary><c>u&lt;userId&gt;</c> or <c>r&lt;rosterId&gt;</c>.</summary>
+    public string? ParticipantKey { get; init; }
+
+    /// <summary>The character id, when it is a character.</summary>
+    public long? CharacterId { get; init; }
+
+    /// <summary>The roster entry id, when it is a placeholder.</summary>
+    public long? RosterEntryId { get; init; }
+
+    /// <summary>The character's name.</summary>
+    public string? Name { get; init; }
+
+    /// <summary>The player's display name.</summary>
+    public string? Member { get; init; }
+
+    /// <summary>Its position, if any.</summary>
+    public string? Position { get; init; }
+
+    /// <summary>The jobs it shares sets for.</summary>
+    public List<string>? Jobs { get; init; }
+
+    /// <summary>The roles those jobs belong to.</summary>
+    public List<string>? Roles { get; init; }
+
+    /// <summary>Whether it shares a set in the role of an open position.</summary>
+    public bool Matches { get; init; }
+}
+
+// --- Phase E: POST /teams/{id}/invite --------------------------------------------------------------
+//
+// The one write of Phase E. The answer carries the invitation code, which is a secret: it is shown once,
+// put on the clipboard when asked, and never stored, logged or written into a diagnostics report. The
+// website lists open invitations without it, so there is nothing this side would ever need it for later.
+
+/// <summary>Body of <c>POST /teams/{id}/invite</c> for a link.</summary>
+public sealed class InviteRequest
+{
+    /// <summary>The fewest uses a link may be given.</summary>
+    public const int MinUses = 1;
+
+    /// <summary>The most uses a link may be given.</summary>
+    public const int MaxUsesLimit = 100;
+
+    /// <summary>The shortest life a link may be given, in days.</summary>
+    public const int MinDays = 1;
+
+    /// <summary>The longest life a link may be given, in days.</summary>
+    public const int MaxDays = 30;
+
+    /// <summary>What the server would pick if both were left out: one use, seven days.</summary>
+    public const int DefaultUses = 1;
+
+    /// <summary>The default life in days.</summary>
+    public const int DefaultDays = 7;
+
+    /// <summary>Always <c>link</c> from the plugin.</summary>
+    public string Kind { get; init; } = "link";
+
+    /// <summary>How many times the link may be used.</summary>
+    public int MaxUses { get; init; } = DefaultUses;
+
+    /// <summary>How many days it stays valid.</summary>
+    [JsonPropertyName("ttl_days")]
+    public int TtlDays { get; init; } = DefaultDays;
+
+    /// <summary>A link request with both numbers forced into the range the server accepts.</summary>
+    /// <param name="uses">The uses asked for.</param>
+    /// <param name="days">The days asked for.</param>
+    /// <returns>The request.</returns>
+    /// <remarks>
+    /// Clamped rather than passed through, and the reason is asymmetric. A <c>ttl_days</c> out of range
+    /// falls back to seven days on the server, which is harmless; a <c>max_uses</c> out of range means
+    /// <b>unlimited</b>, which turns a link meant for one person into one that anybody who sees it can use.
+    /// Both are always sent, so the server's own defaults never decide.
+    /// </remarks>
+    public static InviteRequest Link(int uses, int days) => new()
+    {
+        MaxUses = Math.Clamp(uses, MinUses, MaxUsesLimit),
+        TtlDays = Math.Clamp(days, MinDays, MaxDays),
+    };
+}
+
+/// <summary>Answer of <c>POST /teams/{id}/invite</c>. The code and the link in it are a secret.</summary>
+public sealed class InviteResponse
+{
+    /// <summary>The invitation code. Never store, log or report it.</summary>
+    public string? Code { get; init; }
+
+    /// <summary>The link that carries the code. Never store, log or report it.</summary>
+    public string? Link { get; init; }
+
+    /// <summary>Seconds until it expires.</summary>
+    public long ExpiresIn { get; init; }
+
+    /// <summary>The invitation as the website lists it, without the code.</summary>
+    public InviteInfo? Invite { get; init; }
+
+    /// <inheritdoc />
+    /// <remarks>Overridden so that a stray interpolation into a log line prints nothing secret.</remarks>
+    public override string ToString() => $"InviteResponse(id={Invite?.Id})";
+}
+
+/// <summary>An invitation without its code, as the website lists it.</summary>
+public sealed class InviteInfo
+{
+    /// <summary>The invitation id.</summary>
+    public long Id { get; init; }
+
+    /// <summary>Always <c>link</c> here.</summary>
+    public string? Kind { get; init; }
+
+    /// <summary>A label, if one was given.</summary>
+    public string? Label { get; init; }
+
+    /// <summary>How often it has been used.</summary>
+    public int Uses { get; init; }
+
+    /// <summary>How often it may be used.</summary>
+    public int? MaxUses { get; init; }
+
+    /// <summary>When it expires, server-local <c>YYYY-MM-DD HH:MM:SS</c>.</summary>
+    public string? ExpiresAt { get; init; }
 }

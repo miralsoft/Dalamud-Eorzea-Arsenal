@@ -343,6 +343,33 @@ public sealed class FakeApiClient : IApiClient
     public Task<ApiResult<FarmResponse>> GetFarmAsync(string apiKey, long teamId, CancellationToken ct) =>
         Task.FromResult(FarmResult);
 
+    /// <summary>Result returned by <see cref="GetLineupAsync"/>.</summary>
+    public ApiResult<LineupResponse> LineupResult { get; set; } = ApiResult<LineupResponse>.Ok(new LineupResponse());
+
+    /// <summary>Result returned by <see cref="GetCoverageAsync"/>.</summary>
+    public ApiResult<CoverageResponse> CoverageResult { get; set; } = ApiResult<CoverageResponse>.Ok(new CoverageResponse());
+
+    /// <inheritdoc />
+    public Task<ApiResult<LineupResponse>> GetLineupAsync(string apiKey, long teamId, CancellationToken ct) =>
+        Task.FromResult(LineupResult);
+
+    /// <inheritdoc />
+    public Task<ApiResult<CoverageResponse>> GetCoverageAsync(string apiKey, long teamId, long eventId, string date, CancellationToken ct) =>
+        Task.FromResult(CoverageResult);
+
+    /// <summary>Result returned by <see cref="CreateInviteAsync"/>.</summary>
+    public ApiResult<InviteResponse> InviteResult { get; set; } = ApiResult<InviteResponse>.Ok(new InviteResponse());
+
+    /// <summary>The last invitation request that reached this fake.</summary>
+    public InviteRequest? LastInvite { get; private set; }
+
+    /// <inheritdoc />
+    public Task<ApiResult<InviteResponse>> CreateInviteAsync(string apiKey, long teamId, InviteRequest request, CancellationToken ct)
+    {
+        LastInvite = request;
+        return Task.FromResult(InviteResult);
+    }
+
     /// <inheritdoc />
     public Task<ApiResult<LogsResponse>> GetLogsAsync(string apiKey, long teamId, CancellationToken ct) =>
         Task.FromResult(LogsResult);

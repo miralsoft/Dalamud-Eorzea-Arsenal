@@ -20,13 +20,20 @@ public enum ReleaseNoteKind
 /// <summary>One user-facing line of a release note, in both supported languages.</summary>
 /// <param name="Kind">Added, improved, fixed or removed.</param>
 /// <param name="Id">
-/// A stable, repo-unique, kebab-case identifier. The web side remembers it as "already announced", so
-/// it must <b>never</b> change once published — correcting a typo in the text must not turn an entry
-/// into a new one. Written by hand for exactly that reason; the existing ones were slugged from their
-/// English text once and are frozen from here on.
+/// A stable, repo-unique, kebab-case identifier, and the one field that must <b>never</b> change once
+/// published. The web side keys "already announced" on it and never looks at the text, so editing a
+/// line is silent and safe — but renaming its id makes the same message go out a second time and
+/// breaks every link to <c>/neu#&lt;old-id&gt;</c>. Written by hand for exactly that reason; never
+/// derived from the text, or fixing a typo would mint a new entry. The existing ones were slugged from
+/// their English text once and are frozen from here on.
 /// </param>
-/// <param name="De">German text.</param>
-/// <param name="En">English text.</param>
+/// <param name="De">
+/// German text, written as <c>"Headline: detail"</c>. The colon is what the public changelog splits on
+/// (see <see cref="ChangelogJson.HeadlineLimit"/>): the part before it becomes the heading on the
+/// website, the rest the paragraph. Without it the whole line becomes the heading — a test holds new
+/// releases to this; the ones shipped up to 1.0.0 stay as they are by decision.
+/// </param>
+/// <param name="En">English text, same shape as <paramref name="De"/>.</param>
 public sealed record ReleaseNoteItem(ReleaseNoteKind Kind, string Id, string De, string En);
 
 /// <summary>One shipped version and what it changed for the user.</summary>
@@ -46,6 +53,29 @@ public static class ReleaseNotes
     /// <summary>Every release worth telling the user about, newest first.</summary>
     public static IReadOnlyList<ReleaseNote> All { get; } =
     [
+        new ReleaseNote("1.2.0", "2026-09-27",
+        [
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "team-lineup-in-game",
+                "Die Aufstellung deines Teams im Spiel: Ein neuer Reiter zeigt Tanks, Heiler und DPS gegen das Ziel, wer welche Position hat und welche Jobs dem Stamm noch fehlen.",
+                "Your team's line-up in game: a new tab shows tanks, healers and DPS against the target, who holds which position and which jobs the core still lacks."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "what-each-team-still-needs",
+                "Was jedem Team fehlt: In der Teamauswahl steht bei jedem Team, wie viele Tanks, Heiler oder DPS noch gebraucht werden.",
+                "What each team still needs: the team picker shows for every team how many tanks, healers or DPS it is still looking for."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "who-is-missing-on-a-date",
+                "Wer bei einem Termin fehlt: \"Besetzung\" unter jedem kommenden Termin zeigt, welche Positionen offen sind, wer vertritt und wer einspringen könnte.",
+                "Who is missing on a date: \"Who's in\" under every upcoming date shows which positions are open, who covers them and who could step in."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "invitation-link-from-the-game",
+                "Einladungslink jetzt auch aus dem Spiel: Wer im Team Mitglieder verwalten darf, kann ihn in der Aufstellung erstellen und mit einem Klick kopieren.",
+                "Invitation links from the game too: whoever may manage members can create one in the line-up and copy it with one click."),
+        ]),
         new ReleaseNote("1.1.0", "2026-09-13",
         [
             new ReleaseNoteItem(
