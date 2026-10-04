@@ -461,8 +461,21 @@ public sealed class ReviewService : IDisposable
     public TimeSpan? BackoffRemaining =>
         BackoffUntilUtc is { } until && until > _clock.UtcNow ? until - _clock.UtcNow : null;
 
+    /// <summary>
+    /// The error behind the last outcome that was not <see cref="ReviewOutcome.Ok"/>, or <see langword="null"/>
+    /// once a call goes through again.
+    /// </summary>
+    /// <remarks>
+    /// Kept so the window can say why a click did nothing. Without it a refused answer reached the window as
+    /// a bare <see cref="ReviewOutcome.Failed"/> and the window said nothing at all: the button simply looked
+    /// dead. With server 1.4 that becomes certain rather than rare, because deleting moves to its own scope
+    /// and an existing key is never given it by top-up.
+    /// </remarks>
+    public ApiError? LastError { get; private set; }
+
     private ReviewOutcome Classify(ApiError error)
     {
+        LastError = error;
         if (error.Kind == ApiErrorKind.NotFound)
         {
             // Two different things arrive as a 404 and both are answers rather than faults: the route does
@@ -492,6 +505,11 @@ public sealed class ReviewService : IDisposable
     private ReviewOutcome Record(ReviewOutcome outcome)
     {
         LastOutcome = outcome;
+        if (outcome == ReviewOutcome.Ok)
+        {
+            LastError = null;
+        }
+
         return outcome;
     }
 

@@ -123,6 +123,10 @@ public sealed class ApiClient : IApiClient
         return await SendAsync<JobTableResponse>(request, ct).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
+    public Task<ApiResult<KeyScopesResponse>> GetKeyScopesAsync(string apiKey, CancellationToken ct) =>
+        GetAsync<KeyScopesResponse>("/device/key", apiKey, ct);
+
 
     /// <inheritdoc />
     public async Task<ApiResult<ReviewState>> GetReviewAsync(string apiKey, string characterId, CancellationToken ct)

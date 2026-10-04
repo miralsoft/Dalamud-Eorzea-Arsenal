@@ -30,6 +30,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private readonly Localizer _localizer;
     private readonly ConnectionService _connection;
     private readonly IApiClient _api;
+    private readonly KeyScopeService _keyScopes;
     private readonly ILog _log;
     private readonly Action _save;
 
@@ -53,6 +54,7 @@ public sealed class ConfigWindow : Window, IDisposable
     /// <param name="localizer">UI string resolver.</param>
     /// <param name="connection">Connect/disconnect service.</param>
     /// <param name="api">API client (for the test-connection button).</param>
+    /// <param name="keyScopes">What the stored key may do, asked by the test-connection button.</param>
     /// <param name="log">Diagnostics sink.</param>
     /// <param name="save">Persists the config.</param>
     /// <param name="hostLanguage">
@@ -65,6 +67,7 @@ public sealed class ConfigWindow : Window, IDisposable
         Localizer localizer,
         ConnectionService connection,
         IApiClient api,
+        KeyScopeService keyScopes,
         ILog log,
         Action save,
         Func<string> hostLanguage)
@@ -75,6 +78,7 @@ public sealed class ConfigWindow : Window, IDisposable
         _localizer = localizer;
         _connection = connection;
         _api = api;
+        _keyScopes = keyScopes;
         _log = log;
         _save = save;
         _hostLanguage = hostLanguage;
@@ -685,9 +689,17 @@ public sealed class ConfigWindow : Window, IDisposable
 
                 _log.Info($"Test connection OK (protocol v{result.Value!.ProtocolVersion}) at {_store.BaseUrl}/version.");
                 var ok = _localizer.Get(LocKeys.TestOk, result.Value.ProtocolVersion);
-                // R17: if a key is present, warn when it lacks gear:write.
-                var scopeOk = !_store.HasKey || ScopeUtil.HasGearWrite(result.Value.Scopes);
-                _testStatus = scopeOk ? ok : $"{ok} ⚠ {T(LocKeys.ScopeMissing)}";
+                // R17: if a key is present, warn when it lacks gear:write. Asked of the key itself: the
+                // scopes /version lists are the server's catalogue, the same for everybody, so checking
+                // them could never fail. A server before 1.4 cannot say (404), and then nothing is judged.
+                var missing = false;
+                if (_store.HasKey)
+                {
+                    await _keyScopes.RefreshAsync(CancellationToken.None).ConfigureAwait(false);
+                    missing = _keyScopes.Has(ScopeUtil.GearWrite) == false;
+                }
+
+                _testStatus = missing ? $"{ok} ⚠ {T(LocKeys.ScopeMissing)}" : ok;
             }
             catch (Exception ex)
             {
