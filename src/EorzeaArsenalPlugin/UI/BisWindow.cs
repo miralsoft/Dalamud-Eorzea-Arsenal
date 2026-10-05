@@ -57,6 +57,7 @@ public sealed class BisWindow : Window
     private readonly Action<int> _linkItem;
     private readonly Func<string?, long?> _resolveCharacterId;
     private readonly Func<JobTableResponse?> _jobTable;
+    private readonly Action<string> _openLink;
 
     // Target ids we have already asked the obtain service to resolve, so Draw fires one prefetch per
     // new set of pieces instead of a task every frame.
@@ -77,6 +78,7 @@ public sealed class BisWindow : Window
     /// <param name="save">Persists the config (filter/scope choices).</param>
     /// <param name="linkItem">Posts a clickable item link to the game chat (arg: item id).</param>
     /// <param name="jobTable">The job table held for this server, which says per job whether BiS lists exist.</param>
+    /// <param name="openLink">Opens an http(s) url, already guarded against other schemes (a crafter set's source).</param>
     public BisWindow(
         PluginConfig config,
         ConfigStore store,
@@ -91,7 +93,8 @@ public sealed class BisWindow : Window
         Func<string?, long?> resolveCharacterId,
         Action save,
         Action<int> linkItem,
-        Func<JobTableResponse?> jobTable)
+        Func<JobTableResponse?> jobTable,
+        Action<string> openLink)
         : base("Eorzea Arsenal###EorzeaArsenalBis")
     {
         _config = config;
@@ -108,6 +111,7 @@ public sealed class BisWindow : Window
         _linkItem = linkItem;
         _resolveCharacterId = resolveCharacterId;
         _jobTable = jobTable;
+        _openLink = openLink;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -456,7 +460,7 @@ public sealed class BisWindow : Window
 
     private bool Included(SlotComparison slot)
     {
-        var complete = slot is { Status: SlotMatch.Match, MissingMateria.Count: 0, ExtraMateria.Count: 0 };
+        var complete = slot.IsComplete;
         var materiaIssue = slot.Status == SlotMatch.Match && !complete;
         return _config.BisFilter switch
         {
@@ -469,11 +473,12 @@ public sealed class BisWindow : Window
     /// <summary>
     /// The traffic-light status colour for a slot: green = fully BiS, <b>orange = item is correct but
     /// the materia is off</b>, <b>red = the item itself is wrong or the slot is empty</b>. This lets
-    /// the user tell "just needs materia" apart from "wrong gear piece" at a glance.
+    /// the user tell "just needs materia" apart from "wrong gear piece" at a glance. The right piece in NQ
+    /// where the target wants HQ is orange too: the item is right, one step is left.
     /// </summary>
     private Vector4 StatusColor(SlotComparison slot)
     {
-        if (slot is { Status: SlotMatch.Match, MissingMateria.Count: 0, ExtraMateria.Count: 0 })
+        if (slot.IsComplete)
         {
             return Green;
         }
@@ -528,9 +533,11 @@ public sealed class BisWindow : Window
         DrawSetHeader(comparison);
 
         var target = _bis.TargetGearset(comparison.GearIndex);
+        DrawCraftInfo(target);
         foreach (var slot in slots)
         {
-            DrawSlot(comparison.GearIndex, slot, target?.Items.GetValueOrDefault(slot.Slot)?.Source ?? target?.Source);
+            var piece = target?.Items.GetValueOrDefault(slot.Slot);
+            DrawSlot(comparison.GearIndex, slot, piece, piece?.Source ?? target?.Source, target?.IsCraft == true);
         }
 
         DrawSetNeeds(comparison, target);
@@ -553,9 +560,11 @@ public sealed class BisWindow : Window
     /// </remarks>
     private void DrawSetNeeds(GearsetComparison comparison, BisGearset? target)
     {
-        if (string.IsNullOrEmpty(target?.Target))
+        // No set identity from the server means nothing to ask for. A crafter or gatherer set is not
+        // ranked at all: the advisor is about tomestones and raids, and the server refuses it with a 422.
+        if (target?.Target is not { Length: > 0 } setTarget || !_advisor.Offers(setTarget))
         {
-            return; // no set identity from the server → nothing to ask for
+            return;
         }
 
         if (!ImGui.CollapsingHeader($"{T(LocKeys.BisNeedsHeading)}##needs{comparison.GearIndex}"))
@@ -781,6 +790,7 @@ public sealed class BisWindow : Window
         }
 
         var target = _bis.TargetGearset(comparison.GearIndex);
+        DrawCraftInfo(target);
 
         // Four columns per row: [left icon][left name + materia]   [right icon][right name + materia].
         // The two detail columns stretch, which gives the room in the middle/right for the text.
@@ -915,6 +925,11 @@ public sealed class BisWindow : Window
             ImGui.TextColored(Muted, _localizer.Get(LocKeys.BisYouHave, $"{_gearSource.GetItemName(currentId)} · iLvl {_gearSource.GetItemLevel(currentId)}"));
         }
 
+        if (slot.HqMissing)
+        {
+            ImGui.TextColored(Orange, T(LocKeys.BisHqMissing));
+        }
+
         if (slot.ExtraMateria.Count > 0)
         {
             ImGui.TextColored(Red, _localizer.Get(LocKeys.BisMateriaWrong, string.Join(", ", slot.ExtraMateria.Select(_gearSource.GetItemName))));
@@ -933,7 +948,7 @@ public sealed class BisWindow : Window
         ImGui.EndTooltip();
     }
 
-    private void DrawSlot(int gearIndex, SlotComparison slot, string? source)
+    private void DrawSlot(int gearIndex, SlotComparison slot, ItemDto? piece, string? source, bool craft)
     {
         DrawIcon(slot.TargetItemId, IconSize);
         ImGui.SameLine();
@@ -942,12 +957,27 @@ public sealed class BisWindow : Window
         var color = StatusColor(slot);
         var slotName = _localizer.Get(SlotNames.LocKey(slot.Slot));
         var sourceSuffix = string.IsNullOrEmpty(source) ? string.Empty : $" · {SourceLabel(source)}";
-        var line = $"{slotName}: {_gearSource.GetItemName(slot.TargetItemId)} · iLvl {_gearSource.GetItemLevel(slot.TargetItemId)}{sourceSuffix}";
+        var hq = piece?.Hq == true ? $" {T(LocKeys.BisHq)}" : string.Empty;
+        var line = $"{slotName}: {_gearSource.GetItemName(slot.TargetItemId)}{hq} · iLvl {_gearSource.GetItemLevel(slot.TargetItemId)}{sourceSuffix}";
         ClickableItem(color, line, slot.TargetItemId, $"##slot{gearIndex}_{slot.Slot}", slot.CurrentItemId ?? 0);
 
         if (slot.Status == SlotMatch.ItemDiffers && slot.CurrentItemId is { } currentId && currentId > 0)
         {
             Wrapped(Muted, $"    {_localizer.Get(LocKeys.BisYouHave, $"{_gearSource.GetItemName(currentId)} · iLvl {_gearSource.GetItemLevel(currentId)}")}");
+        }
+
+        if (slot.HqMissing)
+        {
+            Wrapped(Orange, $"    {T(LocKeys.BisHqMissing)}");
+        }
+
+        // A crafter piece's materia are a melding plan, and the order is the plan: guaranteed slots first,
+        // then the overmelds. Whether a slot is done is decided by the web's rule, never by the order.
+        if (craft && piece is { Materia.Count: > 0 })
+        {
+            DrawMeldPlan(slot, piece);
+            ImGui.EndGroup();
+            return;
         }
 
         if (slot.ExtraMateria.Count > 0)
@@ -1002,6 +1032,178 @@ public sealed class BisWindow : Window
             }
 
             ImGui.EndPopup();
+        }
+    }
+
+    /// <summary>
+    /// A crafter piece's materia in slot order, as the web shows them: "Slot 1", "Slot 2", "Übermeld 1",
+    /// each marked as matching or differing once the piece is worn, and plain while it is not.
+    /// </summary>
+    /// <param name="slot">The slot's comparison, with <see cref="SlotComparison.Melds"/> when the piece is worn.</param>
+    /// <param name="piece">The target piece.</param>
+    private void DrawMeldPlan(SlotComparison slot, ItemDto piece)
+    {
+        var worn = slot.Melds is not null;
+        if (!worn)
+        {
+            ImGui.TextColored(Muted, $"    {T(LocKeys.BisMeldPlan)}");
+        }
+
+        // The guaranteed slots come from the same table the web computes with; without a row every slot is
+        // a plain "Slot n", which is still the right order.
+        var row = _bis.CraftTables?.Items.GetValueOrDefault(piece.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        var guaranteed = row?.Slots ?? piece.Materia.Count;
+        var iconSize = ImGui.GetTextLineHeight();
+        for (var i = 0; i < piece.Materia.Count; i++)
+        {
+            var want = piece.Materia[i];
+            var meld = worn && i < slot.Melds!.Count ? slot.Melds[i] : default;
+            var color = !worn ? Muted : meld.Filled ? Green : Orange;
+            var label = i < guaranteed
+                ? _localizer.Get(LocKeys.BisMeldSlot, i + 1)
+                : _localizer.Get(LocKeys.BisMeldOver, i - guaranteed + 1);
+
+            ImGui.BeginGroup();
+            ImGui.TextColored(color, $"    {label}:");
+            ImGui.SameLine();
+            DrawIcon(want, iconSize);
+            ImGui.SameLine(0f, 3f);
+            ImGui.TextColored(color, _gearSource.GetItemName(want));
+            if (worn)
+            {
+                ImGui.SameLine();
+                ImGui.TextColored(color, $"· {T(meld.Filled ? LocKeys.BisMeldRight : LocKeys.BisMeldDifferent)}");
+            }
+
+            ImGui.EndGroup();
+
+            if (!worn || !ImGui.IsItemHovered())
+            {
+                continue;
+            }
+
+            var now = meld.Worn == 0 ? T(LocKeys.BisMeldEmpty) : _gearSource.GetItemName(meld.Worn);
+            if (!meld.Filled)
+            {
+                ImGui.SetTooltip(_localizer.Get(LocKeys.BisMeldDiffTip, now, _gearSource.GetItemName(want)));
+            }
+            else if (meld.Worn != want)
+            {
+                ImGui.SetTooltip(_localizer.Get(LocKeys.BisMeldEnoughTip, now, _gearSource.GetItemName(want)));
+            }
+        }
+    }
+
+    /// <summary>
+    /// What a crafter or gatherer set is: its level and source with a link, the slots that carry newer
+    /// pieces from the game, and the stats it adds up to. Nothing for a combat set.
+    /// </summary>
+    /// <param name="target">The target, or <see langword="null"/>.</param>
+    /// <remarks>
+    /// The level and the set's name are put together here in the player's language from the numbers;
+    /// the server's <c>level_name</c> and <c>target_name</c> are English. The source's name and link come
+    /// from the data and are never hard-coded, and a set built from the game names the set it was built
+    /// from, as the web does.
+    /// </remarks>
+    private void DrawCraftInfo(BisGearset? target)
+    {
+        if (target?.Craft is not { } craft)
+        {
+            return;
+        }
+
+        var level = craft.Level switch
+        {
+            3 => T(LocKeys.BisCraftLevelHigh),
+            2 => T(LocKeys.BisCraftLevelMid),
+            1 => T(LocKeys.BisCraftLevelBudget),
+            _ => craft.LevelName ?? string.Empty,
+        };
+
+        var fromGame = string.Equals(craft.Source?.Id, CraftSource.GameId, StringComparison.Ordinal);
+        string title;
+        if (fromGame && craft.BasedOn is { } based)
+        {
+            title = _localizer.Get(LocKeys.BisCraftNewer, level, based.Source?.Name ?? string.Empty, based.Patch ?? string.Empty);
+        }
+        else if (fromGame)
+        {
+            title = $"{level} · {T(LocKeys.BisCraftSourceGame)}";
+        }
+        else
+        {
+            var patch = string.IsNullOrEmpty(craft.Patch) ? string.Empty : $" ({craft.Patch})";
+            title = $"{level} · {craft.Source?.Name}{patch}";
+        }
+
+        Wrapped(Muted, CollapseSpaces(title));
+
+        var attribution = craft.Attribution;
+        var linked = false;
+        if (attribution?.Url is { Length: > 0 } sourceUrl)
+        {
+            ImGui.TextColored(Muted, T(LocKeys.BisCraftSource));
+            ImGui.SameLine();
+            Link(attribution.Name ?? sourceUrl, sourceUrl);
+            linked = true;
+        }
+
+        if (craft.SetUrl is { Length: > 0 } setUrl)
+        {
+            if (linked)
+            {
+                ImGui.SameLine();
+                ImGui.TextColored(Muted, "·");
+                ImGui.SameLine();
+            }
+
+            Link(T(LocKeys.BisCraftOpenSet), setUrl);
+        }
+
+        if (craft.BasedOn is { } basedOn && craft.Swapped.Count > 0)
+        {
+            var set = CollapseSpaces($"{basedOn.Source?.Name} {basedOn.Patch}");
+            var slots = string.Join(", ", craft.Swapped.Select(s => _localizer.Get(SlotNames.LocKey(s))));
+            Wrapped(Muted, _localizer.Get(LocKeys.BisCraftBasedOn, set, slots));
+        }
+
+        if (craft.Totals.Count > 0)
+        {
+            var stats = string.Join(" · ", OrderedTotals(craft).Select(t => $"{_gearSource.GetBaseParamName(t.Param)} {t.Value}"));
+            Wrapped(Muted, $"{_localizer.Get(LocKeys.BisCraftTotals, stats)} {T(LocKeys.BisCraftNoFood)}");
+        }
+    }
+
+    /// <summary>The family's own stats first, in the web's order, then anything else by id.</summary>
+    private static IEnumerable<(int Param, int Value)> OrderedTotals(CraftBlock craft)
+    {
+        int[] order = string.Equals(craft.Family, "gatherer", StringComparison.Ordinal) ? [72, 73, 10] : [70, 71, 11];
+        var totals = craft.Totals
+            .Select(kv => (Ok: int.TryParse(kv.Key, out var p), Param: p, kv.Value))
+            .Where(t => t.Ok)
+            .ToList();
+
+        return totals
+            .OrderBy(t => Array.IndexOf(order, t.Param) is var i and >= 0 ? i : order.Length + t.Param)
+            .Select(t => (t.Param, t.Value));
+    }
+
+    private static string CollapseSpaces(string text) =>
+        string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+
+    /// <summary>A text link: the url on hover, opened in the browser on a click (http(s) only, guarded by the caller).</summary>
+    private void Link(string text, string url)
+    {
+        ImGui.TextColored(Accent, text);
+        if (ImGui.IsItemHovered())
+        {
+            ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+            ImGui.SetTooltip(url);
+        }
+
+        if (ImGui.IsItemClicked(ImGuiMouseButton.Left))
+        {
+            _openLink(url);
         }
     }
 

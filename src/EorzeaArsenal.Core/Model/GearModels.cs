@@ -39,6 +39,18 @@ public sealed class ItemDto
     /// forward-compatible). <see langword="null"/> when unknown.
     /// </summary>
     public string? Source { get; init; }
+
+    /// <summary>
+    /// Whether the piece is high quality. Sent on every pushed piece, <c>true</c> or <c>false</c>
+    /// (contract revision 21); carried on a crafter or gatherer target piece by <c>GET /gear/bis</c>.
+    /// </summary>
+    /// <remarks>
+    /// <see langword="null"/> means "unknown", never NQ: the web then shows "HQ?" and a comparison does
+    /// not hold the piece against the player. So the push never leaves it out where it is known, not
+    /// even when it is <c>false</c>. <see cref="Id"/> stays the base id; the HQ offset of 1,000,000 the
+    /// game uses in saved gearsets is never sent.
+    /// </remarks>
+    public bool? Hq { get; init; }
 }
 
 /// <summary>One in-game gearset (one job loadout).</summary>
@@ -238,8 +250,11 @@ public static class ProtocolConstants
     /// <summary>Maximum number of gearsets accepted in one push.</summary>
     public const int MaxGearsets = 200;
 
-    /// <summary>Maximum serialized payload size accepted by the server (64 KB).</summary>
-    public const int MaxPayloadBytes = 64 * 1024;
+    /// <summary>
+    /// Maximum serialized payload size accepted by the server: 128 KB from server 1.4, which carries
+    /// <c>hq</c> on every piece (64 KB before). This build requires 1.4, so it checks against the new limit.
+    /// </summary>
+    public const int MaxPayloadBytes = 128 * 1024;
 
     /// <summary>Inclusive lower bound for a real item id.</summary>
     public const int MinItemId = 1;

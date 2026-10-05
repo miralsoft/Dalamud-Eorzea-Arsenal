@@ -75,6 +75,11 @@ public static class ReleaseNotes
                 "invitation-link-from-the-game",
                 "Einladungslink jetzt auch aus dem Spiel: Wer im Team Mitglieder verwalten darf, kann ihn in der Aufstellung erstellen und mit einem Klick kopieren.",
                 "Invitation links from the game too: whoever may manage members can create one in the line-up and copy it with one click."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "bis-for-crafters-and-gatherers",
+                "BiS für Handwerker und Sammler: Das BiS-Fenster vergleicht jetzt auch deren Gearsets, mit HQ und den Materia in der Reihenfolge zum Schmelzen.",
+                "BiS for crafters and gatherers: the BiS window now compares their gearsets too, with HQ and the materia in melding order."),
         ]),
         new ReleaseNote("1.1.0", "2026-09-13",
         [

@@ -61,6 +61,21 @@
       }
     },
     {
+      "id": "bis-for-crafters-and-gatherers",
+      "version": "1.2.0",
+      "date": "2026-09-27",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "BiS für Handwerker und Sammler",
+        "body": "<p>Das BiS-Fenster vergleicht jetzt auch deren Gearsets, mit HQ und den Materia in der Reihenfolge zum Schmelzen.</p>"
+      },
+      "en": {
+        "title": "BiS for crafters and gatherers",
+        "body": "<p>The BiS window now compares their gearsets too, with HQ and the materia in melding order.</p>"
+      }
+    },
+    {
       "id": "reordering-gearsets-keeps-everything",
       "version": "1.1.0",
       "date": "2026-09-13",

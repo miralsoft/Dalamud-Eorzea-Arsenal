@@ -1,0 +1,89 @@
+{
+  "_comment": "Shared test cases for meldMatch (public/assets/js/data/craft-stats.js): whether a worn crafter or gatherer piece fills the target's materia slots. The web's tests run these (tools/dps/craft/test/stats.test.mjs); a port in the plugin should pass the same. Item and materia rows are real ones from craft-targets.json, in the shape of /gear/bis `craft_tables`. Both sides are computed at the target's HQ state. `expected` is per target slot: filled, and the worn materia it was matched with (for an unfilled slot: what is left in the worn piece, the same slot first; 0 = nothing left).",
+  "items": {
+    "47185": { "slot": "Body", "canHq": true, "slots": 2, "adv": true, "nq": { "11": 6, "70": 1301, "71": 472 }, "hqv": { "11": 1, "70": 173, "71": 62 }, "cap": { "11": 8, "70": 1734, "71": 629 } },
+    "47194": { "slot": "Ears", "canHq": true, "slots": 1, "adv": true, "nq": { "11": 75, "70": 87 }, "hqv": { "11": 10, "70": 11 }, "cap": { "11": 100, "70": 116, "71": 157 } }
+  },
+  "materia": {
+    "41778": { "param": 70, "grade": 12, "value": 33 },
+    "41765": { "param": 70, "grade": 11, "value": 22 },
+    "33938": { "param": 70, "grade": 10, "value": 27 },
+    "41780": { "param": 71, "grade": 12, "value": 23 },
+    "41767": { "param": 71, "grade": 11, "value": 15 },
+    "41779": { "param": 11, "grade": 12, "value": 11 },
+    "41766": { "param": 11, "grade": 11, "value": 9 },
+    "33926": { "param": 11, "grade": 9, "value": 8 },
+    "5708": { "param": 11, "grade": 5, "value": 6 }
+  },
+  "cases": [
+    {
+      "name": "the guide's own materia",
+      "item": "47185", "hq": true,
+      "target": [41778, 41778, 41778, 41765, 41767],
+      "worn": [41778, 41778, 41778, 41765, 41767],
+      "expected": [
+        { "filled": true, "worn": 41778 }, { "filled": true, "worn": 41778 }, { "filled": true, "worn": 41778 },
+        { "filled": true, "worn": 41765 }, { "filled": true, "worn": 41767 }
+      ]
+    },
+    {
+      "name": "the same materia in another order",
+      "item": "47185", "hq": true,
+      "target": [41778, 41778, 41778, 41765, 41767],
+      "worn": [41767, 41765, 41778, 41778, 41778],
+      "expected": [
+        { "filled": true, "worn": 41778 }, { "filled": true, "worn": 41778 }, { "filled": true, "worn": 41778 },
+        { "filled": true, "worn": 41765 }, { "filled": true, "worn": 41767 }
+      ]
+    },
+    {
+      "name": "a weaker CP materia that still reaches the cap (7 + 9 and 7 + 11 both stop at 8)",
+      "item": "47185", "hq": true,
+      "target": [41778, 41778, 41779],
+      "worn": [41778, 41778, 41766],
+      "expected": [
+        { "filled": true, "worn": 41778 }, { "filled": true, "worn": 41778 }, { "filled": true, "worn": 41766 }
+      ]
+    },
+    {
+      "name": "a weaker Craftsmanship materia below the cap is not enough (XI 22 for X 27)",
+      "item": "47185", "hq": true,
+      "target": [41778, 41778, 33938, 41765, 41765],
+      "worn": [41778, 41778, 41765, 41765, 41765],
+      "expected": [
+        { "filled": true, "worn": 41778 }, { "filled": true, "worn": 41778 }, { "filled": false, "worn": 41765 },
+        { "filled": true, "worn": 41765 }, { "filled": true, "worn": 41765 }
+      ]
+    },
+    {
+      "name": "a stronger CP materia in place of the guide's V",
+      "item": "47194", "hq": true,
+      "target": [41780, 41780, 41767, 41766, 5708],
+      "worn": [41780, 41780, 41767, 41766, 33926],
+      "expected": [
+        { "filled": true, "worn": 41780 }, { "filled": true, "worn": 41780 }, { "filled": true, "worn": 41767 },
+        { "filled": true, "worn": 41766 }, { "filled": true, "worn": 33926 }
+      ]
+    },
+    {
+      "name": "a materia of another stat never fills the slot",
+      "item": "47194", "hq": true,
+      "target": [41780, 41780, 41767, 41766, 5708],
+      "worn": [41780, 41780, 41767, 41766, 41765],
+      "expected": [
+        { "filled": true, "worn": 41780 }, { "filled": true, "worn": 41780 }, { "filled": true, "worn": 41767 },
+        { "filled": true, "worn": 41766 }, { "filled": false, "worn": 41765 }
+      ]
+    },
+    {
+      "name": "nothing left for the last slot",
+      "item": "47194", "hq": true,
+      "target": [41780, 41780, 41767, 41766, 5708],
+      "worn": [41780, 41780, 41767, 41766],
+      "expected": [
+        { "filled": true, "worn": 41780 }, { "filled": true, "worn": 41780 }, { "filled": true, "worn": 41767 },
+        { "filled": true, "worn": 41766 }, { "filled": false, "worn": 0 }
+      ]
+    }
+  ]
+}

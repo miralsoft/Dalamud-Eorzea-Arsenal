@@ -251,6 +251,8 @@ public sealed class GameGearSource : IGearSource
             }
 
             items = Fnv(items, item->ItemId);
+            // Swapping an NQ piece for its HQ copy keeps the id, so the flag is part of the signature.
+            items = Fnv(items, item->IsHighQuality() ? 1u : 0u);
             for (var k = 0; k < MateriaSlotCount; k++)
             {
                 materia = Fnv(materia, item->Materia[k]);
@@ -290,6 +292,8 @@ public sealed class GameGearSource : IGearSource
             {
                 Id = id,
                 Materia = ReadMateria(ref gearsetItem),
+                // A saved gearset marks HQ with the +1,000,000 offset the normaliser strips from Id.
+                Hq = gearsetItem.ItemId >= ItemIdNormalizer.HqOffset,
             };
         }
 
@@ -358,6 +362,8 @@ public sealed class GameGearSource : IGearSource
             {
                 Id = id,
                 Materia = ReadMateriaInventory(item),
+                // Equipped items keep HQ as a flag, so it is read from there rather than from the id.
+                Hq = item->IsHighQuality(),
             };
         }
 
@@ -415,6 +421,29 @@ public sealed class GameGearSource : IGearSource
             _log.Error($"Current gearset read failed: {ex.GetType().Name}.");
             return -1;
         }
+    }
+
+    /// <summary>
+    /// Resolves a BaseParam id (70 Craftsmanship, 71 Control, 11 CP, 72 Gathering, 73 Perception, 10 GP)
+    /// to the stat's name in the player's language, or <c>#id</c> if unknown.
+    /// </summary>
+    /// <param name="baseParamId">The BaseParam id, as the server keys <c>totals</c>.</param>
+    /// <returns>The localized stat name.</returns>
+    public string GetBaseParamName(int baseParamId)
+    {
+        var sheet = _language is null
+            ? _data.GetExcelSheet<Lumina.Excel.Sheets.BaseParam>()
+            : _data.GetExcelSheet<Lumina.Excel.Sheets.BaseParam>(_language());
+        if (sheet is not null && baseParamId > 0 && sheet.TryGetRow((uint)baseParamId, out var row))
+        {
+            var name = row.Name.ExtractText();
+            if (!string.IsNullOrEmpty(name))
+            {
+                return name;
+            }
+        }
+
+        return $"#{baseParamId}";
     }
 
     /// <summary>Resolves an item id to its display name, or <c>#id</c> if unknown.</summary>

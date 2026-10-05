@@ -55,6 +55,7 @@ public static class GearSanitizer
             {
                 Id = item.Id,
                 Materia = item.Materia.Where(IsRealItemId).ToList(),
+                Hq = item.Hq,
             };
         }
 

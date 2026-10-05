@@ -3,7 +3,7 @@
 > The complete in-repo memory so an AI/contributor on another machine can continue without losing
 > context (R3). Keep this current **in the same commit** as the change it describes.
 
-_Last updated: 2026-10-03._
+_Last updated: 2026-10-05._
 
 ## Status: 1.1.0 is skipped. Players have 1.0.0; the next version they get is 1.2.0, built in `release/v1.2.0`.
 
@@ -25,6 +25,21 @@ is in on each upcoming date, and the invitation link. The link is offered only w
 `missing_capability`, never from a field's presence or the text of `detail`. The server shipped both to
 dev on 2026-09-27. Not yet walked through in game; there is no recorded answer for the invitation
 itself, so its shape rests on the briefing alone until it has been seen.
+
+**Also in 1.2.0, by the operator's decision of 2026-10-04: BiS for crafters and gatherers**
+(`feat/crafter-bis`, contract revision 21 in its third pass). No separate 1.3.0, because 1.2.0 has not
+shipped. Built: `hq` on every pushed piece (`true`/`false`, a missing field means unknown) with the
+payload limit at 128 KB; the crafter rows of `/gear/bis` in the BiS window (level, source with link,
+"based on" with the swapped slots, totals named from the game's BaseParam sheet, the meld plan in slot
+order); `CraftStats`, a 1:1 port of the web's `pieceStats`/`meldSatisfies`/`meldMatch`, computed with the
+answer's `craft_tables` and tested against the shared `meld-match-cases.json`; the HQ rule (worn NQ where
+HQ is wanted is not reached, unknown HQ is not held against the player); the purchase advisor withheld
+for `craft:` targets, with a 422 `craft_target` remembered so it is not asked again every frame. Combat
+rows compare as before. A currency sync is **not** in it: the server struck it from revision 21 until it
+has a section of its own. The server work is on its `feat/crafter-bis`, local and not on dev as of
+2026-10-05, so there is no recorded answer with a crafter row yet; the shape rests on the contract's
+example and the server code (`CraftTargets::resolve`, `meta`, `tables`). That code writes an empty map as
+`[]`, which `LenientMapConverter` reads as empty.
 
 1.0.0 shipped. The branch `feat/stable-gearset-identity` carried 1.1.0: gearsets have a server-minted
 identity, the reconciliation window is in, the plugin names a job the game added after the release, and

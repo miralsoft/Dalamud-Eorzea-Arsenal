@@ -132,6 +132,12 @@ public sealed class ProblemDetails
     /// does not help; the team lead can grant it.
     /// </summary>
     public string? MissingCapability { get; init; }
+
+    /// <summary>
+    /// Why a request was refused, where the server names it apart from <see cref="Error"/>, such as
+    /// <c>craft_target</c> on the advisor's 422 for a crafter or gatherer set. Read instead of <see cref="Detail"/>.
+    /// </summary>
+    public string? Reason { get; init; }
 }
 
 /// <summary>
