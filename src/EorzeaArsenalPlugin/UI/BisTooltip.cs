@@ -163,7 +163,7 @@ public sealed class BisTooltip
             return lines; // nothing readable to compare against; say nothing rather than "all missing"
         }
 
-        var comparison = BisComparer.CompareKnownPair(target, equipped);
+        var comparison = BisComparer.CompareKnownPair(target, equipped, _bis.CraftTables);
 
         foreach (var slot in slots)
         {
@@ -196,7 +196,9 @@ public sealed class BisTooltip
                 missing,
                 wrong,
                 slotComparison.TargetItemId,
-                slotComparison.CurrentItemId ?? 0));
+                slotComparison.CurrentItemId ?? 0,
+                slotComparison.HqMissing,
+                targetItem?.Hq == true));
         }
 
         // Warm the sourcing cache for the targets (and the equipped piece, to spot a tome base) shown.
@@ -273,7 +275,7 @@ public sealed class BisTooltip
 
     private void DrawLine(OverlayLine line)
     {
-        var clean = line.Missing.Count == 0 && line.Wrong.Count == 0;
+        var clean = line.Missing.Count == 0 && line.Wrong.Count == 0 && !line.HqMissing;
         var (icon, color) = line.Status switch
         {
             SlotMatch.Match when clean => (FontAwesomeIcon.Check, Green),
@@ -286,7 +288,14 @@ public sealed class BisTooltip
         var slotName = _localizer.Get(SlotNames.LocKey(line.Slot));
         var source = SourceLabel(line.Source);
         var suffix = source is null ? string.Empty : $" · {source}";
-        IconText(icon, color, $"{slotName}: {line.TargetName} · iLvl {line.TargetIlvl}{suffix}");
+        var hq = line.TargetHq ? $" {T(LocKeys.BisHq)}" : string.Empty;
+        IconText(icon, color, $"{slotName}: {line.TargetName}{hq} · iLvl {line.TargetIlvl}{suffix}");
+
+        // The right piece in NQ where the target asks for HQ: not reached, and the only thing left to do.
+        if (line.HqMissing)
+        {
+            ImGui.TextColored(Orange, Indent + T(LocKeys.BisHqMissing));
+        }
 
         if (line.Status == SlotMatch.ItemDiffers && line.EquippedName is not null)
         {
@@ -412,5 +421,7 @@ public sealed class BisTooltip
         IReadOnlyList<string> Missing,
         IReadOnlyList<string> Wrong,
         int TargetItemId,
-        int EquippedItemId);
+        int EquippedItemId,
+        bool HqMissing,
+        bool TargetHq);
 }

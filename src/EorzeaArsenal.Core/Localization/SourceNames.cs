@@ -25,6 +25,7 @@ public static class SourceNames
         ["trial"] = "source.trial",
         ["ultimate"] = "source.ultimate",
         ["relic"] = "source.relic",
+        ["scrip"] = "source.scrip",
         ["pvp"] = "source.pvp",
         ["other"] = "source.other",
 

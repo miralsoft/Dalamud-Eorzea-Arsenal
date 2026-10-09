@@ -66,6 +66,10 @@ public sealed class BisService
     private volatile string? _comparedFor;
     private volatile GearsetDto[] _withoutTarget = [];
     private volatile BisGearset[] _targets = [];
+
+    // The answer's crafter tables, which crafter and gatherer targets judge their materia with. Kept
+    // beside the targets they came with, so the tooltip judges a slot exactly as the window does.
+    private volatile CraftTables? _craftTables;
     private DateTimeOffset _fetchedUtc = DateTimeOffset.MinValue;
 
     // The live list as it stood when the targets were fetched, both ways round. This is what re-keys
@@ -231,7 +235,8 @@ public sealed class BisService
 
             var targets = result.Value!.Data;
             _targets = targets.ToArray();
-            _comparisons = BisComparer.Compare(clean, targets, set => Identify(cidHash, set)).ToArray();
+            _craftTables = result.Value.CraftTables;
+            _comparisons = BisComparer.Compare(clean, targets, set => Identify(cidHash, set), _craftTables).ToArray();
             _withoutTarget = BisComparer.WithoutTarget(clean, targets, set => Identify(cidHash, set)).ToArray();
             _fetchedUtc = DateTimeOffset.UtcNow;
             SetStatus(targets.Count == 0 ? BisFetchStatus.Empty : BisFetchStatus.Ok);
@@ -334,6 +339,9 @@ public sealed class BisService
 
         return null;
     }
+
+    /// <summary>The crafter tables of the last answer, or <see langword="null"/> when it had none.</summary>
+    public CraftTables? CraftTables => _craftTables;
 
     /// <summary>Returns the full BiS target gearset for a live gearset index, if cached.</summary>
     /// <param name="gearIndex">The <b>live</b> gearset index.</param>

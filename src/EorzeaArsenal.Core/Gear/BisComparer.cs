@@ -29,6 +29,14 @@ public enum SlotMatch
 /// Equipped materia item ids that are wrong (present but not in the target) — what to remove.
 /// Only populated when the item id matches.
 /// </param>
+/// <param name="HqMissing">
+/// The right item is worn, but NQ where the target wants HQ. Not reached; a piece whose HQ state is not
+/// known is never counted here.
+/// </param>
+/// <param name="Melds">
+/// For a crafter or gatherer target whose item is worn: per target materia slot, in slot order, whether
+/// it is filled. <see langword="null"/> for every other slot.
+/// </param>
 public readonly record struct SlotComparison(
     string Slot,
     int? CurrentItemId,
@@ -36,7 +44,13 @@ public readonly record struct SlotComparison(
     SlotMatch Status,
     bool MateriaMatch,
     IReadOnlyList<int> MissingMateria,
-    IReadOnlyList<int> ExtraMateria);
+    IReadOnlyList<int> ExtraMateria,
+    bool HqMissing = false,
+    IReadOnlyList<MeldSlot>? Melds = null)
+{
+    /// <summary>The right item, its materia done, and HQ where the target asks for it.</summary>
+    public bool IsComplete => Status == SlotMatch.Match && MateriaMatch && !HqMissing;
+}
 
 /// <summary>The comparison of one gearset against its BiS target.</summary>
 public sealed class GearsetComparison
@@ -63,17 +77,19 @@ public sealed class GearsetComparison
     /// <summary>Per-slot comparisons.</summary>
     public required IReadOnlyList<SlotComparison> Slots { get; init; }
 
-    /// <summary>Number of slots that fully match (item id and materia).</summary>
-    public int FullyMatchedSlots => Slots.Count(s => s.Status == SlotMatch.Match && s.MateriaMatch);
+    /// <summary>Number of slots that are complete (item, materia, and HQ where asked for).</summary>
+    public int FullyMatchedSlots => Slots.Count(s => s.IsComplete);
 
-    /// <summary>Whether every slot matches item and materia.</summary>
-    public bool IsComplete => Slots.Count > 0 && Slots.All(s => s.Status == SlotMatch.Match && s.MateriaMatch);
+    /// <summary>Whether every slot is complete.</summary>
+    public bool IsComplete => Slots.Count > 0 && Slots.All(s => s.IsComplete);
 }
 
 /// <summary>
 /// Computes the per-slot diff of the player's live gear against the BiS targets from
 /// <c>GET /gear/bis</c>. Pure and unit-tested. Rings are interchangeable (left/right) and materia order
-/// is irrelevant, per the API contract.
+/// is irrelevant, per the API contract. A crafter or gatherer target judges its materia the way the web
+/// does instead (<see cref="CraftStats.MeldMatch"/>), and on every target a worn NQ piece where HQ is
+/// asked for is not reached.
 /// </summary>
 /// <remarks>
 /// Targets are matched to live gearsets by <c>set_uid</c>, the identity the server mints. The old key
@@ -97,11 +113,16 @@ public static class BisComparer
     /// <see langword="null"/> for the whole delegate means "no identities available", which puts every
     /// target on the position fallback.
     /// </param>
+    /// <param name="tables">
+    /// The answer's <c>craft_tables</c>, which crafter and gatherer targets judge their materia with;
+    /// <see langword="null"/> when it had none.
+    /// </param>
     /// <returns>One <see cref="GearsetComparison"/> per target.</returns>
     public static IReadOnlyList<GearsetComparison> Compare(
         GearData live,
         IReadOnlyList<BisGearset> targets,
-        Func<GearsetDto, string?>? identify = null)
+        Func<GearsetDto, string?>? identify = null,
+        CraftTables? tables = null)
     {
         var index = LiveIndex.Build(live, identify);
 
@@ -116,7 +137,7 @@ public static class BisComparer
                 Job = target.Job,
                 Name = target.Name,
                 HasLiveGearset = liveSet is not null,
-                Slots = CompareSlots(target.Items, liveSet?.Items),
+                Slots = CompareSlots(target, liveSet?.Items, tables),
             });
         }
 
@@ -128,6 +149,7 @@ public static class BisComparer
     /// </summary>
     /// <param name="target">The BiS target.</param>
     /// <param name="liveItems">The gear that belongs to it, by slot.</param>
+    /// <param name="tables">The answer's <c>craft_tables</c>, or <see langword="null"/>.</param>
     /// <returns>The comparison, always with a live gearset attached.</returns>
     /// <remarks>
     /// For a caller that has already established the pair by identity. Sending such a pair through
@@ -136,14 +158,14 @@ public static class BisComparer
     /// resolver hands over a target that can match nothing, and every slot comes back as missing. That
     /// is what the in-game tooltip did from the day the server began minting identities.
     /// </remarks>
-    public static GearsetComparison CompareKnownPair(BisGearset target, Dictionary<string, ItemDto> liveItems) => new()
+    public static GearsetComparison CompareKnownPair(BisGearset target, Dictionary<string, ItemDto> liveItems, CraftTables? tables = null) => new()
     {
         GearIndex = target.GearIndex,
         SetUid = target.SetUid,
         Job = target.Job,
         Name = target.Name,
         HasLiveGearset = true,
-        Slots = CompareSlots(target.Items, liveItems),
+        Slots = CompareSlots(target, liveItems, tables),
     };
 
     /// <summary>
@@ -252,32 +274,85 @@ public static class BisComparer
 
         public bool IsClaimed(GearsetDto set) => _claimed.Contains(set);
     }
-    private static List<SlotComparison> CompareSlots(
-        Dictionary<string, ItemDto> targetItems,
-        Dictionary<string, ItemDto>? liveItems)
+
+    /// <summary>
+    /// How one worn piece's materia is judged against its target piece: the plain way for a combat target
+    /// (the same materia, order irrelevant), the web's <c>meldMatch</c> for a crafter or gatherer target.
+    /// </summary>
+    /// <remarks>
+    /// One judge per target, so both the ring passes and the other slots ask the same question. The crafter
+    /// way is chosen only when the row says it is a crafter target and the answer carried the tables; a
+    /// crafter row without tables, which a server should never send, falls back to the plain way rather
+    /// than inventing caps.
+    /// </remarks>
+    private readonly struct MateriaJudge
     {
-        var slots = new List<SlotComparison>(targetItems.Count);
+        private readonly CraftTables? _tables;
+
+        private MateriaJudge(CraftTables? tables) => _tables = tables;
+
+        public static MateriaJudge For(BisGearset target, CraftTables? tables) =>
+            new(target.IsCraft ? tables : null);
+
+        public (bool Done, List<int> Missing, List<int> Extra, IReadOnlyList<MeldSlot>? Melds) Judge(ItemDto target, ItemDto current)
+        {
+            if (_tables is null)
+            {
+                var (missing, extra) = MateriaDiff(current.Materia, target.Materia);
+                return (missing.Count == 0 && extra.Count == 0, missing, extra, null);
+            }
+
+            var row = _tables.Items.GetValueOrDefault(target.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            var melds = CraftStats.MeldMatch(row, target.Hq == true, target.Materia, current.Materia, _tables.Materia);
+            var open = new List<int>();
+            var wrong = new List<int>();
+            for (var i = 0; i < melds.Count; i++)
+            {
+                if (melds[i].Filled)
+                {
+                    continue;
+                }
+
+                open.Add(target.Materia[i]);
+                if (melds[i].Worn != 0)
+                {
+                    wrong.Add(melds[i].Worn);
+                }
+            }
+
+            return (open.Count == 0, open, wrong, melds);
+        }
+    }
+
+    private static List<SlotComparison> CompareSlots(
+        BisGearset target,
+        Dictionary<string, ItemDto>? liveItems,
+        CraftTables? tables)
+    {
+        var judge = MateriaJudge.For(target, tables);
+        var slots = new List<SlotComparison>(target.Items.Count);
 
         // Non-ring slots: direct key comparison.
-        foreach (var (slot, target) in targetItems)
+        foreach (var (slot, piece) in target.Items)
         {
             if (slot is RingLeft or RingRight)
             {
                 continue;
             }
 
-            slots.Add(CompareOne(slot, target, Lookup(liveItems, slot)));
+            slots.Add(CompareOne(slot, piece, Lookup(liveItems, slot), judge));
         }
 
         // Rings: interchangeable left/right — match target rings to the current ring pool by id.
-        AddRingComparisons(targetItems, liveItems, slots);
+        AddRingComparisons(target.Items, liveItems, slots, judge);
         return slots;
     }
 
     private static void AddRingComparisons(
         Dictionary<string, ItemDto> targetItems,
         Dictionary<string, ItemDto>? liveItems,
-        List<SlotComparison> slots)
+        List<SlotComparison> slots,
+        MateriaJudge judge)
     {
         var pool = new List<ItemDto>();
         if (Lookup(liveItems, RingLeft) is { } l)
@@ -301,20 +376,21 @@ public static class BisComparer
 
         var resolved = new bool[targets.Count];
 
-        // Pass 1: claim exact matches (same id AND same materia) first, so two same-id rings with
+        // Pass 1: claim the rings whose materia are already done first, so two same-id rings with
         // different materia each pair with the right one regardless of which finger they sit on.
         for (var i = 0; i < targets.Count; i++)
         {
-            var idx = pool.FindIndex(p => p.Id == targets[i].Item.Id && MateriaEqual(p.Materia, targets[i].Item.Materia));
+            var target = targets[i].Item;
+            var idx = pool.FindIndex(p => p.Id == target.Id && judge.Judge(target, p).Done);
             if (idx >= 0)
             {
-                slots.Add(new SlotComparison(targets[i].Slot, pool[idx].Id, targets[i].Item.Id, SlotMatch.Match, true, [], []));
+                slots.Add(Worn(targets[i].Slot, target, pool[idx], judge));
                 pool.RemoveAt(idx);
                 resolved[i] = true;
             }
         }
 
-        // Pass 2: same item id but different materia → match, materia differs.
+        // Pass 2: same item id but materia not done yet → match, materia differs.
         for (var i = 0; i < targets.Count; i++)
         {
             if (resolved[i])
@@ -325,8 +401,7 @@ public static class BisComparer
             var idx = pool.FindIndex(p => p.Id == targets[i].Item.Id);
             if (idx >= 0)
             {
-                var (missing, extra) = MateriaDiff(pool[idx].Materia, targets[i].Item.Materia);
-                slots.Add(new SlotComparison(targets[i].Slot, pool[idx].Id, targets[i].Item.Id, SlotMatch.Match, false, missing, extra));
+                slots.Add(Worn(targets[i].Slot, targets[i].Item, pool[idx], judge));
                 pool.RemoveAt(idx);
                 resolved[i] = true;
             }
@@ -353,7 +428,7 @@ public static class BisComparer
         }
     }
 
-    private static SlotComparison CompareOne(string slot, ItemDto target, ItemDto? current)
+    private static SlotComparison CompareOne(string slot, ItemDto target, ItemDto? current, MateriaJudge judge)
     {
         if (current is null)
         {
@@ -365,8 +440,18 @@ public static class BisComparer
             return new SlotComparison(slot, current.Id, target.Id, SlotMatch.ItemDiffers, false, target.Materia.ToList(), []);
         }
 
-        var (missing, extra) = MateriaDiff(current.Materia, target.Materia);
-        return new SlotComparison(slot, current.Id, target.Id, SlotMatch.Match, missing.Count == 0 && extra.Count == 0, missing, extra);
+        return Worn(slot, target, current, judge);
+    }
+
+    /// <summary>The comparison of a slot where the target's item is worn.</summary>
+    private static SlotComparison Worn(string slot, ItemDto target, ItemDto current, MateriaJudge judge)
+    {
+        var (done, missing, extra, melds) = judge.Judge(target, current);
+
+        // NQ where the target wants HQ is not reached. A piece whose HQ state is not known is not held
+        // against the player: only a worn piece that says false counts.
+        var hqMissing = target.Hq == true && current.Hq == false;
+        return new SlotComparison(slot, current.Id, target.Id, SlotMatch.Match, done, missing, extra, hqMissing, melds);
     }
 
     /// <summary>
@@ -412,24 +497,4 @@ public static class BisComparer
 
     private static ItemDto? Lookup(Dictionary<string, ItemDto>? items, string slot) =>
         items is not null && items.TryGetValue(slot, out var item) ? item : null;
-
-    private static bool MateriaEqual(IReadOnlyList<int> a, IReadOnlyList<int> b)
-    {
-        if (a.Count != b.Count)
-        {
-            return false;
-        }
-
-        var sortedA = a.Order().ToArray();
-        var sortedB = b.Order().ToArray();
-        for (var i = 0; i < sortedA.Length; i++)
-        {
-            if (sortedA[i] != sortedB[i])
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
 }

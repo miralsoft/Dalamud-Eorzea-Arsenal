@@ -340,6 +340,66 @@ public static class LocKeys
     /// <summary>"Missing: {0}" line — target materia that should be socketed.</summary>
     public const string BisMateriaMissing = "bis.materiamissing";
 
+    /// <summary>The marker after a target piece the set wants in HQ.</summary>
+    public const string BisHq = "bis.hq";
+
+    /// <summary>The right piece worn in NQ where the target wants HQ (the web's wording).</summary>
+    public const string BisHqMissing = "bis.hqmissing";
+
+    /// <summary>Crafter and gatherer set level 3.</summary>
+    public const string BisCraftLevelHigh = "bis.craft.level.high";
+
+    /// <summary>Crafter and gatherer set level 2.</summary>
+    public const string BisCraftLevelMid = "bis.craft.level.mid";
+
+    /// <summary>Crafter and gatherer set level 1.</summary>
+    public const string BisCraftLevelBudget = "bis.craft.level.budget";
+
+    /// <summary>The set's name for a set with newer pieces from the game (args: level, source, patch).</summary>
+    public const string BisCraftNewer = "bis.craft.newer";
+
+    /// <summary>The source of a set put together from the game data alone.</summary>
+    public const string BisCraftSourceGame = "bis.craft.sourcegame";
+
+    /// <summary>Which slots carry newer pieces from the game (args: the set it is based on, the slots).</summary>
+    public const string BisCraftBasedOn = "bis.craft.basedon";
+
+    /// <summary>The link to the set's own page at its source.</summary>
+    public const string BisCraftOpenSet = "bis.craft.openset";
+
+    /// <summary>Before the source link of a crafter or gatherer set.</summary>
+    public const string BisCraftSource = "bis.craft.source";
+
+    /// <summary>The target's computed stats (arg: the stats, joined).</summary>
+    public const string BisCraftTotals = "bis.craft.totals";
+
+    /// <summary>Under the totals: they leave out food and potions.</summary>
+    public const string BisCraftNoFood = "bis.craft.nofood";
+
+    /// <summary>A guaranteed materia slot in the meld plan (arg: its number).</summary>
+    public const string BisMeldSlot = "bis.meld.slot";
+
+    /// <summary>An overmeld slot in the meld plan (arg: its number).</summary>
+    public const string BisMeldOver = "bis.meld.over";
+
+    /// <summary>A meld slot that is filled.</summary>
+    public const string BisMeldRight = "bis.meld.right";
+
+    /// <summary>A meld slot that is not filled.</summary>
+    public const string BisMeldDifferent = "bis.meld.different";
+
+    /// <summary>What sits in an unfilled slot when nothing does.</summary>
+    public const string BisMeldEmpty = "bis.meld.empty";
+
+    /// <summary>Hover on an unfilled slot (args: what is in it, what belongs there).</summary>
+    public const string BisMeldDiffTip = "bis.meld.difftip";
+
+    /// <summary>Hover on a slot filled by another materia that does the job (args: what is in it, what was asked for).</summary>
+    public const string BisMeldEnoughTip = "bis.meld.enoughtip";
+
+    /// <summary>Above the meld plan when the target piece is not worn yet.</summary>
+    public const string BisMeldPlan = "bis.meld.plan";
+
     /// <summary>Hint when the current gearset has no BiS target (arg: gearset index).</summary>
     public const string BisNoTarget = "bis.notarget";
 

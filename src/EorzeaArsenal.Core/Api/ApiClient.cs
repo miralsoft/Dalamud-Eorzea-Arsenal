@@ -615,6 +615,7 @@ public sealed class ApiClient : IApiClient
             Jobs = problem?.Jobs,
             MissingScope = problem?.MissingScope,
             MissingCapability = problem?.MissingCapability,
+            Reason = problem?.Reason,
         };
     }
 

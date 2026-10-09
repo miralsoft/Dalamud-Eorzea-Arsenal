@@ -352,4 +352,65 @@ public sealed class AdvisorServiceTests
         await service.EnsureAsync(1234, "whm", Target, CancellationToken.None);
         Assert.Equal(2, api.AdvisorPlanReads.Count);
     }
+
+    /// <summary>
+    /// The ranking is about tomestones and raids, so a crafter or gatherer set is never asked about: the
+    /// server answers it with a 422, and a refused read is not cached, so the window would ask every frame.
+    /// </summary>
+    [Fact]
+    public async Task ACrafterTargetIsNeverAskedAbout()
+    {
+        var api = new FakeApiClient();
+        var service = NewService(api);
+
+        await service.EnsureOptionsAsync(1234, "CRP", "craft:teamcraft/CRP/high", null, "power", CancellationToken.None);
+        await service.EnsureAsync(1234, "CRP", "craft:teamcraft/CRP/high", CancellationToken.None);
+
+        Assert.Empty(api.AdvisorOptionsReads);
+        Assert.Empty(api.AdvisorPlanReads);
+        Assert.False(service.Offers("craft:teamcraft/CRP/high"));
+        Assert.True(service.Offers(Target));
+    }
+
+    /// <summary>
+    /// Should a target the plugin does not recognise as a crafter set still be refused with
+    /// <c>craft_target</c>, that is remembered: asked once, then never again, and not reported as a fault.
+    /// </summary>
+    [Fact]
+    public async Task ACraftTargetRefusalIsAskedOnceAndRemembered()
+    {
+        var api = new FakeApiClient
+        {
+            AdvisorOptionsResult = ApiResult<AdvisorOptionsResponse>.Fail(new ApiError
+            {
+                Kind = ApiErrorKind.Validation,
+                Message = "x",
+                Reason = AdvisorService.CraftTargetReason,
+            }),
+        };
+        var service = NewService(api);
+
+        await service.EnsureOptionsAsync(1234, "CRP", Target, null, "power", CancellationToken.None);
+        await service.EnsureOptionsAsync(1234, "CRP", Target, null, "power", CancellationToken.None);
+
+        Assert.Single(api.AdvisorOptionsReads);
+        Assert.False(service.Offers(Target));
+        Assert.Null(service.LastErrorKind);
+    }
+
+    /// <summary>The <c>reason</c> member of the 422 arrives from the wire into the error.</summary>
+    [Fact]
+    public async Task TheClientCarriesTheReasonOfA422()
+    {
+        var handler = new StubHttpMessageHandler().Enqueue(
+            System.Net.HttpStatusCode.UnprocessableEntity,
+            """{"type":"about:blank","title":"Unprocessable Entity","status":422,"detail":"x","reason":"craft_target"}""",
+            contentType: "application/problem+json");
+        var client = new EorzeaArsenal.Api.ApiClient(new HttpClient(handler), new StubHttpMessageHandler.Settings());
+
+        var result = await client.GetAdvisorOptionsAsync("k", 1234, "CRP", "craft:teamcraft/CRP/high", null, "power", CancellationToken.None);
+
+        Assert.Equal(ApiErrorKind.Validation, result.Error!.Kind);
+        Assert.Equal("craft_target", result.Error.Reason);
+    }
 }
