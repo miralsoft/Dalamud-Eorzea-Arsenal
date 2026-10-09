@@ -117,6 +117,26 @@ public sealed class GearPayload
     /// </summary>
     public string Scope { get; init; } = JobScope.Combat;
 
+    /// <summary>
+    /// The job codes this plugin can put a name to when it reads the game's class table (contract
+    /// "What the client can name"). The server parks only rows of these jobs.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A second statement beside <see cref="Scope"/>: that one says how wide the push looked, this one what
+    /// the plugin could recognise while looking. Without it the server assumes the frozen 42, which is
+    /// right today and wrong the day the game adds a job this build does not know: the set is left out of
+    /// the push, the push still truthfully says <c>all</c>, and the server reads the row as gone.
+    /// </para>
+    /// <para>
+    /// The codes this build actually names (the compiled floor plus what it learned from the game's
+    /// sheet), never the server's job table: the table says what the server accepts, this field is the
+    /// one place where the client is the authority. Never sent empty, because the server reads <c>[]</c>
+    /// as "did not say"; <see langword="null"/> leaves the field out.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<string>? NamedJobs { get; init; }
+
     /// <summary>All gearsets being upserted (max 200).</summary>
     public required IReadOnlyList<GearsetDto> Gearsets { get; init; }
 
@@ -127,13 +147,31 @@ public sealed class GearPayload
     /// never defaulted, because a wrong value here is the one mistake that makes the server park rows the
     /// game still has. Whoever builds a payload states what went into it.
     /// </param>
+    /// <param name="namedJobs">
+    /// The codes this build can name; <see langword="null"/> takes <see cref="Gear.JobMap.ValidCodes"/>,
+    /// which is what a running plugin knows. Passed explicitly by tests, so they never touch that state.
+    /// </param>
     /// <returns>A payload carrying the current protocol version.</returns>
-    public static GearPayload From(GearData data, string scope) => new()
+    public static GearPayload From(GearData data, string scope, IEnumerable<string>? namedJobs = null) => new()
     {
         Character = data.Character,
         Gearsets = data.Gearsets,
         Scope = scope,
+        NamedJobs = NamedJobsOf(namedJobs ?? Gear.JobMap.ValidCodes),
     };
+
+    /// <summary>The codes sorted and de-duplicated, or <see langword="null"/> when there are none.</summary>
+    private static IReadOnlyList<string>? NamedJobsOf(IEnumerable<string> codes)
+    {
+        var list = codes
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Select(c => c.Trim().ToUpperInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        return list.Count == 0 ? null : list;
+    }
 }
 
 /// <summary>

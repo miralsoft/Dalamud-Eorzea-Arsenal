@@ -21,6 +21,11 @@ Built in `release/v1.2.0`; the date is set when it ships. Requires server 1.4.
 - **`hq` on every pushed piece**, `true` or `false`, read from the +1,000,000 offset of a saved gearset
   and from the flag of an equipped item; an NQ/HQ swap of the same item now counts as a change. The
   payload limit is 128 KB, as server 1.4 accepts.
+- **`named_jobs` on every push**: the job codes this build can name, the compiled floor plus what it
+  learned from the game's class sheet, never the server's table. The server then parks only rows of
+  those jobs, so a job the game adds after a release no longer has its row parked by a plugin that
+  cannot name it yet and still truthfully reports `scope: all`. Never sent as `[]`, which the server
+  reads as "did not say".
 - **Whether a job has BiS lists comes from the server** (`bis` per job in `GET /gear/jobs`), with the
   compiled rule kept for a server or a job the table says nothing about.
 - **A delete the key may not do is shown locked**, with how to get the right. `GET /device/key` is read

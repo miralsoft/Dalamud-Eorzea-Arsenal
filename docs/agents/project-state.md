@@ -3,7 +3,7 @@
 > The complete in-repo memory so an AI/contributor on another machine can continue without losing
 > context (R3). Keep this current **in the same commit** as the change it describes.
 
-_Last updated: 2026-10-05._
+_Last updated: 2026-10-09._
 
 ## Status: 1.1.0 is skipped. Players have 1.0.0; the next version they get is 1.2.0, built in `release/v1.2.0`.
 
@@ -132,10 +132,13 @@ that noise. Judge the format gate from a clone, never from the working tree.
   the `/version` scopes, which are the server's catalogue and so could never fail.
 - **Waiting on the server, not on us:** nothing. Both open questions of 2026-09-12 came back. `BST` is in
   the job table since version `2026-08-22`, and `orphans[].similar[]` is now guaranteed never to name a
-  row that is not in game. One hazard was handed over with the first and is theirs to decide: a client
-  older than the self-detection cannot name a newly added job, still declares `scope: all`, and would
-  have its row parked. Either the push grows a `named_jobs[]` list, or the plugin ships before the table
-  does.
+  row that is not in game. The hazard handed over with the first, a client that cannot name a newly
+  added job still declaring `scope: all` and having its row parked, was already answered in the contract
+  ("What the client can name", since 2026-08-22): the push may carry `named_jobs[]`, and the server parks
+  only rows of those jobs. This was recorded here as open until the server pointed it out on 2026-10-09.
+  From 1.2.0 every push sends it (`GearPayload.NamedJobs`, the codes `JobMap.ValidCodes` holds: the
+  compiled floor plus what the game's sheet taught it, never the server's table), and never as `[]`,
+  which the server reads as "did not say".
 - **`pluginmaster.json` is no longer in the repo** (2026-09-13). It is build output: the release workflow
   generates it from the built manifest at tag time and attaches it to the release, and that attachment is
   the URL players give Dalamud. The committed copy was read by nobody and had sat at `0.4.0.0` through
