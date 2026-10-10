@@ -21,7 +21,7 @@ public enum ApiErrorKind
     /// <summary>404 — no such resource (e.g. no BiS target for this character yet).</summary>
     NotFound,
 
-    /// <summary>400 — payload too large (&gt; 64 KB) or malformed JSON.</summary>
+    /// <summary>400 — payload too large (&gt; 128 KB) or malformed JSON.</summary>
     BadRequest,
 
     /// <summary>429 — rate limit (max 30 uploads/hour). Back off; honor the window.</summary>
@@ -70,6 +70,15 @@ public sealed class ApiError
 
     /// <summary>For <see cref="Code"/> <c>job_unknown</c>: the job codes this server rejected.</summary>
     public IReadOnlyList<string>? Jobs { get; init; }
+
+    /// <summary>On a 403: the permission the key lacks. Reconnecting helps.</summary>
+    public string? MissingScope { get; init; }
+
+    /// <summary>On a 403: the right the user lacks in that team. Reconnecting does not help.</summary>
+    public string? MissingCapability { get; init; }
+
+    /// <summary>A named reason for the refusal, such as <c>craft_target</c>.</summary>
+    public string? Reason { get; init; }
 }
 
 /// <summary>

@@ -58,33 +58,73 @@ Users add this stable URL under Dalamud → Settings → Experimental → Custom
 
 ### Cutting a release
 
-> **The release preparation belongs in the same PR as the work it ships.** `main` is branch-protected,
-> so every change needs a PR anyway — and a separate "prepare the release" PR afterwards is a second
-> review round for the same action. Worse, two open branches that each pass alone can fail once merged
-> (a date change in `ReleaseNotes.cs` invalidates the generated `changelog.json`). One PR per release.
+> **A merge into `main` publishes the notes. Only the tag publishes the plugin.** The website reads
+> `changelog.json` from `main` and announces every new entry on `/neu` and in Discord as soon as it
+> lands. Players, however, can install a version only once its tag has produced a GitHub release: the
+> repository's own index and the shared one at `xivarsenal.app/plugin.json` both read the newest
+> release. A merge without the tag therefore announces a version that nobody can get.
+>
+> That happened with 1.1.0. Merged into `main` on 2026-09-13 and announced the same day, it was never
+> tagged. For three weeks the site and Discord described features that the installable 1.0.0 did not
+> have, and nobody noticed, because "merged" read as "released" to everyone involved, this guide's
+> author included. 1.1.0 was then skipped: players go from 1.0.0 straight to 1.2.0. Its notes stay as
+> they are, because they were published, and the in-game "what's new" lists every version, so players
+> coming from 1.0.0 find 1.1.0's notes directly under 1.2.0's.
+>
+> So: **merge into `main` only a version that is ready to ship now, and tag it in the same sitting.**
+> Check every gate the tag depends on **before** the merge, not after: a server release the notes
+> rely on, the job codes a note promises, an open fix. If the tag has to wait, the merge waits with it.
+> And when somebody asks whether a version is out, the answer is the release list and the index, not
+> the state of `main`.
+>
+> **Nothing is merged into `main` that has not first been brought together in a release branch.** A
+> version is assembled in `release/vX.Y.Z`; `main` receives it once, whole, through a single PR. This
+> rule dates from 2026-09-27: 1.1.0 was merged straight into `main`, and although that matched every
+> release before it, the maintainer wants `main` to carry only what was finished and combined first.
+>
+> **The release preparation still travels with the work**, now inside that release branch. A separate
+> "prepare the release" PR afterwards is a second review round for the same action, and two branches that
+> each pass alone can fail once combined: a date change in `ReleaseNotes.cs` invalidates the generated
+> `changelog.json`, which is exactly what happened on 2026-07-27.
 
-1. In the feature branch, alongside the work: bump `<Version>` in `EorzeaArsenalPlugin.csproj`, turn
-   `[Unreleased]` in `CHANGELOG.md` into the new dated version section.
-2. Add the user-facing lines to `ReleaseNotes.cs` (each with a **new, hand-written, kebab-case `Id`**
-   — see below) and regenerate the public changelog:
+1. At the start of a version, branch `release/vX.Y.Z` off `main` and push it. Minor for new features,
+   patch for fixes only; a branch is cheap to rename if the content turns out otherwise.
+2. Feature and fix branches open their PRs **against the release branch**, never against `main`.
+3. In the release branch, alongside the work: bump `<Version>` in `EorzeaArsenalPlugin.csproj`, keep the
+   version's section in `CHANGELOG.md` current, and add the user-facing lines to `ReleaseNotes.cs`, each
+   written as **`Headline: detail`** and with a **new, hand-written, kebab-case `Id`** (see below).
+   Regenerate the public changelog:
    ```bash
    EORZEA_UPDATE_CHANGELOG=1 dotnet test --filter FullyQualifiedName~ChangelogJsonTests
    ```
-3. Verify from clean — an incremental build hides warnings:
+4. Verify from clean, because an incremental build hides warnings, and judge the format gate from a
+   **fresh clone** rather than the working tree, where it reports line-ending failures that do not exist:
    ```bash
    dotnet clean -c Release && dotnet build -c Release && dotnet test && dotnet format --verify-no-changes
    ```
-4. Open the PR. **CI is the quality gate** — the release workflow only builds and packages, it does not
-   test. A tag must therefore only ever sit on a commit CI has already passed, i.e. on merged `main`.
-5. The maintainer tests in game and merges.
-6. Tag the merge commit and push it:
+5. The maintainer tests the release branch in game.
+6. Open **one** PR `release/vX.Y.Z` → `main`. **CI is the quality gate**: the release workflow only builds
+   and packages, it does not test, so a tag must only ever sit on a commit CI has passed, i.e. on merged
+   `main`. The maintainer merges.
+7. Tag the merge commit and push it, **only when asked**:
    ```bash
    git checkout main && git pull
    git tag -a vX.Y.Z -m "vX.Y.Z - what it is" && git push origin vX.Y.Z
    ```
    Never tag unasked, and never before the merge: the tag has to point at the commit that is actually
    on `main`, and that commit does not exist until the PR is merged.
-7. The release workflow does the rest.
+8. The release workflow does the rest.
+
+A fix for a version already out branches `release/vX.Y.Z+1` from **that version's tag**, not from a
+release branch that has moved on, so the fix does not ship half of the next version with it.
+
+**One discipline for PRs into a release branch.** `ci.yml` runs on every pull request, and a pull
+request is checked out as the result of merging it into its base, so a feature PR is tested against
+what the release branch holds at that moment. The one way two green PRs still combine into a red
+branch is when both are open at once: both were tested against the old base, and once the first is
+merged the second one's green is stale. So merge them one at a time, and re-run the second one's checks
+before merging it. That is enough; no extra trigger is needed. (`codeql.yml` runs only on pull requests
+into `main`, so CodeQL sees a release branch at its final PR.)
 
 ### `changelog.json` — the public feed
 
@@ -93,14 +133,30 @@ and in Discord. It is **generated** from `ReleaseNotes.cs`, so the same sentence
 "what's new", the site and Discord without three copies drifting apart. A test fails when the
 committed file is stale.
 
-Two rules it depends on:
+Three rules it depends on:
 
-- **An `Id` is permanent.** It is what the web side remembers as "already announced". Changing one
-  re-announces the entry; reusing one silently swallows it. Write ids by hand — never derive them from
-  the text, or fixing a typo would mint a new entry. (The pre-0.5.0 ids were slugged once from their
-  English text and are frozen.)
+- **Write every line as `Headline: detail`.** The generator splits on the first `": "` within
+  `ChangelogJson.HeadlineLimit` (80) characters: what precedes it becomes the title on the site, the
+  rest becomes the paragraph. A line without that split becomes *its own title* — the whole text lands
+  where a headline belongs. That is how 24 of the titles shipped up to 1.0.0 ended up over 100
+  characters long. `ChangelogJsonTests.NewNotesCarryAHeadlineTheSiteCanUse` enforces it and names the
+  offending line. The releases up to 1.0.0 are listed as frozen there by the operator's decision of
+  2026-08-20: they are what players already read, and rewriting them would reach nobody (see the next
+  rule). **Never add a version to that list** — that would switch the rule off rather than satisfy it.
+- **An `Id` is permanent — and it is spent.** Confirmed with the web side on 2026-08-20: neither
+  channel looks at the text. Discord keeps a list of posted `source:id` pairs and skips anything in it;
+  the site's bell only records the last notified *version* and ignores plugin entries entirely. So
+  **editing the text of a published entry announces nothing** — it is safe, and it is silent. Correct a
+  typo, a dead link or a renamed menu path that way; anything a player needs to *know or do* needs a
+  new entry with a new id instead. **Renaming an id is the one thing that must never happen**: the
+  bookkeeping reads it as a new entry, so the same message goes out a second time, and every link to
+  `/neu#<old-id>` breaks. Write ids by hand — never derive them from the text, or fixing a typo would
+  mint a new entry. Ids are namespaced by source (`plugin:<our-id>`), so they cannot collide with the
+  website's own. (The pre-0.5.0 ids were slugged once from their English text and are frozen.)
 - **It is stamped in the release commit, not by a workflow.** `main` is branch-protected and nothing
-  pushes to it, so the file is regenerated locally in step 2 and travels with the release PR.
+  pushes to it, so the file is regenerated locally in step 3 and travels with the release PR. Because
+  the site reads it from `main`, merging that PR **is** the announcement; see the first rule under
+  "Cutting a release".
 
 ## In-game smoke test (operator)
 

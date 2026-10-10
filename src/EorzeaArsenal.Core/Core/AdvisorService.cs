@@ -40,6 +40,30 @@ public sealed class AdvisorService
     /// <summary>The last failure's kind, so the UI can explain a missing scope or a network problem.</summary>
     public ApiErrorKind? LastErrorKind { get; private set; }
 
+    /// <summary>The reason the server names on a refusal the advisor cannot rank, <c>craft_target</c>.</summary>
+    public const string CraftTargetReason = "craft_target";
+
+    /// <summary>The prefix of a crafter or gatherer target's id.</summary>
+    public const string CraftTargetPrefix = "craft:";
+
+    // Targets the server said it does not rank. Remembered, because a failed read is not cached and the
+    // window asks every frame: without this a refusal would turn into a request per frame.
+    private readonly ConcurrentDictionary<string, byte> _notRanked = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Whether the advisor ranks this target at all. The ranking is about tomestones and raids, so a
+    /// crafter or gatherer set (<c>craft:…</c>) is never offered; the server answers it with a 422.
+    /// </summary>
+    /// <param name="target">The target set's id.</param>
+    /// <returns><see langword="false"/> for a crafter or gatherer set, or no target.</returns>
+    public static bool Ranks(string? target) =>
+        !string.IsNullOrWhiteSpace(target) && !target.StartsWith(CraftTargetPrefix, StringComparison.Ordinal);
+
+    /// <summary>Whether this target is offered: ranked in principle, and not refused by the server.</summary>
+    /// <param name="target">The target set's id.</param>
+    /// <returns>Whether the advisor should be shown for it.</returns>
+    public bool Offers(string? target) => Ranks(target) && !_notRanked.ContainsKey(target!);
+
     /// <summary>The cache key identifying one plan.</summary>
     /// <param name="characterId">The caller's own server character id.</param>
     /// <param name="job">The job code (case-insensitive).</param>
@@ -71,7 +95,7 @@ public sealed class AdvisorService
     public async Task EnsureAsync(long characterId, string job, string target, CancellationToken ct)
     {
         var key = _tokens.ApiKey;
-        if (string.IsNullOrEmpty(key) || characterId <= 0 || string.IsNullOrWhiteSpace(job) || string.IsNullOrWhiteSpace(target))
+        if (string.IsNullOrEmpty(key) || characterId <= 0 || string.IsNullOrWhiteSpace(job) || !Ranks(target))
         {
             return;
         }
@@ -135,7 +159,7 @@ public sealed class AdvisorService
     public async Task EnsureOptionsAsync(long characterId, string job, string target, int? gearIndex, string sort, CancellationToken ct)
     {
         var key = _tokens.ApiKey;
-        if (string.IsNullOrEmpty(key) || characterId <= 0 || string.IsNullOrWhiteSpace(job) || string.IsNullOrWhiteSpace(target))
+        if (string.IsNullOrEmpty(key) || characterId <= 0 || string.IsNullOrWhiteSpace(job) || !Offers(target))
         {
             return;
         }
@@ -153,6 +177,11 @@ public sealed class AdvisorService
             {
                 _options[cacheKey] = data;
                 LastErrorKind = null;
+            }
+            else if (string.Equals(result.Error?.Reason, CraftTargetReason, StringComparison.Ordinal))
+            {
+                // Not a failure: the server does not rank this kind of set, and asking again changes nothing.
+                _notRanked[target] = 0;
             }
             else if (!result.IsSuccess)
             {

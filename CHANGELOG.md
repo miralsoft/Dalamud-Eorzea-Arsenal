@@ -4,6 +4,80 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-10-10
+
+Requires server 1.4. Players come from 1.0.0: 1.1.0 was announced but never tagged, and everything in it
+ships here.
+
+### Added
+- **BiS for crafters and gatherers** (contract revision 21). Their rows of `GET /gear/bis` show the set's
+  level, its source with a link (for a set with newer pieces from the game, the set it was built from and
+  which slots were swapped), and the stats it adds up to, named from the game. A piece's materia are a
+  melding plan, "Slot 1 … Overmeld 1", in the order the server gives; whether a slot is done is decided by
+  a 1:1 port of the web's `meldMatch` and `pieceStats` (`CraftStats`), computed with the `craft_tables`
+  the answer carries, never by the order and never with caps derived on this side. The seven shared cases
+  of `docs/plugin/samples/meld-match-cases.json` run against it. A worn NQ piece where the target wants HQ
+  is not reached; one whose HQ state is unknown is not held against the player. Combat rows keep the plain
+  comparison. Empty maps the server writes as `[]` read as empty instead of failing the whole read.
+- **`hq` on every pushed piece**, `true` or `false`, read from the +1,000,000 offset of a saved gearset
+  and from the flag of an equipped item; an NQ/HQ swap of the same item now counts as a change. The
+  payload limit is 128 KB, as server 1.4 accepts.
+- **`named_jobs` on every push**: the job codes this build can name, the compiled floor plus what it
+  learned from the game's class sheet, never the server's table. The server then parks only rows of
+  those jobs, so a job the game adds after a release no longer has its row parked by a plugin that
+  cannot name it yet and still truthfully reports `scope: all`. Never sent as `[]`, which the server
+  reads as "did not say".
+- **Whether a job has BiS lists comes from the server** (`bis` per job in `GET /gear/jobs`), with the
+  compiled rule kept for a server or a job the table says nothing about.
+- **A delete the key may not do is shown locked**, with how to get the right. `GET /device/key` is read
+  once per key and again on each opening while the button is locked, since allowing `gear:delete` on the
+  website keeps the same key; a 403 naming the scope locks it too. A 404 there is a server before 1.4,
+  where deleting works without the scope, so nothing is checked and a 403 decides; it is asked again on
+  the next opening, because the server can move to 1.4 while the plugin runs. Test connection judges
+  `gear:write` from the same answer; it used to read the `/version` scopes, the server's catalogue, which
+  could never fail.
+- **A refused reconciliation decision says why** instead of leaving the button looking dead, from
+  `missing_scope` and `missing_capability`.
+- **A team's line-up in game (Phase E).** A new tab shows, per role, the core against the target, the
+  jobs present, the positions they hold and the jobs the core still lacks; below it every character and
+  placeholder with what it is to the team, and at the top the next date in sixty days that leaves a
+  position open. `GET /teams/{id}/lineup`.
+- **What each team still needs, in the team picker.** The short form rides on every entry, so the whole
+  list reads without switching teams; the written-out form, one part per role with a target, sits under
+  it for the selected team. From `lineup_summary` on `GET /me/teams`. Nothing is shown for a team that
+  lacks nothing, and nothing for a server that does not send the summary yet, which is not the same.
+- **Who is in on a date.** Every upcoming date unfolds its coverage in place: open positions with the
+  reason, the unsure, the covered with their substitute, and who could step in, matching roles first. One
+  date at a time. Putting somebody in stays on the website, behind a button that opens that date there.
+  `GET /teams/{id}/events/{eventId}/coverage`.
+- **An invitation link from the game.** In the line-up, for a player whose team lists `manage_members`
+  in `capabilities` on `GET /me/teams` and for nobody else: without the list there is no button either.
+  Uses and days are forced into 1 to 100 and 1 to 30 and always sent, because a `max_uses` out of range
+  means *unlimited* on the server. The link is shown once, copied on request with a confirmation in the
+  player's own chat log that does not carry it, and dropped on close, on a team switch and on disconnect.
+  Never stored, logged or reported; `InviteResponse.ToString` prints the id and nothing secret, so a
+  stray interpolation cannot leak it. `POST /teams/{id}/invite`.
+- **A 403 says which of two things is missing**, from the members `missing_scope` and
+  `missing_capability` the server added for it, never from the wording of `detail`. The key lacking a
+  permission gets "reconnect"; the user lacking a right in the team gets "the team lead can grant it",
+  because reconnecting there only returns the same key to the same refusal. The team reads used to look
+  for the word "scope" in the message and now read the members too. A 429 says how long to wait, from
+  `Retry-After`, rounded up; a 400 shows the server's own words without the plugin branching on them.
+
+Everything in it is the server's arithmetic, shown as delivered. `LineupText` picks words and singular or
+plural and nothing else, so the plugin and the website cannot disagree about what a team needs.
+
+The recordings and the briefing disagreed three times and the recordings were right each time. The one
+that matters on screen: `not_present` means **missing from the core**, so a job a substitute plays is
+still listed, and the label says "missing from the core" rather than "missing" for that reason.
+
+### Changed
+- **Disconnecting drops every team read from memory**, values included, not only marking them stale. The
+  line-up and the coverage carry member names; so did the farm all along.
+- **The purchase advisor is not offered for crafter and gatherer sets.** It ranks tomestone and raid
+  steps, and the server refuses a `craft:` target with a 422 `reason: craft_target`. Such a refusal is
+  remembered, because a failed read is not cached and the window would otherwise ask every frame.
+
 ## [1.1.0] - 2026-09-13
 
 Gearsets carry a server-minted identity instead of being keyed on their position in the list. Everything

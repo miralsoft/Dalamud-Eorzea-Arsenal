@@ -22,7 +22,7 @@ public sealed class ValidationResult
 /// Client-side validation of a <see cref="GearPayload"/> before it is sent (rule R18,
 /// "validate before sending; fail closed"). Mirrors the server's bounds so invalid local data
 /// never leaves the machine: job in the whitelist, item ids 1..9,999,999, gear_index 0..99,
-/// ≤ 200 gearsets, serialized body ≤ 64 KB.
+/// ≤ 200 gearsets, serialized body ≤ 128 KB.
 /// </summary>
 public static class GearValidator
 {

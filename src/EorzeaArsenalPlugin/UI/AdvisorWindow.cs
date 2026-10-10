@@ -201,7 +201,11 @@ public sealed class AdvisorWindow : Window
     /// </summary>
     private GearsetComparison? DrawSetPicker()
     {
-        var sets = _bis.Comparisons;
+        // A crafter or gatherer set is not ranked at all: the advisor is about tomestones and raids, and the
+        // server refuses such a set with a 422. A set without an identity stays, and says why it has nothing.
+        var sets = _bis.Comparisons
+            .Where(c => _bis.TargetGearset(c.GearIndex) is not { } t || (!t.IsCraft && (t.Target is null || _advisor.Offers(t.Target))))
+            .ToList();
         if (sets.Count == 0)
         {
             ImGui.TextDisabled(_bis.IsLoading ? T(LocKeys.BisLoading) : T(LocKeys.BisNone));

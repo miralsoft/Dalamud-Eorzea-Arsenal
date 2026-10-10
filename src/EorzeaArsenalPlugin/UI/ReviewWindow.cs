@@ -7,6 +7,7 @@ using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using EorzeaArsenal.Abstractions;
+using EorzeaArsenal.Api;
 using EorzeaArsenal.Core;
 using EorzeaArsenal.Gear;
 using EorzeaArsenal.Localization;
@@ -45,6 +46,7 @@ public sealed class ReviewWindow : Window
     private static readonly Vector4 Bad = new(0.90f, 0.42f, 0.42f, 1f);
 
     private readonly ReviewService _review;
+    private readonly KeyScopeService _keyScopes;
     private readonly Localizer _localizer;
     private readonly Func<string?> _currentCharacter;
     private readonly Action _afterDecision;
@@ -121,8 +123,15 @@ public sealed class ReviewWindow : Window
     private bool _showAside;
     private bool _staleNotice;
 
+    /// <summary>
+    /// Why the last click was refused, or <see langword="null"/>. Set on the task that ran the call and read
+    /// by the drawing thread, like <see cref="_staleNotice"/>; a boxed enum is written in one step.
+    /// </summary>
+    private ReviewRefusal? _refusal;
+
     /// <summary>Creates the window.</summary>
     /// <param name="review">The service that holds the questions.</param>
+    /// <param name="keyScopes">What the stored key may do, so a delete it may not do is shown locked.</param>
     /// <param name="localizer">UI string resolver.</param>
     /// <param name="currentCharacter">The character on screen.</param>
     /// <param name="afterDecision">
@@ -137,6 +146,7 @@ public sealed class ReviewWindow : Window
     /// <param name="log">Diagnostics sink, so an escaped exception is not simply lost.</param>
     public ReviewWindow(
         ReviewService review,
+        KeyScopeService keyScopes,
         Localizer localizer,
         Func<string?> currentCharacter,
         Action afterDecision,
@@ -149,6 +159,7 @@ public sealed class ReviewWindow : Window
         : base("Eorzea Arsenal###EorzeaArsenalReview")
     {
         _review = review;
+        _keyScopes = keyScopes;
         _localizer = localizer;
         _currentCharacter = currentCharacter;
         _afterDecision = afterDecision;
@@ -233,7 +244,14 @@ public sealed class ReviewWindow : Window
         WindowName = T(LocKeys.ReviewTitle) + "###EorzeaArsenalReview";
         _review.IsOpen = true;
         _staleNotice = false;
+        _refusal = null;
         _settledSince = null;
+
+        // Once per key, so a delete the key may not do is drawn locked before anybody presses it, and again
+        // on each opening while it is locked, because allowing it on the website keeps the same key. Nothing
+        // waits on it: until it answers, and on a server that cannot answer, the button stays live and a
+        // 403 decides.
+        _ = _keyScopes.RecheckAsync(ScopeUtil.GearDelete, CancellationToken.None);
 
         // Whether closing itself is the right thing at all, decided once, here. The window shuts when the
         // last decision is answered, which is what somebody who came to answer them wants. Somebody who
@@ -388,6 +406,11 @@ public sealed class ReviewWindow : Window
         if (_staleNotice)
         {
             Text(Warn, T(LocKeys.ReviewStale));
+        }
+
+        if (_refusal is { } refusal)
+        {
+            Wrapped(Warn, Refusal(refusal));
         }
 
         if (_alsoSettled > 0)
@@ -1400,6 +1423,9 @@ public sealed class ReviewWindow : Window
 
         using var id = ImRaii.PushId($"verbs{row.SetUid}");
 
+        // Locked rather than hidden: a delete that vanished would leave the player looking for it, and one
+        // left live would answer every press with a 403. The sentence under the bar says how to get it.
+        var deleteLocked = false;
         foreach (var verb in ReviewRules.OfferedVerbs(row))
         {
             if (sameLine)
@@ -1408,7 +1434,9 @@ public sealed class ReviewWindow : Window
             }
 
             sameLine = true;
-            using var disabled = ImRaii.Disabled(Blocked);
+            var locked = verb == ReviewAction.Delete && _keyScopes.IsKnownToLack(ScopeUtil.GearDelete);
+            deleteLocked |= locked;
+            using var disabled = ImRaii.Disabled(Blocked || locked);
             var tint = verb == ReviewAction.Delete ? Bad with { W = 0.45f } : (Vector4?)null;
             var origin = ImGui.GetCursorScreenPos();
 
@@ -1435,6 +1463,11 @@ public sealed class ReviewWindow : Window
                     ImDrawFlags.RoundCornersAll,
                     2f);
             }
+        }
+
+        if (deleteLocked)
+        {
+            Wrapped(Muted, T(LocKeys.ReviewDeleteLocked));
         }
     }
 
@@ -2479,6 +2512,17 @@ public sealed class ReviewWindow : Window
 
         return lines;
     }
+
+    private string Refusal(ReviewRefusal refusal) => T(refusal switch
+    {
+        ReviewRefusal.NeedsDeleteRight => LocKeys.ReviewRefusedDelete,
+        ReviewRefusal.NeedsReconnect => LocKeys.ReviewRefusedReconnect,
+        ReviewRefusal.NeedsTeamRight => LocKeys.ReviewRefusedTeamRight,
+        ReviewRefusal.KeyRejected => LocKeys.Error401,
+        ReviewRefusal.Refused => LocKeys.ReviewRefused,
+        _ => LocKeys.ReviewTryLater,
+    });
+
     private void Decide(ReviewDecision decision) => Run(async () =>
     {
         var outcome = await _review.DecideAsync(decision, CancellationToken.None).ConfigureAwait(false);
@@ -2500,6 +2544,17 @@ public sealed class ReviewWindow : Window
     private void AfterCall(ReviewOutcome outcome)
     {
         _staleNotice = outcome == ReviewOutcome.Stale;
+
+        // A refused click used to end here in silence, and the button looked dead. A rate limit and a
+        // missing route already have their own lines, so only a plain failure gets a sentence.
+        _refusal = outcome == ReviewOutcome.Failed ? ReviewRules.RefusalOf(_review.LastError) : null;
+
+        // A refusal that names the missing scope is as good as the list: from now on the button is drawn
+        // locked, even on a server that could not be asked.
+        if (outcome == ReviewOutcome.Failed && _review.LastError?.MissingScope is { Length: > 0 } missing)
+        {
+            _keyScopes.NoteRefused(missing);
+        }
 
         // What the click settled beyond the row it named. Read from the answer rather than diffed, because
         // a held row can also leave the list because its set vanished from the game, and a diff cannot tell

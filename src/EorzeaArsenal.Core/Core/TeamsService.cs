@@ -332,6 +332,30 @@ public sealed class TeamsService : IDisposable
     public Task<ApiResult<FarmResponse>> GetFarmAsync(long teamId, CancellationToken ct) =>
         WithKey(key => _api.GetFarmAsync(key, teamId, ct));
 
+    /// <summary>Reads a team's line-up. It carries member names: hold it in memory only.</summary>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The line-up, or an error.</returns>
+    public Task<ApiResult<LineupResponse>> GetLineupAsync(long teamId, CancellationToken ct) =>
+        WithKey(key => _api.GetLineupAsync(key, teamId, ct));
+
+    /// <summary>Reads which positions one date leaves open. It carries member names: hold it in memory only.</summary>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="eventId">The event id.</param>
+    /// <param name="date">The occurrence date, <c>YYYY-MM-DD</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The coverage, or an error.</returns>
+    public Task<ApiResult<CoverageResponse>> GetCoverageAsync(long teamId, long eventId, string date, CancellationToken ct) =>
+        WithKey(key => _api.GetCoverageAsync(key, teamId, eventId, date, ct));
+
+    /// <summary>Creates an invitation link. The code in the answer is a secret: never store, log or report it.</summary>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="request">Uses and life of the link, already within range.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The link, or an error.</returns>
+    public Task<ApiResult<InviteResponse>> CreateInviteAsync(long teamId, InviteRequest request, CancellationToken ct) =>
+        WithKey(key => _api.CreateInviteAsync(key, teamId, request, ct));
+
     /// <summary>Reads the FFLogs mirror (best-effort).</summary>
     /// <param name="teamId">The team id.</param>
     /// <param name="ct">Cancellation token.</param>

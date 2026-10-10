@@ -287,6 +287,9 @@ public sealed class GearSyncServiceTests
         public Task<ApiResult<JobTableResponse>> GetJobTableAsync(CancellationToken ct) =>
             throw new NotSupportedException();
 
+        public Task<ApiResult<KeyScopesResponse>> GetKeyScopesAsync(string apiKey, CancellationToken ct) =>
+            throw new NotSupportedException();
+
         public Task<ApiResult<ReviewState>> GetReviewAsync(string apiKey, string characterId, CancellationToken ct) =>
             throw new NotSupportedException();
 
@@ -321,6 +324,15 @@ public sealed class GearSyncServiceTests
             throw new NotSupportedException();
 
         public Task<ApiResult<FarmResponse>> GetFarmAsync(string apiKey, long teamId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<LineupResponse>> GetLineupAsync(string apiKey, long teamId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<CoverageResponse>> GetCoverageAsync(string apiKey, long teamId, long eventId, string date, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<InviteResponse>> CreateInviteAsync(string apiKey, long teamId, InviteRequest request, CancellationToken ct) =>
             throw new NotSupportedException();
 
         public Task<ApiResult<LogsResponse>> GetLogsAsync(string apiKey, long teamId, CancellationToken ct) =>

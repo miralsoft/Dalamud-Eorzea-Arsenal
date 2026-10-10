@@ -84,6 +84,19 @@ public interface IApiClient
     Task<ApiResult<JobTableResponse>> GetJobTableAsync(CancellationToken ct);
 
     /// <summary>
+    /// Reads what the given key may do via <c>GET /device/key</c> (server 1.4).
+    /// </summary>
+    /// <remarks>
+    /// <c>/version</c> lists the server's catalogue, the same for everybody, so it cannot answer this. A
+    /// <b>404 means a server before 1.4</b>: there <c>gear:delete</c> does not exist yet and deleting works
+    /// without it, so the caller checks nothing and lets a 403 decide.
+    /// </remarks>
+    /// <param name="apiKey">The key to ask about.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The key's scopes, or a classified error.</returns>
+    Task<ApiResult<KeyScopesResponse>> GetKeyScopesAsync(string apiKey, CancellationToken ct);
+
+    /// <summary>
     /// Reads the open questions and the orphan inventory for one character via <c>GET /gear/review</c>
     /// (requires <c>gear:read</c>).
     /// </summary>
@@ -200,6 +213,36 @@ public interface IApiClient
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The farm entries, or a classified error.</returns>
     Task<ApiResult<FarmResponse>> GetFarmAsync(string apiKey, long teamId, CancellationToken ct);
+
+    /// <summary>Reads a team's line-up via <c>GET /teams/{id}/lineup</c> (<c>teams:read</c>).</summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The line-up, or a classified error. It carries member names; never persist it.</returns>
+    Task<ApiResult<LineupResponse>> GetLineupAsync(string apiKey, long teamId, CancellationToken ct);
+
+    /// <summary>
+    /// Reads which positions one date of an event leaves open via
+    /// <c>GET /teams/{id}/events/{eventId}/coverage?date=</c> (<c>teams:read</c>).
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:read</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="eventId">The event id.</param>
+    /// <param name="date">The occurrence date, <c>YYYY-MM-DD</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The coverage, or a classified error. It carries member names; never persist it.</returns>
+    Task<ApiResult<CoverageResponse>> GetCoverageAsync(string apiKey, long teamId, long eventId, string date, CancellationToken ct);
+
+    /// <summary>
+    /// Creates an invitation link via <c>POST /teams/{id}/invite</c> (<c>teams:write</c>, and the team right
+    /// <c>manage_members</c>, which the server checks).
+    /// </summary>
+    /// <param name="apiKey">The API key (must carry <c>teams:write</c>).</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="request">Uses and life of the link, already within range.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The link, or a classified error. The code in it is a secret: never store, log or report it.</returns>
+    Task<ApiResult<InviteResponse>> CreateInviteAsync(string apiKey, long teamId, InviteRequest request, CancellationToken ct);
 
     /// <summary>
     /// Reads impersonal "how to get it" sourcing for gear pieces via <c>GET /gear/obtain?item_ids=…</c>.

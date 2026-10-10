@@ -148,6 +148,35 @@ public sealed class JobScopeTests
     public void OnlyJobsWithListsAreOfferedAPin(string code, bool expected) =>
         Assert.Equal(expected, JobMap.HasBisCatalogue(code));
 
+    /// <summary>
+    /// The day the website adds crafter lists, the compiled rule is wrong and only the server knows. From
+    /// 1.4 on it says so per job, and its word wins in both directions.
+    /// </summary>
+    [Fact]
+    public void TheServersWordOnBisWinsBothWays()
+    {
+        var table = TableFromJson("""{"jobs":[{"code":"CRP","role":"crafter","bis":true},{"code":"DRK","role":"tank","combat":true,"bis":false}]}""");
+
+        Assert.True(JobMap.HasBisCatalogue("CRP", table));
+        Assert.False(JobMap.HasBisCatalogue("DRK", table));
+    }
+
+    /// <summary>A table without the field, or without the job, says nothing, and the compiled rule stands.</summary>
+    [Theory]
+    [InlineData("DRK", true)]
+    [InlineData("CRP", false)]
+    [InlineData("MIN", false)]
+    public void ATableThatIsSilentLeavesTheRule(string code, bool expected)
+    {
+        var table = TableFromJson("""{"jobs":[{"code":"DRK","role":"tank","combat":true},{"code":"CRP","role":"crafter"}]}""");
+
+        Assert.Equal(expected, JobMap.HasBisCatalogue(code, table));
+        Assert.Equal(expected, JobMap.HasBisCatalogue(code, null));
+    }
+
+    private static JobTableResponse TableFromJson(string json) =>
+        System.Text.Json.JsonSerializer.Deserialize<JobTableResponse>(json, EorzeaArsenal.Serialization.EorzeaJson.Options)!;
+
     [Fact]
     public void TheNineBaseClassesAreNamedAsSuch()
     {

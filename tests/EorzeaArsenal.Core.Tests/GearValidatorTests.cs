@@ -76,8 +76,9 @@ public sealed class GearValidatorTests
     [Fact]
     public void Oversized_payload_fails()
     {
-        // Build many gearsets with long names to exceed 64 KB.
-        var sets = Enumerable.Range(0, 100)
+        // Build many gearsets with long names to exceed 128 KB. Asserted on the size message itself: a
+        // payload that fails for another reason would otherwise keep this test green after the limit moved.
+        var sets = Enumerable.Range(0, ProtocolConstants.MaxGearsets)
             .Select(i => new GearsetDto
             {
                 GearIndex = i % 100,
@@ -85,10 +86,37 @@ public sealed class GearValidatorTests
                 Name = new string('x', 64),
                 Items = Enumerable.Range(0, 12).ToDictionary(
                     s => "Slot" + s,
-                    _ => new ItemDto { Id = 49671, Materia = [41773, 41773, 41773, 41773, 41773] }),
+                    _ => new ItemDto { Id = 49671, Materia = [41773, 41773, 41773, 41773, 41773], Hq = true }),
             })
             .ToArray();
 
-        Assert.False(GearValidator.Validate(Payload(sets)).IsValid);
+        var result = GearValidator.Validate(Payload(sets));
+
+        Assert.Contains(result.Errors, e => e.StartsWith("Payload is ", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A full account with <c>hq</c> on every piece stays inside the limit. That is what server 1.4 raised
+    /// it to 128 KB for: the field alone adds about 130 bytes per gearset.
+    /// </summary>
+    [Fact]
+    public void A_full_account_with_hq_fits()
+    {
+        string[] slots = ["Weapon", "OffHand", "Head", "Body", "Hands", "Legs", "Feet", "Ears", "Neck", "Wrists", "RingLeft", "RingRight"];
+        var sets = Enumerable.Range(0, 100)
+            .Select(i => new GearsetDto
+            {
+                GearIndex = i,
+                Job = "DRK",
+                Name = new string('x', ProtocolConstants.MaxGearsetNameLength),
+                Items = slots.ToDictionary(
+                    s => s,
+                    _ => new ItemDto { Id = 49671, Materia = [41773, 41773, 41773, 41773, 41773], Hq = false }),
+            })
+            .ToArray();
+
+        var result = GearValidator.Validate(Payload(sets));
+
+        Assert.DoesNotContain(result.Errors, e => e.StartsWith("Payload is ", StringComparison.Ordinal));
     }
 }

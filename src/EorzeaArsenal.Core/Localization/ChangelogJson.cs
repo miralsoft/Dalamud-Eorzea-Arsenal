@@ -69,6 +69,13 @@ public static class ChangelogJson
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
+    /// <summary>
+    /// How far into a note line the <c>": "</c> headline separator may sit. A colon further in is
+    /// punctuation inside a sentence, not a heading, and treating it as one would cut a line in half.
+    /// Public because the release-note tests hold new notes to the same limit the generator splits on.
+    /// </summary>
+    public const int HeadlineLimit = 80;
+
     /// <summary>The kind names the web side expects, from the ones the in-game notes use.</summary>
     /// <param name="kind">The in-game classification.</param>
     /// <returns><c>feature</c>, <c>change</c> or <c>fix</c>, the three the web side accepts.</returns>
@@ -121,7 +128,7 @@ public static class ChangelogJson
 
         // Only treat a colon as the headline separator when what precedes it reads like one — a short
         // phrase, not half the sentence.
-        var split = cut is > 0 and <= 80;
+        var split = cut is > 0 and <= HeadlineLimit;
         var title = split ? trimmed[..cut] : trimmed;
         var body = split ? Capitalise(trimmed[(cut + 2)..]) : trimmed;
 

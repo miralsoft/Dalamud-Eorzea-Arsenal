@@ -1,0 +1,12 @@
+{
+  "data": [
+    {
+      "id": 6,
+      "name": "Test Static Lineup",
+      "type": "static",
+      "mit_plans": [],
+      "lineup_summary": { "targets": { "tank": 1, "healer": 2, "dps": 3 }, "missing": { "tank": 1, "healer": 0, "dps": 2 } },
+      "capabilities": ["manage_team", "manage_roles", "manage_members", "manage_member_gear", "manage_content", "manage_resources", "assign_loot", "manage_schedule", "override_attendance", "edit_mitigation", "view_member_gaps", "view_attendance_detail", "view_other_absences", "manage_logs", "trigger_reminders", "view_history", "clear_history"]
+    }
+  ]
+}

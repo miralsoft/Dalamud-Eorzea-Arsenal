@@ -44,8 +44,19 @@ public sealed class BisGearset
     /// <summary>Display name of the target set, when the server sends one alongside <see cref="Target"/>.</summary>
     public string? TargetName { get; init; }
 
-    /// <summary>Target items keyed by the 12 PascalCase slot keys, each <c>{ id, materia, source? }</c>.</summary>
+    /// <summary>Target items keyed by the 12 PascalCase slot keys, each <c>{ id, materia, source?, hq? }</c>.</summary>
     public Dictionary<string, ItemDto> Items { get; init; } = [];
+
+    /// <summary>
+    /// What a crafter or gatherer target carries besides its pieces (server 1.4, revision 21), or
+    /// <see langword="null"/> on a combat target. Its presence is what makes the materia comparison the
+    /// web's <c>meldMatch</c> instead of the plain one.
+    /// </summary>
+    public CraftBlock? Craft { get; init; }
+
+    /// <summary>Whether this is a crafter or gatherer target.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsCraft => Craft is not null;
 }
 
 /// <summary>
@@ -59,4 +70,10 @@ public sealed class BisResponse
 
     /// <summary>The resolved BiS targets.</summary>
     public List<BisGearset> Data { get; init; } = [];
+
+    /// <summary>
+    /// The stat rows of the crafter and gatherer target pieces and the materia table, once per answer
+    /// that has such a row; <see langword="null"/> otherwise.
+    /// </summary>
+    public CraftTables? CraftTables { get; init; }
 }
