@@ -31,7 +31,8 @@ Built in `release/v1.2.0`; the date is set when it ships. Requires server 1.4.
 - **A delete the key may not do is shown locked**, with how to get the right. `GET /device/key` is read
   once per key and again on each opening while the button is locked, since allowing `gear:delete` on the
   website keeps the same key; a 403 naming the scope locks it too. A 404 there is a server before 1.4,
-  where deleting works without the scope, so nothing is checked and a 403 decides. Test connection judges
+  where deleting works without the scope, so nothing is checked and a 403 decides; it is asked again on
+  the next opening, because the server can move to 1.4 while the plugin runs. Test connection judges
   `gear:write` from the same answer; it used to read the `/version` scopes, the server's catalogue, which
   could never fail.
 - **A refused reconciliation decision says why** instead of leaving the button looking dead, from

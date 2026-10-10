@@ -138,6 +138,25 @@ public sealed class KeyScopeServiceTests
         Assert.Equal(2, api.KeyScopesCalls);
     }
 
+    /// <summary>
+    /// A server that answered 404 can move to 1.4 while the plugin runs. The next opening asks again, so a
+    /// key without <c>gear:delete</c> is locked from then on instead of for the rest of the session never.
+    /// </summary>
+    [Fact]
+    public async Task AServerThatCouldNotSayIsAskedAgainOnTheNextOpening()
+    {
+        var (service, api, _) = Build();
+        api.KeyScopesResult = Fail(ApiErrorKind.NotFound);
+        Assert.Equal(KeyScopeState.NotOffered, await service.RecheckAsync(ScopeUtil.GearDelete, CancellationToken.None));
+        Assert.False(service.IsKnownToLack(ScopeUtil.GearDelete));
+
+        api.KeyScopesResult = Scopes("gear:write", "gear:review");
+        Assert.Equal(KeyScopeState.Known, await service.RecheckAsync(ScopeUtil.GearDelete, CancellationToken.None));
+
+        Assert.True(service.IsKnownToLack(ScopeUtil.GearDelete));
+        Assert.Equal(2, api.KeyScopesCalls);
+    }
+
     /// <summary>Nothing locked means nothing to re-check: an opening does not ask a second time.</summary>
     [Fact]
     public async Task AnUnlockedButtonIsNotReasked()

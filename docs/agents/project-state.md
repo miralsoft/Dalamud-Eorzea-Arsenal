@@ -3,7 +3,7 @@
 > The complete in-repo memory so an AI/contributor on another machine can continue without losing
 > context (R3). Keep this current **in the same commit** as the change it describes.
 
-_Last updated: 2026-10-09._
+_Last updated: 2026-10-10._
 
 ## Status: 1.1.0 is skipped. Players have 1.0.0; the next version they get is 1.2.0, built in `release/v1.2.0`.
 
@@ -130,6 +130,10 @@ that noise. Judge the format gate from a clone, never from the working tree.
   failed question checks nothing and lets a 403 decide, because on a pre-1.4 server deleting works
   without the scope. "Verbindung testen" now judges `gear:write` from the same answer; it used to check
   the `/version` scopes, which are the server's catalogue and so could never fail.
+  `NotOffered` used to be held for the session; the live rehearsal on dev on 2026-10-10 showed the cost:
+  the reconciliation window had been opened while dev was on 1.3.2, the server then moved to 1.4, and the
+  delete stayed live for a key without `gear:delete` (a 403 would still have refused it). Since then a
+  404 is asked again on each opening of the window (`fix/key-scopes-recheck`), until the server answers.
 - **Waiting on the server, not on us:** nothing. Both open questions of 2026-09-12 came back. `BST` is in
   the job table since version `2026-08-22`, and `orphans[].similar[]` is now guaranteed never to name a
   row that is not in game. The hazard handed over with the first, a client that cannot name a newly
