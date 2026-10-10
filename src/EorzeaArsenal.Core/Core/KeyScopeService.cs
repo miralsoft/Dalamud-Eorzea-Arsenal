@@ -129,18 +129,27 @@ public sealed class KeyScopeService
 
     /// <summary>
     /// Like <see cref="EnsureAsync"/>, but asks again while the key is known to lack
-    /// <paramref name="scope"/>.
+    /// <paramref name="scope"/>, and while the server has not been able to say.
     /// </summary>
     /// <param name="scope">The scope whose lock should be re-checked, such as <see cref="ScopeUtil.GearDelete"/>.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The state afterwards.</returns>
     /// <remarks>
+    /// <para>
     /// Allowing a scope on the website changes the key without replacing it, so nothing here would notice:
     /// the button would stay locked until the plugin restarts. Asking again on each opening while it is
     /// locked costs one read per opening, and only for a player who is looking at a locked button.
+    /// </para>
+    /// <para>
+    /// A 404 is asked again for the same kind of reason. It means a server before 1.4, and a server moves
+    /// on while the plugin keeps running: held for the session, the 404 left the delete button live on a
+    /// server that had since gained <c>gear:delete</c>, with a key that lacked it. Seen in the live
+    /// rehearsal on dev on 2026-10-10. Once the server answers, the state is known and nothing is asked
+    /// again; until then it costs one read per opening of the window.
+    /// </para>
     /// </remarks>
     public Task<KeyScopeState> RecheckAsync(string scope, CancellationToken ct) =>
-        IsKnownToLack(scope) ? RefreshAsync(ct) : EnsureAsync(ct);
+        IsKnownToLack(scope) || State == KeyScopeState.NotOffered ? RefreshAsync(ct) : EnsureAsync(ct);
 
     /// <summary>Asks the server once for the stored key, unless an answer for it is already held.</summary>
     /// <param name="ct">Cancellation token.</param>
