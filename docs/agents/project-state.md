@@ -5,7 +5,16 @@
 
 _Last updated: 2026-10-10._
 
-## Status: 1.1.0 is skipped. Players have 1.0.0; the next version they get is 1.2.0, built in `release/v1.2.0`.
+## Status: 1.2.0 is the release of 2026-10-10. Players go from 1.0.0 straight to it; 1.1.0 is skipped.
+
+1.2.0 reaches `main` through the single PR from `release/v1.2.0` and is tagged `v1.2.0` in the same
+sitting, once server 1.4 is live. Before that it was walked through on dev in a rehearsal of the go-live
+on 2026-10-10: live data on server 1.3.2, the first push with 1.2.0 and its reconciliation, the server
+update to 1.4 (no row changed; a catalog left out of the dev deploy was caught and corrected), the
+first push against 1.4 (`hq` arrived on every piece, nothing parked, no duplicates), the line-up after
+a refresh of the team list, and the whole delete path: locked without `gear:delete`, free after allowing
+it on the website, exactly one row removed. The rehearsal found one plugin fault, the key-scope answer
+held across a server update, fixed in #31 before the release.
 
 1.1.0 was merged into `main` on 2026-09-13 (PR #24, `768a5ff`) and **announced** the same day, because
 the website reads `changelog.json` from `main`. It was never tagged, so it was never **installable**:
@@ -18,13 +27,14 @@ From 1.2.0 on, nothing reaches `main` except through a release branch, and a bra
 branch only when the operator asks. 1.2.0 waits for server 1.4 on live, because its notes promise the
 team line-up that only arrives there.
 
-**1.2.0 in progress: Phase E, team line-up** (`feat/team-lineup` against `release/v1.2.0`). All five
+**In 1.2.0: Phase E, team line-up** (`feat/team-lineup` against `release/v1.2.0`). All five
 steps are built: the line-up and coverage reads, what each team needs in the picker, the line-up tab, who
 is in on each upcoming date, and the invitation link. The link is offered only when the team's
 `capabilities` list `manage_members`, and a 403's cause is read from `missing_scope` or
 `missing_capability`, never from a field's presence or the text of `detail`. The server shipped both to
-dev on 2026-09-27. Not yet walked through in game; there is no recorded answer for the invitation
-itself, so its shape rests on the briefing alone until it has been seen.
+dev on 2026-09-27. The line-up tab was seen in game in the rehearsal of 2026-10-10; there is no
+recorded answer for the invitation itself, so its shape rests on the briefing alone until it has been
+seen.
 
 **Also in 1.2.0, by the operator's decision of 2026-10-04: BiS for crafters and gatherers**
 (`feat/crafter-bis`, contract revision 21 in its third pass). No separate 1.3.0, because 1.2.0 has not

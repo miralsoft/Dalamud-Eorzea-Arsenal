@@ -53,7 +53,7 @@ public static class ReleaseNotes
     /// <summary>Every release worth telling the user about, newest first.</summary>
     public static IReadOnlyList<ReleaseNote> All { get; } =
     [
-        new ReleaseNote("1.2.0", "2026-09-27",
+        new ReleaseNote("1.2.0", "2026-10-10",
         [
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,

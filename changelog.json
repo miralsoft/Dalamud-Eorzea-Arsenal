@@ -3,7 +3,7 @@
     {
       "id": "team-lineup-in-game",
       "version": "1.2.0",
-      "date": "2026-09-27",
+      "date": "2026-10-10",
       "kind": "feature",
       "source": "plugin",
       "de": {
@@ -18,7 +18,7 @@
     {
       "id": "what-each-team-still-needs",
       "version": "1.2.0",
-      "date": "2026-09-27",
+      "date": "2026-10-10",
       "kind": "feature",
       "source": "plugin",
       "de": {
@@ -33,7 +33,7 @@
     {
       "id": "who-is-missing-on-a-date",
       "version": "1.2.0",
-      "date": "2026-09-27",
+      "date": "2026-10-10",
       "kind": "feature",
       "source": "plugin",
       "de": {
@@ -48,7 +48,7 @@
     {
       "id": "invitation-link-from-the-game",
       "version": "1.2.0",
-      "date": "2026-09-27",
+      "date": "2026-10-10",
       "kind": "feature",
       "source": "plugin",
       "de": {
@@ -63,7 +63,7 @@
     {
       "id": "bis-for-crafters-and-gatherers",
       "version": "1.2.0",
-      "date": "2026-09-27",
+      "date": "2026-10-10",
       "kind": "feature",
       "source": "plugin",
       "de": {
