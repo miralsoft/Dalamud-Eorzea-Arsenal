@@ -40,6 +40,10 @@ public sealed class ConsentWindow : Window
         _save = save;
         _dropsOffered = dropsOffered;
         _worldOffered = worldOffered;
+
+        // Escape closes Dalamud windows, and a close counts as no. Pressed for something else in the game, it
+        // would answer this question unseen, so only the window's own close button or "save" ends it.
+        RespectCloseHotkey = false;
     }
 
     private string T(string key) => _localizer.Get(key);

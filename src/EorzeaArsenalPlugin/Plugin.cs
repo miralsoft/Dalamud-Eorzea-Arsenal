@@ -417,7 +417,9 @@ public sealed class Plugin : IDalamudPlugin
         _imageWindow = new ImageWindow(_teamsService, textureProvider, _localizer, _log);
         _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
         _reportWindow = new ReportWindow(_store, _localizer, api, _log, DescribeClient);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReview, () => _review.Summary() ?? _sync.LastReview, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew, () => _bisService.AmbiguousLive.Count, () => _currentCidHash, OpenRelics, () => _features.Has(FeatureNames.Relics), () => _waiting.Total);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReview, () => _review.Summary() ?? _sync.LastReview, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew, () => _bisService.AmbiguousLive.Count, () => _currentCidHash, OpenRelics, () => _features.Has(FeatureNames.Relics), () => _waiting.Total,
+            () => (_features.Has(FeatureNames.DropReports) && !_config.ReportDrops) || (_features.Has(FeatureNames.WorldReports) && !_config.ReportWorld),
+            () => _consentWindow?.Ask());
         _relicService = new RelicService(api, _store, _store, _log);
         _relicWindow = new RelicWindow(_localizer, _relicService, () => ServerCharacterId(_currentCidHash), () => _config.SyncInventory, WebAppBase, OpenExternalLink, OpenConfig, _log, _gearSource.GetItemName);
         _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage, OwnChatNotice, _features.Has, _waiting);
@@ -1329,7 +1331,9 @@ public sealed class Plugin : IDalamudPlugin
     /// </summary>
     private void AskConsentOnce()
     {
-        if (_config.ReportConsentAsked || _consentWindow.IsOpen || !_clientState.IsLoggedIn ||
+        // Only in a quiet moment: a window that pops up in a duty or a cutscene is closed unseen, and the
+        // question would be spent without the player having read it.
+        if (_config.ReportConsentAsked || _consentWindow.IsOpen || !CanInterrupt() ||
             _config is not { Enabled: true, TosAccepted: true } || !_store.HasKey ||
             !(_features.Has(FeatureNames.DropReports) || _features.Has(FeatureNames.WorldReports)))
         {

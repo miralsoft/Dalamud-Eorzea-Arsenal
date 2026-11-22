@@ -52,6 +52,8 @@ public sealed class StatusWindow : Window
     private readonly Action _openRelics;
     private readonly Func<bool> _relicsOffered;
     private readonly Func<int> _waitingTotal;
+    private readonly Func<bool> _consentOpen;
+    private readonly Action _openConsent;
     private readonly Action _openReport;
     private readonly Action _openTeams;
     private readonly Action _openCalendar;
@@ -91,6 +93,8 @@ public sealed class StatusWindow : Window
     /// <param name="openRelics">Opens the relic view.</param>
     /// <param name="relicsOffered">Whether the server offers the relic helper (server 1.5); the entry shows only then.</param>
     /// <param name="waitingTotal">What waits in the teams (server 1.5), shown on the Teams entry.</param>
+    /// <param name="consentOpen">Whether a report the server takes is still off; the entry for the question shows then.</param>
+    /// <param name="openConsent">Opens the question of 1.3.0 again.</param>
     public StatusWindow(
         PluginConfig config,
         ConfigStore store,
@@ -117,9 +121,13 @@ public sealed class StatusWindow : Window
         Func<string?> currentCharacter,
         Action openRelics,
         Func<bool> relicsOffered,
-        Func<int> waitingTotal)
+        Func<int> waitingTotal,
+        Func<bool> consentOpen,
+        Action openConsent)
         : base("Eorzea Arsenal###EorzeaArsenalStatus")
     {
+        _consentOpen = consentOpen;
+        _openConsent = openConsent;
         _waitingTotal = waitingTotal;
         _openRelics = openRelics;
         _relicsOffered = relicsOffered;
@@ -293,6 +301,13 @@ public sealed class StatusWindow : Window
         if (MenuButton(FontAwesomeIcon.Cog, T(LocKeys.OpenSettings)))
         {
             _openConfig();
+        }
+
+        // The question of 1.3.0 again, while one of the reports the server takes is still off: the dialog
+        // shows itself only once, and a player who missed it should not have to find two switches.
+        if (_consentOpen() && MenuButton(FontAwesomeIcon.ShieldAlt, T(LocKeys.ConsentHeading)))
+        {
+            _openConsent();
         }
 
         // Highlighted until the user has looked at the notes for the version they are running.

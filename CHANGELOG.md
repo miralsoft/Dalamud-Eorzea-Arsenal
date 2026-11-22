@@ -58,7 +58,9 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
 
 - **One dialog asks what may be sent** (`ConsentWindow`): the inventory sync, the drop reports and the
   spot reports together, once, on the update and on a new installation's first connected session, where
-  the server takes at least one of the reports. The reports start off; closing without saving is no. Both
+  the server takes at least one of the reports, never in a duty, a fight or a cutscene. Escape does not
+  close it, and a menu entry opens it again while a report is still off. The reports start off; closing
+  without saving is no. Both
   reports have their own switch in the settings, next to the inventory, each saying what is sent and what
   never is.
 - **Drop reports** (`POST /loot/reports`, `DropLedger`, `ReportUploader`, `GameDropWatcher`; where the
