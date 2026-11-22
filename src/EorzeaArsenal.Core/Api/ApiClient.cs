@@ -318,6 +318,25 @@ public sealed class ApiClient : IApiClient
     }
 
     /// <inheritdoc />
+    public Task<ApiResult<RelicCatalogResponse>> GetRelicCatalogAsync(string apiKey, string language, CancellationToken ct) =>
+        GetAsync<RelicCatalogResponse>($"/relics?lang={Uri.EscapeDataString(language)}", apiKey, ct);
+
+    /// <inheritdoc />
+    public Task<ApiResult<MyRelicsResponse>> GetMyRelicsAsync(string apiKey, long? characterId, CancellationToken ct) =>
+        GetAsync<MyRelicsResponse>(characterId is { } id ? $"/me/relics?character_id={id}" : "/me/relics", apiKey, ct);
+
+    /// <inheritdoc />
+    public async Task<ApiResult<MyRelicsResponse>> PutRelicTickAsync(string apiKey, RelicTickRequest request, CancellationToken ct)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Put, Url("/me/relics"))
+        {
+            Content = JsonBody(request),
+        };
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<MyRelicsResponse>(message, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public Task<ApiResult<AdvisorOptionsResponse>> GetAdvisorOptionsAsync(
         string apiKey, long characterId, string job, string target, int? gearIndex, string? sort, CancellationToken ct)
     {

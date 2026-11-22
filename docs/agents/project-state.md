@@ -32,6 +32,10 @@ Built so far, each on its own branch stacked on the one before (none pushed yet)
   lists `team-availability` (`AbsenceRules`); before 1.5 it stays the form of Phase D. An absence for
   every team (`team_id` 0) is shown but not edited there; it belongs to the player's own times, which the
   "Zeiten" tab of the next branch reads from `GET /me/availability`.
+- `feat/relics`: the relic view as its own window, opened from the status menu where the server lists
+  `relics`. Without a known server character id it asks `GET /me/relics` without one, which is the
+  account's active character. The version bump to 1.3.0 and the release notes come last, once every
+  piece is in, so the notes describe the whole release.
 
 The foundation moved from the 3.3.0 this repository was audited against to 5.3.0. The Dalamud profile
 and blueprint are unchanged; the points that touch this repository are listed in

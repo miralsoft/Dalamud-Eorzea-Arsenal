@@ -353,6 +353,15 @@ public sealed class GearSyncServiceTests
         public Task<ApiResult<CurrencyStockResult>> PushCurrenciesAsync(string apiKey, CurrencyStockRequest request, CancellationToken ct) =>
             throw new NotSupportedException();
 
+        public Task<ApiResult<RelicCatalogResponse>> GetRelicCatalogAsync(string apiKey, string language, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<MyRelicsResponse>> GetMyRelicsAsync(string apiKey, long? characterId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<MyRelicsResponse>> PutRelicTickAsync(string apiKey, RelicTickRequest request, CancellationToken ct) =>
+            throw new NotSupportedException();
+
         public Task<ApiResult<AdvisorPlanResponse>> GetAdvisorPlanAsync(string apiKey, long characterId, string job, string target, CancellationToken ct) =>
             throw new NotSupportedException();
 

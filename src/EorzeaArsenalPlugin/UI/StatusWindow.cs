@@ -49,6 +49,8 @@ public sealed class StatusWindow : Window
     private readonly Func<int> _twinCount;
 
     private readonly Func<string?> _currentCharacter;
+    private readonly Action _openRelics;
+    private readonly Func<bool> _relicsOffered;
     private readonly Action _openReport;
     private readonly Action _openTeams;
     private readonly Action _openCalendar;
@@ -85,6 +87,8 @@ public sealed class StatusWindow : Window
     /// Who is logged in, because everything the identity cache reports is about one character and two of
     /// them share this plugin.
     /// </param>
+    /// <param name="openRelics">Opens the relic view.</param>
+    /// <param name="relicsOffered">Whether the server offers the relic helper (server 1.5); the entry shows only then.</param>
     public StatusWindow(
         PluginConfig config,
         ConfigStore store,
@@ -108,9 +112,13 @@ public sealed class StatusWindow : Window
         Action openPreview,
         Action openWhatsNew,
         Func<int> twinCount,
-        Func<string?> currentCharacter)
+        Func<string?> currentCharacter,
+        Action openRelics,
+        Func<bool> relicsOffered)
         : base("Eorzea Arsenal###EorzeaArsenalStatus")
     {
+        _openRelics = openRelics;
+        _relicsOffered = relicsOffered;
         _config = config;
         _store = store;
         _localizer = localizer;
@@ -251,6 +259,12 @@ public sealed class StatusWindow : Window
         if (MenuButton(FontAwesomeIcon.ShoppingBasket, T(LocKeys.AdvisorOpen)))
         {
             _openAdvisor();
+        }
+
+        // Beside the gear views, as the contract asks; only where the server has the relic helper.
+        if (_relicsOffered() && MenuButton(FontAwesomeIcon.Gem, T(LocKeys.RelicOpen)))
+        {
+            _openRelics();
         }
 
         if (MenuButton(FontAwesomeIcon.Eye, T(LocKeys.PreviewButton)))

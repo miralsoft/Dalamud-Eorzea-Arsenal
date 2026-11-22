@@ -2093,4 +2093,62 @@ public static class LocKeys
 
     /// <summary>Advisor: the key lacks the plans:read scope.</summary>
     public const string AdvisorScopeHint = "advisor.scopehint";
+
+    // Relics (server 1.5)
+    /// <summary>Menu entry: open the relic view.</summary>
+    public const string RelicOpen = "relic.open";
+
+    /// <summary>Relic view: the combat part.</summary>
+    public const string RelicCombat = "relic.combat";
+
+    /// <summary>Relic view: the crafting and gathering part.</summary>
+    public const string RelicCraft = "relic.craft";
+
+    /// <summary>Relic view: the one-line reminder about the glamour dresser and the armoire.</summary>
+    public const string RelicReminder = "relic.reminder";
+
+    /// <summary>Relic view: the inventory sync is off or never ran for this character.</summary>
+    public const string RelicInventoryOff = "relic.inventoryoff";
+
+    /// <summary>Relic view: loading.</summary>
+    public const string RelicLoading = "relic.loading";
+
+    /// <summary>Relic view: the read failed.</summary>
+    public const string RelicError = "relic.error";
+
+    /// <summary>Relic view: the account has no character.</summary>
+    public const string RelicNoCharacter = "relic.nocharacter";
+
+    /// <summary>Relic view: the series count, one job ({0} done of {1}).</summary>
+    public const string RelicSeriesCountOne = "relic.seriescount.one";
+
+    /// <summary>Relic view: the series count, several jobs ({0} done of {1}).</summary>
+    public const string RelicSeriesCountMany = "relic.seriescount.many";
+
+    /// <summary>Relic view: the next stage ({0} pieces, {1} item level).</summary>
+    public const string RelicNext = "relic.next";
+
+    /// <summary>Relic view: the job is done.</summary>
+    public const string RelicDone = "relic.done";
+
+    /// <summary>Relic view: open the job's row on the website.</summary>
+    public const string RelicWebsite = "relic.website";
+
+    /// <summary>Relic stage tooltip: held.</summary>
+    public const string RelicStageHeld = "relic.stage.held";
+
+    /// <summary>Relic stage tooltip: ticked by the player.</summary>
+    public const string RelicStageTicked = "relic.stage.ticked";
+
+    /// <summary>Relic stage tooltip: missing.</summary>
+    public const string RelicStageMissing = "relic.stage.missing";
+
+    /// <summary>Relic stage tooltip: a click ticks up to here.</summary>
+    public const string RelicTickHint = "relic.tickhint";
+
+    /// <summary>Relic stage tooltip: a click removes the player's tick.</summary>
+    public const string RelicUntickHint = "relic.untickhint";
+
+    /// <summary>Relic view: the key may not tick (characters:write missing).</summary>
+    public const string RelicScopeHint = "relic.scopehint";
 }

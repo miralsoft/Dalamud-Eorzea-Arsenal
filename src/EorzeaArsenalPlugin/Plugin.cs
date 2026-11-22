@@ -102,6 +102,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ImageWindow _imageWindow;
     private readonly BisWindow _bisWindow;
     private readonly AdvisorWindow _advisorWindow;
+    private readonly RelicService _relicService;
+    private readonly RelicWindow _relicWindow;
     private readonly LogWindow _logWindow;
 #if EORZEA_ARSENAL_DEVTOOLS
 
@@ -345,7 +347,9 @@ public sealed class Plugin : IDalamudPlugin
         _imageWindow = new ImageWindow(_teamsService, textureProvider, _localizer, _log);
         _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
         _reportWindow = new ReportWindow(_store, _localizer, api, _log, DescribeClient);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReview, () => _review.Summary() ?? _sync.LastReview, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew, () => _bisService.AmbiguousLive.Count, () => _currentCidHash);
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReview, () => _review.Summary() ?? _sync.LastReview, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew, () => _bisService.AmbiguousLive.Count, () => _currentCidHash, OpenRelics, () => _features.Has(FeatureNames.Relics));
+        _relicService = new RelicService(api, _store, _store, _log);
+        _relicWindow = new RelicWindow(_localizer, _relicService, () => ServerCharacterId(_currentCidHash), () => _config.SyncInventory, WebAppBase, OpenExternalLink, OpenConfig, _log);
         _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage, OwnChatNotice, _features.Has);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _keyScopes, _log, Save, () => Localizer.Nearest(_pluginInterface.UiLanguage));
@@ -357,6 +361,7 @@ public sealed class Plugin : IDalamudPlugin
         _windowSystem.AddWindow(_calendarWindow);
         _windowSystem.AddWindow(_bisWindow);
         _windowSystem.AddWindow(_advisorWindow);
+        _windowSystem.AddWindow(_relicWindow);
         _windowSystem.AddWindow(_logWindow);
         _windowSystem.AddWindow(_statusWindow);
         _windowSystem.AddWindow(_configWindow);
@@ -453,6 +458,7 @@ public sealed class Plugin : IDalamudPlugin
         _inventorySync.SyncCompleted -= OnInventoryCompleted;
         _inventorySync.Dispose();
         _currencySync.Dispose();
+        _relicWindow.Dispose();
         _weeklySource.HiddenRefreshCompleted -= OnHiddenRefreshCompleted;
         _weeklySource.ContentsRefreshCompleted -= OnHiddenRefreshCompleted;
         _weeklySync.SyncCompleted -= OnWeeklyCompleted;
@@ -489,6 +495,8 @@ public sealed class Plugin : IDalamudPlugin
     private void OpenBis() => _bisWindow.IsOpen = true;
 
     private void OpenAdvisor() => _advisorWindow.IsOpen = true;
+
+    private void OpenRelics() => _relicWindow.IsOpen = true;
 
     /// <summary>
     /// The server's numeric character id for a <c>cid_hash</c>, which personal per-character endpoints
@@ -1754,6 +1762,9 @@ public sealed class Plugin : IDalamudPlugin
             // A gear sync went through, which is also what a currency 404 waits for.
             RequestCurrencySync(CurrencyTrigger.AfterGearSync);
 
+            // A gearset counts toward a relic, so the relic view reads again when it is next drawn.
+            _relicService.Invalidate();
+
             // The push just said what is open. Where that disagrees with what the review service is
             // holding, the service is holding a state that is over, and the badge in the menu is drawn
             // from it.
@@ -1834,6 +1845,7 @@ public sealed class Plugin : IDalamudPlugin
         {
             _holdingsService.Invalidate();
             _advisorService.InvalidateOptions();
+            _relicService.Invalidate();
             RequestCurrencySync(CurrencyTrigger.AfterInventorySync);
         }
 

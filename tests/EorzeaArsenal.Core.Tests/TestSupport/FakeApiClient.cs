@@ -401,6 +401,45 @@ public sealed class FakeApiClient : IApiClient
         return Task.FromResult(TomeBalanceResult);
     }
 
+    /// <summary>Result of <see cref="GetRelicCatalogAsync"/>.</summary>
+    public ApiResult<RelicCatalogResponse> RelicCatalogResult { get; set; } = ApiResult<RelicCatalogResponse>.Ok(new RelicCatalogResponse { Data = new RelicCatalog() });
+
+    /// <summary>Languages asked of <see cref="GetRelicCatalogAsync"/>, in call order.</summary>
+    public List<string> RelicCatalogReads { get; } = [];
+
+    /// <summary>Result of <see cref="GetMyRelicsAsync"/>.</summary>
+    public ApiResult<MyRelicsResponse> MyRelicsResult { get; set; } = ApiResult<MyRelicsResponse>.Ok(new MyRelicsResponse());
+
+    /// <summary>Character ids asked of <see cref="GetMyRelicsAsync"/>, in call order.</summary>
+    public List<long?> MyRelicsReads { get; } = [];
+
+    /// <summary>Result of <see cref="PutRelicTickAsync"/>.</summary>
+    public ApiResult<MyRelicsResponse> RelicTickResult { get; set; } = ApiResult<MyRelicsResponse>.Ok(new MyRelicsResponse());
+
+    /// <summary>Each tick sent, in call order.</summary>
+    public List<RelicTickRequest> RelicTicks { get; } = [];
+
+    /// <inheritdoc />
+    public Task<ApiResult<RelicCatalogResponse>> GetRelicCatalogAsync(string apiKey, string language, CancellationToken ct)
+    {
+        RelicCatalogReads.Add(language);
+        return Task.FromResult(RelicCatalogResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<MyRelicsResponse>> GetMyRelicsAsync(string apiKey, long? characterId, CancellationToken ct)
+    {
+        MyRelicsReads.Add(characterId);
+        return Task.FromResult(MyRelicsResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<MyRelicsResponse>> PutRelicTickAsync(string apiKey, RelicTickRequest request, CancellationToken ct)
+    {
+        RelicTicks.Add(request);
+        return Task.FromResult(RelicTickResult);
+    }
+
     /// <summary>Each snapshot passed to <see cref="PushCurrenciesAsync"/>, in call order.</summary>
     public List<CurrencyStockRequest> CurrencyPushes { get; } = [];
 

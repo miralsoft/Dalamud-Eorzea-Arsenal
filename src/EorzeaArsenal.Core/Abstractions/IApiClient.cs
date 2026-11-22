@@ -301,6 +301,27 @@ public interface IApiClient
     /// <returns>The stored row count, or a classified error (404: sync gear first; 429: wait an hour).</returns>
     Task<ApiResult<CurrencyStockResult>> PushCurrenciesAsync(string apiKey, CurrencyStockRequest request, CancellationToken ct);
 
+    /// <summary>Reads the relic catalog via <c>GET /relics?lang=</c> (server 1.5, public; the key counts the limit per account).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="language"><c>de</c> or <c>en</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The catalog, or a classified error.</returns>
+    Task<ApiResult<RelicCatalogResponse>> GetRelicCatalogAsync(string apiKey, string language, CancellationToken ct);
+
+    /// <summary>Reads a character's relic progress via <c>GET /me/relics</c> (server 1.5, <c>gear:read</c>).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="characterId">The caller's own character, or <see langword="null"/> for the account's active one.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The progress, or a classified error (404: not the caller's character).</returns>
+    Task<ApiResult<MyRelicsResponse>> GetMyRelicsAsync(string apiKey, long? characterId, CancellationToken ct);
+
+    /// <summary>Ticks or clears a relic stage via <c>PUT /me/relics</c> (server 1.5, <c>characters:write</c>).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="request">The tick.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The new progress, as <c>GET /me/relics</c> answers it.</returns>
+    Task<ApiResult<MyRelicsResponse>> PutRelicTickAsync(string apiKey, RelicTickRequest request, CancellationToken ct);
+
     /// <summary>
     /// Reads the purchase advice for one set via <c>GET /me/advisor-options</c> (<c>gear:read</c>):
     /// the ranked deterministic steps, the pieces selectable per slot, and what the open slots still
