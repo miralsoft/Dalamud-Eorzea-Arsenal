@@ -16,6 +16,17 @@ For 1.3.0, built in `release/v1.3.0`. Requires server 1.5.
   `inventory-armoire`, and declared only when the client says it is loaded and something was found in
   it. Before, the armoire was not read at all, and its container was filed under `character`, the rule
   of the contract before 1.5.
+- **The currency sync** (`POST /inventory/currencies`, `CurrencySyncService`): a full snapshot of the
+  tomestones and scrips the server lists in `currencies` of `GET /gear/tracked-items`, zeros included,
+  after a gear or inventory sync and when a count changes, at most once every five minutes and only when
+  it differs from what the server last took. A 404 sends once more after the next gear sync, a 429 waits
+  an hour, a 401 or 403 stops until another key is connected, a 400 or 422 is not sent again; the limit
+  of 30 an hour is kept here too. Its own switch, "Tomestones and scrips", on by default and independent
+  of the inventory sync.
+
+### Changed
+- **`PUT /me/tome-balance` is not called on a 1.5 server**, where the currency sync sets the balance, and
+  not at all with the tomestones-and-scrips switch off. Before 1.5 it is sent as before.
 
 ## [1.2.0] - 2026-10-10
 

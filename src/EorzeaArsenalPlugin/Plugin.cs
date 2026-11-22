@@ -62,6 +62,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly CharacterDirectory _characterDirectory;
     private readonly GearSyncService _sync;
     private readonly InventorySyncService _inventorySync;
+    private readonly CurrencySyncService _currencySync;
+    private long _nextCurrencyTicks;
     private readonly WeeklySyncService _weeklySync;
     private readonly TeamsService _teamsService;
     private readonly TeamsSeenStore _teamsSeenStore;
@@ -290,6 +292,9 @@ public sealed class Plugin : IDalamudPlugin
         _sync.PauseAutomatic = () => _review.IsOpen;
         _inventorySync = new InventorySyncService(_inventorySource, api, _store, new SystemClock(), _log, _characterDirectory);
         _inventorySync.SyncCompleted += OnInventoryCompleted;
+        _currencySync = new CurrencySyncService(
+            new GameCurrencySource(clientState, playerState, framework, _log), api, _store, new SystemClock(),
+            () => _trackedItems.Currencies, _log, _characterDirectory);
         _weeklySync = new WeeklySyncService(_weeklySource, api, _store, _characterDirectory, new SystemClock(), _log);
         _weeklySync.SyncCompleted += OnWeeklyCompleted;
         _weeklySource.HiddenRefreshCompleted += OnHiddenRefreshCompleted;
@@ -447,6 +452,7 @@ public sealed class Plugin : IDalamudPlugin
         _review.Dispose();
         _inventorySync.SyncCompleted -= OnInventoryCompleted;
         _inventorySync.Dispose();
+        _currencySync.Dispose();
         _weeklySource.HiddenRefreshCompleted -= OnHiddenRefreshCompleted;
         _weeklySource.ContentsRefreshCompleted -= OnHiddenRefreshCompleted;
         _weeklySync.SyncCompleted -= OnWeeklyCompleted;
@@ -1166,6 +1172,9 @@ public sealed class Plugin : IDalamudPlugin
                     // The active tier's classified groups drive the advisor's stock view; absent on an
                     // older server, which just leaves that view empty.
                     _trackedItems.SetGroups(result.Value.Groups);
+
+                    // Server 1.5 adds the currency ids to the same answer; an older server sends none.
+                    _trackedItems.SetCurrencies(result.Value.Currencies);
                     _log.Info($"Tracked items updated: {ids.Count} id(s), {_trackedItems.Groups.Count} group(s).");
 
                     if (thenSyncInventory)
@@ -1217,6 +1226,39 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     /// <summary>
+    /// Whether this server takes the currency sync: <c>currency-sync</c> in its features, or a
+    /// <c>currencies</c> list in the tracked items. Either one is a 1.5 server, as the contract says.
+    /// </summary>
+    private bool CurrencySyncOffered() =>
+        _features.Has(FeatureNames.CurrencySync) || _trackedItems.ServerListsCurrencies;
+
+    /// <summary>
+    /// Asks the currency sync for an attempt, gated like the other transfers plus its own switch.
+    /// </summary>
+    /// <param name="trigger">What asked.</param>
+    /// <remarks>
+    /// A look for a change is a send nobody asked for at that moment, so it follows the "when" switches like
+    /// the inventory does at login: with every automatic switch off, the counts go up only after a sync the
+    /// player started.
+    /// </remarks>
+    private void RequestCurrencySync(CurrencyTrigger trigger)
+    {
+        if (!_config.Enabled || !_config.TosAccepted || !_config.SyncCurrencies || !_store.HasKey ||
+            !CurrencySyncOffered() || !CurrentCharacterAllowed())
+        {
+            return;
+        }
+
+        if (trigger == CurrencyTrigger.Change &&
+            !(_config.PushOnLogin || _config.AutoPush || _config.PushOnGearsetChange))
+        {
+            return;
+        }
+
+        _currencySync.Request(trigger);
+    }
+
+    /// <summary>
     /// Pushes the capped-tomestone balance to <c>PUT /me/tome-balance</c> for the web purchase advisor.
     /// Background, gated on a connected + allowed character whose server id is known; a missing scope or
     /// unknown id just no-ops (the advisor still works with a hand-typed number). Idempotent — a value
@@ -1226,6 +1268,14 @@ public sealed class Plugin : IDalamudPlugin
     private void PushTomeBalance(string trigger)
     {
         if (!_config.Enabled || !_config.TosAccepted || !_store.HasKey || !CurrentCharacterAllowed())
+        {
+            return;
+        }
+
+        // The tomestones-and-scrips switch covers this count too: off means no tomestone count leaves. On a
+        // 1.5 server the currency sync carries the capped tomestone and sets the balance itself, so this call
+        // is not made there at all.
+        if (!_config.SyncCurrencies || CurrencySyncOffered())
         {
             return;
         }
@@ -1328,6 +1378,8 @@ public sealed class Plugin : IDalamudPlugin
         {
             _lastTomeBalance.Clear();
         }
+
+        _currencySync.StartSession();
         _log.Info("New game session (logged in).");
 
         RecordCurrentCharacter();
@@ -1431,6 +1483,14 @@ public sealed class Plugin : IDalamudPlugin
         {
             _nextFeaturesTicks = now + 60_000;
             _ = _features.RefreshIfStaleAsync(_shutdown.Token);
+        }
+
+        // The currency sync's look for a change: the purse is read and compared with what the server last
+        // took, so the network is only used for a real change, at most once every five minutes.
+        if (now >= _nextCurrencyTicks)
+        {
+            _nextCurrencyTicks = now + 60_000;
+            RequestCurrencySync(CurrencyTrigger.Change);
         }
 
         if (now >= _nextCharRecordTicks)
@@ -1691,6 +1751,9 @@ public sealed class Plugin : IDalamudPlugin
 
         if (report.Outcome == PushOutcome.Sent)
         {
+            // A gear sync went through, which is also what a currency 404 waits for.
+            RequestCurrencySync(CurrencyTrigger.AfterGearSync);
+
             // The push just said what is open. Where that disagrees with what the review service is
             // holding, the service is holding a state that is over, and the badge in the menu is drawn
             // from it.
@@ -1771,6 +1834,7 @@ public sealed class Plugin : IDalamudPlugin
         {
             _holdingsService.Invalidate();
             _advisorService.InvalidateOptions();
+            RequestCurrencySync(CurrencyTrigger.AfterInventorySync);
         }
 
         // Piggy-back the capped-tomestone balance on the inventory sync (we just read the game anyway),

@@ -291,6 +291,17 @@ public interface IApiClient
     Task<ApiResult<TomeBalanceResponse>> PutTomeBalanceAsync(string apiKey, long characterId, int balance, CancellationToken ct);
 
     /// <summary>
+    /// Sends the character's tomestones and scrips via <c>POST /inventory/currencies</c> (server 1.5,
+    /// <c>inventory:write</c>): a full snapshot of the listed ids, which the server stores in place of the
+    /// previous one. Also sets the purchase advisor's balance, so it replaces <c>PUT /me/tome-balance</c>.
+    /// </summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="request">The snapshot.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The stored row count, or a classified error (404: sync gear first; 429: wait an hour).</returns>
+    Task<ApiResult<CurrencyStockResult>> PushCurrenciesAsync(string apiKey, CurrencyStockRequest request, CancellationToken ct);
+
+    /// <summary>
     /// Reads the purchase advice for one set via <c>GET /me/advisor-options</c> (<c>gear:read</c>):
     /// the ranked deterministic steps, the pieces selectable per slot, and what the open slots still
     /// need in material. Computed server-side so the plugin and the web can never disagree, and so a

@@ -93,6 +93,15 @@ public sealed class PluginConfig : IPluginConfiguration
     public bool SyncRetainers { get; set; }
 
     /// <summary>
+    /// Send the counts of the tomestones and scrips the server lists (server 1.5,
+    /// <c>POST /inventory/currencies</c>), and before 1.5 the capped-tomestone balance. On by default, as
+    /// agreed with the server, and independent of <see cref="SyncInventory"/>: it runs with the inventory
+    /// sync off, and turning it off stops it alone. No migration step: a config without the field reads
+    /// the initializer's <see langword="true"/>.
+    /// </summary>
+    public bool SyncCurrencies { get; set; } = true;
+
+    /// <summary>
     /// Opt-in: also upload the weekly checklist (tomestones acquired, weekly content done) via
     /// <c>PUT /characters/{id}/weekly</c> so the web app can track weekly progress without manual
     /// ticking. Independent of the gear push; off by default. Only fields read with confidence are

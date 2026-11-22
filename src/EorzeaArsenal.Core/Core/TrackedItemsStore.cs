@@ -19,6 +19,8 @@ public sealed class TrackedItemsStore
     private volatile HashSet<int> _ids = [];
     private volatile IReadOnlyList<TrackedStockGroup> _groups = [];
     private volatile bool _loaded;
+    private volatile IReadOnlyList<int> _currencies = [];
+    private volatile bool _listsCurrencies;
 
     /// <summary>Whether any ids are tracked yet (the list may not have loaded).</summary>
     public bool HasAny => _ids.Count > 0;
@@ -38,6 +40,31 @@ public sealed class TrackedItemsStore
     /// loaded, or on a server that does not send groups — the stock view then simply stays hidden.
     /// </summary>
     public IReadOnlyList<TrackedStockGroup> Groups => _groups;
+
+    /// <summary>
+    /// The currency ids the currency sync reports (server 1.5), ascending. Empty until the list has
+    /// loaded, and on a server before 1.5.
+    /// </summary>
+    public IReadOnlyList<int> Currencies => _currencies;
+
+    /// <summary>
+    /// Whether the server's answer carried a <c>currencies</c> list at all, which only a 1.5 server does.
+    /// One of the two signs that the currency sync replaces <c>PUT /me/tome-balance</c>.
+    /// </summary>
+    public bool ServerListsCurrencies => _listsCurrencies;
+
+    /// <summary>
+    /// Replaces the currency ids (whole-swap). <see langword="null"/> means the server sent no list, which
+    /// is a server before 1.5; that clears the ids and the flag.
+    /// </summary>
+    /// <param name="ids">The ids as sent by the server.</param>
+    public void SetCurrencies(IEnumerable<long>? ids)
+    {
+        _currencies = ids is null
+            ? []
+            : [.. ids.Where(id => id is > 0 and <= int.MaxValue).Select(id => (int)id).Distinct().Order()];
+        _listsCurrencies = ids is not null;
+    }
 
     /// <summary>Whether an item id is one the plugin should report for owned-count coverage.</summary>
     /// <param name="itemId">The item id.</param>

@@ -401,6 +401,22 @@ public sealed class FakeApiClient : IApiClient
         return Task.FromResult(TomeBalanceResult);
     }
 
+    /// <summary>Each snapshot passed to <see cref="PushCurrenciesAsync"/>, in call order.</summary>
+    public List<CurrencyStockRequest> CurrencyPushes { get; } = [];
+
+    /// <summary>Results returned by <see cref="PushCurrenciesAsync"/>, one per call; the last one repeats.</summary>
+    public Queue<ApiResult<CurrencyStockResult>> CurrencyResults { get; } = new();
+
+    /// <inheritdoc />
+    public Task<ApiResult<CurrencyStockResult>> PushCurrenciesAsync(string apiKey, CurrencyStockRequest request, CancellationToken ct)
+    {
+        CurrencyPushes.Add(request);
+        var result = CurrencyResults.Count > 1 ? CurrencyResults.Dequeue()
+            : CurrencyResults.Count == 1 ? CurrencyResults.Peek()
+            : ApiResult<CurrencyStockResult>.Ok(new CurrencyStockResult { Status = "ok", CharacterId = "1234", Rows = request.Stock.Count(r => r.Count > 0) });
+        return Task.FromResult(result);
+    }
+
     /// <summary>Result returned by <see cref="GetAdvisorPlanAsync"/>.</summary>
     public ApiResult<AdvisorPlanResponse> AdvisorPlanResult { get; set; } = ApiResult<AdvisorPlanResponse>.Ok(new AdvisorPlanResponse());
 

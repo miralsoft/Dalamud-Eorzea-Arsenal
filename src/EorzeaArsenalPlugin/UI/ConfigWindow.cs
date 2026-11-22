@@ -557,6 +557,16 @@ public sealed class ConfigWindow : Window, IDisposable
             ImGui.Unindent();
         }
 
+        // Its own switch, not nested under the inventory: the currency sync runs with the inventory off.
+        var syncCurrencies = _config.SyncCurrencies;
+        if (ImGui.Checkbox(T(LocKeys.SyncCurrencies), ref syncCurrencies))
+        {
+            _config.SyncCurrencies = syncCurrencies;
+            _save();
+        }
+
+        Help(T(LocKeys.SyncCurrenciesHint));
+
         var syncWeekly = _config.SyncWeekly;
         if (ImGui.Checkbox(T(LocKeys.SyncWeekly), ref syncWeekly))
         {

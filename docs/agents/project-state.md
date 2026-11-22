@@ -18,7 +18,16 @@ independent of the inventory sync, and replaces `PUT /me/tome-balance` only on a
 (`seen: received`); `zone_id` is `TerritoryType.PlaceName` and territories with several maps are left
 out.
 
-Built so far: `ServerFeatures` and the armoire as its own scope (`feat/server-features-armoire`).
+Built so far, each on its own branch stacked on the one before (none pushed yet):
+
+- `feat/server-features-armoire`: `ServerFeatures` and the armoire as its own scope.
+- `feat/currency-sync`: `CurrencySyncService` with `GameCurrencySource`, the ids from `currencies` of
+  `GET /gear/tracked-items`, the switch "Tomesteine und Scrips" (`SyncCurrencies`, on by default). Sends
+  after a gear or inventory sync that went through, and on a change seen by a look every minute, held to
+  five minutes; the look follows the "when" switches, so with every automatic switch off the counts go
+  up only after a sync the player started. A 404 waits for the next gear sync and sends once more; the
+  switch also covers `PUT /me/tome-balance`, which is not called at all on a 1.5 server. To check in the
+  game: the scrip counts against the currency window.
 
 The foundation moved from the 3.3.0 this repository was audited against to 5.3.0. The Dalamud profile
 and blueprint are unchanged; the points that touch this repository are listed in

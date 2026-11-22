@@ -718,6 +718,12 @@ public sealed class TrackedItemsResponse
     /// upgrade stone, then the raid books). Absent on an older server, which just means no stock view.
     /// </summary>
     public List<TrackedItemGroup>? Groups { get; init; }
+
+    /// <summary>
+    /// The currency ids the currency sync reports (server 1.5): tomestones and scrips, sorted ascending.
+    /// Absent on an older server, which takes no currency sync.
+    /// </summary>
+    public List<long>? Currencies { get; init; }
 }
 
 /// <summary>One display group of tracked items: what kind they are and which ids belong to it.</summary>

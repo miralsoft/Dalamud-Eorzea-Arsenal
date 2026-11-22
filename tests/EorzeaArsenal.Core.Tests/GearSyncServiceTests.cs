@@ -350,6 +350,9 @@ public sealed class GearSyncServiceTests
         public Task<ApiResult<TomeBalanceResponse>> PutTomeBalanceAsync(string apiKey, long characterId, int balance, CancellationToken ct) =>
             throw new NotSupportedException();
 
+        public Task<ApiResult<CurrencyStockResult>> PushCurrenciesAsync(string apiKey, CurrencyStockRequest request, CancellationToken ct) =>
+            throw new NotSupportedException();
+
         public Task<ApiResult<AdvisorPlanResponse>> GetAdvisorPlanAsync(string apiKey, long characterId, string job, string target, CancellationToken ct) =>
             throw new NotSupportedException();
 

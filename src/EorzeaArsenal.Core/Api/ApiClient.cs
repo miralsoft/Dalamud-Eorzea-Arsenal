@@ -307,6 +307,17 @@ public sealed class ApiClient : IApiClient
     }
 
     /// <inheritdoc />
+    public async Task<ApiResult<CurrencyStockResult>> PushCurrenciesAsync(string apiKey, CurrencyStockRequest request, CancellationToken ct)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Post, Url("/inventory/currencies"))
+        {
+            Content = JsonBody(request),
+        };
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<CurrencyStockResult>(message, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public Task<ApiResult<AdvisorOptionsResponse>> GetAdvisorOptionsAsync(
         string apiKey, long characterId, string job, string target, int? gearIndex, string? sort, CancellationToken ct)
     {
