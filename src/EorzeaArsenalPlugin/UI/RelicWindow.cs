@@ -33,6 +33,7 @@ public sealed class RelicWindow : Window, IDisposable
     private readonly Action<string> _openLink;
     private readonly Action _openConfig;
     private readonly ILog _log;
+    private readonly Func<int, string> _gameItemName;
     private readonly CancellationTokenSource _cts = new();
     private volatile string? _message;
     private volatile bool _ticking;
@@ -46,6 +47,7 @@ public sealed class RelicWindow : Window, IDisposable
     /// <param name="openLink">Opens an http(s) address in the browser.</param>
     /// <param name="openConfig">Opens the settings window.</param>
     /// <param name="log">Diagnostics sink.</param>
+    /// <param name="gameItemName">The game's name of an item, for a piece the server sends without one.</param>
     public RelicWindow(
         Localizer localizer,
         RelicService relics,
@@ -54,9 +56,11 @@ public sealed class RelicWindow : Window, IDisposable
         Func<string> webAppBase,
         Action<string> openLink,
         Action openConfig,
-        ILog log)
+        ILog log,
+        Func<int, string> gameItemName)
         : base("Eorzea Arsenal · Relics###EorzeaArsenalRelics")
     {
+        _gameItemName = gameItemName;
         _localizer = localizer;
         _relics = relics;
         _characterId = characterId;
@@ -212,7 +216,7 @@ public sealed class RelicWindow : Window, IDisposable
             }
             else if (row.Next is { } next)
             {
-                var names = string.Join(" + ", next.Items.Select(item => item.Name ?? $"#{item.Id}"));
+                var names = string.Join(" + ", next.Items.Select(ItemName));
                 ImGui.TextUnformatted(_localizer.Get(LocKeys.RelicNext, names, next.Ilvl));
             }
 
@@ -248,7 +252,7 @@ public sealed class RelicWindow : Window, IDisposable
             ImGui.TextUnformatted($"{stage.Key}  ·  i{stage.Ilvl}");
             foreach (var item in stage.Items)
             {
-                ImGui.TextUnformatted(item.Name ?? $"#{item.Id}");
+                ImGui.TextUnformatted(ItemName(item));
             }
 
             ImGui.TextColored(Dim, stage.Mark switch
@@ -305,6 +309,13 @@ public sealed class RelicWindow : Window, IDisposable
             }
         });
     }
+
+    /// <summary>
+    /// The server's name, or the game's where the server has none in this language (it then sends
+    /// <c>#&lt;id&gt;</c>). The game's name is in the client's language, which beats a bare number.
+    /// </summary>
+    private string ItemName(RelicItem item) =>
+        !string.IsNullOrEmpty(item.Name) && !item.Name.StartsWith('#') ? item.Name : _gameItemName((int)item.Id);
 
     private static void Wrapped(Vector4 color, string text)
     {
