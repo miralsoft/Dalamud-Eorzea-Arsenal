@@ -322,6 +322,69 @@ public interface IApiClient
     /// <returns>The new progress, as <c>GET /me/relics</c> answers it.</returns>
     Task<ApiResult<MyRelicsResponse>> PutRelicTickAsync(string apiKey, RelicTickRequest request, CancellationToken ct);
 
+    /// <summary>Reads the player's own times via <c>GET /me/availability</c> (server 1.5, <c>teams:read</c>).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The scopes, absences and teams.</returns>
+    Task<ApiResult<MyAvailabilityResponse>> GetMyAvailabilityAsync(string apiKey, CancellationToken ct);
+
+    /// <summary>Sets a week to a plan via <c>PUT /me/availability/weeks</c> (server 1.5, <c>teams:write</c>).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="request">The week and plan.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Success, or a classified error.</returns>
+    Task<ApiResult<bool>> PutAvailabilityWeekAsync(string apiKey, AvailabilityWeekRequest request, CancellationToken ct);
+
+    /// <summary>"Not tonight" via <c>POST /me/availability/not-tonight</c> (server 1.5, <c>teams:write</c>); once per day and scope.</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="request">One team, or every team.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Success, or a classified error (429 beyond 30 absences an hour).</returns>
+    Task<ApiResult<bool>> PostNotTonightAsync(string apiKey, NotTonightRequest request, CancellationToken ct);
+
+    /// <summary>Deletes one of the player's own absences via <c>DELETE /me/availability/absences/{id}</c> (server 1.5).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="absenceId">The absence.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Success, or a classified error.</returns>
+    Task<ApiResult<bool>> DeleteMyAbsenceAsync(string apiKey, long absenceId, CancellationToken ct);
+
+    /// <summary>Reads every open poll of the player's teams via <c>GET /me/polls</c> (server 1.5; 10 a minute).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The polls, newest first.</returns>
+    Task<ApiResult<MyPollsResponse>> GetMyPollsAsync(string apiKey, CancellationToken ct);
+
+    /// <summary>Answers a candidate via <c>PUT /teams/{id}/polls/{pid}/answer</c> (server 1.5); a null answer takes it back.</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="teamId">The team.</param>
+    /// <param name="pollId">The poll.</param>
+    /// <param name="request">The candidate and answer.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Success, or a classified error (400 for a closed poll or a chosen candidate).</returns>
+    Task<ApiResult<bool>> PutPollAnswerAsync(string apiKey, long teamId, long pollId, PollAnswerRequest request, CancellationToken ct);
+
+    /// <summary>Reads a team's week in numbers via <c>GET /teams/{id}/availability</c> (server 1.5).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="teamId">The team.</param>
+    /// <param name="week">Any date of the week, or <see langword="null"/> for this week.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The week.</returns>
+    Task<ApiResult<TeamAvailabilityResponse>> GetTeamAvailabilityAsync(string apiKey, long teamId, string? week, CancellationToken ct);
+
+    /// <summary>Reads what waits in every team via <c>GET /me/waiting</c> (server 1.5; 10 a minute).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The counts per team.</returns>
+    Task<ApiResult<MyWaitingResponse>> GetMyWaitingAsync(string apiKey, CancellationToken ct);
+
+    /// <summary>Reads a team's change mark via <c>GET /teams/{id}/pulse</c> (server 1.5; 20 a minute per team).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="teamId">The team.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The mark and what waits.</returns>
+    Task<ApiResult<TeamPulseResponse>> GetTeamPulseAsync(string apiKey, long teamId, CancellationToken ct);
+
     /// <summary>
     /// Reads the purchase advice for one set via <c>GET /me/advisor-options</c> (<c>gear:read</c>):
     /// the ranked deterministic steps, the pieces selectable per slot, and what the open slots still

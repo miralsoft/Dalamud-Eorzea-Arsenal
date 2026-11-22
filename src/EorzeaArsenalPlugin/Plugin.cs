@@ -71,6 +71,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly GearsetMappingService _gearsetMapping;
     private readonly JobTableCache _jobTable;
     private readonly ServerFeatures _features;
+    private readonly WaitingCounter _waiting;
     private long _nextFeaturesTicks;
 
     // Cancels the fire-and-forget work this class starts, so a reload does not leave a request running
@@ -236,6 +237,7 @@ public sealed class Plugin : IDalamudPlugin
         // What the server offers beyond the push, from the features list of GET /version (server 1.5). Never
         // from the version number: dev carries new features under an old number until a release stamps it.
         _features = new ServerFeatures(api, _store, new SystemClock(), _log);
+        _waiting = new WaitingCounter(api, _store, new SystemClock(), _log);
 
         _gearSource = new GameGearSource(clientState, playerState, framework, dataManager, _log, GameNameLanguage);
         _inventorySource = new GameInventorySource(clientState, playerState, framework, dataManager, _trackedItems, _log, () => _features.Has(FeatureNames.InventoryArmoire));
@@ -347,10 +349,10 @@ public sealed class Plugin : IDalamudPlugin
         _imageWindow = new ImageWindow(_teamsService, textureProvider, _localizer, _log);
         _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
         _reportWindow = new ReportWindow(_store, _localizer, api, _log, DescribeClient);
-        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReview, () => _review.Summary() ?? _sync.LastReview, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew, () => _bisService.AmbiguousLive.Count, () => _currentCidHash, OpenRelics, () => _features.Has(FeatureNames.Relics));
+        _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReview, () => _review.Summary() ?? _sync.LastReview, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew, () => _bisService.AmbiguousLive.Count, () => _currentCidHash, OpenRelics, () => _features.Has(FeatureNames.Relics), () => _waiting.Total);
         _relicService = new RelicService(api, _store, _store, _log);
         _relicWindow = new RelicWindow(_localizer, _relicService, () => ServerCharacterId(_currentCidHash), () => _config.SyncInventory, WebAppBase, OpenExternalLink, OpenConfig, _log, _gearSource.GetItemName);
-        _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage, OwnChatNotice, _features.Has);
+        _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage, OwnChatNotice, _features.Has, _waiting);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _keyScopes, _log, Save, () => Localizer.Nearest(_pluginInterface.UiLanguage));
         _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _obtainService, _worldActions, _holdingsService, _log);
@@ -1499,6 +1501,16 @@ public sealed class Plugin : IDalamudPlugin
         {
             _nextCurrencyTicks = now + 60_000;
             RequestCurrencySync(CurrencyTrigger.Change);
+
+            // What waits in the teams, for the count on the Teams entry: once a minute, as the site asks.
+            if (_config.SyncTeams && _store.HasKey && _features.Has(FeatureNames.TeamAvailability))
+            {
+                _ = _waiting.RefreshIfDueAsync(_shutdown.Token);
+            }
+            else
+            {
+                _waiting.Clear();
+            }
         }
 
         if (now >= _nextCharRecordTicks)

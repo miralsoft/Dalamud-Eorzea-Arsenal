@@ -2151,4 +2151,127 @@ public static class LocKeys
 
     /// <summary>Relic view: the key may not tick (characters:write missing).</summary>
     public const string RelicScopeHint = "relic.scopehint";
+
+    /// <summary>Teams window: the times tab.</summary>
+    public const string TeamsTabTimes = "teams.tab.times";
+
+    /// <summary>Times: heading of the open polls.</summary>
+    public const string TimesPolls = "times.polls";
+
+    /// <summary>Times: no open poll.</summary>
+    public const string TimesNoPolls = "times.nopolls";
+
+    /// <summary>Times: when a poll closes ({0}).</summary>
+    public const string TimesClosesAt = "times.closesat";
+
+    /// <summary>Times: answers so far ({0} of {1}).</summary>
+    public const string TimesAnswered = "times.answered";
+
+    /// <summary>Times: answer yes.</summary>
+    public const string TimesYes = "times.yes";
+
+    /// <summary>Times: answer maybe.</summary>
+    public const string TimesMaybe = "times.maybe";
+
+    /// <summary>Times: answer no.</summary>
+    public const string TimesNo = "times.no";
+
+    /// <summary>Times: a candidate's counts ({0} yes, {1} maybe, {2} no).</summary>
+    public const string TimesCounts = "times.counts";
+
+    /// <summary>Times: the best candidate.</summary>
+    public const string TimesBest = "times.best";
+
+    /// <summary>Times: fewer yes than the minimum.</summary>
+    public const string TimesBelowMin = "times.belowmin";
+
+    /// <summary>Times: the candidate became an event.</summary>
+    public const string TimesChosen = "times.chosen";
+
+    /// <summary>Times: the own times say can.</summary>
+    public const string TimesFitYes = "times.fit.yes";
+
+    /// <summary>Times: the own times say if needed.</summary>
+    public const string TimesFitMaybe = "times.fit.maybe";
+
+    /// <summary>Times: the own times say cannot.</summary>
+    public const string TimesFitNo = "times.fit.no";
+
+    /// <summary>Times: the week is still open.</summary>
+    public const string TimesFitUnclear = "times.fit.unclear";
+
+    /// <summary>Times: a weekly candidate suits some dates ({0} of {1}).</summary>
+    public const string TimesFitMixed = "times.fit.mixed";
+
+    /// <summary>Times: answer the rest from the own times.</summary>
+    public const string TimesAnswerFromTimes = "times.answerfromtimes";
+
+    /// <summary>Times: which plan holds for an open week ({0}).</summary>
+    public const string TimesOpenWeek = "times.openweek";
+
+    /// <summary>Times: open on the website.</summary>
+    public const string TimesWebsite = "times.website";
+
+    /// <summary>Times: a weekly candidate.</summary>
+    public const string TimesWeekly = "times.weekly";
+
+    /// <summary>Times: the first date of a weekly candidate ({0}).</summary>
+    public const string TimesFromDate = "times.fromdate";
+
+    /// <summary>Times: heading of the own times.</summary>
+    public const string TimesMine = "times.mine";
+
+    /// <summary>Times: this week's plan ({0}).</summary>
+    public const string TimesThisWeek = "times.thisweek";
+
+    /// <summary>Times: next week's plan ({0}).</summary>
+    public const string TimesNextWeek = "times.nextweek";
+
+    /// <summary>Times: the active plan holds ({0}).</summary>
+    public const string TimesGrundplan = "times.grundplan";
+
+    /// <summary>Times: no plan chosen for the week.</summary>
+    public const string TimesWeekOpen = "times.weekopen";
+
+    /// <summary>Times: no times entered.</summary>
+    public const string TimesNoTimes = "times.notimes";
+
+    /// <summary>Times: edit the times on the website.</summary>
+    public const string TimesEditOnSite = "times.editonsite";
+
+    /// <summary>Times: label of the plan buttons for next week.</summary>
+    public const string TimesSetWeek = "times.setweek";
+
+    /// <summary>Times: heading of the own absences.</summary>
+    public const string TimesMyAbsences = "times.myabsences";
+
+    /// <summary>Times: not tonight, every team.</summary>
+    public const string TimesNotTonight = "times.nottonight";
+
+    /// <summary>Times: not tonight, this team only.</summary>
+    public const string TimesNotTonightTeam = "times.nottonight.team";
+
+    /// <summary>Times: asks before "not tonight" goes out.</summary>
+    public const string TimesNotTonightConfirm = "times.nottonight.confirm";
+
+    /// <summary>Times: confirm "not tonight".</summary>
+    public const string TimesConfirm = "times.confirm";
+
+    /// <summary>Times: heading of the team's next event.</summary>
+    public const string TimesEvening = "times.evening";
+
+    /// <summary>Times: no event this week or next.</summary>
+    public const string TimesEveningNone = "times.evening.none";
+
+    /// <summary>Times: the core at the start ({0} can, {1} if needed, {2} open, {3} cannot, {4} size).</summary>
+    public const string TimesEveningCounts = "times.evening.counts";
+
+    /// <summary>Times: participants without times ({0} of {1}).</summary>
+    public const string TimesMissing = "times.missing";
+
+    /// <summary>Status menu: one item waits in the teams.</summary>
+    public const string StatusOpenItemsOne = "status.openitems.one";
+
+    /// <summary>Status menu: several items wait in the teams ({0}).</summary>
+    public const string StatusOpenItemsMany = "status.openitems.many";
 }

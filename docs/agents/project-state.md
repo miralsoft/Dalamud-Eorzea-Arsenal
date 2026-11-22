@@ -36,6 +36,11 @@ Built so far, each on its own branch stacked on the one before (none pushed yet)
   `relics`. Without a known server character id it asks `GET /me/relics` without one, which is the
   account's active character. The version bump to 1.3.0 and the release notes come last, once every
   piece is in, so the notes describe the whole release.
+- `feat/times-polls`: the "Zeiten" tab of the Teams window (`TimesView`) and the waiting count on the
+  Teams entry (`WaitingCounter`). `GET /me/polls` is read in both shapes (`{ polls }` as the contract
+  writes it, or inside `data`), since the contract's example has no envelope. Writes whose answer the
+  view does not need (answers, weeks, "not tonight", deletes) take any 2xx and read again. "Not tonight"
+  asks once before it goes, because the team is told.
 
 The foundation moved from the 3.3.0 this repository was audited against to 5.3.0. The Dalamud profile
 and blueprint are unchanged; the points that touch this repository are listed in

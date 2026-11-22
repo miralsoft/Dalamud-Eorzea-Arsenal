@@ -51,6 +51,7 @@ public sealed class StatusWindow : Window
     private readonly Func<string?> _currentCharacter;
     private readonly Action _openRelics;
     private readonly Func<bool> _relicsOffered;
+    private readonly Func<int> _waitingTotal;
     private readonly Action _openReport;
     private readonly Action _openTeams;
     private readonly Action _openCalendar;
@@ -89,6 +90,7 @@ public sealed class StatusWindow : Window
     /// </param>
     /// <param name="openRelics">Opens the relic view.</param>
     /// <param name="relicsOffered">Whether the server offers the relic helper (server 1.5); the entry shows only then.</param>
+    /// <param name="waitingTotal">What waits in the teams (server 1.5), shown on the Teams entry.</param>
     public StatusWindow(
         PluginConfig config,
         ConfigStore store,
@@ -114,9 +116,11 @@ public sealed class StatusWindow : Window
         Func<int> twinCount,
         Func<string?> currentCharacter,
         Action openRelics,
-        Func<bool> relicsOffered)
+        Func<bool> relicsOffered,
+        Func<int> waitingTotal)
         : base("Eorzea Arsenal###EorzeaArsenalStatus")
     {
+        _waitingTotal = waitingTotal;
         _openRelics = openRelics;
         _relicsOffered = relicsOffered;
         _config = config;
@@ -240,7 +244,15 @@ public sealed class StatusWindow : Window
         }
 
         Section(T(LocKeys.SectionView));
-        if (_config.SyncTeams && MenuButton(FontAwesomeIcon.Users, T(LocKeys.TeamsOpen)))
+        // What waits in the teams rides on the entry, as a sentence with its noun, never a bare number.
+        var waitingItems = _waitingTotal();
+        var teamsLabel = waitingItems switch
+        {
+            <= 0 => T(LocKeys.TeamsOpen),
+            1 => $"{T(LocKeys.TeamsOpen)}   ·   {T(LocKeys.StatusOpenItemsOne)}",
+            _ => $"{T(LocKeys.TeamsOpen)}   ·   {_localizer.Get(LocKeys.StatusOpenItemsMany, waitingItems)}",
+        };
+        if (_config.SyncTeams && MenuButton(FontAwesomeIcon.Users, teamsLabel, accent: waitingItems > 0 ? Yellow : null))
         {
             _openTeams();
         }
@@ -324,7 +336,7 @@ public sealed class StatusWindow : Window
             if (MenuButton(
                 FontAwesomeIcon.QuestionCircle,
                 $"{T(LocKeys.ReviewTitle)}   ·   {label}",
-                accent: waiting > 0 ? Yellow : null))
+                accent: waitingItems > 0 ? Yellow : null))
             {
                 _openReview();
             }

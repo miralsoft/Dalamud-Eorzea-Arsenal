@@ -395,6 +395,64 @@ public sealed class TeamsService : IDisposable
     public Task<ApiResult<bool>> DeleteAbsenceAsync(long teamId, long absenceId, CancellationToken ct) =>
         WithKey(key => _api.DeleteAbsenceAsync(key, teamId, absenceId, ct));
 
+    /// <summary>Reads the player's own times (server 1.5).</summary>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The times, or an error.</returns>
+    public Task<ApiResult<MyAvailabilityResponse>> GetMyAvailabilityAsync(CancellationToken ct) =>
+        WithKey(key => _api.GetMyAvailabilityAsync(key, ct));
+
+    /// <summary>Sets a week to a plan, or takes it back with a null plan (server 1.5).</summary>
+    /// <param name="request">The week and plan.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Success, or an error.</returns>
+    public Task<ApiResult<bool>> SetWeekPlanAsync(AvailabilityWeekRequest request, CancellationToken ct) =>
+        WithKey(key => _api.PutAvailabilityWeekAsync(key, request, ct));
+
+    /// <summary>"Not tonight" for one team or, with <see langword="null"/>, every team (server 1.5).</summary>
+    /// <param name="teamId">The team, or <see langword="null"/>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Success, or an error.</returns>
+    public Task<ApiResult<bool>> NotTonightAsync(long? teamId, CancellationToken ct) =>
+        WithKey(key => _api.PostNotTonightAsync(key, new NotTonightRequest { TeamId = teamId }, ct));
+
+    /// <summary>Deletes one of the player's own absences from the own times (server 1.5).</summary>
+    /// <param name="absenceId">The absence.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Success, or an error.</returns>
+    public Task<ApiResult<bool>> DeleteMyAbsenceAsync(long absenceId, CancellationToken ct) =>
+        WithKey(key => _api.DeleteMyAbsenceAsync(key, absenceId, ct));
+
+    /// <summary>Reads every open poll of the player's teams (server 1.5).</summary>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The polls, or an error.</returns>
+    public Task<ApiResult<MyPollsResponse>> GetMyPollsAsync(CancellationToken ct) =>
+        WithKey(key => _api.GetMyPollsAsync(key, ct));
+
+    /// <summary>Answers a candidate, or takes the answer back with <see langword="null"/> (server 1.5).</summary>
+    /// <param name="teamId">The team.</param>
+    /// <param name="pollId">The poll.</param>
+    /// <param name="optionId">The candidate.</param>
+    /// <param name="answer"><c>yes</c>, <c>maybe</c>, <c>no</c> or <see langword="null"/>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>Success, or an error.</returns>
+    public Task<ApiResult<bool>> AnswerPollAsync(long teamId, long pollId, long optionId, string? answer, CancellationToken ct) =>
+        WithKey(key => _api.PutPollAnswerAsync(key, teamId, pollId, new PollAnswerRequest { OptionId = optionId, Answer = answer }, ct));
+
+    /// <summary>Reads a team's week in numbers (server 1.5).</summary>
+    /// <param name="teamId">The team.</param>
+    /// <param name="week">Any date of the week, or <see langword="null"/> for this week.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The week, or an error.</returns>
+    public Task<ApiResult<TeamAvailabilityResponse>> GetTeamAvailabilityAsync(long teamId, string? week, CancellationToken ct) =>
+        WithKey(key => _api.GetTeamAvailabilityAsync(key, teamId, week, ct));
+
+    /// <summary>Reads a team's change mark (server 1.5).</summary>
+    /// <param name="teamId">The team.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The pulse, or an error.</returns>
+    public Task<ApiResult<TeamPulseResponse>> GetTeamPulseAsync(long teamId, CancellationToken ct) =>
+        WithKey(key => _api.GetTeamPulseAsync(key, teamId, ct));
+
     private Task<ApiResult<T>> WithKey<T>(Func<string, Task<ApiResult<T>>> call)
     {
         var key = _tokens.ApiKey;

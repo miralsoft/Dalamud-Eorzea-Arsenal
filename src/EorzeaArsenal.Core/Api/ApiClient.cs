@@ -337,6 +337,58 @@ public sealed class ApiClient : IApiClient
     }
 
     /// <inheritdoc />
+    public Task<ApiResult<MyAvailabilityResponse>> GetMyAvailabilityAsync(string apiKey, CancellationToken ct) =>
+        GetAsync<MyAvailabilityResponse>("/me/availability", apiKey, ct);
+
+    /// <inheritdoc />
+    public Task<ApiResult<bool>> PutAvailabilityWeekAsync(string apiKey, AvailabilityWeekRequest request, CancellationToken ct) =>
+        SendJsonVoidAsync(HttpMethod.Put, "/me/availability/weeks", apiKey, request, ct);
+
+    /// <inheritdoc />
+    public Task<ApiResult<bool>> PostNotTonightAsync(string apiKey, NotTonightRequest request, CancellationToken ct) =>
+        SendJsonVoidAsync(HttpMethod.Post, "/me/availability/not-tonight", apiKey, request, ct);
+
+    /// <inheritdoc />
+    public async Task<ApiResult<bool>> DeleteMyAbsenceAsync(string apiKey, long absenceId, CancellationToken ct)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Delete, Url($"/me/availability/absences/{absenceId}"));
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendVoidAsync(message, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<MyPollsResponse>> GetMyPollsAsync(string apiKey, CancellationToken ct) =>
+        GetAsync<MyPollsResponse>("/me/polls", apiKey, ct);
+
+    /// <inheritdoc />
+    public Task<ApiResult<bool>> PutPollAnswerAsync(string apiKey, long teamId, long pollId, PollAnswerRequest request, CancellationToken ct) =>
+        SendJsonVoidAsync(HttpMethod.Put, $"/teams/{teamId}/polls/{pollId}/answer", apiKey, request, ct);
+
+    /// <inheritdoc />
+    public Task<ApiResult<TeamAvailabilityResponse>> GetTeamAvailabilityAsync(string apiKey, long teamId, string? week, CancellationToken ct) =>
+        GetAsync<TeamAvailabilityResponse>(
+            week is null ? $"/teams/{teamId}/availability" : $"/teams/{teamId}/availability?week={Uri.EscapeDataString(week)}", apiKey, ct);
+
+    /// <inheritdoc />
+    public Task<ApiResult<MyWaitingResponse>> GetMyWaitingAsync(string apiKey, CancellationToken ct) =>
+        GetAsync<MyWaitingResponse>("/me/waiting", apiKey, ct);
+
+    /// <inheritdoc />
+    public Task<ApiResult<TeamPulseResponse>> GetTeamPulseAsync(string apiKey, long teamId, CancellationToken ct) =>
+        GetAsync<TeamPulseResponse>($"/teams/{teamId}/pulse", apiKey, ct);
+
+    /// <summary>Sends a JSON body and takes any 2xx as success, ignoring the answer's body.</summary>
+    private async Task<ApiResult<bool>> SendJsonVoidAsync<TBody>(HttpMethod method, string path, string apiKey, TBody body, CancellationToken ct)
+    {
+        using var message = new HttpRequestMessage(method, Url(path))
+        {
+            Content = JsonBody(body),
+        };
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendVoidAsync(message, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
     public Task<ApiResult<AdvisorOptionsResponse>> GetAdvisorOptionsAsync(
         string apiKey, long characterId, string job, string target, int? gearIndex, string? sort, CancellationToken ct)
     {

@@ -59,6 +59,7 @@ public sealed class TeamsWindow : Window
     private readonly Slot<LogsResponse> _logsSlot = new();
     private readonly Slot<AbsencesResponse> _absenceSlot = new();
     private readonly Func<string, bool> _hasFeature;
+    private readonly TimesView _timesView;
 
     // Both carry the names of team members. They live here and nowhere else: never persisted, and dropped
     // together with every other team read the moment the key is gone.
@@ -129,6 +130,7 @@ public sealed class TeamsWindow : Window
     /// invitation link, and never with the link in it.
     /// </param>
     /// <param name="hasFeature">Whether the server lists a feature in <c>features</c> of <c>GET /version</c>.</param>
+    /// <param name="waiting">What waits in the teams (server 1.5), expired after an answer in the times tab.</param>
     public TeamsWindow(
         PluginConfig config,
         ConfigStore store,
@@ -146,10 +148,12 @@ public sealed class TeamsWindow : Window
         Action openConfig,
         Action<long, long, string?> openImage,
         Action<string> ownChatNotice,
-        Func<string, bool> hasFeature)
+        Func<string, bool> hasFeature,
+        WaitingCounter waiting)
         : base("Eorzea Arsenal · Teams###EorzeaArsenalTeams")
     {
         _hasFeature = hasFeature;
+        _timesView = new TimesView(localizer, teams, waiting, hasFeature, path => OpenApp(path), log);
         _myCharacterId = myCharacterId;
         _config = config;
         _store = store;
@@ -227,6 +231,14 @@ public sealed class TeamsWindow : Window
         }
 
         Tab(LocKeys.TeamsTabEvents, "termine", DrawEvents);
+
+        // Times and polls (server 1.5): only where the server lists them, so an older server never shows
+        // a tab whose every read would answer 404.
+        if (_timesView.Offered && CurrentTeam() is { } timesTeam)
+        {
+            Tab(LocKeys.TeamsTabTimes, "zeiten", () => _timesView.Draw(timesTeam.Id));
+        }
+
         // Only where the server sends the line-up summary. A server before 1.4 answers the line-up read with
         // a 404, which this window would have to render as "not a member of this team": false, and alarming
         // to a member reading it. The field's presence is the test, agreed with the server side, not a
@@ -248,6 +260,12 @@ public sealed class TeamsWindow : Window
         if (!tab)
         {
             return;
+        }
+
+        // Opening the times tab is when the contract says to read the polls.
+        if (slug == "zeiten" && _activeTab != slug)
+        {
+            _timesView.Invalidate();
         }
 
         _activeTab = slug;
@@ -2623,6 +2641,7 @@ public sealed class TeamsWindow : Window
     private void RefreshAll()
     {
         ResetSlots();
+        _timesView.Invalidate();
         _teams.RequestPoll(force: true);
     }
 

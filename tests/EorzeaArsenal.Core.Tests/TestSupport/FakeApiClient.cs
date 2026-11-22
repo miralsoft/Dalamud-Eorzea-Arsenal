@@ -440,6 +440,94 @@ public sealed class FakeApiClient : IApiClient
         return Task.FromResult(RelicTickResult);
     }
 
+    /// <summary>Result of <see cref="GetMyAvailabilityAsync"/>.</summary>
+    public ApiResult<MyAvailabilityResponse> MyAvailabilityResult { get; set; } = ApiResult<MyAvailabilityResponse>.Ok(new MyAvailabilityResponse());
+
+    /// <summary>Weeks set, in call order.</summary>
+    public List<AvailabilityWeekRequest> WeekWrites { get; } = [];
+
+    /// <summary>"Not tonight" presses, in call order.</summary>
+    public List<NotTonightRequest> NotTonightPresses { get; } = [];
+
+    /// <summary>Own absences deleted, in call order.</summary>
+    public List<long> MyAbsenceDeletes { get; } = [];
+
+    /// <summary>Result of <see cref="GetMyPollsAsync"/>.</summary>
+    public ApiResult<MyPollsResponse> MyPollsResult { get; set; } = ApiResult<MyPollsResponse>.Ok(new MyPollsResponse());
+
+    /// <summary>Number of <see cref="GetMyPollsAsync"/> calls.</summary>
+    public int MyPollsReads { get; private set; }
+
+    /// <summary>Answers sent, in call order.</summary>
+    public List<(long TeamId, long PollId, PollAnswerRequest Request)> PollAnswers { get; } = [];
+
+    /// <summary>Result of every write that answers with success only (weeks, not tonight, answers, deletes).</summary>
+    public ApiResult<bool> VoidWriteResult { get; set; } = ApiResult<bool>.Ok(true);
+
+    /// <summary>Result of <see cref="GetTeamAvailabilityAsync"/>.</summary>
+    public ApiResult<TeamAvailabilityResponse> TeamAvailabilityResult { get; set; } = ApiResult<TeamAvailabilityResponse>.Ok(new TeamAvailabilityResponse());
+
+    /// <summary>Result of <see cref="GetMyWaitingAsync"/>.</summary>
+    public ApiResult<MyWaitingResponse> MyWaitingResult { get; set; } = ApiResult<MyWaitingResponse>.Ok(new MyWaitingResponse { Data = new MyWaiting() });
+
+    /// <summary>Number of <see cref="GetMyWaitingAsync"/> calls.</summary>
+    public int MyWaitingReads { get; private set; }
+
+    /// <summary>Result of <see cref="GetTeamPulseAsync"/>.</summary>
+    public ApiResult<TeamPulseResponse> TeamPulseResult { get; set; } = ApiResult<TeamPulseResponse>.Ok(new TeamPulseResponse());
+
+    /// <inheritdoc />
+    public Task<ApiResult<MyAvailabilityResponse>> GetMyAvailabilityAsync(string apiKey, CancellationToken ct) => Task.FromResult(MyAvailabilityResult);
+
+    /// <inheritdoc />
+    public Task<ApiResult<bool>> PutAvailabilityWeekAsync(string apiKey, AvailabilityWeekRequest request, CancellationToken ct)
+    {
+        WeekWrites.Add(request);
+        return Task.FromResult(VoidWriteResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<bool>> PostNotTonightAsync(string apiKey, NotTonightRequest request, CancellationToken ct)
+    {
+        NotTonightPresses.Add(request);
+        return Task.FromResult(VoidWriteResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<bool>> DeleteMyAbsenceAsync(string apiKey, long absenceId, CancellationToken ct)
+    {
+        MyAbsenceDeletes.Add(absenceId);
+        return Task.FromResult(VoidWriteResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<MyPollsResponse>> GetMyPollsAsync(string apiKey, CancellationToken ct)
+    {
+        MyPollsReads++;
+        return Task.FromResult(MyPollsResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<bool>> PutPollAnswerAsync(string apiKey, long teamId, long pollId, PollAnswerRequest request, CancellationToken ct)
+    {
+        PollAnswers.Add((teamId, pollId, request));
+        return Task.FromResult(VoidWriteResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<TeamAvailabilityResponse>> GetTeamAvailabilityAsync(string apiKey, long teamId, string? week, CancellationToken ct) =>
+        Task.FromResult(TeamAvailabilityResult);
+
+    /// <inheritdoc />
+    public Task<ApiResult<MyWaitingResponse>> GetMyWaitingAsync(string apiKey, CancellationToken ct)
+    {
+        MyWaitingReads++;
+        return Task.FromResult(MyWaitingResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<TeamPulseResponse>> GetTeamPulseAsync(string apiKey, long teamId, CancellationToken ct) => Task.FromResult(TeamPulseResult);
+
     /// <summary>Each snapshot passed to <see cref="PushCurrenciesAsync"/>, in call order.</summary>
     public List<CurrencyStockRequest> CurrencyPushes { get; } = [];
 

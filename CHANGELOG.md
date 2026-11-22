@@ -39,6 +39,22 @@ For 1.3.0, built in `release/v1.3.0`. Requires server 1.5.
   inventory sync or a gear push. A click on a stage ticks up to it (`PUT /me/relics`), a click on the
   ticked stage takes the tick back; nothing is ticked otherwise. One line reminds that the glamour dresser
   and the armoire count once opened, and a hint shows when the inventory is not sent.
+- **The "Zeiten" tab in the Teams window** (`TimesView`, `AvailabilityRules`; where the server lists
+  `polls` or `team-availability`):
+  - open polls of every team from `GET /me/polls`, the current team's first, each candidate with its
+    counts, "best time", the player's answer as three buttons (a click on the chosen one takes it back)
+    and what the player's times say, with the suggested answer in yellow; "Answer from my times" answers
+    the rest the way the site does, after asking for the plan of a week the player left open;
+  - "Not tonight", for every team or this one, asked once before it goes, since the team is told;
+  - the player's times read-only from `GET /me/availability`: the plan of this week and the next by the
+    contract's rule (by hand, rhythm, open, else the "Grundplan"), the plan of next week settable with
+    one click, and the own absences with a delete button;
+  - the team's next event with the core's numbers at its start half hour and who has no times.
+
+  The polls are read when the tab opens and after an answer, never twice within ten seconds; the team's
+  `/pulse` every ten seconds while the tab is drawn, and the rest only again when its mark changed.
+- **What waits in the teams on the Teams entry** of the status menu ("3 open items"), from
+  `GET /me/waiting` once a minute (`WaitingCounter`), holding back on a 429 for its `Retry-After`.
 
 ### Changed
 - **`PUT /me/tome-balance` is not called on a 1.5 server**, where the currency sync sets the balance, and

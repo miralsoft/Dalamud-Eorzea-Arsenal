@@ -362,6 +362,33 @@ public sealed class GearSyncServiceTests
         public Task<ApiResult<MyRelicsResponse>> PutRelicTickAsync(string apiKey, RelicTickRequest request, CancellationToken ct) =>
             throw new NotSupportedException();
 
+        public Task<ApiResult<MyAvailabilityResponse>> GetMyAvailabilityAsync(string apiKey, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<bool>> PutAvailabilityWeekAsync(string apiKey, AvailabilityWeekRequest request, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<bool>> PostNotTonightAsync(string apiKey, NotTonightRequest request, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<bool>> DeleteMyAbsenceAsync(string apiKey, long absenceId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<MyPollsResponse>> GetMyPollsAsync(string apiKey, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<bool>> PutPollAnswerAsync(string apiKey, long teamId, long pollId, PollAnswerRequest request, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<TeamAvailabilityResponse>> GetTeamAvailabilityAsync(string apiKey, long teamId, string? week, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<MyWaitingResponse>> GetMyWaitingAsync(string apiKey, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<TeamPulseResponse>> GetTeamPulseAsync(string apiKey, long teamId, CancellationToken ct) =>
+            throw new NotSupportedException();
+
         public Task<ApiResult<AdvisorPlanResponse>> GetAdvisorPlanAsync(string apiKey, long characterId, string job, string target, CancellationToken ct) =>
             throw new NotSupportedException();
 
