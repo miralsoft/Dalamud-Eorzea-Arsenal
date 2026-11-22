@@ -62,8 +62,9 @@ Every piece of 1.3.0 is built. The branches stack in this order, each on the one
 in-game test on dev, then each branch into `release/v1.3.0` (a push or PR only on its own go).
 
 The foundation moved from the 3.3.0 this repository was audited against to 5.3.0. The Dalamud profile
-and blueprint are unchanged; the points that touch this repository are listed in
-`foundation-compliance.md` once it is updated.
+and blueprint are unchanged; `foundation-compliance.md` carries the 5.3.0 pass (2026-11-22): two new
+findings (21: the C# check of C-03 and the IDE0005 line; 22: no `project.md` declaring the committing
+identities), the rest holds or does not apply. Both stay parked with the other twenty.
 
 ## Previous: 1.2.0, the release of 2026-10-10. Players go from 1.0.0 straight to it; 1.1.0 is skipped.
 

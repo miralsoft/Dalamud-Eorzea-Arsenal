@@ -6,6 +6,47 @@ session, and so the next person can see what was checked and what was not.
 
 Deliberately parked until the gearset identity work is finished and tested.
 
+## Update: ruleset 5.3.0 (2026-11-22)
+
+The foundation moved from 3.3.0 to **5.3.0** (commit `97445a6`, 2026-11-18). This pass read what changed
+between the two in the global rules and the C# profile; the Dalamud profile and the blueprint are
+unchanged. Two new findings, numbered on from the twenty above. Everything else that changed either
+holds already or does not apply here.
+
+**New findings**
+
+21. **C-03 names a different check for C# now.** It has two halves: `dotnet format whitespace
+    --verify-no-changes` for the layout, and the build itself, strict through `EnforceCodeStyleInBuild`
+    and `TreatWarningsAsErrors`, for everything else. CI still runs the full `dotnet format
+    --verify-no-changes` per project, the form the profile retired because it analyses without the
+    sources the build generates and then flags a needed `using`. It passes here today only because no
+    project generates sources. The switch belongs with the build strictness of section A (findings 1
+    to 7), since the second half does not exist until those land. Part of the same item: `.editorconfig`
+    lacks `dotnet_diagnostic.IDE0005.severity = warning` under `[*.cs]`, without which unnecessary
+    `using` directives are never reported.
+22. **R-19: the committing identities are declared nowhere.** A project names in its `project.md` which
+    owner name applies and every further identity that authors commits. Here that is `Sanaka` with the
+    repository-local address, plus Dependabot. The repository has no `project.md`.
+
+**Changed and already held**
+
+| Rule | What it asks | Here |
+|---|---|---|
+| C-15, C-16 | a generated artefact is never edited, and its reproduction is checked | `changelog.json` is generated from `ReleaseNotes.cs`; `ChangelogJsonTests` fails on any difference |
+| I-13 | an assistant does not write by hand what a tool writes | `changelog.json` is regenerated with `EORZEA_UPDATE_CHANGELOG=1`, never edited |
+| D-17 | an announcement reports only what a user could have seen | the release-note rule of this repository, applied since 1.2.0 |
+| R-09 | no AI credited with the project's work, widened in 5.2.0 | no such line in any commit, PR or release |
+| R-23 | a gate that could not run has not passed | the CI steps fail on a missing tool or input instead of skipping |
+| S-16 | a development-only door does not exist in a deployment | developer surfaces compile only with `EORZEA_ARSENAL_DEVTOOLS`, and CI refuses the file that sets it |
+
+**Not relevant here:** the O rules (operations of hosted services), the AC rules, MCP, CSS and Sass, WPF,
+and the xUnit v3 notes of the C# profile (this repository is on xUnit 2.9.3; they apply on a move).
+**Borderline:** the PowerShell profile, for the one script `scripts/generate-pluginmaster.ps1`.
+
+**A correction to "What already holds" below:** since 1.3.0 one switch ships on, "Tomestones and
+scrips", as agreed with the server side. It sends to the plugin's own API, never to the game server, so
+the Dalamud profile's rule is untouched; the sentence below is adjusted to say so.
+
 ## What was checked, and what was not
 
 | Document | Lines | Coverage |
@@ -125,7 +166,7 @@ and a green build.
 ## What already holds
 
 Worth stating so the list above is not read as a verdict on the whole plugin. **Every automatic
-behaviour that reaches the game server ships off**: all seven switches default to `false`, which is the
+behaviour that reaches the game server ships off**: every switch that does defaults to `false`, which is the
 single most consequential rule in the Dalamud profile. Windows go through the windowing system. The
 host's own entry points are subscribed and unsubscribed. Developer surfaces are absent from a released
 build, with a CI guard against committing the switch. There is no dynamic code execution. The
