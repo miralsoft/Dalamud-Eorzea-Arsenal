@@ -373,7 +373,7 @@ public sealed class ConfigWindow : Window, IDisposable
         // against live that only exists on a test server.
         if (_store.IsCustomAddress)
         {
-            ImGui.TextColored(Yellow, _localizer.Get(LocKeys.BaseUrlCustom, _store.AddressKey));
+            Wrapped(Yellow, _localizer.Get(LocKeys.BaseUrlCustom, _store.AddressKey));
         }
 
         if (ImGui.Button(T(LocKeys.TestConnection)))
@@ -381,11 +381,20 @@ public sealed class ConfigWindow : Window, IDisposable
             RunTestConnection();
         }
 
+        // Wrapped too: an error from the test can be longer than the line beside the button.
         if (!string.IsNullOrEmpty(_testStatus))
         {
             ImGui.SameLine();
-            ImGui.TextUnformatted(_testStatus);
+            ImGui.TextWrapped(_testStatus);
         }
+    }
+
+    /// <summary>Coloured text that wraps at the window edge instead of running out of it.</summary>
+    private static void Wrapped(Vector4 color, string text)
+    {
+        ImGui.PushStyleColor(ImGuiCol.Text, color);
+        ImGui.TextWrapped(text);
+        ImGui.PopStyleColor();
     }
 
     /// <summary>The "get connected" flow shown before an account is linked (no tabs yet).</summary>

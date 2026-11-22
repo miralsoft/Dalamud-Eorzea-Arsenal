@@ -28,6 +28,10 @@ For 1.3.0, built in `release/v1.3.0`. Requires server 1.5.
 - **`PUT /me/tome-balance` is not called on a 1.5 server**, where the currency sync sets the balance, and
   not at all with the tomestones-and-scrips switch off. Before 1.5 it is sent as before.
 
+### Fixed
+- **The connection tab wraps its notes**: the line naming a test server and the result of the connection
+  test ran out of a narrow settings window and were cut off.
+
 ## [1.2.0] - 2026-10-10
 
 Requires server 1.4. Players come from 1.0.0: 1.1.0 was announced but never tagged, and everything in it
