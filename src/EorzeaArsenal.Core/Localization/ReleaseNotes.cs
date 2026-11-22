@@ -53,6 +53,49 @@ public static class ReleaseNotes
     /// <summary>Every release worth telling the user about, newest first.</summary>
     public static IReadOnlyList<ReleaseNote> All { get; } =
     [
+        new ReleaseNote("1.3.0", "2026-11-22",
+        [
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "relics-in-game",
+                "Relikte im Spiel: Ein neues Fenster zeigt für jeden Job, welche Stufe deiner Reliktwaffe oder deines Reliktwerkzeugs erreicht ist und welche als Nächstes kommt.",
+                "Relics in game: a new window shows for every job which stage of your relic weapon or tool you have reached and which comes next."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "times-and-polls-in-game",
+                "Zeiten und Umfragen im Spiel: Im Team-Fenster beantwortest du Terminumfragen, siehst deinen Wochenplan und wie viele zum nächsten Termin können.",
+                "Times and polls in game: in the team window you answer date polls, see your week's plan and how many can make the next event."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "not-tonight-button",
+                "Heute nicht: Ein Knopf im Team-Fenster trägt dich für heute aus, für alle Teams oder nur für eines.",
+                "Not tonight: one button in the team window takes you out for today, for all teams or just one."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Improved,
+                "absences-with-hours",
+                "Abwesenheiten mit Uhrzeit: Du kannst auch nur einige Stunden eintragen und sagen, ob du dann nicht da bist, kannst oder nur wenn nötig.",
+                "Absences with hours: you can also enter just a few hours and say whether you are away then, can come, or only if needed."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "open-items-on-the-teams-entry",
+                "Offene Punkte auf einen Blick: Im Menü steht bei Teams, wie viele Umfragen und Termine noch auf deine Antwort warten.",
+                "Open items at a glance: the menu shows next to Teams how many polls and dates still wait for your answer."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "tomestones-and-scrips-come-along",
+                "Tomesteine und Scrips kommen mit: Farmplan, Kaufberater und Scrip-Rechner kennen jetzt deine Bestände, ohne dass du sie eintippst.",
+                "Tomestones and scrips come along: the farm plan, purchase advisor and scrip calculator now know what you hold without you typing it in."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "the-armoire-counts-too",
+                "Das Kabinett zählt mit: Was dort liegt, wird mit deinem Besitz übertragen, sobald du es einmal geöffnet hast.",
+                "The armoire counts too: what it holds is synced with your items once you have opened it."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "drop-and-spot-reports",
+                "Drop- und Fundort-Meldungen: Wenn du zustimmst, meldet das Plugin anonym, was in Duties droppt und wo fehlende NPCs, Monster und FATEs stehen.",
+                "Drop and spot reports: if you agree, the plugin reports anonymously what drops in duties and where missing NPCs, monsters and FATEs stand."),
+        ]),
         new ReleaseNote("1.2.0", "2026-10-10",
         [
             new ReleaseNoteItem(

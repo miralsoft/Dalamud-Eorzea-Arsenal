@@ -1,6 +1,126 @@
 {
   "entries": [
     {
+      "id": "relics-in-game",
+      "version": "1.3.0",
+      "date": "2026-11-22",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Relikte im Spiel",
+        "body": "<p>Ein neues Fenster zeigt für jeden Job, welche Stufe deiner Reliktwaffe oder deines Reliktwerkzeugs erreicht ist und welche als Nächstes kommt.</p>"
+      },
+      "en": {
+        "title": "Relics in game",
+        "body": "<p>A new window shows for every job which stage of your relic weapon or tool you have reached and which comes next.</p>"
+      }
+    },
+    {
+      "id": "times-and-polls-in-game",
+      "version": "1.3.0",
+      "date": "2026-11-22",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Zeiten und Umfragen im Spiel",
+        "body": "<p>Im Team-Fenster beantwortest du Terminumfragen, siehst deinen Wochenplan und wie viele zum nächsten Termin können.</p>"
+      },
+      "en": {
+        "title": "Times and polls in game",
+        "body": "<p>In the team window you answer date polls, see your week's plan and how many can make the next event.</p>"
+      }
+    },
+    {
+      "id": "not-tonight-button",
+      "version": "1.3.0",
+      "date": "2026-11-22",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Heute nicht",
+        "body": "<p>Ein Knopf im Team-Fenster trägt dich für heute aus, für alle Teams oder nur für eines.</p>"
+      },
+      "en": {
+        "title": "Not tonight",
+        "body": "<p>One button in the team window takes you out for today, for all teams or just one.</p>"
+      }
+    },
+    {
+      "id": "absences-with-hours",
+      "version": "1.3.0",
+      "date": "2026-11-22",
+      "kind": "change",
+      "source": "plugin",
+      "de": {
+        "title": "Abwesenheiten mit Uhrzeit",
+        "body": "<p>Du kannst auch nur einige Stunden eintragen und sagen, ob du dann nicht da bist, kannst oder nur wenn nötig.</p>"
+      },
+      "en": {
+        "title": "Absences with hours",
+        "body": "<p>You can also enter just a few hours and say whether you are away then, can come, or only if needed.</p>"
+      }
+    },
+    {
+      "id": "open-items-on-the-teams-entry",
+      "version": "1.3.0",
+      "date": "2026-11-22",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Offene Punkte auf einen Blick",
+        "body": "<p>Im Menü steht bei Teams, wie viele Umfragen und Termine noch auf deine Antwort warten.</p>"
+      },
+      "en": {
+        "title": "Open items at a glance",
+        "body": "<p>The menu shows next to Teams how many polls and dates still wait for your answer.</p>"
+      }
+    },
+    {
+      "id": "tomestones-and-scrips-come-along",
+      "version": "1.3.0",
+      "date": "2026-11-22",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Tomesteine und Scrips kommen mit",
+        "body": "<p>Farmplan, Kaufberater und Scrip-Rechner kennen jetzt deine Bestände, ohne dass du sie eintippst.</p>"
+      },
+      "en": {
+        "title": "Tomestones and scrips come along",
+        "body": "<p>The farm plan, purchase advisor and scrip calculator now know what you hold without you typing it in.</p>"
+      }
+    },
+    {
+      "id": "the-armoire-counts-too",
+      "version": "1.3.0",
+      "date": "2026-11-22",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Das Kabinett zählt mit",
+        "body": "<p>Was dort liegt, wird mit deinem Besitz übertragen, sobald du es einmal geöffnet hast.</p>"
+      },
+      "en": {
+        "title": "The armoire counts too",
+        "body": "<p>What it holds is synced with your items once you have opened it.</p>"
+      }
+    },
+    {
+      "id": "drop-and-spot-reports",
+      "version": "1.3.0",
+      "date": "2026-11-22",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Drop- und Fundort-Meldungen",
+        "body": "<p>Wenn du zustimmst, meldet das Plugin anonym, was in Duties droppt und wo fehlende NPCs, Monster und FATEs stehen.</p>"
+      },
+      "en": {
+        "title": "Drop and spot reports",
+        "body": "<p>If you agree, the plugin reports anonymously what drops in duties and where missing NPCs, monsters and FATEs stand.</p>"
+      }
+    },
+    {
       "id": "team-lineup-in-game",
       "version": "1.2.0",
       "date": "2026-10-10",

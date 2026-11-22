@@ -4,9 +4,9 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.3.0] - unreleased
 
-For 1.3.0, built in `release/v1.3.0`. Requires server 1.5.
+Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
 
 ### Added
 - **What the server offers is read from `features` of `GET /version`** (`ServerFeatures`), per address

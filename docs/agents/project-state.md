@@ -52,6 +52,14 @@ Built so far, each on its own branch stacked on the one before (none pushed yet)
   `41 / s * ((world + offset) * s + 1024) / 2048 + 1` with `s = SizeFactor / 100`. To check in the game:
   that a reported spot matches the map's coordinates for that person, and the zone id the log names
   (Shaaloani should be 4508).
+- `feat/release-notes-1-3-0`: the version is 1.3.0, the eight release notes are in `ReleaseNotes.cs` and
+  `changelog.json`, and the CHANGELOG heading reads "1.3.0 - unreleased". The date (2026-11-22 for now) is
+  set to the shipping day in the same sitting as the merge into main, as for 1.2.0.
+
+Every piece of 1.3.0 is built. The branches stack in this order, each on the one before, none pushed:
+`feat/server-features-armoire`, `feat/currency-sync`, `feat/absence-times`, `feat/relics`,
+`feat/times-polls`, `feat/drop-reports`, `feat/world-reports`, `feat/release-notes-1-3-0`. Next: the
+in-game test on dev, then each branch into `release/v1.3.0` (a push or PR only on its own go).
 
 The foundation moved from the 3.3.0 this repository was audited against to 5.3.0. The Dalamud profile
 and blueprint are unchanged; the points that touch this repository are listed in
