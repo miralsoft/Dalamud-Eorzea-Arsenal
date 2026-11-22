@@ -646,6 +646,8 @@ public sealed class Localizer : ILocalizer
         [LocKeys.TeamsAbsenceAllTeams] = "all teams",
         [LocKeys.TeamsAbsenceNextDay] = "next day",
         [LocKeys.TeamsErrorRateLimited] = "Too many entries in a short time. Try again later.",
+        [LocKeys.TeamsAwayHere] = "Away",
+        [LocKeys.TeamsAwayHereHint] = "Your absence covers this date, so your status reads No. You can delete it under Times.",
 
         [LocKeys.AdvisorOpen] = "Purchase advisor",
         [LocKeys.AdvisorWindowTitle] = "Eorzea Arsenal · Purchase advisor",
@@ -1437,6 +1439,8 @@ public sealed class Localizer : ILocalizer
         [LocKeys.TeamsAbsenceAllTeams] = "alle Teams",
         [LocKeys.TeamsAbsenceNextDay] = "nächster Tag",
         [LocKeys.TeamsErrorRateLimited] = "Zu viele Einträge in kurzer Zeit. Bitte später noch einmal.",
+        [LocKeys.TeamsAwayHere] = "Abwesend",
+        [LocKeys.TeamsAwayHereHint] = "Hier gilt deine Abwesenheit, deshalb steht dein Status auf Nein. Unter Zeiten kannst du sie löschen.",
 
         [LocKeys.AdvisorOpen] = "Kaufberater",
         [LocKeys.AdvisorWindowTitle] = "Eorzea Arsenal · Kaufberater",

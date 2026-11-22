@@ -154,3 +154,98 @@ public static class AbsenceRules
         (allowEndOfDay && value == "24:00") ||
         TimeOnly.TryParseExact(value, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
 }
+
+/// <summary>Which of the player's own absences counts them out of an event, the way the server decides it.</summary>
+public static class AbsenceCoverage
+{
+    /// <summary>
+    /// The player's absence that counts them out of an occurrence, or <see langword="null"/>: one of level
+    /// "not there" for every team or this one, covering the whole date, or with hours that meet the event's.
+    /// </summary>
+    /// <remarks>
+    /// The server compares instants across the absence's clock and the team's; this reads both on one clock,
+    /// which is the same answer whenever the player's times and the team share a time zone, the usual case.
+    /// It only explains an answer the server already gave, so it never decides anything sent.
+    /// </remarks>
+    /// <param name="absences">The player's absences (from <c>GET /me/availability</c>).</param>
+    /// <param name="teamId">The event's team.</param>
+    /// <param name="date">The occurrence date, <c>YYYY-MM-DD</c>.</param>
+    /// <param name="time">The event's start, <c>HH:MM</c>, if any.</param>
+    /// <param name="endTime">The event's end, <c>HH:MM</c>, if any.</param>
+    /// <returns>The absence, or <see langword="null"/>.</returns>
+    public static Absence? AwayAt(IEnumerable<Absence> absences, long teamId, string? date, string? time, string? endTime)
+    {
+        if (!TryDate(date, out var day))
+        {
+            return null;
+        }
+
+        foreach (var absence in absences)
+        {
+            if (!AbsenceRules.CountsAsAway(absence.Level) || (absence.TeamId is { } team && team != 0 && team != teamId) ||
+                !TryDate(absence.FromDate, out var from) || !TryDate(absence.ToDate, out var to))
+            {
+                continue;
+            }
+
+            if (string.IsNullOrEmpty(absence.FromTime) || string.IsNullOrEmpty(absence.ToTime))
+            {
+                if (from <= day && day <= to)
+                {
+                    return absence;
+                }
+
+                continue;
+            }
+
+            if (!TryTime(time, out var startTime))
+            {
+                continue;
+            }
+
+            var start = day.ToDateTime(startTime);
+            var end = TryTime(endTime, out var endAt) ? day.ToDateTime(endAt) : start.AddHours(2);
+            if (end <= start)
+            {
+                end = end.AddDays(1);
+            }
+
+            for (var d = day.AddDays(-1); d <= day.AddDays(1); d = d.AddDays(1))
+            {
+                if (d < from || d > to || !TryTime(absence.FromTime, out var aFrom) || !TryTime(absence.ToTime, out var aTo))
+                {
+                    continue;
+                }
+
+                var windowStart = d.ToDateTime(aFrom);
+                var windowEnd = d.ToDateTime(aTo);
+                if (windowEnd <= windowStart)
+                {
+                    windowEnd = windowEnd.AddDays(1);
+                }
+
+                if (windowStart < end && start < windowEnd)
+                {
+                    return absence;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryDate(string? value, out DateOnly date) =>
+        DateOnly.TryParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
+
+    /// <summary>A time of day; <c>24:00</c> reads as midnight, which the callers move to the next day.</summary>
+    private static bool TryTime(string? value, out TimeOnly time)
+    {
+        if (value == "24:00")
+        {
+            time = TimeOnly.MinValue;
+            return true;
+        }
+
+        return TimeOnly.TryParseExact(value, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out time);
+    }
+}

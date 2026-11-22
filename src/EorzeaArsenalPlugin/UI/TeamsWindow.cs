@@ -646,6 +646,20 @@ public sealed class TeamsWindow : Window
             }
         }
 
+        // Where the player's own absence counts them out, say so: the server then answers "no" whatever
+        // was pressed, and without this the buttons look broken.
+        _timesView.EnsureTimes();
+        if (_timesView.Times is { } times &&
+            AbsenceCoverage.AwayAt(times.Absences, occ.TeamId, occ.Date, occ.Time, occ.EndTime) is not null)
+        {
+            ImGui.SameLine();
+            ImGui.TextColored(Red, T(LocKeys.TeamsAwayHere));
+            if (ImGui.IsItemHovered())
+            {
+                ImGui.SetTooltip(T(LocKeys.TeamsAwayHereHint));
+            }
+        }
+
         ImGui.TableNextColumn();
         ImGui.AlignTextToFramePadding();
         ImGui.TextDisabled(_localizer.Get(LocKeys.TeamsAttendCounts, occ.Yes, occ.Maybe, occ.No, occ.Total));

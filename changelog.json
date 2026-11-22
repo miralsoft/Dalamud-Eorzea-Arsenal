@@ -61,6 +61,21 @@
       }
     },
     {
+      "id": "away-shown-on-events",
+      "version": "1.3.0",
+      "date": "2026-11-22",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Abwesend bei Terminen",
+        "body": "<p>Wo deine Abwesenheit gilt, steht in der Terminliste jetzt \"Abwesend\", mit einem Hinweis, wo du sie löschst.</p>"
+      },
+      "en": {
+        "title": "Away shown on events",
+        "body": "<p>Where your absence applies, the event list now says \"Away\", with a hint where to delete it.</p>"
+      }
+    },
+    {
       "id": "open-items-on-the-teams-entry",
       "version": "1.3.0",
       "date": "2026-11-22",

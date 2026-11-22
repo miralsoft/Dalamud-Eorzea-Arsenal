@@ -1636,6 +1636,12 @@ public static class LocKeys
     /// <summary>Absence list: the end of the hours lies on the next day.</summary>
     public const string TeamsAbsenceNextDay = "teams.absence.nextday";
 
+    /// <summary>Events tab: the player's own absence covers this date.</summary>
+    public const string TeamsAwayHere = "teams.awayhere";
+
+    /// <summary>Events tab: why the status reads "no" there, and where to delete the absence.</summary>
+    public const string TeamsAwayHereHint = "teams.awayhere.hint";
+
     /// <summary>Teams: too many entries in a short time (429).</summary>
     public const string TeamsErrorRateLimited = "teams.error.ratelimited";
 

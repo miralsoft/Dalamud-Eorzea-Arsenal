@@ -93,6 +93,18 @@ public sealed class TimesView
 
     private bool German => _localizer.Language == Localizer.German;
 
+    /// <summary>The player's own times as last read, or <see langword="null"/>; the events tab marks absences from them.</summary>
+    public MyAvailability? Times => _times;
+
+    /// <summary>Starts a read of the own times when none is held, for a tab other than this one.</summary>
+    public void EnsureTimes()
+    {
+        if (_times is null && _timesError is null)
+        {
+            LoadTimesIfDue();
+        }
+    }
+
     /// <summary>Reads everything again on the next draw (the refresh button, or the tab being opened).</summary>
     public void Invalidate()
     {
@@ -216,35 +228,7 @@ public sealed class TimesView
             });
         }
 
-        if (TimesOffered && _timesDue && !_timesLoading)
-        {
-            _timesDue = false;
-            _timesLoading = true;
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    var result = await _teams.GetMyAvailabilityAsync(CancellationToken.None).ConfigureAwait(false);
-                    if (result.IsSuccess)
-                    {
-                        _times = result.Value?.Data;
-                        _timesError = null;
-                    }
-                    else
-                    {
-                        _timesError = ErrorText(result.Error);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _log.Error($"Times read failed: {ex.GetType().Name}.");
-                }
-                finally
-                {
-                    _timesLoading = false;
-                }
-            });
-        }
+        LoadTimesIfDue();
 
         if (TimesOffered && (_weekDue || _weekTeamId != teamId) && !_weekLoading)
         {
@@ -284,6 +268,42 @@ public sealed class TimesView
                 }
             });
         }
+    }
+
+    /// <summary>Reads the own times when they are due and not being read.</summary>
+    private void LoadTimesIfDue()
+    {
+        if (!TimesOffered || !_timesDue || _timesLoading)
+        {
+            return;
+        }
+
+        _timesDue = false;
+        _timesLoading = true;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var result = await _teams.GetMyAvailabilityAsync(CancellationToken.None).ConfigureAwait(false);
+                if (result.IsSuccess)
+                {
+                    _times = result.Value?.Data;
+                    _timesError = null;
+                }
+                else
+                {
+                    _timesError = ErrorText(result.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"Times read failed: {ex.GetType().Name}.");
+            }
+            finally
+            {
+                _timesLoading = false;
+            }
+        });
     }
 
     // --- Polls --------------------------------------------------------------------------------------

@@ -77,6 +77,11 @@ public static class ReleaseNotes
                 "Absences with hours: you can also enter just a few hours and say whether you are away then, can come, or only if needed."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
+                "away-shown-on-events",
+                "Abwesend bei Terminen: Wo deine Abwesenheit gilt, steht in der Terminliste jetzt \"Abwesend\", mit einem Hinweis, wo du sie löschst.",
+                "Away shown on events: where your absence applies, the event list now says \"Away\", with a hint where to delete it."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
                 "open-items-on-the-teams-entry",
                 "Offene Punkte auf einen Blick: Im Menü steht bei Teams, wie viele Umfragen und Termine noch auf deine Antwort warten.",
                 "Open items at a glance: the menu shows next to Teams how many polls and dates still wait for your answer."),
