@@ -882,6 +882,27 @@ public sealed class Absence
 
     /// <summary>Optional note.</summary>
     public string? Note { get; init; }
+
+    /// <summary>
+    /// Server 1.5: <c>0</c> for one of a player's absences that holds for every team; otherwise the team.
+    /// Absent on an older server.
+    /// </summary>
+    public long? TeamId { get; init; }
+
+    /// <summary>Server 1.5: start of the hours, <c>HH:MM</c>; <see langword="null"/> for the whole day.</summary>
+    public string? FromTime { get; init; }
+
+    /// <summary>Server 1.5: end of the hours, <c>HH:MM</c> (may be <c>24:00</c>, before the start runs past midnight).</summary>
+    public string? ToTime { get; init; }
+
+    /// <summary>
+    /// Server 1.5: <c>x</c> not there, <c>2</c> can, <c>1</c> if needed. <see langword="null"/> on an older
+    /// server, where every absence is "not there".
+    /// </summary>
+    public string? Level { get; init; }
+
+    /// <summary>Server 1.5: the clock the times are on; <see langword="null"/> for the team's clock.</summary>
+    public string? Timezone { get; init; }
 }
 
 /// <summary>Body of <c>POST /teams/{id}/absences</c> (report your own vacation range).</summary>
@@ -893,8 +914,17 @@ public sealed class AbsenceCreateRequest
     /// <summary>End date <c>YYYY-MM-DD</c>.</summary>
     public required string ToDate { get; init; }
 
-    /// <summary>Optional note.</summary>
+    /// <summary>Optional note, at most <see cref="EorzeaArsenal.Core.AbsenceRules.MaxNote"/> characters.</summary>
     public string? Note { get; init; }
+
+    /// <summary>Server 1.5: start of the hours, <c>HH:MM</c>; both times or neither (whole day).</summary>
+    public string? FromTime { get; init; }
+
+    /// <summary>Server 1.5: end of the hours, <c>HH:MM</c>; <c>24:00</c> allowed.</summary>
+    public string? ToTime { get; init; }
+
+    /// <summary>Server 1.5: <c>x</c>, <c>2</c> or <c>1</c>; omitted for the default "not there".</summary>
+    public string? Level { get; init; }
 }
 
 /// <summary>Response of <c>POST /teams/{id}/absences</c>: <c>{ "data": { "id": "9" } }</c>.</summary>

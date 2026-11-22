@@ -346,7 +346,7 @@ public sealed class Plugin : IDalamudPlugin
         _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
         _reportWindow = new ReportWindow(_store, _localizer, api, _log, DescribeClient);
         _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReview, () => _review.Summary() ?? _sync.LastReview, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew, () => _bisService.AmbiguousLive.Count, () => _currentCidHash);
-        _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage, OwnChatNotice);
+        _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage, OwnChatNotice, _features.Has);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _keyScopes, _log, Save, () => Localizer.Nearest(_pluginInterface.UiLanguage));
         _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _obtainService, _worldActions, _holdingsService, _log);

@@ -24,6 +24,14 @@ For 1.3.0, built in `release/v1.3.0`. Requires server 1.5.
   of 30 an hour is kept here too. Its own switch, "Tomestones and scrips", on by default and independent
   of the inventory sync.
 
+- **Absences with hours and a level** (server 1.5, where the server lists `team-availability`): the
+  form takes the whole day or two half hours (the end may be 24:00, an end before the start runs past
+  midnight) and "not there", "can" or "if needed", with the note that only "not there" takes a player out
+  of events. `AbsenceRules` checks what the server checks before anything is sent: dates from yesterday to
+  400 days ahead, both times or neither, the note cut at 160 characters. The list shows the hours, a
+  level other than "not there", and an absence that holds for every team, which is not edited from one
+  team's view. A 429 now reads as "too many entries" and a 400 shows the server's sentence.
+
 ### Changed
 - **`PUT /me/tome-balance` is not called on a 1.5 server**, where the currency sync sets the balance, and
   not at all with the tomestones-and-scrips switch off. Before 1.5 it is sent as before.

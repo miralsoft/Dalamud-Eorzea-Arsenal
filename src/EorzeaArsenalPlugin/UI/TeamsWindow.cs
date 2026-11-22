@@ -58,6 +58,7 @@ public sealed class TeamsWindow : Window
     private readonly Slot<FarmResponse> _farmSlot = new();
     private readonly Slot<LogsResponse> _logsSlot = new();
     private readonly Slot<AbsencesResponse> _absenceSlot = new();
+    private readonly Func<string, bool> _hasFeature;
 
     // Both carry the names of team members. They live here and nowhere else: never persisted, and dropped
     // together with every other team read the moment the key is gone.
@@ -96,6 +97,10 @@ public sealed class TeamsWindow : Window
     private string _absFrom = DateTime.UtcNow.ToString("yyyy-MM-dd");
     private string _absTo = DateTime.UtcNow.ToString("yyyy-MM-dd");
     private string _absNote = string.Empty;
+    private bool _absWholeDay = true;
+    private string _absFromTime = "19:00";
+    private string _absToTime = "23:00";
+    private string _absLevel = AbsenceRules.LevelAway;
     private long _editingAbsenceId;
     private volatile string? _actionMessage;
     private string? _absenceError;
@@ -123,6 +128,7 @@ public sealed class TeamsWindow : Window
     /// Writes one line into the player's own chat log, which nobody else sees. Used to confirm a copied
     /// invitation link, and never with the link in it.
     /// </param>
+    /// <param name="hasFeature">Whether the server lists a feature in <c>features</c> of <c>GET /version</c>.</param>
     public TeamsWindow(
         PluginConfig config,
         ConfigStore store,
@@ -139,9 +145,11 @@ public sealed class TeamsWindow : Window
         Action save,
         Action openConfig,
         Action<long, long, string?> openImage,
-        Action<string> ownChatNotice)
+        Action<string> ownChatNotice,
+        Func<string, bool> hasFeature)
         : base("Eorzea Arsenal · Teams###EorzeaArsenalTeams")
     {
+        _hasFeature = hasFeature;
         _myCharacterId = myCharacterId;
         _config = config;
         _store = store;
@@ -2091,8 +2099,36 @@ public sealed class TeamsWindow : Window
         ImGui.SameLine();
         DrawDatePicker("to", ref _absTo);
 
+        // Hours and levels arrived with server 1.5; before it the form is the one of Phase D.
+        if (AbsenceTimesOffered)
+        {
+            ImGui.Checkbox(T(LocKeys.TeamsAbsenceWholeDay), ref _absWholeDay);
+            if (!_absWholeDay)
+            {
+                ImGui.SameLine();
+                DrawHalfHourCombo("from", ref _absFromTime, asEnd: false);
+                ImGui.SameLine();
+                ImGui.TextUnformatted(T(LocKeys.TeamsAbsenceTo));
+                ImGui.SameLine();
+                DrawHalfHourCombo("to", ref _absToTime, asEnd: true);
+            }
+
+            ImGui.AlignTextToFramePadding();
+            ImGui.TextUnformatted(T(LocKeys.TeamsAbsenceLevel));
+            foreach (var level in AbsenceRules.Levels)
+            {
+                ImGui.SameLine();
+                if (ImGui.RadioButton($"{LevelLabel(level)}##lvl{level}", _absLevel == level))
+                {
+                    _absLevel = level;
+                }
+            }
+
+            ImGui.TextDisabled(T(LocKeys.TeamsAbsenceLevelHint));
+        }
+
         ImGui.SetNextItemWidth(280f);
-        ImGui.InputText(T(LocKeys.TeamsAbsenceNote), ref _absNote, 200);
+        ImGui.InputText(T(LocKeys.TeamsAbsenceNote), ref _absNote, AbsenceRules.MaxNote);
 
         if (ImGui.Button(_editingAbsenceId != 0 ? T(LocKeys.TeamsAbsenceUpdate) : T(LocKeys.TeamsAbsenceAdd)))
         {
@@ -2143,11 +2179,42 @@ public sealed class TeamsWindow : Window
         {
             using var id = ImRaii.PushId($"abs_{absence.Id}");
             ImGui.AlignTextToFramePadding();
-            ImGui.TextUnformatted($"{LocalDate(absence.FromDate)}  →  {LocalDate(absence.ToDate)}");
+            ImGui.TextUnformatted(absence.FromDate == absence.ToDate
+                ? LocalDate(absence.FromDate)
+                : $"{LocalDate(absence.FromDate)}  →  {LocalDate(absence.ToDate)}");
+            if (!string.IsNullOrEmpty(absence.FromTime) && !string.IsNullOrEmpty(absence.ToTime))
+            {
+                ImGui.SameLine();
+                ImGui.TextUnformatted(AbsenceRules.RunsPastMidnight(absence.FromTime, absence.ToTime)
+                    ? $"{absence.FromTime}-{absence.ToTime} ({T(LocKeys.TeamsAbsenceNextDay)})"
+                    : $"{absence.FromTime}-{absence.ToTime}");
+            }
+
+            // An older server sends no level, and every absence there is "not there", which needs no label.
+            if (absence.Level is { } level && !AbsenceRules.CountsAsAway(level))
+            {
+                ImGui.SameLine();
+                ImGui.TextColored(Yellow, LevelLabel(level));
+            }
+
+            if (absence.TeamId == 0)
+            {
+                ImGui.SameLine();
+                ImGui.TextColored(Dim, $"[{T(LocKeys.TeamsAbsenceAllTeams)}]");
+            }
+
             if (!string.IsNullOrEmpty(absence.Note))
             {
                 ImGui.SameLine();
                 ImGui.TextDisabled($"({absence.Note})");
+            }
+
+            // One for every team belongs to the player's own times, not to this team: editing it here
+            // would turn it into an absence for this team alone. It is managed under the times instead.
+            if (absence.TeamId == 0)
+            {
+                ImGui.Spacing();
+                continue;
             }
 
             ImGui.SameLine();
@@ -2157,6 +2224,10 @@ public sealed class TeamsWindow : Window
                 _absFrom = absence.FromDate ?? _absFrom;
                 _absTo = absence.ToDate ?? _absTo;
                 _absNote = absence.Note ?? string.Empty;
+                _absWholeDay = string.IsNullOrEmpty(absence.FromTime) || string.IsNullOrEmpty(absence.ToTime);
+                _absFromTime = absence.FromTime ?? _absFromTime;
+                _absToTime = absence.ToTime ?? _absToTime;
+                _absLevel = absence.Level ?? AbsenceRules.LevelAway;
                 _absenceError = null;
             }
 
@@ -2174,7 +2245,44 @@ public sealed class TeamsWindow : Window
     {
         _editingAbsenceId = 0;
         _absNote = string.Empty;
+        _absWholeDay = true;
+        _absLevel = AbsenceRules.LevelAway;
         _absenceError = null;
+    }
+
+    /// <summary>Whether the server takes hours and levels on an absence (server 1.5).</summary>
+    private bool AbsenceTimesOffered => _hasFeature(FeatureNames.TeamAvailability);
+
+    private string LevelLabel(string level) => level switch
+    {
+        AbsenceRules.LevelCan => T(LocKeys.TeamsAbsenceLevelCan),
+        AbsenceRules.LevelIfNeeded => T(LocKeys.TeamsAbsenceLevelIfNeeded),
+        _ => T(LocKeys.TeamsAbsenceLevelAway),
+    };
+
+    /// <summary>A combo of the day's half hours; an end also offers 24:00.</summary>
+    private static void DrawHalfHourCombo(string id, ref string value, bool asEnd)
+    {
+        ImGui.SetNextItemWidth(80f);
+        using var combo = ImRaii.Combo($"##hh{id}", value);
+        if (!combo)
+        {
+            return;
+        }
+
+        foreach (var time in AbsenceRules.HalfHours(asEnd))
+        {
+            var selected = time == value;
+            if (ImGui.Selectable(time, selected))
+            {
+                value = time;
+            }
+
+            if (selected)
+            {
+                ImGui.SetItemDefaultFocus();
+            }
+        }
     }
 
     /// <summary>A button showing the localized date; clicking opens a mini month-grid picker.</summary>
@@ -2265,23 +2373,28 @@ public sealed class TeamsWindow : Window
 
     private void SubmitAbsence(long teamId)
     {
-        if (!DateOnly.TryParseExact(_absFrom, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var from) ||
-            !DateOnly.TryParseExact(_absTo, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var to))
+        // The server's checks, made here first so the player reads the plugin's sentence, not a 400 (R18).
+        var timed = AbsenceTimesOffered && !_absWholeDay;
+        var level = AbsenceTimesOffered ? _absLevel : AbsenceRules.LevelAway;
+        var fromTime = timed ? _absFromTime : null;
+        var toTime = timed ? _absToTime : null;
+        var problem = AbsenceRules.Validate(_absFrom, _absTo, fromTime, toTime, level, DateOnly.FromDateTime(DateTime.Now));
+        if (problem is { } p)
         {
-            _absenceError = T(LocKeys.TeamsAbsenceInvalid);
-            return;
-        }
-
-        if (to < from)
-        {
-            _absenceError = T(LocKeys.TeamsAbsenceRangeInvalid);
+            _absenceError = p switch
+            {
+                AbsenceInputError.RangeInvalid => T(LocKeys.TeamsAbsenceRangeInvalid),
+                AbsenceInputError.OutOfWindow => T(LocKeys.TeamsAbsenceOutOfWindow),
+                AbsenceInputError.InvalidTimes => T(LocKeys.TeamsAbsenceTimesInvalid),
+                _ => T(LocKeys.TeamsAbsenceInvalid),
+            };
             return;
         }
 
         _absenceError = null;
         _actionMessage = T(LocKeys.TeamsWorking);
         var oldId = _editingAbsenceId;
-        var req = new AbsenceCreateRequest { FromDate = _absFrom, ToDate = _absTo, Note = string.IsNullOrWhiteSpace(_absNote) ? null : _absNote };
+        var req = AbsenceRules.BuildRequest(_absFrom, _absTo, fromTime, toTime, level, _absNote, AbsenceTimesOffered);
         _ = Task.Run(async () =>
         {
             try
@@ -2616,6 +2729,11 @@ public sealed class TeamsWindow : Window
             ApiErrorKind.NotFound => T(LocKeys.TeamsNotMember),
             ApiErrorKind.Unauthorized => T(LocKeys.TeamsDisabledHint),
             ApiErrorKind.Network => T(LocKeys.TeamsErrorNetwork),
+            ApiErrorKind.RateLimited => T(LocKeys.TeamsErrorRateLimited),
+
+            // A 400 carries the server's sentence on what it refused; the plugin's own checks catch the
+            // usual cases first, so what gets here is the rare one worth reading verbatim.
+            ApiErrorKind.BadRequest when !string.IsNullOrWhiteSpace(error.Detail) => $"{T(LocKeys.TeamsErrorGeneric)} ({error.Detail})",
             _ => error.StatusCode is { } sc ? $"{T(LocKeys.TeamsErrorGeneric)} (HTTP {sc})" : $"{T(LocKeys.TeamsErrorGeneric)} ({error.Message})",
         };
     }

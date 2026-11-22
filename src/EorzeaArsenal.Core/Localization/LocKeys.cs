@@ -1606,6 +1606,39 @@ public static class LocKeys
     /// <summary>Absence: end-before-start error.</summary>
     public const string TeamsAbsenceRangeInvalid = "teams.absence.rangeinvalid";
 
+    /// <summary>Absence (server 1.5): the whole-day switch; off shows the two times.</summary>
+    public const string TeamsAbsenceWholeDay = "teams.absence.wholeday";
+
+    /// <summary>Absence (server 1.5): label of the level choice.</summary>
+    public const string TeamsAbsenceLevel = "teams.absence.level";
+
+    /// <summary>Absence level <c>x</c>: not there.</summary>
+    public const string TeamsAbsenceLevelAway = "teams.absence.level.away";
+
+    /// <summary>Absence level <c>2</c>: can.</summary>
+    public const string TeamsAbsenceLevelCan = "teams.absence.level.can";
+
+    /// <summary>Absence level <c>1</c>: if needed.</summary>
+    public const string TeamsAbsenceLevelIfNeeded = "teams.absence.level.ifneeded";
+
+    /// <summary>Absence: only "not there" takes a player out of events.</summary>
+    public const string TeamsAbsenceLevelHint = "teams.absence.level.hint";
+
+    /// <summary>Absence: a date outside yesterday to 400 days ahead.</summary>
+    public const string TeamsAbsenceOutOfWindow = "teams.absence.outofwindow";
+
+    /// <summary>Absence: only one time, or the same time twice.</summary>
+    public const string TeamsAbsenceTimesInvalid = "teams.absence.timesinvalid";
+
+    /// <summary>Absence list: an absence that holds for every team.</summary>
+    public const string TeamsAbsenceAllTeams = "teams.absence.allteams";
+
+    /// <summary>Absence list: the end of the hours lies on the next day.</summary>
+    public const string TeamsAbsenceNextDay = "teams.absence.nextday";
+
+    /// <summary>Teams: too many entries in a short time (429).</summary>
+    public const string TeamsErrorRateLimited = "teams.error.ratelimited";
+
     /// <summary>Config: default phase selection.</summary>
     public const string TeamsDefaultPhasesLabel = "teams.defaultphases";
 

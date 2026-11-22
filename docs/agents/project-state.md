@@ -28,6 +28,10 @@ Built so far, each on its own branch stacked on the one before (none pushed yet)
   up only after a sync the player started. A 404 waits for the next gear sync and sends once more; the
   switch also covers `PUT /me/tome-balance`, which is not called at all on a 1.5 server. To check in the
   game: the scrip counts against the currency window.
+- `feat/absence-times`: the absence form of the Teams window takes hours and a level where the server
+  lists `team-availability` (`AbsenceRules`); before 1.5 it stays the form of Phase D. An absence for
+  every team (`team_id` 0) is shown but not edited there; it belongs to the player's own times, which the
+  "Zeiten" tab of the next branch reads from `GET /me/availability`.
 
 The foundation moved from the 3.3.0 this repository was audited against to 5.3.0. The Dalamud profile
 and blueprint are unchanged; the points that touch this repository are listed in
