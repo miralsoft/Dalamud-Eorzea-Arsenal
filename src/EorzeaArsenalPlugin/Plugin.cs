@@ -65,6 +65,10 @@ public sealed class Plugin : IDalamudPlugin
     private readonly CurrencySyncService _currencySync;
     private readonly ReportUploader<DropReport> _dropUploader;
     private readonly GameDropWatcher _dropWatcher;
+    private readonly WorldSpotter _worldSpotter;
+    private readonly WorldWantedCache _worldWanted;
+    private readonly ReportUploader<WorldReport> _worldUploader;
+    private readonly GameWorldWatcher _worldWatcher;
     private readonly ConsentWindow _consentWindow;
     private long _nextCurrencyTicks;
     private readonly WeeklySyncService _weeklySync;
@@ -181,6 +185,8 @@ public sealed class Plugin : IDalamudPlugin
     /// <param name="chatGui">Chat output for user feedback.</param>
     /// <param name="toastGui">Toast notifications.</param>
     /// <param name="dtrBar">The in-game server-info bar (compact status entry).</param>
+    /// <param name="objectTable">The loaded objects, for the spot reports (only with consent).</param>
+    /// <param name="fateTable">The active FATEs, for the spot reports (only with consent).</param>
     public Plugin(
         IDalamudPluginInterface pluginInterface,
         ICommandManager commandManager,
@@ -194,7 +200,9 @@ public sealed class Plugin : IDalamudPlugin
         IPluginLog log,
         IChatGui chatGui,
         IToastGui toastGui,
-        IDtrBar dtrBar)
+        IDtrBar dtrBar,
+        IObjectTable objectTable,
+        IFateTable fateTable)
     {
         _pluginInterface = pluginInterface;
         _commandManager = commandManager;
@@ -322,6 +330,43 @@ public sealed class Plugin : IDalamudPlugin
             _log);
         _dropWatcher = new GameDropWatcher(clientState, dataManager, _log, DropsActive, reports => _dropUploader.Add(reports),
             () => _ = _dropUploader.SendIfDueAsync(force: true, _shutdown.Token));
+
+        _worldSpotter = new WorldSpotter();
+        _worldSpotter.SetWanted(_config.ReportWorld ? _config.WorldWanted?.Wanted : null);
+        _worldWanted = new WorldWantedCache(
+            api,
+            _store,
+            new SystemClock(),
+            (list, at) =>
+            {
+                _worldSpotter.SetWanted(list.Wanted);
+                _config.WorldWanted = list;
+                _config.WorldWantedReadUtc = at;
+                Save();
+            },
+            _config.ReportWorld ? _config.WorldWanted : null,
+            _config.WorldWantedReadUtc,
+            _log);
+        _worldUploader = new ReportUploader<WorldReport>(
+            "world",
+            (key, batch, ct) => GameVersion() is { } version
+                ? api.PostWorldReportsAsync(key, new WorldReportRequest { InstallationId = _config.InstallationId, GameVersion = ClipVersion(version), Reports = batch }, ct)
+                : Task.FromResult(ApiResult<ReportAck>.Fail(new ApiError { Kind = ApiErrorKind.Unexpected, Message = "No game version." })),
+            _store,
+            new SystemClock(),
+            100,
+            r => r.Day,
+            ReportKeys.World,
+            ReportKeys.KeepFirst,
+            list =>
+            {
+                _config.PendingWorldReports = [.. list];
+                Save();
+            },
+            _config.PendingWorldReports,
+            _log);
+        _worldWatcher = new GameWorldWatcher(clientState, objectTable, fateTable, dataManager, _log, _worldSpotter, WorldActive,
+            reports => _worldUploader.Add(reports), () => _ = _worldUploader.SendIfDueAsync(force: true, _shutdown.Token));
         _weeklySync = new WeeklySyncService(_weeklySource, api, _store, _characterDirectory, new SystemClock(), _log);
         _weeklySync.SyncCompleted += OnWeeklyCompleted;
         _weeklySource.HiddenRefreshCompleted += OnHiddenRefreshCompleted;
@@ -488,6 +533,7 @@ public sealed class Plugin : IDalamudPlugin
         _currencySync.Dispose();
         _relicWindow.Dispose();
         _dropWatcher.Dispose();
+        _worldWatcher.Dispose();
         _weeklySource.HiddenRefreshCompleted -= OnHiddenRefreshCompleted;
         _weeklySource.ContentsRefreshCompleted -= OnHiddenRefreshCompleted;
         _weeklySync.SyncCompleted -= OnWeeklyCompleted;
@@ -1270,6 +1316,13 @@ public sealed class Plugin : IDalamudPlugin
         _config is { Enabled: true, TosAccepted: true, ReportDrops: true } && _store.HasKey &&
         _features.Has(FeatureNames.DropReports) && !_dropUploader.IsHolding;
 
+    /// <summary>The setting, the terms, a key and a server that takes spot reports.</summary>
+    private bool WorldReportsAllowed() =>
+        _config is { Enabled: true, TosAccepted: true, ReportWorld: true } && _store.HasKey && _features.Has(FeatureNames.WorldReports);
+
+    /// <summary>Whether spots may be collected now: allowed, and no closed intake or limit holding the sends.</summary>
+    private bool WorldActive() => WorldReportsAllowed() && !_worldUploader.IsHolding && !_worldWanted.IntakeClosed;
+
     /// <summary>
     /// Shows the dialog of 1.3.0 once: after the terms are accepted and a key is connected, on a server that
     /// takes at least one of the two reports, while a character is logged in so the player sees it.
@@ -1579,11 +1632,37 @@ public sealed class Plugin : IDalamudPlugin
                 _dropUploader.Clear();
             }
 
+            // Spot reports: the wanted list at most once a day while on; off forgets the list and the spots.
+            if (_config.ReportWorld)
+            {
+                if (WorldReportsAllowed())
+                {
+                    _ = _worldWanted.RefreshIfDueAsync(_shutdown.Token);
+                }
+
+                if (WorldActive() || _worldUploader.PendingCount > 0)
+                {
+                    _ = _worldUploader.SendIfDueAsync(force: false, _shutdown.Token);
+                }
+            }
+            else if (_worldWanted.Current is not null || _worldUploader.PendingCount > 0)
+            {
+                _worldUploader.Clear();
+                _worldWanted.Forget();
+                _worldSpotter.SetWanted(null);
+                _config.WorldWanted = null;
+                _config.WorldWantedReadUtc = null;
+                Save();
+            }
+
             AskConsentOnce();
         }
 
         // Self-throttled to once a second, and a no-op outside a watched duty.
         _dropWatcher.Tick();
+
+        // Self-throttled to every two seconds, and a no-op while the spot reports are off.
+        _worldWatcher.Tick();
 
         if (now >= _nextCharRecordTicks)
         {

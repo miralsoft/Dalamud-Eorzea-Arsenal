@@ -47,6 +47,11 @@ Built so far, each on its own branch stacked on the one before (none pushed yet)
   `GameDropWatcher` reading `Loot.Items` once a second in an instanced duty). To check in the game: the
   `content_id` the log names when a duty starts (the Underkeep should be 101), that a chest piece is
   reported once and not again when won, and when the loot list empties.
+- `feat/world-reports`: the spot reports (`WorldSpotter` and `WorldWantedCache` pure, `GameWorldWatcher`
+  reading `IObjectTable` and `IFateTable` every two seconds). The map coordinate is
+  `41 / s * ((world + offset) * s + 1024) / 2048 + 1` with `s = SizeFactor / 100`. To check in the game:
+  that a reported spot matches the map's coordinates for that person, and the zone id the log names
+  (Shaaloani should be 4508).
 
 The foundation moved from the 3.3.0 this repository was audited against to 5.3.0. The Dalamud profile
 and blueprint are unchanged; the points that touch this repository are listed in

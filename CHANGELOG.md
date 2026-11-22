@@ -69,6 +69,14 @@ For 1.3.0, built in `release/v1.3.0`. Requires server 1.5.
   up. A 409 drops what was collected and waits a day, a 429 waits an hour, a 401 or 403 stops until another
   key is connected, a refused batch is not sent again. The installation id is a random 128-bit id made once
   (config version 4); nothing about the character, world or account is ever sent.
+- **Spot reports for the world database** (`POST /world/reports`, `WorldSpotter`, `WorldWantedCache`,
+  `GameWorldWatcher`; where the server lists `world-reports` and the player said yes): the wanted list
+  (`GET /world/wanted`) is read at most once a day and kept with its version; every two seconds the loaded
+  people (ENpcResident), monsters (BNpcName) and FATEs it names are reported with the territory's
+  PlaceName as the zone and their map coordinates to one decimal, once per thing, zone and day. Territories
+  with several maps are left out. Never the player's own position. Sent every five minutes and at logout,
+  at most 100 a call, with the same answers as the drop reports; turning it off forgets the list and the
+  spots.
 
 ### Changed
 - **`PUT /me/tome-balance` is not called on a 1.5 server**, where the currency sync sets the balance, and

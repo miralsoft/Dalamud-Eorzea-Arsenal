@@ -134,6 +134,12 @@ public sealed class PluginConfig : IPluginConfiguration
     /// <summary>Spots collected and not sent yet, kept on disk so a crash loses nothing.</summary>
     public List<WorldReport> PendingWorldReports { get; set; } = [];
 
+    /// <summary>The world database's wanted list as last read, with its version; read at most once a day.</summary>
+    public WorldWantedResponse? WorldWanted { get; set; }
+
+    /// <summary>When <see cref="WorldWanted"/> was read.</summary>
+    public DateTimeOffset? WorldWantedReadUtc { get; set; }
+
     /// <summary>
     /// Opt-in: also upload the weekly checklist (tomestones acquired, weekly content done) via
     /// <c>PUT /characters/{id}/weekly</c> so the web app can track weekly progress without manual
