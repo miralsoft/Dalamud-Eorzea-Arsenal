@@ -56,7 +56,8 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
 - **"Away" on the events where the player's own absence counts** (`AbsenceCoverage`): the events tab
   reads the own absences from `GET /me/availability` and marks every occurrence a "not there" absence
   covers, the whole day or by hours, with a tooltip that the status reads "no" for that reason and where
-  to delete it. It explains the server's answer and decides nothing sent.
+  to delete it, only where the server answers "no": since the server's rule of 2026-11-22 an answer
+  given after the absence wins. It explains the server's answer and decides nothing sent.
 - **What waits in the teams on the Teams entry** of the status menu ("3 open items"), from
   `GET /me/waiting` once a minute (`WaitingCounter`), holding back on a 429 for its `Retry-After`.
 

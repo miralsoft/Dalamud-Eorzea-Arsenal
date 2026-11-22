@@ -165,7 +165,9 @@ public static class AbsenceCoverage
     /// <remarks>
     /// The server compares instants across the absence's clock and the team's; this reads both on one clock,
     /// which is the same answer whenever the player's times and the team share a time zone, the usual case.
-    /// It only explains an answer the server already gave, so it never decides anything sent.
+    /// It only explains an answer the server already gave, so it never decides anything sent. Which of an
+    /// answer and an absence counts (the later one, since 2026-11-22) is the server's; the caller asks this
+    /// only where the server answered "no".
     /// </remarks>
     /// <param name="absences">The player's absences (from <c>GET /me/availability</c>).</param>
     /// <param name="teamId">The event's team.</param>

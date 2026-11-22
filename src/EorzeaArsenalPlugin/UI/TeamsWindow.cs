@@ -646,10 +646,11 @@ public sealed class TeamsWindow : Window
             }
         }
 
-        // Where the player's own absence counts them out, say so: the server then answers "no" whatever
-        // was pressed, and without this the buttons look broken.
+        // Where the player's own absence is why the status reads "no", say so. Only on a "no": since the
+        // server's rule of 2026-11-22 what the player said last counts, so an answer given after the absence
+        // wins and the row then shows that answer, with nothing to explain.
         _timesView.EnsureTimes();
-        if (_timesView.Times is { } times &&
+        if (signedOff && _timesView.Times is { } times &&
             AbsenceCoverage.AwayAt(times.Absences, occ.TeamId, occ.Date, occ.Time, occ.EndTime) is not null)
         {
             ImGui.SameLine();

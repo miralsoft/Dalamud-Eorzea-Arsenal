@@ -61,8 +61,9 @@ plus `fix/consent-dialog` (the question waits for a quiet moment, ignores Escape
 `docs/foundation-5-3-0` and `feat/absence-on-events` ("Away" on events an own absence covers), were
 fast-forwarded into `release/v1.3.0`, `main` was merged in for the Dependabot updates (#22, #34), and the
 branch was pushed. The feature branches are deleted. PR #21 is closed; its one live document is now
-`docs/agents/prompts/gearset-plugin-briefing.md`. Open with the server side: an explicit "yes" on a weekly
-event does not win over an absence (the default answer leaves no row). Next: the release, PR into main,
+`docs/agents/prompts/gearset-plugin-briefing.md`. The server side fixed the one bug the test found (branch
+`fix/answer-over-absence`): what the player said last counts between an answer and an absence, so the
+"Away" mark shows only where the server answers "no". Next: the release, PR into main,
 merge and tag in one sitting, the release-note date set to that day.
 
 The foundation moved from the 3.3.0 this repository was audited against to 5.3.0. The Dalamud profile
