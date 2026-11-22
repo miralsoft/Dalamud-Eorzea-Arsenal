@@ -77,6 +77,7 @@ public static class InventoryValidator
             var isKnown = scope == InventoryProtocol.ScopeCharacter
                 || scope == InventoryProtocol.ScopeSaddlebag
                 || scope == InventoryProtocol.ScopeGlamour
+                || scope == InventoryProtocol.ScopeArmoire
                 || InventoryProtocol.IsRetainerScope(scope);
             if (!isKnown)
             {

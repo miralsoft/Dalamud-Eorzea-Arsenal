@@ -68,6 +68,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly GearsetIdentityStore _gearsetIdentityStore;
     private readonly GearsetMappingService _gearsetMapping;
     private readonly JobTableCache _jobTable;
+    private readonly ServerFeatures _features;
+    private long _nextFeaturesTicks;
 
     // Cancels the fire-and-forget work this class starts, so a reload does not leave a request running
     // against services that are being torn down.
@@ -227,8 +229,12 @@ public sealed class Plugin : IDalamudPlugin
             _log.Info($"The game knows {learned.Count} job(s) this version was not told about: {string.Join(", ", learned)}.");
         }
 
+        // What the server offers beyond the push, from the features list of GET /version (server 1.5). Never
+        // from the version number: dev carries new features under an old number until a release stamps it.
+        _features = new ServerFeatures(api, _store, new SystemClock(), _log);
+
         _gearSource = new GameGearSource(clientState, playerState, framework, dataManager, _log, GameNameLanguage);
-        _inventorySource = new GameInventorySource(clientState, playerState, framework, dataManager, _trackedItems, _log);
+        _inventorySource = new GameInventorySource(clientState, playerState, framework, dataManager, _trackedItems, _log, () => _features.Has(FeatureNames.InventoryArmoire));
         _weeklySource = new GameWeeklySource(clientState, playerState, framework, gameGui, dataManager, _log);
         _connection = new ConnectionService(api, _store, new RealDelay(), _log);
 
@@ -258,6 +264,7 @@ public sealed class Plugin : IDalamudPlugin
             try
             {
                 await _jobTable.GetPolicyAsync(_shutdown.Token).ConfigureAwait(false);
+                await _features.RefreshAsync(_shutdown.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -1416,6 +1423,14 @@ public sealed class Plugin : IDalamudPlugin
         {
             _nextDtrUpdateTicks = now + 5_000;
             UpdateDtr();
+        }
+
+        // The features list is short-lived on purpose (a server gains features while the plugin runs); this
+        // only asks the server when the held list has gone stale or the address changed.
+        if (now >= _nextFeaturesTicks)
+        {
+            _nextFeaturesTicks = now + 60_000;
+            _ = _features.RefreshIfStaleAsync(_shutdown.Token);
         }
 
         if (now >= _nextCharRecordTicks)

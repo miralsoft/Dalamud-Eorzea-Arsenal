@@ -3,9 +3,28 @@
 > The complete in-repo memory so an AI/contributor on another machine can continue without losing
 > context (R3). Keep this current **in the same commit** as the change it describes.
 
-_Last updated: 2026-10-10._
+_Last updated: 2026-11-22._
 
-## Status: 1.2.0 is the release of 2026-10-10. Players go from 1.0.0 straight to it; 1.1.0 is skipped.
+## Status: 1.3.0 in progress in `release/v1.3.0`, for server 1.5. 1.2.0 is the release players have.
+
+1.3.0 brings what server 1.5 hands over in `BIS-Searcher/docs/plugin/prompt-1-5-overview.md`, one
+contract per piece: the armoire in the inventory sync, relics, the currency sync, times and polls, drop
+reports and spots for the world database. The open questions went to the server side on 2026-11-22 and
+came back answered (server branch `feat/plugin-answers-1-5`): features are recognised from `features`
+of `GET /version`, never from `app_version`; the currency sync has its own switch, on by default and
+independent of the inventory sync, and replaces `PUT /me/tome-balance` only on a 1.5 server;
+`game_version` takes the client's build string; a drop is everything in a duty's loot chest
+(`seen: chest`, once, even when the player wins it) plus what arrives without a chest
+(`seen: received`); `zone_id` is `TerritoryType.PlaceName` and territories with several maps are left
+out.
+
+Built so far: `ServerFeatures` and the armoire as its own scope (`feat/server-features-armoire`).
+
+The foundation moved from the 3.3.0 this repository was audited against to 5.3.0. The Dalamud profile
+and blueprint are unchanged; the points that touch this repository are listed in
+`foundation-compliance.md` once it is updated.
+
+## Previous: 1.2.0, the release of 2026-10-10. Players go from 1.0.0 straight to it; 1.1.0 is skipped.
 
 1.2.0 reaches `main` through the single PR from `release/v1.2.0` and is tagged `v1.2.0` in the same
 sitting, once server 1.4 is live. Before that it was walked through on dev in a rehearsal of the go-live

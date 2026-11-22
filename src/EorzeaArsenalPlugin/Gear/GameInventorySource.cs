@@ -68,6 +68,7 @@ public sealed class GameInventorySource : IInventorySource
     private readonly IDataManager _data;
     private readonly TrackedItemsStore _tracked;
     private readonly ILog _log;
+    private readonly Func<bool> _armoireOffered;
 
     /// <summary>Creates the game inventory source.</summary>
     /// <param name="clientState">Login state.</param>
@@ -76,7 +77,8 @@ public sealed class GameInventorySource : IInventorySource
     /// <param name="data">Excel data (for the equippable filter).</param>
     /// <param name="tracked">The tier's tracked consumables to also report (materials/tokens).</param>
     /// <param name="log">Diagnostics sink.</param>
-    public GameInventorySource(IClientState clientState, IPlayerState playerState, IFramework framework, IDataManager data, TrackedItemsStore tracked, ILog log)
+    /// <param name="armoireOffered">Whether the server takes the armoire as a scope of its own (<c>inventory-armoire</c>).</param>
+    public GameInventorySource(IClientState clientState, IPlayerState playerState, IFramework framework, IDataManager data, TrackedItemsStore tracked, ILog log, Func<bool> armoireOffered)
     {
         _clientState = clientState;
         _playerState = playerState;
@@ -84,6 +86,7 @@ public sealed class GameInventorySource : IInventorySource
         _data = data;
         _tracked = tracked;
         _log = log;
+        _armoireOffered = armoireOffered;
     }
 
     /// <inheritdoc />
@@ -177,12 +180,20 @@ public sealed class GameInventorySource : IInventorySource
                 _log.Info("Saddlebag not declared: nothing readable in it (open it once to sync its contents).");
             }
 
-            // The dresser has the same trap and no "loaded" flag to check, so finding at least one
-            // piece is the only evidence it was read. That makes an emptied dresser keep its last
+            // The dresser has the same trap, and its loaded flag is undocumented and unchecked, so finding
+            // at least one piece is the evidence it was read. That makes an emptied dresser keep its last
             // known contents — the harmless direction, and the one the server's contract expects.
             if (AddGlamourDresser(items) > 0)
             {
                 scopes.Add(InventoryProtocol.ScopeGlamour);
+            }
+
+            // The armoire is a scope of its own from server 1.5 on, and only there is it read at all: an
+            // older server files armoire rows under "character", and a server that does not list the
+            // feature gets none rather than rows in the wrong scope.
+            if (_armoireOffered() && AddArmoire(items) > 0)
+            {
+                scopes.Add(InventoryProtocol.ScopeArmoire);
             }
 
             return new InventoryData
@@ -377,6 +388,54 @@ public sealed class GameInventorySource : IInventorySource
                 ItemId = id,
                 Container = InventoryContainers.Glamour,
                 Hq = hq,
+                Qty = 1,
+            });
+            added++;
+        }
+
+        return added;
+    }
+
+    /// <summary>Adds the armoire's gear and reports how many pieces were found.</summary>
+    /// <param name="items">The scan being built.</param>
+    /// <returns>The number of armoire pieces added; zero also means "could not read it".</returns>
+    /// <remarks>
+    /// The armoire is opened at an inn like the dresser and reads as empty before that, so the scope is
+    /// declared only on two pieces of evidence together: the client says it is loaded, and something was
+    /// found in it. The flag alone was not trusted for the saddlebag either, where a container that said
+    /// it was loaded cost a player their stored items. An emptied armoire then keeps its last known
+    /// contents, which is the harmless direction. The armoire stores by its own sheet row, not by item:
+    /// each row names the item it holds.
+    /// </remarks>
+    private unsafe int AddArmoire(List<InventoryItemDto> items)
+    {
+        var ui = FFXIVClientStructs.FFXIV.Client.Game.UI.UIState.Instance();
+        if (ui == null || !ui->Cabinet.IsCabinetLoaded())
+        {
+            _log.Info("Armoire not declared: not loaded (open it once at an inn to sync its contents).");
+            return 0;
+        }
+
+        var sheet = _data.GetExcelSheet<Lumina.Excel.Sheets.Cabinet>();
+        if (sheet is null)
+        {
+            return 0;
+        }
+
+        var added = 0;
+        foreach (var row in sheet)
+        {
+            var id = (int)row.Item.RowId;
+            if (id is <= 0 or > MaxRealItemId || !ui->Cabinet.IsItemInCabinet(row.RowId) || !IsEquippable(id))
+            {
+                continue;
+            }
+
+            items.Add(new InventoryItemDto
+            {
+                ItemId = id,
+                Container = InventoryContainers.Armoire,
+                Hq = false,
                 Qty = 1,
             });
             added++;

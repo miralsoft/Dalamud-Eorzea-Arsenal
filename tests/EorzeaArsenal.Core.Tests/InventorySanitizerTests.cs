@@ -38,29 +38,28 @@ public sealed class InventorySanitizerTests
     }
 
     /// <summary>
-    /// The glamour dresser has the saddlebag's problem and no "loaded" flag to check, so it too
-    /// reconciles on its own. The armoire stays in the character scope — it reads from a structure
-    /// that is always there.
+    /// The glamour dresser and, from server 1.5, the armoire have the saddlebag's problem: both read as
+    /// empty until opened at an inn. So each reconciles on its own, and an undeclared one drops its items
+    /// instead of riding along with "character", where it would tell the server the storage is empty.
     /// </summary>
     [Fact]
-    public void The_dresser_reconciles_on_its_own_but_the_armoire_does_not()
+    public void The_dresser_and_the_armoire_reconcile_on_their_own()
     {
         var dresser = new InventoryItemDto { ItemId = 49671, Container = InventoryContainers.Glamour };
         var armoire = new InventoryItemDto { ItemId = 49672, Container = InventoryContainers.Armoire };
 
         Assert.Equal(InventoryProtocol.ScopeGlamour, InventoryProtocol.ScopeForItem(dresser));
-        Assert.Equal(InventoryProtocol.ScopeCharacter, InventoryProtocol.ScopeForItem(armoire));
+        Assert.Equal(InventoryProtocol.ScopeArmoire, InventoryProtocol.ScopeForItem(armoire));
         Assert.DoesNotContain(InventoryContainers.Glamour, InventoryContainers.CharacterContainers);
-        Assert.Contains(InventoryContainers.Armoire, InventoryContainers.CharacterContainers);
+        Assert.DoesNotContain(InventoryContainers.Armoire, InventoryContainers.CharacterContainers);
 
-        // An undeclared dresser drops its items rather than clearing the stored ones.
+        // Undeclared, both drop their items rather than clearing the stored ones.
         var undeclared = InventorySanitizer.Sanitize(Data([InventoryProtocol.ScopeCharacter], [dresser, armoire]));
-        Assert.Single(undeclared.Items);
-        Assert.Equal(InventoryContainers.Armoire, undeclared.Items[0].Container);
+        Assert.Empty(undeclared.Items);
 
-        // A declared one is sent and passes validation.
+        // Declared, both are sent and pass validation.
         var declared = InventorySanitizer.Sanitize(Data(
-            [InventoryProtocol.ScopeCharacter, InventoryProtocol.ScopeGlamour], [dresser, armoire]));
+            [InventoryProtocol.ScopeCharacter, InventoryProtocol.ScopeGlamour, InventoryProtocol.ScopeArmoire], [dresser, armoire]));
         Assert.Equal(2, declared.Items.Count);
         Assert.Empty(InventoryValidator.Validate(InventoryPayload.From(declared)).Errors);
     }

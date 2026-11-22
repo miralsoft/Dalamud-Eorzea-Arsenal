@@ -66,6 +66,18 @@ public sealed class VersionResponse
 
     /// <summary>Webhook event names the server can emit (informational; unused by the plugin).</summary>
     public List<string>? WebhookEvents { get; init; }
+
+    /// <summary>
+    /// What this server offers the plugin, by name (server 1.5): <c>team-availability</c>, <c>polls</c>,
+    /// <c>relics</c>, <c>currency-sync</c>, and so on. <see langword="null"/> on a server before 1.5, which
+    /// offers none of them.
+    /// </summary>
+    /// <remarks>
+    /// This is how a feature is recognised, never <see cref="AppVersion"/>: the dev site carries the new
+    /// features under an older version number until a release stamps it, and a version check would hide
+    /// on dev exactly what is there to be tested. Names are only ever added; an unknown one is ignored.
+    /// </remarks>
+    public List<string>? Features { get; init; }
 }
 
 /// <summary>

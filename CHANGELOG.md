@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+For 1.3.0, built in `release/v1.3.0`. Requires server 1.5.
+
+### Added
+- **What the server offers is read from `features` of `GET /version`** (`ServerFeatures`), per address
+  and again after thirty minutes, never from `app_version`: the dev site carries new features under an
+  old number until a release stamps it, and a version check would hide them where they are tested.
+- **The armoire as an inventory scope of its own** (`armoire`), read only where the server lists
+  `inventory-armoire`, and declared only when the client says it is loaded and something was found in
+  it. Before, the armoire was not read at all, and its container was filed under `character`, the rule
+  of the contract before 1.5.
+
 ## [1.2.0] - 2026-10-10
 
 Requires server 1.4. Players come from 1.0.0: 1.1.0 was announced but never tagged, and everything in it
