@@ -56,6 +56,20 @@ For 1.3.0, built in `release/v1.3.0`. Requires server 1.5.
 - **What waits in the teams on the Teams entry** of the status menu ("3 open items"), from
   `GET /me/waiting` once a minute (`WaitingCounter`), holding back on a 429 for its `Retry-After`.
 
+- **One dialog asks what may be sent** (`ConsentWindow`): the inventory sync, the drop reports and the
+  spot reports together, once, on the update and on a new installation's first connected session, where
+  the server takes at least one of the reports. The reports start off; closing without saving is no. Both
+  reports have their own switch in the settings, next to the inventory, each saying what is sent and what
+  never is.
+- **Drop reports** (`POST /loot/reports`, `DropLedger`, `ReportUploader`, `GameDropWatcher`; where the
+  server lists `drop-reports` and the player said yes): in an instanced duty, every piece in the loot chest
+  once as `chest`, whoever wins it, and what the bags and the armoury gained without a chest as `received`,
+  netted per piece against the chest. The duty is its InstanceContent row id; a coffer is its own item.
+  Collected on disk, sent every five minutes and when the duty ends, at most 50 a call, the same drop added
+  up. A 409 drops what was collected and waits a day, a 429 waits an hour, a 401 or 403 stops until another
+  key is connected, a refused batch is not sent again. The installation id is a random 128-bit id made once
+  (config version 4); nothing about the character, world or account is ever sent.
+
 ### Changed
 - **`PUT /me/tome-balance` is not called on a 1.5 server**, where the currency sync sets the balance, and
   not at all with the tomestones-and-scrips switch off. Before 1.5 it is sent as before.

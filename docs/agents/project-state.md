@@ -41,6 +41,12 @@ Built so far, each on its own branch stacked on the one before (none pushed yet)
   writes it, or inside `data`), since the contract's example has no envelope. Writes whose answer the
   view does not need (answers, weeks, "not tonight", deletes) take any 2xx and read again. "Not tonight"
   asks once before it goes, because the team is told.
+- `feat/drop-reports`: the consent dialog of 1.3.0 (`ConsentWindow`, `ReportConsentAsked`), the two report
+  switches, the installation id (config version 4; made outside the version step, since a fresh config
+  starts at 4), and the drop reports (`DropLedger` pure, `ReportUploader<T>` shared with the spot reports,
+  `GameDropWatcher` reading `Loot.Items` once a second in an instanced duty). To check in the game: the
+  `content_id` the log names when a duty starts (the Underkeep should be 101), that a chest piece is
+  reported once and not again when won, and when the loot list empties.
 
 The foundation moved from the 3.3.0 this repository was audited against to 5.3.0. The Dalamud profile
 and blueprint are unchanged; the points that touch this repository are listed in

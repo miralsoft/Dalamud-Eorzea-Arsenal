@@ -576,6 +576,25 @@ public sealed class ConfigWindow : Window, IDisposable
 
         Help(T(LocKeys.SyncCurrenciesHint));
 
+        // The two reports of server 1.5: each its own switch, off by default, independent of each other.
+        var reportDrops = _config.ReportDrops;
+        if (ImGui.Checkbox(T(LocKeys.ReportDrops), ref reportDrops))
+        {
+            _config.ReportDrops = reportDrops;
+            _save();
+        }
+
+        Help(T(LocKeys.ReportDropsHint));
+
+        var reportWorld = _config.ReportWorld;
+        if (ImGui.Checkbox(T(LocKeys.ReportWorld), ref reportWorld))
+        {
+            _config.ReportWorld = reportWorld;
+            _save();
+        }
+
+        Help(T(LocKeys.ReportWorldHint));
+
         var syncWeekly = _config.SyncWeekly;
         if (ImGui.Checkbox(T(LocKeys.SyncWeekly), ref syncWeekly))
         {

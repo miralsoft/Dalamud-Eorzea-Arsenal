@@ -14,7 +14,7 @@ namespace EorzeaArsenal.Plugin.Configuration;
 public sealed class PluginConfig : IPluginConfiguration
 {
     /// <summary>The current configuration schema version.</summary>
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 
     /// <summary>
     /// The default production API base URL; always user-editable (P9). For local development,
@@ -100,6 +100,39 @@ public sealed class PluginConfig : IPluginConfiguration
     /// the initializer's <see langword="true"/>.
     /// </summary>
     public bool SyncCurrencies { get; set; } = true;
+
+    /// <summary>
+    /// Opt-in (server 1.5): report what drops in duties (<c>POST /loot/reports</c>): item, quantity, duty, game
+    /// version and day, never the character, world, account or any text. Off by default, one setting per
+    /// installation. While off nothing is collected and nothing kept.
+    /// </summary>
+    public bool ReportDrops { get; set; }
+
+    /// <summary>
+    /// Opt-in (server 1.5): report where people, monsters and FATEs the world database wants placed stand
+    /// (<c>POST /world/reports</c>): what was seen, the zone, the spot on the map, game version and day, never
+    /// the player's own position. Off by default, independent of <see cref="ReportDrops"/>.
+    /// </summary>
+    public bool ReportWorld { get; set; }
+
+    /// <summary>
+    /// Whether the dialog of 1.3.0 that asks for the inventory sync, the drop reports and the world reports
+    /// has been shown. It is shown once; closing it without an answer leaves both reports off.
+    /// </summary>
+    public bool ReportConsentAsked { get; set; }
+
+    /// <summary>
+    /// A random id of this installation, sent only with drop and world reports so the server can count one
+    /// installation as one reporter. Never shown, never tied to the account; the server keeps a keyed hash.
+    /// Created once by the migration to version 4.
+    /// </summary>
+    public string InstallationId { get; set; } = string.Empty;
+
+    /// <summary>Drops collected and not sent yet, kept on disk so a crash loses nothing.</summary>
+    public List<DropReport> PendingDropReports { get; set; } = [];
+
+    /// <summary>Spots collected and not sent yet, kept on disk so a crash loses nothing.</summary>
+    public List<WorldReport> PendingWorldReports { get; set; } = [];
 
     /// <summary>
     /// Opt-in: also upload the weekly checklist (tomestones acquired, weekly content done) via
@@ -275,6 +308,22 @@ public sealed class PluginConfig : IPluginConfiguration
             }
 
             Version = 3;
+            changed = true;
+        }
+
+        // v3 → v4: the installation id of the drop and world reports arrived. The id itself is made below,
+        // outside the version step, because a config created fresh already starts at version 4.
+        if (Version < 4)
+        {
+            Version = 4;
+            changed = true;
+        }
+
+        // Created once and never again, so a reinstall is a new reporter, which the server accepts. 128 random
+        // bits, as the contract asks.
+        if (string.IsNullOrWhiteSpace(InstallationId))
+        {
+            InstallationId = Guid.NewGuid().ToString("N");
             changed = true;
         }
 

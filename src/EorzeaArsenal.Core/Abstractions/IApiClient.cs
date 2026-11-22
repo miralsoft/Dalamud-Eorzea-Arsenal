@@ -385,6 +385,26 @@ public interface IApiClient
     /// <returns>The mark and what waits.</returns>
     Task<ApiResult<TeamPulseResponse>> GetTeamPulseAsync(string apiKey, long teamId, CancellationToken ct);
 
+    /// <summary>Sends drop reports via <c>POST /loot/reports</c> (server 1.5, <c>loot:report</c>; 20 an hour).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="request">The reports.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The 202 answer, or a classified error (409 intake closed, 413 too many, 429 limit).</returns>
+    Task<ApiResult<ReportAck>> PostDropReportsAsync(string apiKey, DropReportRequest request, CancellationToken ct);
+
+    /// <summary>Reads what the world database still wants placed via <c>GET /world/wanted</c> (server 1.5, <c>world:report</c>).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The lists and their version.</returns>
+    Task<ApiResult<WorldWantedResponse>> GetWorldWantedAsync(string apiKey, CancellationToken ct);
+
+    /// <summary>Sends spots via <c>POST /world/reports</c> (server 1.5, <c>world:report</c>; 20 an hour).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="request">The reports.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The 202 answer, or a classified error.</returns>
+    Task<ApiResult<ReportAck>> PostWorldReportsAsync(string apiKey, WorldReportRequest request, CancellationToken ct);
+
     /// <summary>
     /// Reads the purchase advice for one set via <c>GET /me/advisor-options</c> (<c>gear:read</c>):
     /// the ranked deterministic steps, the pieces selectable per slot, and what the open slots still

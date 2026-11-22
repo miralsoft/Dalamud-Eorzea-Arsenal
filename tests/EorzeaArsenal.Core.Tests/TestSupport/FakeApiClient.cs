@@ -528,6 +528,50 @@ public sealed class FakeApiClient : IApiClient
     /// <inheritdoc />
     public Task<ApiResult<TeamPulseResponse>> GetTeamPulseAsync(string apiKey, long teamId, CancellationToken ct) => Task.FromResult(TeamPulseResult);
 
+    /// <summary>Drop report calls, in order.</summary>
+    public List<DropReportRequest> DropReportCalls { get; } = [];
+
+    /// <summary>Results of the drop report calls, one per call; the last one repeats. Empty: all accepted.</summary>
+    public Queue<ApiResult<ReportAck>> DropReportResults { get; } = new();
+
+    /// <summary>Result of <see cref="GetWorldWantedAsync"/>.</summary>
+    public ApiResult<WorldWantedResponse> WorldWantedResult { get; set; } = ApiResult<WorldWantedResponse>.Ok(new WorldWantedResponse { Version = "v1", Wanted = new WorldWanted() });
+
+    /// <summary>Number of <see cref="GetWorldWantedAsync"/> calls.</summary>
+    public int WorldWantedReads { get; private set; }
+
+    /// <summary>World report calls, in order.</summary>
+    public List<WorldReportRequest> WorldReportCalls { get; } = [];
+
+    /// <summary>Results of the world report calls, one per call; the last one repeats. Empty: all accepted.</summary>
+    public Queue<ApiResult<ReportAck>> WorldReportResults { get; } = new();
+
+    /// <inheritdoc />
+    public Task<ApiResult<ReportAck>> PostDropReportsAsync(string apiKey, DropReportRequest request, CancellationToken ct)
+    {
+        DropReportCalls.Add(request);
+        return Task.FromResult(Next(DropReportResults, request.Reports.Count));
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<WorldWantedResponse>> GetWorldWantedAsync(string apiKey, CancellationToken ct)
+    {
+        WorldWantedReads++;
+        return Task.FromResult(WorldWantedResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<ReportAck>> PostWorldReportsAsync(string apiKey, WorldReportRequest request, CancellationToken ct)
+    {
+        WorldReportCalls.Add(request);
+        return Task.FromResult(Next(WorldReportResults, request.Reports.Count));
+    }
+
+    private static ApiResult<ReportAck> Next(Queue<ApiResult<ReportAck>> results, int count) =>
+        results.Count > 1 ? results.Dequeue()
+        : results.Count == 1 ? results.Peek()
+        : ApiResult<ReportAck>.Ok(new ReportAck { Accepted = count });
+
     /// <summary>Each snapshot passed to <see cref="PushCurrenciesAsync"/>, in call order.</summary>
     public List<CurrencyStockRequest> CurrencyPushes { get; } = [];
 

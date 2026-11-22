@@ -377,6 +377,29 @@ public sealed class ApiClient : IApiClient
     public Task<ApiResult<TeamPulseResponse>> GetTeamPulseAsync(string apiKey, long teamId, CancellationToken ct) =>
         GetAsync<TeamPulseResponse>($"/teams/{teamId}/pulse", apiKey, ct);
 
+    /// <inheritdoc />
+    public Task<ApiResult<ReportAck>> PostDropReportsAsync(string apiKey, DropReportRequest request, CancellationToken ct) =>
+        SendJsonAsync<DropReportRequest, ReportAck>(HttpMethod.Post, "/loot/reports", apiKey, request, ct);
+
+    /// <inheritdoc />
+    public Task<ApiResult<WorldWantedResponse>> GetWorldWantedAsync(string apiKey, CancellationToken ct) =>
+        GetAsync<WorldWantedResponse>("/world/wanted", apiKey, ct);
+
+    /// <inheritdoc />
+    public Task<ApiResult<ReportAck>> PostWorldReportsAsync(string apiKey, WorldReportRequest request, CancellationToken ct) =>
+        SendJsonAsync<WorldReportRequest, ReportAck>(HttpMethod.Post, "/world/reports", apiKey, request, ct);
+
+    /// <summary>Sends a JSON body and reads a typed answer.</summary>
+    private async Task<ApiResult<TResult>> SendJsonAsync<TBody, TResult>(HttpMethod method, string path, string apiKey, TBody body, CancellationToken ct)
+    {
+        using var message = new HttpRequestMessage(method, Url(path))
+        {
+            Content = JsonBody(body),
+        };
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<TResult>(message, ct).ConfigureAwait(false);
+    }
+
     /// <summary>Sends a JSON body and takes any 2xx as success, ignoring the answer's body.</summary>
     private async Task<ApiResult<bool>> SendJsonVoidAsync<TBody>(HttpMethod method, string path, string apiKey, TBody body, CancellationToken ct)
     {

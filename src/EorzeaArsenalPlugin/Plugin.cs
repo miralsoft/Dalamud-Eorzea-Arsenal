@@ -63,6 +63,9 @@ public sealed class Plugin : IDalamudPlugin
     private readonly GearSyncService _sync;
     private readonly InventorySyncService _inventorySync;
     private readonly CurrencySyncService _currencySync;
+    private readonly ReportUploader<DropReport> _dropUploader;
+    private readonly GameDropWatcher _dropWatcher;
+    private readonly ConsentWindow _consentWindow;
     private long _nextCurrencyTicks;
     private readonly WeeklySyncService _weeklySync;
     private readonly TeamsService _teamsService;
@@ -299,6 +302,26 @@ public sealed class Plugin : IDalamudPlugin
         _currencySync = new CurrencySyncService(
             new GameCurrencySource(clientState, playerState, framework, _log), api, _store, new SystemClock(),
             () => _trackedItems.Currencies, _log, _characterDirectory);
+        _dropUploader = new ReportUploader<DropReport>(
+            "drop",
+            (key, batch, ct) => GameVersion() is { } version
+                ? api.PostDropReportsAsync(key, new DropReportRequest { InstallationId = _config.InstallationId, GameVersion = ClipVersion(version), Reports = batch }, ct)
+                : Task.FromResult(ApiResult<ReportAck>.Fail(new ApiError { Kind = ApiErrorKind.Unexpected, Message = "No game version." })),
+            _store,
+            new SystemClock(),
+            50,
+            r => r.Day,
+            ReportKeys.Drop,
+            ReportKeys.CombineDrops,
+            list =>
+            {
+                _config.PendingDropReports = [.. list];
+                Save();
+            },
+            _config.PendingDropReports,
+            _log);
+        _dropWatcher = new GameDropWatcher(clientState, dataManager, _log, DropsActive, reports => _dropUploader.Add(reports),
+            () => _ = _dropUploader.SendIfDueAsync(force: true, _shutdown.Token));
         _weeklySync = new WeeklySyncService(_weeklySource, api, _store, _characterDirectory, new SystemClock(), _log);
         _weeklySync.SyncCompleted += OnWeeklyCompleted;
         _weeklySource.HiddenRefreshCompleted += OnHiddenRefreshCompleted;
@@ -364,6 +387,9 @@ public sealed class Plugin : IDalamudPlugin
         _windowSystem.AddWindow(_bisWindow);
         _windowSystem.AddWindow(_advisorWindow);
         _windowSystem.AddWindow(_relicWindow);
+        _consentWindow = new ConsentWindow(_config, _localizer, Save,
+            () => _features.Has(FeatureNames.DropReports), () => _features.Has(FeatureNames.WorldReports));
+        _windowSystem.AddWindow(_consentWindow);
         _windowSystem.AddWindow(_logWindow);
         _windowSystem.AddWindow(_statusWindow);
         _windowSystem.AddWindow(_configWindow);
@@ -461,6 +487,7 @@ public sealed class Plugin : IDalamudPlugin
         _inventorySync.Dispose();
         _currencySync.Dispose();
         _relicWindow.Dispose();
+        _dropWatcher.Dispose();
         _weeklySource.HiddenRefreshCompleted -= OnHiddenRefreshCompleted;
         _weeklySource.ContentsRefreshCompleted -= OnHiddenRefreshCompleted;
         _weeklySync.SyncCompleted -= OnWeeklyCompleted;
@@ -1236,6 +1263,33 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     /// <summary>
+    /// Whether drops may be collected now: the setting, the terms, a key, a server that takes them, and no
+    /// closed intake or limit holding the sends (a closed intake means keep nothing).
+    /// </summary>
+    private bool DropsActive() =>
+        _config is { Enabled: true, TosAccepted: true, ReportDrops: true } && _store.HasKey &&
+        _features.Has(FeatureNames.DropReports) && !_dropUploader.IsHolding;
+
+    /// <summary>
+    /// Shows the dialog of 1.3.0 once: after the terms are accepted and a key is connected, on a server that
+    /// takes at least one of the two reports, while a character is logged in so the player sees it.
+    /// </summary>
+    private void AskConsentOnce()
+    {
+        if (_config.ReportConsentAsked || _consentWindow.IsOpen || !_clientState.IsLoggedIn ||
+            _config is not { Enabled: true, TosAccepted: true } || !_store.HasKey ||
+            !(_features.Has(FeatureNames.DropReports) || _features.Has(FeatureNames.WorldReports)))
+        {
+            return;
+        }
+
+        _consentWindow.Ask();
+    }
+
+    /// <summary>The game version as the report contracts take it: at most 32 characters.</summary>
+    private static string ClipVersion(string version) => version.Length <= 32 ? version : version[..32];
+
+    /// <summary>
     /// Whether this server takes the currency sync: <c>currency-sync</c> in its features, or a
     /// <c>currencies</c> list in the tracked items. Either one is a 1.5 server, as the contract says.
     /// </summary>
@@ -1511,7 +1565,25 @@ public sealed class Plugin : IDalamudPlugin
             {
                 _waiting.Clear();
             }
+
+            // Drop reports: sent every few minutes while on; turning the setting off drops what was kept.
+            if (_config.ReportDrops)
+            {
+                if (DropsActive() || _dropUploader.PendingCount > 0)
+                {
+                    _ = _dropUploader.SendIfDueAsync(force: false, _shutdown.Token);
+                }
+            }
+            else
+            {
+                _dropUploader.Clear();
+            }
+
+            AskConsentOnce();
         }
+
+        // Self-throttled to once a second, and a no-op outside a watched duty.
+        _dropWatcher.Tick();
 
         if (now >= _nextCharRecordTicks)
         {

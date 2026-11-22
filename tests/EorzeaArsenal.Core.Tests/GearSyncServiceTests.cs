@@ -389,6 +389,15 @@ public sealed class GearSyncServiceTests
         public Task<ApiResult<TeamPulseResponse>> GetTeamPulseAsync(string apiKey, long teamId, CancellationToken ct) =>
             throw new NotSupportedException();
 
+        public Task<ApiResult<ReportAck>> PostDropReportsAsync(string apiKey, DropReportRequest request, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<WorldWantedResponse>> GetWorldWantedAsync(string apiKey, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<ReportAck>> PostWorldReportsAsync(string apiKey, WorldReportRequest request, CancellationToken ct) =>
+            throw new NotSupportedException();
+
         public Task<ApiResult<AdvisorPlanResponse>> GetAdvisorPlanAsync(string apiKey, long characterId, string job, string target, CancellationToken ct) =>
             throw new NotSupportedException();
 

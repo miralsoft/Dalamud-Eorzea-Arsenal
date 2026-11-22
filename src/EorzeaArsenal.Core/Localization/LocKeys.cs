@@ -2274,4 +2274,28 @@ public static class LocKeys
 
     /// <summary>Status menu: several items wait in the teams ({0}).</summary>
     public const string StatusOpenItemsMany = "status.openitems.many";
+
+    /// <summary>Opt-in (server 1.5): send drop reports.</summary>
+    public const string ReportDrops = "config.reportdrops";
+
+    /// <summary>What the drop reports send and what not.</summary>
+    public const string ReportDropsHint = "config.reportdrops.hint";
+
+    /// <summary>Opt-in (server 1.5): report spots for the world database.</summary>
+    public const string ReportWorld = "config.reportworld";
+
+    /// <summary>What the spot reports send and what not.</summary>
+    public const string ReportWorldHint = "config.reportworld.hint";
+
+    /// <summary>Consent dialog of 1.3.0: heading.</summary>
+    public const string ConsentHeading = "consent.heading";
+
+    /// <summary>Consent dialog: what it asks.</summary>
+    public const string ConsentIntro = "consent.intro";
+
+    /// <summary>Consent dialog: save the choice.</summary>
+    public const string ConsentApply = "consent.apply";
+
+    /// <summary>Consent dialog: closing is no.</summary>
+    public const string ConsentCloseHint = "consent.closehint";
 }

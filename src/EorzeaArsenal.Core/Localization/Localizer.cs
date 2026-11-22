@@ -820,6 +820,14 @@ public sealed class Localizer : ILocalizer
         [LocKeys.TimesMissing] = "Without times: {0} of {1}",
         [LocKeys.StatusOpenItemsOne] = "1 open item",
         [LocKeys.StatusOpenItemsMany] = "{0} open items",
+        [LocKeys.ReportDrops] = "Send drop reports",
+        [LocKeys.ReportDropsHint] = "Reports what drops in dungeons, trials and raids: item, quantity, duty, game version and day. Never your character, world, account or any text. Once several players confirm a drop, the website shows it as a source.",
+        [LocKeys.ReportWorld] = "Report spots",
+        [LocKeys.ReportWorldHint] = "Reports where people, monsters and FATEs stand that the world database still lacks: what was seen, the zone, the spot on the map, game version and day. Only the position of what was seen, never your own. Never your character, world, account or any text.",
+        [LocKeys.ConsentHeading] = "What may be sent?",
+        [LocKeys.ConsentIntro] = "New in 1.3.0: you can choose these three one by one. Each stays off until you turn it on, and you can change them in the settings at any time.",
+        [LocKeys.ConsentApply] = "Save",
+        [LocKeys.ConsentCloseHint] = "Closing without saving leaves the reports off.",
     };
 
     private static readonly IReadOnlyDictionary<string, string> De = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -1603,6 +1611,14 @@ public sealed class Localizer : ILocalizer
         [LocKeys.TimesMissing] = "Ohne Zeiten: {0} von {1}",
         [LocKeys.StatusOpenItemsOne] = "1 offener Punkt",
         [LocKeys.StatusOpenItemsMany] = "{0} offene Punkte",
+        [LocKeys.ReportDrops] = "Drop-Meldungen senden",
+        [LocKeys.ReportDropsHint] = "Meldet, was in Dungeons, Prüfungen und Raids droppt: Gegenstand, Anzahl, Duty, Spielversion und Tag. Nie Charakter, Welt, Konto oder Text. Bestätigen mehrere Spieler einen Drop, zeigt die Webseite ihn als Quelle.",
+        [LocKeys.ReportWorld] = "Fundorte melden",
+        [LocKeys.ReportWorldHint] = "Meldet, wo Personen, Monster und FATEs stehen, die der Weltdatenbank noch fehlen: was gesehen wurde, Zone, Stelle auf der Karte, Spielversion und Tag. Nur die Position des gesehenen Dings, keine eigene. Nie Charakter, Welt, Konto oder Text.",
+        [LocKeys.ConsentHeading] = "Was darf übertragen werden?",
+        [LocKeys.ConsentIntro] = "Neu in 1.3.0: Diese drei kannst du einzeln wählen. Jedes bleibt aus, bis du es einschaltest, und lässt sich jederzeit in den Einstellungen ändern.",
+        [LocKeys.ConsentApply] = "Übernehmen",
+        [LocKeys.ConsentCloseHint] = "Schließen ohne Übernehmen lässt die Meldungen aus.",
     };
 
     private static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Languages =
