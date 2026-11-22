@@ -18,7 +18,7 @@ independent of the inventory sync, and replaces `PUT /me/tome-balance` only on a
 (`seen: received`); `zone_id` is `TerritoryType.PlaceName` and territories with several maps are left
 out.
 
-Built so far, each on its own branch stacked on the one before (none pushed yet):
+Built for 1.3.0, branch by branch (all now in `release/v1.3.0`):
 
 - `feat/server-features-armoire`: `ServerFeatures` and the armoire as its own scope.
 - `feat/currency-sync`: `CurrencySyncService` with `GameCurrencySource`, the ids from `currencies` of
@@ -56,10 +56,14 @@ Built so far, each on its own branch stacked on the one before (none pushed yet)
   `changelog.json`, and the CHANGELOG heading reads "1.3.0 - unreleased". The date (2026-11-22 for now) is
   set to the shipping day in the same sitting as the merge into main, as for 1.2.0.
 
-Every piece of 1.3.0 is built. The branches stack in this order, each on the one before, none pushed:
-`feat/server-features-armoire`, `feat/currency-sync`, `feat/absence-times`, `feat/relics`,
-`feat/times-polls`, `feat/drop-reports`, `feat/world-reports`, `feat/release-notes-1-3-0`. Next: the
-in-game test on dev, then each branch into `release/v1.3.0` (a push or PR only on its own go).
+Every piece of 1.3.0 is built and tested in game on dev (2026-11-22). On the same day all branches above,
+plus `fix/consent-dialog` (the question waits for a quiet moment, ignores Escape, has a menu entry),
+`docs/foundation-5-3-0` and `feat/absence-on-events` ("Away" on events an own absence covers), were
+fast-forwarded into `release/v1.3.0`, `main` was merged in for the Dependabot updates (#22, #34), and the
+branch was pushed. The feature branches are deleted. PR #21 is closed; its one live document is now
+`docs/agents/prompts/gearset-plugin-briefing.md`. Open with the server side: an explicit "yes" on a weekly
+event does not win over an absence (the default answer leaves no row). Next: the release, PR into main,
+merge and tag in one sitting, the release-note date set to that day.
 
 The foundation moved from the 3.3.0 this repository was audited against to 5.3.0. The Dalamud profile
 and blueprint are unchanged; `foundation-compliance.md` carries the 5.3.0 pass (2026-11-22): two new
