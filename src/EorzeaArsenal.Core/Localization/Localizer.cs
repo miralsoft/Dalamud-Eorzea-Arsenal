@@ -344,7 +344,7 @@ public sealed class Localizer : ILocalizer
 
         [LocKeys.SyncInventory] = "Also upload owned items",
         [LocKeys.SyncInventoryHint] =
-            "Uploads which gear you own (equipped, armoury, bags, saddlebag, glamour dresser) so the " +
+            "Uploads which gear you own (equipped, armoury, bags, saddlebag, glamour dresser, armoire) so the " +
             "web app can tick off what you already have. When that happens is set by the switches above.",
         [LocKeys.SyncCurrencies] = "Currencies",
         [LocKeys.SyncCurrenciesHint] =
@@ -1145,8 +1145,8 @@ public sealed class Localizer : ILocalizer
 
         [LocKeys.SyncInventory] = "Auch Besitz (Inventar) übertragen",
         [LocKeys.SyncInventoryHint] =
-            "Überträgt, welche Ausrüstung du besitzt (angelegt, Arsenal, Taschen, Satteltasche, " +
-            "Schrank), damit die Webapp abhaken kann, was du schon hast. Wann das geschieht, bestimmen " +
+            "Überträgt, welche Ausrüstung du besitzt (angelegt, Arsenal, Taschen, Satteltasche, Projektionstruhe, " +
+            "Kabinett), damit die Webapp abhaken kann, was du schon hast. Wann das geschieht, bestimmen " +
             "die Schalter oben.",
         [LocKeys.SyncCurrencies] = "Währungen",
         [LocKeys.SyncCurrenciesHint] =
@@ -1558,8 +1558,8 @@ public sealed class Localizer : ILocalizer
         [LocKeys.HoldingSaddlebag] = "Satteltasche",
         [LocKeys.HoldingArmoury] = "Arsenal",
         [LocKeys.HoldingEquipped] = "angelegt",
-        [LocKeys.HoldingGlamour] = "Kleiderschrank",
-        [LocKeys.HoldingArmoire] = "Schrank",
+        [LocKeys.HoldingGlamour] = "Projektionstruhe",
+        [LocKeys.HoldingArmoire] = "Kabinett",
         [LocKeys.HoldingRetainer] = "Gehilfe",
         [LocKeys.HoldingManual] = "auf der Webseite eingetragen",
         [LocKeys.AdvisorStockHeading] = "Deine Vorräte",
@@ -1573,7 +1573,7 @@ public sealed class Localizer : ILocalizer
         [LocKeys.RelicOpen] = "Relikte",
         [LocKeys.RelicCombat] = "Kampf",
         [LocKeys.RelicCraft] = "Handwerk und Sammeln",
-        [LocKeys.RelicReminder] = "Relikte in Kommode und Kabinett zählen, sobald du beide seit dem Start des Plugins geöffnet hast.",
+        [LocKeys.RelicReminder] = "Relikte in Projektionstruhe und Kabinett zählen, sobald du beide seit dem Start des Plugins geöffnet hast.",
         [LocKeys.RelicInventoryOff] = "Dein Inventar wird nicht übertragen. Relikte zählen dann nur aus Gearsets und deinen Häkchen.",
         [LocKeys.RelicLoading] = "Lade Relikte…",
         [LocKeys.RelicError] = "Die Relikte konnten nicht geladen werden.",
