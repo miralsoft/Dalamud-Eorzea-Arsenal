@@ -77,6 +77,13 @@ public sealed class PluginConfig : IPluginConfiguration
     /// <summary>Whether to show the BiS hover overlay over equipment items.</summary>
     public bool ShowBisTooltip { get; set; } = true;
 
+    /// <summary>
+    /// Where the BiS information of <see cref="ShowBisTooltip"/> appears: the plugin's own window (the
+    /// default, as before 1.3.0), the game's own item tooltip, or both. No migration: a config without the
+    /// field reads the default.
+    /// </summary>
+    public BisTooltipPlacement BisPlacement { get; set; } = BisTooltipPlacement.Overlay;
+
     /// <summary>Whether to show the compact status entry in the in-game server-info (DTR) bar.</summary>
     public bool ShowDtrBar { get; set; } = true;
 

@@ -632,6 +632,22 @@ public sealed class ConfigWindow : Window, IDisposable
             _save();
         }
 
+        if (_config.ShowBisTooltip)
+        {
+            ImGui.Indent();
+            string[] placements = [T(LocKeys.BisPlacementOverlay), T(LocKeys.BisPlacementTooltip), T(LocKeys.BisPlacementBoth)];
+            var placement = (int)_config.BisPlacement;
+            ImGui.SetNextItemWidth(220f);
+            if (ImGui.Combo(T(LocKeys.BisPlacement), ref placement, placements, placements.Length))
+            {
+                _config.BisPlacement = (BisTooltipPlacement)Math.Clamp(placement, 0, 2);
+                _save();
+            }
+
+            Help(T(LocKeys.BisPlacementHint));
+            ImGui.Unindent();
+        }
+
         var bisSourcing = _config.BisShowSourcing;
         if (ImGui.Checkbox(T(LocKeys.BisShowSourcing), ref bisSourcing))
         {

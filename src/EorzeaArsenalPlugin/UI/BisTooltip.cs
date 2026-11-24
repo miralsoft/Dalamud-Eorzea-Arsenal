@@ -104,7 +104,7 @@ public sealed class BisTooltip
 
     private void DrawInternal()
     {
-        if (!_config.ShowBisTooltip || !_config.Enabled)
+        if (!_config.ShowBisTooltip || !_config.Enabled || _config.BisPlacement == BisTooltipPlacement.Tooltip)
         {
             return;
         }
@@ -136,6 +136,107 @@ public sealed class BisTooltip
         }
 
         DrawWindow(position);
+    }
+
+    /// <summary>The heading of the BiS block, the same in the window and in the game's tooltip.</summary>
+    public string Header => T(LocKeys.BisTooltipHeader);
+
+    /// <summary>
+    /// The short form for the game's own tooltip: what the window says for the hovered item, as coloured
+    /// lines of text without icons and without the sourcing chain, which needs the window's room.
+    /// </summary>
+    /// <returns>The lines, empty when there is nothing to say for this item. Framework thread.</returns>
+    public IReadOnlyList<(string Text, Vector4 Color)> TooltipLines()
+    {
+        var raw = _gameGui.HoveredItem;
+        if (raw is 0 or > uint.MaxValue)
+        {
+            return [];
+        }
+
+        var itemId = ItemIdNormalizer.Normalize((uint)raw);
+        var gearIndex = _gearSource.GetCurrentGearsetIndex();
+        var lines = BuildLines(itemId, gearIndex);
+        var text = new List<(string, Vector4)>();
+        if (lines.Count == 0)
+        {
+            if (NoTargetHint(itemId, gearIndex) is { } hint)
+            {
+                text.Add((hint, Yellow));
+            }
+
+            return text;
+        }
+
+        foreach (var line in lines)
+        {
+            AddTextLines(text, line);
+        }
+
+        return text;
+    }
+
+    /// <summary>
+    /// The colour a line takes in the game's own tooltip, or <see langword="null"/> for the tooltip's own text
+    /// colour. The window's colours are made for its dark background; the game's tooltip is light in the light
+    /// theme and dark in the dark one, so it gets mid tones that read on both.
+    /// </summary>
+    /// <param name="color">The window's colour of the line.</param>
+    /// <returns>The colour for the game's tooltip.</returns>
+    public static Vector4? GameTooltipColor(Vector4 color) =>
+        color == Green ? new Vector4(0.18f, 0.6f, 0.18f, 1f)
+        : color == Red ? new Vector4(0.82f, 0.22f, 0.22f, 1f)
+        : color == Orange ? new Vector4(0.86f, 0.5f, 0.08f, 1f)
+        : color == Yellow ? new Vector4(0.75f, 0.58f, 0.08f, 1f)
+        : color == Accent ? new Vector4(0.25f, 0.5f, 0.9f, 1f)
+        : null;
+
+    /// <summary>The colour of the heading in the window, for <see cref="GameTooltipColor"/>.</summary>
+    public static Vector4 HeaderColor => Accent;
+
+    /// <summary>The window's <see cref="DrawLine"/> as plain coloured lines, in the same order and colours.</summary>
+    private void AddTextLines(List<(string, Vector4)> text, OverlayLine line)
+    {
+        var clean = line.Missing.Count == 0 && line.Wrong.Count == 0 && !line.HqMissing;
+        var (mark, color) = line.Status switch
+        {
+            SlotMatch.Match when clean => ("✓", Green),
+            SlotMatch.Match => ("!", Orange),
+            _ => ("×", Red),
+        };
+
+        var slotName = _localizer.Get(SlotNames.LocKey(line.Slot));
+        var source = SourceLabel(line.Source);
+        var suffix = source is null ? string.Empty : $" · {source}";
+        var hq = line.TargetHq ? $" {T(LocKeys.BisHq)}" : string.Empty;
+        text.Add(($"{mark} {slotName}: {line.TargetName}{hq} · iLvl {line.TargetIlvl}{suffix}", color));
+
+        if (line.HqMissing)
+        {
+            text.Add((Indent + T(LocKeys.BisHqMissing), Orange));
+        }
+
+        if (line.Status == SlotMatch.ItemDiffers && line.EquippedName is not null)
+        {
+            var equipped = line.EquippedIlvl is { } ilvl ? $"{line.EquippedName} · iLvl {ilvl}" : line.EquippedName;
+            text.Add((Indent + _localizer.Get(LocKeys.BisYouHave, equipped), Muted));
+        }
+
+        if (line.Status is SlotMatch.ItemDiffers or SlotMatch.MissingCurrent)
+        {
+            text.Add((Indent + (line.Owned ? T(LocKeys.BisOwned) : T(LocKeys.BisNotOwned)), line.Owned ? Green : Red));
+        }
+
+        if (line.Wrong.Count > 0)
+        {
+            text.Add((Indent + _localizer.Get(LocKeys.BisMateriaWrong, string.Join(", ", line.Wrong)), Red));
+        }
+
+        if (line.Missing.Count > 0)
+        {
+            var key = line.Status == SlotMatch.Match ? LocKeys.BisMateriaMissing : LocKeys.BisMateriaList;
+            text.Add((Indent + _localizer.Get(key, string.Join(", ", line.Missing)), line.Status == SlotMatch.Match ? Orange : Muted));
+        }
     }
 
     private List<OverlayLine> BuildLines(int itemId, int gearIndex)

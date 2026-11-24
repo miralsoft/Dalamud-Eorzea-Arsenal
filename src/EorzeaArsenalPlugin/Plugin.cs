@@ -128,6 +128,7 @@ public sealed class Plugin : IDalamudPlugin
     private bool _reviewAnnounceRunning;
     private volatile bool _reviewOpenRequested;
     private readonly BisTooltip _bisTooltip;
+    private readonly GameTooltipBis _gameTooltipBis;
     private readonly IDtrBarEntry _dtrEntry;
 
     // Framework-tick throttles (Environment.TickCount64 milliseconds).
@@ -187,6 +188,7 @@ public sealed class Plugin : IDalamudPlugin
     /// <param name="dtrBar">The in-game server-info bar (compact status entry).</param>
     /// <param name="objectTable">The loaded objects, for the spot reports (only with consent).</param>
     /// <param name="fateTable">The active FATEs, for the spot reports (only with consent).</param>
+    /// <param name="addonLifecycle">Addon events, to add the BiS lines to the game's item tooltip when chosen.</param>
     public Plugin(
         IDalamudPluginInterface pluginInterface,
         ICommandManager commandManager,
@@ -202,7 +204,8 @@ public sealed class Plugin : IDalamudPlugin
         IToastGui toastGui,
         IDtrBar dtrBar,
         IObjectTable objectTable,
-        IFateTable fateTable)
+        IFateTable fateTable,
+        IAddonLifecycle addonLifecycle)
     {
         _pluginInterface = pluginInterface;
         _commandManager = commandManager;
@@ -427,6 +430,7 @@ public sealed class Plugin : IDalamudPlugin
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _keyScopes, _log, Save, () => Localizer.Nearest(_pluginInterface.UiLanguage));
         _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _obtainService, _worldActions, _holdingsService, _log);
+        _gameTooltipBis = new GameTooltipBis(addonLifecycle, _config, _bisTooltip, _log);
         _windowSystem.AddWindow(_previewWindow);
         _windowSystem.AddWindow(_reviewWindow);
         _windowSystem.AddWindow(_imageWindow);
@@ -518,6 +522,7 @@ public sealed class Plugin : IDalamudPlugin
         _framework.Update -= OnFrameworkUpdate;
         _pluginInterface.UiBuilder.Draw -= _windowSystem.Draw;
         _pluginInterface.UiBuilder.Draw -= _bisTooltip.Draw;
+        _gameTooltipBis.Dispose();
         _pluginInterface.UiBuilder.OpenConfigUi -= OpenConfig;
         _pluginInterface.UiBuilder.OpenMainUi -= OpenStatus;
         _pluginInterface.LanguageChanged -= OnHostLanguageChanged;

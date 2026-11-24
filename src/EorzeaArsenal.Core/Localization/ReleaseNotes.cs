@@ -97,6 +97,11 @@ public static class ReleaseNotes
                 "The armoire counts too: what it holds is synced with your items once you have opened it."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
+                "bis-in-the-game-tooltip",
+                "BiS im Tooltip des Spiels: In den Einstellungen wählst du, ob die BiS-Info im eigenen Fenster, im Tooltip des Spiels oder an beiden Stellen erscheint.",
+                "BiS in the game's tooltip: in the settings you choose whether the BiS info shows in its own window, in the game's tooltip or in both."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
                 "drop-and-spot-reports",
                 "Drop- und Fundort-Meldungen: Wenn du zustimmst, meldet das Plugin anonym, was in Duties droppt und wo fehlende NPCs, Monster und FATEs stehen.",
                 "Drop and spot reports: if you agree, the plugin reports anonymously what drops in duties and where missing NPCs, monsters and FATEs stand."),

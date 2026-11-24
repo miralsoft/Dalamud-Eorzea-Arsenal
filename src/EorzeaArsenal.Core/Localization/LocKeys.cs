@@ -316,6 +316,21 @@ public static class LocKeys
     /// <summary>BiS hover-overlay toggle.</summary>
     public const string BisTooltipToggle = "config.bistooltip";
 
+    /// <summary>Settings: where the BiS information is shown.</summary>
+    public const string BisPlacement = "config.bisplacement";
+
+    /// <summary>BiS placement: the plugin's own window.</summary>
+    public const string BisPlacementOverlay = "config.bisplacement.overlay";
+
+    /// <summary>BiS placement: inside the game's tooltip.</summary>
+    public const string BisPlacementTooltip = "config.bisplacement.tooltip";
+
+    /// <summary>BiS placement: both.</summary>
+    public const string BisPlacementBoth = "config.bisplacement.both";
+
+    /// <summary>Settings: what each placement shows.</summary>
+    public const string BisPlacementHint = "config.bisplacement.hint";
+
     /// <summary>Config: show "how to get it" sourcing on BiS pieces.</summary>
     public const string BisShowSourcing = "config.bissourcing";
 

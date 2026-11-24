@@ -121,6 +121,21 @@
       }
     },
     {
+      "id": "bis-in-the-game-tooltip",
+      "version": "1.3.0",
+      "date": "2026-11-22",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "BiS im Tooltip des Spiels",
+        "body": "<p>In den Einstellungen wählst du, ob die BiS-Info im eigenen Fenster, im Tooltip des Spiels oder an beiden Stellen erscheint.</p>"
+      },
+      "en": {
+        "title": "BiS in the game's tooltip",
+        "body": "<p>In the settings you choose whether the BiS info shows in its own window, in the game's tooltip or in both.</p>"
+      }
+    },
+    {
       "id": "drop-and-spot-reports",
       "version": "1.3.0",
       "date": "2026-11-22",
