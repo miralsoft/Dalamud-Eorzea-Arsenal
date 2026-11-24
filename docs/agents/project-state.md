@@ -63,7 +63,11 @@ fast-forwarded into `release/v1.3.0`, `main` was merged in for the Dependabot up
 branch was pushed. The feature branches are deleted. PR #21 is closed; its one live document is now
 `docs/agents/prompts/gearset-plugin-briefing.md`. The server side fixed the one bug the test found (branch
 `fix/answer-over-absence`): what the player said last counts between an answer and an absence, so the
-"Away" mark shows only where the server answers "no". Next: the release, PR into main,
+"Away" mark shows only where the server answers "no". Added after that on 2026-11-24, straight in the release branch: the currency switch is "Währungen"
+(the server's wallet puts gil, seals and the other currencies on the list), the relic window looks like
+the website's page, and the BiS lines can go into the game's own tooltip (ADR 0006, `GameTooltipBis`,
+a choice next to the window; to check in the game: field 13 is the description, the colours read on the
+light and the dark tooltip). Next: the release, PR into main,
 merge and tag in one sitting, the release-note date set to that day.
 
 The foundation moved from the 3.3.0 this repository was audited against to 5.3.0. The Dalamud profile
