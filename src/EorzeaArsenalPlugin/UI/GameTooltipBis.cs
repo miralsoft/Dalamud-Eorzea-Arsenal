@@ -34,8 +34,14 @@ public sealed class GameTooltipBis : IDisposable
     /// <summary>The description field of the <c>ItemDetail</c> string array.</summary>
     private const int DescriptionField = 13;
 
-    /// <summary>The rule above the block; short enough not to wrap in the narrowest item tooltip.</summary>
-    private static readonly string Rule = new('─', 18);
+    /// <summary>
+    /// The rule under the heading. The item tooltip has a fixed width and its text scales with it, so the
+    /// number of characters that fill a line does not change: 28 run nearly to the edge, 29 can wrap.
+    /// </summary>
+    private static readonly string Rule = new('─', 28);
+
+    /// <summary>What the lines under the rule are set in by, as the entries under "Bonus" are.</summary>
+    private const string LineIndent = "  ";
 
     /// <summary>The rule's colour: the muted brown and grey of the game's own dividers (<c>UIColor</c> 3).</summary>
     private const uint RuleColor = 3;
@@ -95,24 +101,29 @@ public sealed class GameTooltipBis : IDisposable
                 return; // already there from an earlier update of the same tooltip
             }
 
+            // Laid out like the tooltip's own sections ("Bonus", "Materia"): a gap, the heading, a rule under
+            // it, the lines set in a little, and a gap after, so it reads as an area of its own. The gaps are
+            // empty lines, the only spacing a text field has.
             var builder = new SeStringBuilder();
             if (!existing.IsEmpty)
             {
                 builder.Append(new ReadOnlySeStringSpan(existing));
                 builder.AppendNewLine();
+                builder.AppendNewLine();
             }
 
-            // A rule above the block sets it apart from the description and the other plugins' lines. Box
-            // drawing characters are in the game's fonts, which carry the Japanese set for every client.
-            Colored(builder, Rule, RuleColor);
+            Colored(builder, header, BisTooltip.GameTooltipColor(BisTooltip.HeaderColor));
             builder.AppendNewLine();
 
-            Colored(builder, header, BisTooltip.GameTooltipColor(BisTooltip.HeaderColor));
+            // Box drawing characters are in the game's fonts, which carry the Japanese set for every client.
+            Colored(builder, Rule, RuleColor);
             foreach (var (text, color) in lines)
             {
                 builder.AppendNewLine();
-                Colored(builder, text, BisTooltip.GameTooltipColor(color));
+                Colored(builder, LineIndent + text, BisTooltip.GameTooltipColor(color));
             }
+
+            builder.AppendNewLine();
 
             strings->SetValue(DescriptionField, builder.GetViewAsSpan(), false, true, true);
         }
