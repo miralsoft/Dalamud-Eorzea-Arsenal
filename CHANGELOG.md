@@ -18,7 +18,7 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   of the contract before 1.5.
 - **Closing the glamour dresser or the armoire syncs the inventory** (`InventoryTrigger.Storage`): both
   read as empty until opened at an inn, so the moment one of their windows (`MiragePrismPrismBox`,
-  `Cabinet`) closes, the inventory goes up with their contents and whatever was moved. Behind the
+  `CabinetWithdraw`) closes, the inventory goes up with their contents and whatever was moved. Behind the
   inventory switch only, like the retainer scan.
 - **The currency sync** (`POST /inventory/currencies`, `CurrencySyncService`): a full snapshot of the
   currencies the server lists in `currencies` of `GET /gear/tracked-items`, zeros included,

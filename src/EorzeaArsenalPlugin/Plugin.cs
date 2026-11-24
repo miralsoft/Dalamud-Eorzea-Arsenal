@@ -1836,7 +1836,7 @@ public sealed class Plugin : IDalamudPlugin
 
         _nextStorageCheckTicks = now + 1_000;
         var dresser = AddonVisible("MiragePrismPrismBox");
-        var armoire = AddonVisible("Cabinet");
+        var armoire = AddonVisible("CabinetWithdraw") || AddonVisible("Cabinet");
 
         // Each window on its own, so closing one while the other is still open counts as well, and the log
         // names which one it was.
