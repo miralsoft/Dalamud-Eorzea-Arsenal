@@ -68,7 +68,7 @@ public readonly record struct CurrencyReport(
     string? RequestId = null);
 
 /// <summary>
-/// Sends the tomestones and scrips the server lists via <c>POST /inventory/currencies</c> (server 1.5).
+/// Sends the currencies the server lists via <c>POST /inventory/currencies</c> (server 1.5).
 /// </summary>
 /// <remarks>
 /// <para>

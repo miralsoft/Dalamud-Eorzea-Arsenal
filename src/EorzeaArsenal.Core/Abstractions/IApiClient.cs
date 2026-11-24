@@ -291,7 +291,7 @@ public interface IApiClient
     Task<ApiResult<TomeBalanceResponse>> PutTomeBalanceAsync(string apiKey, long characterId, int balance, CancellationToken ct);
 
     /// <summary>
-    /// Sends the character's tomestones and scrips via <c>POST /inventory/currencies</c> (server 1.5,
+    /// Sends the character's currencies (tomestones, scrips, gil and what else the server lists) via <c>POST /inventory/currencies</c> (server 1.5,
     /// <c>inventory:write</c>): a full snapshot of the listed ids, which the server stores in place of the
     /// previous one. Also sets the purchase advisor's balance, so it replaces <c>PUT /me/tome-balance</c>.
     /// </summary>

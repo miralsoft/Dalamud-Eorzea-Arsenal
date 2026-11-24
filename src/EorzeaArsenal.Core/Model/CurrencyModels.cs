@@ -1,7 +1,7 @@
 namespace EorzeaArsenal.Model;
 
 /// <summary>
-/// Body of <c>POST /inventory/currencies</c> (server 1.5): a full snapshot of the tomestones and scrips
+/// Body of <c>POST /inventory/currencies</c> (server 1.5): a full snapshot of the currencies
 /// the server lists in <c>currencies</c> of <c>GET /gear/tracked-items</c>, zeros included.
 /// </summary>
 /// <remarks>

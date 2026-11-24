@@ -1393,7 +1393,7 @@ public sealed class Plugin : IDalamudPlugin
             return;
         }
 
-        // The tomestones-and-scrips switch covers this count too: off means no tomestone count leaves. On a
+        // The currencies switch covers this count too: off means no tomestone count leaves. On a
         // 1.5 server the currency sync carries the capped tomestone and sets the balance itself, so this call
         // is not made there at all.
         if (!_config.SyncCurrencies || CurrencySyncOffered())

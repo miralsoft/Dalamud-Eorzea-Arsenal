@@ -8,7 +8,7 @@ namespace EorzeaArsenal.Abstractions;
 public sealed record CurrencySnapshot(CharacterDto Character, IReadOnlyDictionary<int, int> Counts);
 
 /// <summary>
-/// Reads the counts of the tomestones and scrips the server lists. The concrete implementation lives in
+/// Reads the counts of the currencies the server lists. The concrete implementation lives in
 /// the plugin and reads the game's currency purse on the framework thread (P1); tests use a fake.
 /// </summary>
 public interface ICurrencySource

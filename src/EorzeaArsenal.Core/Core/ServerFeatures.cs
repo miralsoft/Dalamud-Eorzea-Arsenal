@@ -15,7 +15,7 @@ public static class FeatureNames
     /// <summary>The relic helper.</summary>
     public const string Relics = "relics";
 
-    /// <summary>The currency sync (tomestones and scrips).</summary>
+    /// <summary>The currency sync (tomestones, scrips, gil and the other currencies the server lists).</summary>
     public const string CurrencySync = "currency-sync";
 
     /// <summary>Drop reports from the plugin.</summary>

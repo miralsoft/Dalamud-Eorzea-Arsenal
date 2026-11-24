@@ -22,7 +22,7 @@ Built for 1.3.0, branch by branch (all now in `release/v1.3.0`):
 
 - `feat/server-features-armoire`: `ServerFeatures` and the armoire as its own scope.
 - `feat/currency-sync`: `CurrencySyncService` with `GameCurrencySource`, the ids from `currencies` of
-  `GET /gear/tracked-items`, the switch "Tomesteine und Scrips" (`SyncCurrencies`, on by default). Sends
+  `GET /gear/tracked-items`, the switch "Währungen" (`SyncCurrencies`, formerly "Tomesteine und Scrips", on by default). Sends
   after a gear or inventory sync that went through, and on a change seen by a look every minute, held to
   five minutes; the look follows the "when" switches, so with every automatic switch off the counts go
   up only after a sync the player started. A 404 waits for the next gear sync and sends once more; the

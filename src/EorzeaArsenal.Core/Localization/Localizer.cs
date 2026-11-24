@@ -341,10 +341,10 @@ public sealed class Localizer : ILocalizer
         [LocKeys.SyncInventoryHint] =
             "Uploads which gear you own (equipped, armoury, bags, saddlebag, glamour dresser) so the " +
             "web app can tick off what you already have. When that happens is set by the switches above.",
-        [LocKeys.SyncCurrencies] = "Tomestones and scrips",
+        [LocKeys.SyncCurrencies] = "Currencies",
         [LocKeys.SyncCurrenciesHint] =
-            "Sends how many tomestones and scrips you hold, only the kinds the website asks for. " +
-            "The farm plan, the purchase advisor and the scrip calculator then count them for you.",
+            "Sends how much gil and how many tomestones, scrips, seals and other currencies you hold, only the kinds " +
+            "the website asks for. The farm plan, the purchase advisor and the scrip calculator then count them for you.",
         [LocKeys.SyncRetainers] = "Include retainers",
         [LocKeys.SyncRetainersHint] =
             "Also scan a retainer's gear when you open it at a summoning bell. That always happens then, " +
@@ -1133,10 +1133,10 @@ public sealed class Localizer : ILocalizer
             "Überträgt, welche Ausrüstung du besitzt (angelegt, Arsenal, Taschen, Satteltasche, " +
             "Schrank), damit die Webapp abhaken kann, was du schon hast. Wann das geschieht, bestimmen " +
             "die Schalter oben.",
-        [LocKeys.SyncCurrencies] = "Tomesteine und Scrips",
+        [LocKeys.SyncCurrencies] = "Währungen",
         [LocKeys.SyncCurrenciesHint] =
-            "Überträgt, wie viele Tomesteine und Scrips du hast, nur die Sorten, nach denen die Webseite " +
-            "fragt. Farmplan, Kaufberater und Scrip-Rechner zählen sie dann für dich mit.",
+            "Überträgt, wie viel Gil und wie viele Tomesteine, Scrips, Abzeichen und andere Währungen du hast, nur die " +
+            "Sorten, nach denen die Webseite fragt. Farmplan, Kaufberater und Scrip-Rechner zählen sie dann für dich mit.",
         [LocKeys.SyncRetainers] = "Gehilfen einbeziehen",
         [LocKeys.SyncRetainersHint] =
             "Scannt auch die Ausrüstung eines Gehilfen, wenn du ihn an der Rufglocke öffnest. Das " +

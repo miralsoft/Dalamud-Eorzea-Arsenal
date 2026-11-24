@@ -720,7 +720,7 @@ public sealed class TrackedItemsResponse
     public List<TrackedItemGroup>? Groups { get; init; }
 
     /// <summary>
-    /// The currency ids the currency sync reports (server 1.5): tomestones and scrips, sorted ascending.
+    /// The currency ids the currency sync reports (server 1.5): tomestones, scrips, gil and the rest of the game's currency window, sorted ascending.
     /// Absent on an older server, which takes no currency sync.
     /// </summary>
     public List<long>? Currencies { get; init; }

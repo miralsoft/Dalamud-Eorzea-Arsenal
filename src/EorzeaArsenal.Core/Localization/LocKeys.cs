@@ -942,10 +942,10 @@ public static class LocKeys
     /// <summary>Hint for the inventory opt-in.</summary>
     public const string SyncInventoryHint = "config.syncinventory.hint";
 
-    /// <summary>Switch: send the tomestones and scrips (on by default).</summary>
+    /// <summary>Switch: send the currencies the server lists (on by default).</summary>
     public const string SyncCurrencies = "config.synccurrencies";
 
-    /// <summary>Hint for the tomestones and scrips switch: what is sent.</summary>
+    /// <summary>Hint for the currencies switch: what is sent.</summary>
     public const string SyncCurrenciesHint = "config.synccurrencies.hint";
 
     /// <summary>Opt-in: also scan retainers when visited.</summary>

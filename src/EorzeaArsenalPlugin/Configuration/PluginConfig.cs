@@ -93,7 +93,7 @@ public sealed class PluginConfig : IPluginConfiguration
     public bool SyncRetainers { get; set; }
 
     /// <summary>
-    /// Send the counts of the tomestones and scrips the server lists (server 1.5,
+    /// Send the counts of the currencies the server lists (server 1.5,
     /// <c>POST /inventory/currencies</c>), and before 1.5 the capped-tomestone balance. On by default, as
     /// agreed with the server, and independent of <see cref="SyncInventory"/>: it runs with the inventory
     /// sync off, and turning it off stops it alone. No migration step: a config without the field reads

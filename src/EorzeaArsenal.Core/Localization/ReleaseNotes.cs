@@ -87,9 +87,9 @@ public static class ReleaseNotes
                 "Open items at a glance: the menu shows next to Teams how many polls and dates still wait for your answer."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
-                "tomestones-and-scrips-come-along",
-                "Tomesteine und Scrips kommen mit: Farmplan, Kaufberater und Scrip-Rechner kennen jetzt deine Bestände, ohne dass du sie eintippst.",
-                "Tomestones and scrips come along: the farm plan, purchase advisor and scrip calculator now know what you hold without you typing it in."),
+                "your-currencies-come-along",
+                "Deine Währungen kommen mit: Farmplan, Kaufberater und Scrip-Rechner kennen jetzt deine Tomesteine, Scrips und anderen Währungen, ohne dass du sie eintippst.",
+                "Your currencies come along: the farm plan, purchase advisor and scrip calculator now know your tomestones, scrips and other currencies without you typing them in."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "the-armoire-counts-too",

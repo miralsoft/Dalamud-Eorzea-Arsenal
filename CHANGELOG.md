@@ -17,11 +17,11 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   it. Before, the armoire was not read at all, and its container was filed under `character`, the rule
   of the contract before 1.5.
 - **The currency sync** (`POST /inventory/currencies`, `CurrencySyncService`): a full snapshot of the
-  tomestones and scrips the server lists in `currencies` of `GET /gear/tracked-items`, zeros included,
+  currencies the server lists in `currencies` of `GET /gear/tracked-items`, zeros included,
   after a gear or inventory sync and when a count changes, at most once every five minutes and only when
   it differs from what the server last took. A 404 sends once more after the next gear sync, a 429 waits
   an hour, a 401 or 403 stops until another key is connected, a 400 or 422 is not sent again; the limit
-  of 30 an hour is kept here too. Its own switch, "Tomestones and scrips", on by default and independent
+  of 30 an hour is kept here too. Its own switch, "Currencies", on by default and independent
   of the inventory sync.
 
 - **Absences with hours and a level** (server 1.5, where the server lists `team-availability`): the
@@ -87,7 +87,7 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
 
 ### Changed
 - **`PUT /me/tome-balance` is not called on a 1.5 server**, where the currency sync sets the balance, and
-  not at all with the tomestones-and-scrips switch off. Before 1.5 it is sent as before.
+  not at all with the currencies switch off. Before 1.5 it is sent as before.
 
 ### Fixed
 - **The connection tab wraps its notes**: the line naming a test server and the result of the connection

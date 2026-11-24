@@ -91,18 +91,18 @@
       }
     },
     {
-      "id": "tomestones-and-scrips-come-along",
+      "id": "your-currencies-come-along",
       "version": "1.3.0",
       "date": "2026-11-22",
       "kind": "feature",
       "source": "plugin",
       "de": {
-        "title": "Tomesteine und Scrips kommen mit",
-        "body": "<p>Farmplan, Kaufberater und Scrip-Rechner kennen jetzt deine Bestände, ohne dass du sie eintippst.</p>"
+        "title": "Deine Währungen kommen mit",
+        "body": "<p>Farmplan, Kaufberater und Scrip-Rechner kennen jetzt deine Tomesteine, Scrips und anderen Währungen, ohne dass du sie eintippst.</p>"
       },
       "en": {
-        "title": "Tomestones and scrips come along",
-        "body": "<p>The farm plan, purchase advisor and scrip calculator now know what you hold without you typing it in.</p>"
+        "title": "Your currencies come along",
+        "body": "<p>The farm plan, purchase advisor and scrip calculator now know your tomestones, scrips and other currencies without you typing them in.</p>"
       }
     },
     {

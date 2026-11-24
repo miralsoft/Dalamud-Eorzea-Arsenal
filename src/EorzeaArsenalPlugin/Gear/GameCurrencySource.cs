@@ -7,7 +7,7 @@ using FFXIVClientStructs.FFXIV.Client.Game;
 namespace EorzeaArsenal.Plugin.Gear;
 
 /// <summary>
-/// Reads the tomestones and scrips the server lists from the game's currency purse, for the currency sync
+/// Reads the currencies the server lists from the game's currency purse, for the currency sync
 /// of server 1.5. Framework thread only (P1); never throws (P2).
 /// </summary>
 /// <remarks>
