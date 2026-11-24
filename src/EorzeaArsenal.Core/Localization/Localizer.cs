@@ -352,7 +352,7 @@ public sealed class Localizer : ILocalizer
             "the website asks for. The farm plan, the purchase advisor and the scrip calculator then count them for you.",
         [LocKeys.SyncRetainers] = "Include retainers",
         [LocKeys.SyncRetainersHint] =
-            "Also scan a retainer's gear when you open it at a summoning bell. That always happens then, " +
+            "Also scan a retainer's gear and gil when you open it at a summoning bell. That always happens then, " +
             "because the bags can only be read while it is open.",
         [LocKeys.InventorySyncButton] = "Sync inventory",
         [LocKeys.InventorySyncHint] = "Visit your retainers to refresh their stock.",
@@ -1154,7 +1154,7 @@ public sealed class Localizer : ILocalizer
             "Sorten, nach denen die Webseite fragt. Farmplan, Kaufberater und Scrip-Rechner zählen sie dann für dich mit.",
         [LocKeys.SyncRetainers] = "Gehilfen einbeziehen",
         [LocKeys.SyncRetainersHint] =
-            "Scannt auch die Ausrüstung eines Gehilfen, wenn du ihn an der Rufglocke öffnest. Das " +
+            "Scannt auch Ausrüstung und Gil eines Gehilfen, wenn du ihn an der Rufglocke öffnest. Das " +
             "geschieht immer dann, weil die Taschen nur währenddessen lesbar sind.",
         [LocKeys.InventorySyncButton] = "Inventar synchronisieren",
         [LocKeys.InventorySyncHint] = "Besuche deine Gehilfen, um deren Bestand zu aktualisieren.",

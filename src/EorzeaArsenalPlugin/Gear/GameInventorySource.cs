@@ -260,6 +260,20 @@ public sealed class GameInventorySource : IInventorySource
                 return null;
             }
 
+            // The retainer's gil rides in its scope (server 1.5). The open retainer's own gil container is
+            // the live count of this visit; the bell's retainer list carries the same number for every
+            // retainer and stands in where the container reads nothing.
+            var gil = InventoryManager.Instance() is var inventory && inventory != null ? inventory->GetRetainerGil() : 0u;
+            if (gil == 0 && manager->GetActiveRetainer() is var active && active != null)
+            {
+                gil = active->Gil;
+            }
+
+            if (InventoryProtocol.RetainerGilRow(sourceId, gil) is { } gilRow)
+            {
+                items.Add(gilRow);
+            }
+
             // The name is only readable here, at the bell. Sending it lets the server's holdings
             // breakdown say "2× at Nanamo" instead of quoting a numeric retainer id; a later sync may
             // omit it and the stored name stays.

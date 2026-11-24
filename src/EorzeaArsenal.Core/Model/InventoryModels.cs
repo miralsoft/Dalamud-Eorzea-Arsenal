@@ -156,6 +156,31 @@ public static class InventoryProtocol
     /// <returns><c>retainer:&lt;id&gt;</c>.</returns>
     public static string RetainerScope(string retainerId) => RetainerScopePrefix + retainerId;
 
+    /// <summary>Gil's item id, which carries a retainer's gil in its scope (server 1.5).</summary>
+    public const int GilItemId = 1;
+
+    /// <summary>The most gil the server takes in one row, the game's own ceiling.</summary>
+    public const int MaxGil = 999_999_999;
+
+    /// <summary>
+    /// The row that carries a retainer's gil in its scope (server 1.5, "The retainers' gil"): item 1 in the
+    /// retainer container with the retainer's id. No gil sends no row, so the scope's replace clears an old one.
+    /// </summary>
+    /// <param name="retainerId">The retainer's id.</param>
+    /// <param name="gil">The gil the retainer holds.</param>
+    /// <returns>The row, or <see langword="null"/> without gil.</returns>
+    public static InventoryItemDto? RetainerGilRow(string retainerId, uint gil) =>
+        gil == 0
+            ? null
+            : new InventoryItemDto
+            {
+                ItemId = GilItemId,
+                Container = InventoryContainers.Retainer,
+                SourceId = retainerId,
+                Qty = (int)Math.Min(gil, MaxGil),
+                Hq = false,
+            };
+
     /// <summary>Whether a scope string is a well-formed <c>retainer:&lt;id&gt;</c> scope.</summary>
     /// <param name="scope">The scope string.</param>
     /// <returns><see langword="true"/> if it has the retainer prefix and a non-empty id.</returns>

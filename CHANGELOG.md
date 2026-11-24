@@ -93,6 +93,11 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   at most 100 a call, with the same answers as the drop reports; turning it off forgets the list and the
   spots.
 
+- **A retainer's gil goes with its scope** (contract-currency-sync.md, "The retainers' gil"): a retainer
+  scan adds one row, item 1 in the `retainer` container with the retainer's id, read from the open
+  retainer's gil container (`InventoryManager.GetRetainerGil`), else from the bell's retainer list. No gil
+  sends no row, so the scope's replace clears an old one; at most 999,999,999. The retainer switch says so.
+
 ### Changed
 - **`PUT /me/tome-balance` is not called on a 1.5 server**, where the currency sync sets the balance, and
   not at all with the currencies switch off. Before 1.5 it is sent as before.
