@@ -199,7 +199,7 @@ public sealed class BisTooltip
     /// <summary>The colour of the heading in the window, for <see cref="GameTooltipColor"/>.</summary>
     public static Vector4 HeaderColor => Accent;
 
-    /// <summary>The window's <see cref="DrawLine"/> as plain coloured lines, in the same order and colours.</summary>
+    /// <summary>The window's <see cref="DrawLine"/> as plain coloured lines, in the same order and colours, without what is worn.</summary>
     private void AddTextLines(List<(string, Vector4)> text, OverlayLine line)
     {
         var clean = line.Missing.Count == 0 && line.Wrong.Count == 0 && !line.HqMissing;
@@ -221,12 +221,8 @@ public sealed class BisTooltip
             text.Add((Indent + T(LocKeys.BisHqMissing), Orange));
         }
 
-        if (line.Status == SlotMatch.ItemDiffers && line.EquippedName is not null)
-        {
-            var equipped = line.EquippedIlvl is { } ilvl ? $"{line.EquippedName} · iLvl {ilvl}" : line.EquippedName;
-            text.Add((Indent + _localizer.Get(LocKeys.BisYouHave, equipped), Muted));
-        }
-
+        // What is worn is left out here, unlike in the window: in the game's tooltip the player is usually
+        // hovering that very piece, so the line would only repeat the tooltip's own heading.
         if (line.Status is SlotMatch.ItemDiffers or SlotMatch.MissingCurrent)
         {
             text.Add((Indent + (line.Owned ? T(LocKeys.BisOwned) : T(LocKeys.BisNotOwned)), line.Owned ? Green : Red));

@@ -34,6 +34,12 @@ public sealed class GameTooltipBis : IDisposable
     /// <summary>The description field of the <c>ItemDetail</c> string array.</summary>
     private const int DescriptionField = 13;
 
+    /// <summary>The rule above the block; short enough not to wrap in the narrowest item tooltip.</summary>
+    private static readonly string Rule = new('─', 18);
+
+    /// <summary>The rule's colour: the muted brown and grey of the game's own dividers (<c>UIColor</c> 3).</summary>
+    private const uint RuleColor = 3;
+
     private readonly IAddonLifecycle _lifecycle;
     private readonly PluginConfig _config;
     private readonly BisTooltip _bis;
@@ -95,6 +101,11 @@ public sealed class GameTooltipBis : IDisposable
                 builder.Append(new ReadOnlySeStringSpan(existing));
                 builder.AppendNewLine();
             }
+
+            // A rule above the block sets it apart from the description and the other plugins' lines. Box
+            // drawing characters are in the game's fonts, which carry the Japanese set for every client.
+            Colored(builder, Rule, RuleColor);
+            builder.AppendNewLine();
 
             Colored(builder, header, BisTooltip.GameTooltipColor(BisTooltip.HeaderColor));
             foreach (var (text, color) in lines)
