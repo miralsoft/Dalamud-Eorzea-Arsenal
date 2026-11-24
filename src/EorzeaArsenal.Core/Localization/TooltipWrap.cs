@@ -14,14 +14,14 @@ namespace EorzeaArsenal.Localization;
 /// </para>
 /// <para>
 /// The font is proportional, so the width is estimated: a narrow letter or a space counts half, a wide one
-/// a third more. The budget sits below what the tooltip was measured to hold (about 50 average characters a
-/// line), so the game never needs to wrap a line a second time.
+/// a third more. The budget sits below what the tooltip was measured to hold (about 44 of these units a
+/// line on a screenshot: a materia line of 45.6 overflowed), so the game never needs to wrap a line twice.
 /// </para>
 /// </remarks>
 public static class TooltipWrap
 {
     /// <summary>The estimated width a tooltip line may take, in average characters.</summary>
-    public const double Budget = 46;
+    public const double Budget = 41;
 
     private const string NarrowChars = " .,:;'!|iIlj·()[]tfr";
     private const string WideChars = "mwMWÄÖÜ×✓—─";
