@@ -421,7 +421,8 @@ public sealed class Plugin : IDalamudPlugin
             () => (_features.Has(FeatureNames.DropReports) && !_config.ReportDrops) || (_features.Has(FeatureNames.WorldReports) && !_config.ReportWorld),
             () => _consentWindow?.Ask());
         _relicService = new RelicService(api, _store, _store, _log);
-        _relicWindow = new RelicWindow(_localizer, _relicService, () => ServerCharacterId(_currentCidHash), () => _config.SyncInventory, WebAppBase, OpenExternalLink, OpenConfig, _log, _gearSource.GetItemName);
+        _relicWindow = new RelicWindow(_localizer, _relicService, () => ServerCharacterId(_currentCidHash), () => _config.SyncInventory, WebAppBase, OpenExternalLink, OpenConfig, _log, _gearSource.GetItemName,
+            code => _gameJobs.FirstOrDefault(j => string.Equals(j.Code, code, StringComparison.OrdinalIgnoreCase)), textureProvider);
         _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage, OwnChatNotice, _features.Has, _waiting);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _keyScopes, _log, Save, () => Localizer.Nearest(_pluginInterface.UiLanguage));

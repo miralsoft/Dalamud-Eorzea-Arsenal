@@ -1,29 +1,36 @@
+using System.Globalization;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Textures;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
+using Dalamud.Plugin.Services;
 using EorzeaArsenal.Abstractions;
 using EorzeaArsenal.Core;
 using EorzeaArsenal.Localization;
 using EorzeaArsenal.Model;
+using EorzeaArsenal.Plugin.Gear;
 
 namespace EorzeaArsenal.Plugin.UI;
 
 /// <summary>
-/// The relic view (server 1.5): per series how many jobs are done, per job its stages as marks (held,
-/// ticked, missing) and the next stage by name. Combat and crafting/gathering are two tabs, as on the
-/// website. Everything shown comes from the server through <see cref="RelicService"/>; a stage is ticked
-/// only when the player clicks it.
+/// The relic view (server 1.5), laid out like the website's relic page: per series a header with "x of y
+/// jobs done" and a progress bar, per job its icon and name, its stages as numbered circles (filled: held,
+/// ring: ticked by hand, grey ring: missing) and either "done" or the next stage by name, which opens the
+/// job's row on the website. Combat and crafting/gathering are two tabs; "only open" hides finished jobs.
+/// Everything shown comes from the server through <see cref="RelicService"/>; a stage is ticked only when
+/// the player clicks it.
 /// </summary>
 public sealed class RelicWindow : Window, IDisposable
 {
-    private static readonly Vector4 Green = new(0.4f, 0.8f, 0.4f, 1f);
+    private static readonly Vector4 Green = new(0.36f, 0.78f, 0.36f, 1f);
     private static readonly Vector4 Yellow = new(0.9f, 0.8f, 0.3f, 1f);
     private static readonly Vector4 Red = new(0.9f, 0.4f, 0.4f, 1f);
     private static readonly Vector4 Dim = new(0.65f, 0.65f, 0.65f, 1f);
-    private static readonly Vector4 HeldFill = new(0.25f, 0.55f, 0.25f, 1f);
-    private static readonly Vector4 TickedFill = new(0.25f, 0.45f, 0.7f, 1f);
-    private static readonly Vector4 MissingFill = new(0.22f, 0.22f, 0.22f, 1f);
+    private static readonly Vector4 Link = new(0.45f, 0.65f, 1f, 1f);
+    private static readonly Vector4 Ring = new(0.45f, 0.45f, 0.48f, 1f);
+    private static readonly Vector4 BarBack = new(0.22f, 0.22f, 0.25f, 1f);
+    private static readonly Vector4 Dark = new(0.08f, 0.09f, 0.1f, 1f);
 
     private readonly Localizer _localizer;
     private readonly RelicService _relics;
@@ -34,9 +41,12 @@ public sealed class RelicWindow : Window, IDisposable
     private readonly Action _openConfig;
     private readonly ILog _log;
     private readonly Func<int, string> _gameItemName;
+    private readonly Func<string, GameJob?> _job;
+    private readonly ITextureProvider _textures;
     private readonly CancellationTokenSource _cts = new();
     private volatile string? _message;
     private volatile bool _ticking;
+    private bool _onlyOpen;
 
     /// <summary>Creates the relic view.</summary>
     /// <param name="localizer">UI string resolver.</param>
@@ -48,6 +58,8 @@ public sealed class RelicWindow : Window, IDisposable
     /// <param name="openConfig">Opens the settings window.</param>
     /// <param name="log">Diagnostics sink.</param>
     /// <param name="gameItemName">The game's name of an item, for a piece the server sends without one.</param>
+    /// <param name="job">The game's row for a job code (name and icon), or <see langword="null"/>.</param>
+    /// <param name="textures">Loads the job icons.</param>
     public RelicWindow(
         Localizer localizer,
         RelicService relics,
@@ -57,10 +69,11 @@ public sealed class RelicWindow : Window, IDisposable
         Action<string> openLink,
         Action openConfig,
         ILog log,
-        Func<int, string> gameItemName)
+        Func<int, string> gameItemName,
+        Func<string, GameJob?> job,
+        ITextureProvider textures)
         : base("Eorzea Arsenal · Relics###EorzeaArsenalRelics")
     {
-        _gameItemName = gameItemName;
         _localizer = localizer;
         _relics = relics;
         _characterId = characterId;
@@ -69,11 +82,14 @@ public sealed class RelicWindow : Window, IDisposable
         _openLink = openLink;
         _openConfig = openConfig;
         _log = log;
+        _gameItemName = gameItemName;
+        _job = job;
+        _textures = textures;
 
         SizeConstraints = new WindowSizeConstraints
         {
-            MinimumSize = new Vector2(520, 380),
-            MaximumSize = new Vector2(1400, 1400),
+            MinimumSize = new Vector2(560, 400),
+            MaximumSize = new Vector2(1500, 1500),
         };
     }
 
@@ -82,6 +98,13 @@ public sealed class RelicWindow : Window, IDisposable
     private bool German => _localizer.Language == Localizer.German;
 
     private string Language => German ? Localizer.German : Localizer.English;
+
+    /// <inheritdoc />
+    public override void PreDraw()
+    {
+        // The title follows the language; the part after ### keeps the window's identity and its place.
+        WindowName = $"Eorzea Arsenal · {T(LocKeys.RelicOpen)}###EorzeaArsenalRelics";
+    }
 
     /// <inheritdoc />
     public override void OnOpen()
@@ -117,14 +140,12 @@ public sealed class RelicWindow : Window, IDisposable
             Wrapped(Yellow, message);
         }
 
-        ImGui.Separator();
-
         var catalog = _relics.CatalogFor(Language);
         if (catalog is null)
         {
             if (_relics.LastError is { } error && !_relics.Loading)
             {
-                Wrapped(Red, $"{T(LocKeys.RelicError)} ({error.StatusCode?.ToString() ?? error.Kind.ToString()})");
+                Wrapped(Red, $"{T(LocKeys.RelicError)} ({error.StatusCode?.ToString(CultureInfo.InvariantCulture) ?? error.Kind.ToString()})");
             }
             else
             {
@@ -139,6 +160,7 @@ public sealed class RelicWindow : Window, IDisposable
             Wrapped(Dim, T(LocKeys.RelicNoCharacter));
         }
 
+        ImGui.Spacing();
         using var tabs = ImRaii.TabBar("##relicTabs");
         if (!tabs)
         {
@@ -157,15 +179,15 @@ public sealed class RelicWindow : Window, IDisposable
             return;
         }
 
+        ImGui.Checkbox(T(LocKeys.RelicOnlyOpen), ref _onlyOpen);
+        DrawLegend();
+        ImGui.Spacing();
+
         using var child = ImRaii.Child($"##relic{kind}", Vector2.Zero, false);
         foreach (var series in catalog.Series.Where(s => string.Equals(s.Kind, kind, StringComparison.Ordinal)))
         {
             var progress = mine?.Series.FirstOrDefault(s => s.Key == series.Key);
-            var count = progress is null
-                ? string.Empty
-                : _localizer.Get(progress.Of == 1 ? LocKeys.RelicSeriesCountOne : LocKeys.RelicSeriesCountMany, progress.Done, progress.Of);
-            var header = string.IsNullOrEmpty(count) ? series.Name ?? series.Key : $"{series.Name ?? series.Key}   ·   {count}";
-            if (!ImGui.CollapsingHeader($"{header}###series_{series.Key}"))
+            if (!DrawSeriesHeader(series, progress))
             {
                 continue;
             }
@@ -175,37 +197,90 @@ public sealed class RelicWindow : Window, IDisposable
         }
     }
 
+    /// <summary>"● held  ○ ticked  ○ missing · a click ticks…", drawn with the same circles as the stages.</summary>
+    private void DrawLegend()
+    {
+        var size = ImGui.GetTextLineHeight();
+        LegendItem(RelicMark.Held, T(LocKeys.RelicLegendHeld), size);
+        ImGui.SameLine();
+        LegendItem(RelicMark.Ticked, T(LocKeys.RelicLegendTicked), size);
+        ImGui.SameLine();
+        LegendItem(RelicMark.Missing, T(LocKeys.RelicLegendMissing), size);
+        Wrapped(Dim, T(LocKeys.RelicLegendHint));
+    }
+
+    private void LegendItem(RelicMark mark, string label, float size)
+    {
+        var start = ImGui.GetCursorScreenPos();
+        ImGui.Dummy(new Vector2(size, size));
+        Circle(ImGui.GetWindowDrawList(), start + new Vector2(size / 2f, size / 2f), (size / 2f) - 1f, mark, null);
+        ImGui.SameLine();
+        ImGui.TextColored(Dim, label);
+    }
+
+    /// <summary>The series header: name, "x of y jobs done" on the right, and a progress bar below.</summary>
+    /// <returns>Whether the series is unfolded.</returns>
+    private bool DrawSeriesHeader(RelicSeries series, MyRelicSeries? progress)
+    {
+        var name = series.Name ?? series.Key;
+        var open = ImGui.CollapsingHeader($"{name}###series_{series.Key}");
+
+        if (progress is not null)
+        {
+            var count = _localizer.Get(progress.Of == 1 ? LocKeys.RelicSeriesCountOne : LocKeys.RelicSeriesCountMany, progress.Done, progress.Of);
+            var width = ImGui.CalcTextSize(count).X;
+            var min = ImGui.GetItemRectMin();
+            var max = ImGui.GetItemRectMax();
+            var y = min.Y + ((max.Y - min.Y - ImGui.GetTextLineHeight()) / 2f);
+            ImGui.GetWindowDrawList().AddText(new Vector2(max.X - width - 8f, y), ImGui.GetColorU32(Dim), count);
+
+            var fraction = progress.Of > 0 ? Math.Clamp(progress.Done / (float)progress.Of, 0f, 1f) : 0f;
+            using (ImRaii.PushColor(ImGuiCol.PlotHistogram, Green))
+            using (ImRaii.PushColor(ImGuiCol.FrameBg, BarBack))
+            {
+                ImGui.ProgressBar(fraction, new Vector2(-1f, 4f), string.Empty);
+            }
+        }
+
+        return open;
+    }
+
     private void DrawSeries(RelicSeries series, MyRelicSeries? progress, long? characterId)
     {
-        using var table = ImRaii.Table($"##tbl_{series.Key}", 4, ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingFixedFit);
+        var rows = RelicService.Rows(series, progress).Where(r => !_onlyOpen || !r.Done).ToList();
+        if (rows.Count == 0)
+        {
+            return;
+        }
+
+        using var table = ImRaii.Table($"##tbl_{series.Key}", 3, ImGuiTableFlags.RowBg | ImGuiTableFlags.PadOuterX);
         if (!table)
         {
             return;
         }
 
-        ImGui.TableSetupColumn("job", ImGuiTableColumnFlags.WidthFixed, 44f);
+        var lineHeight = ImGui.GetFrameHeight();
+        ImGui.TableSetupColumn("job", ImGuiTableColumnFlags.WidthFixed, 190f * ImGui.GetIO().FontGlobalScale);
         ImGui.TableSetupColumn("stages", ImGuiTableColumnFlags.WidthFixed);
         ImGui.TableSetupColumn("next", ImGuiTableColumnFlags.WidthStretch);
-        ImGui.TableSetupColumn("web", ImGuiTableColumnFlags.WidthFixed);
 
-        foreach (var row in RelicService.Rows(series, progress))
+        foreach (var row in rows)
         {
             using var id = ImRaii.PushId($"{series.Key}_{row.Job}");
-            ImGui.TableNextRow();
+            ImGui.TableNextRow(ImGuiTableRowFlags.None, lineHeight + 6f);
 
             ImGui.TableNextColumn();
-            ImGui.AlignTextToFramePadding();
-            ImGui.TextUnformatted(row.Job);
+            DrawJob(row.Job, lineHeight);
 
             ImGui.TableNextColumn();
             for (var i = 0; i < row.Stages.Count; i++)
             {
                 if (i > 0)
                 {
-                    ImGui.SameLine(0, 3f);
+                    ImGui.SameLine(0, 4f);
                 }
 
-                DrawStage(series, row, row.Stages[i], i + 1, characterId);
+                DrawStage(series, row, row.Stages[i], i + 1, characterId, lineHeight);
             }
 
             ImGui.TableNextColumn();
@@ -216,37 +291,58 @@ public sealed class RelicWindow : Window, IDisposable
             }
             else if (row.Next is { } next)
             {
+                ImGui.TextUnformatted(T(LocKeys.RelicNext));
+                ImGui.SameLine();
                 var names = string.Join(" + ", next.Items.Select(ItemName));
-                ImGui.TextUnformatted(_localizer.Get(LocKeys.RelicNext, names, next.Ilvl));
-            }
+                ImGui.TextColored(Link, names);
+                if (ImGui.IsItemHovered())
+                {
+                    ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
+                    ImGui.SetTooltip($"{T(LocKeys.RelicWebsite)}  ·  i{next.Ilvl}");
+                }
 
-            ImGui.TableNextColumn();
-            if (ImGui.SmallButton(T(LocKeys.RelicWebsite)))
-            {
-                var page = German ? "relikte" : "relics";
-                _openLink($"{_webAppBase()}/{page}?series={Uri.EscapeDataString(series.Key)}&job={Uri.EscapeDataString(row.Job)}");
+                if (ImGui.IsItemClicked())
+                {
+                    var page = German ? "relikte" : "relics";
+                    _openLink($"{_webAppBase()}/{page}?series={Uri.EscapeDataString(series.Key)}&job={Uri.EscapeDataString(row.Job)}");
+                }
             }
         }
     }
 
-    /// <summary>One stage as a small numbered button: green held, blue ticked, grey missing.</summary>
-    private void DrawStage(RelicSeries series, RelicJobRow row, RelicStageMark stage, int number, long? characterId)
+    /// <summary>The job's icon and name from the game's own sheet; the code where the game has no row for it.</summary>
+    private void DrawJob(string code, float lineHeight)
     {
-        var fill = stage.Mark switch
+        var job = _job(code);
+        if (job is not null)
         {
-            RelicMark.Held => HeldFill,
-            RelicMark.Ticked => TickedFill,
-            _ => MissingFill,
-        };
-
-        bool clicked;
-        using (ImRaii.PushColor(ImGuiCol.Button, fill))
-        using (ImRaii.Disabled(_ticking || stage.Mark == RelicMark.Held))
-        {
-            clicked = ImGui.Button($"{number}##st_{stage.Key}", new Vector2(24f, 0f));
+            // 62100 + row id: the framed job icons, the ones the website shows.
+            var wrap = _textures.GetFromGameIcon(new GameIconLookup(62100 + job.Id)).GetWrapOrEmpty();
+            ImGui.Image(wrap.Handle, new Vector2(lineHeight, lineHeight));
+            ImGui.SameLine();
         }
 
-        if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+        ImGui.AlignTextToFramePadding();
+        ImGui.TextUnformatted(job is null ? code : JobName(job));
+    }
+
+    private string JobName(GameJob job)
+    {
+        var name = German ? job.German : job.English;
+        return string.IsNullOrEmpty(name) ? job.Code : (German ? new CultureInfo("de-DE") : CultureInfo.InvariantCulture).TextInfo.ToTitleCase(name);
+    }
+
+    /// <summary>One stage as a numbered circle, clickable unless held.</summary>
+    private void DrawStage(RelicSeries series, RelicJobRow row, RelicStageMark stage, int number, long? characterId, float size)
+    {
+        var start = ImGui.GetCursorScreenPos();
+        var enabled = !_ticking && stage.Mark != RelicMark.Held;
+        var clicked = ImGui.InvisibleButton($"##st_{stage.Key}", new Vector2(size, size)) && enabled;
+        var hovered = ImGui.IsItemHovered();
+        var centre = start + new Vector2(size / 2f, size / 2f);
+        Circle(ImGui.GetWindowDrawList(), centre, (size / 2f) - 1f, stage.Mark, number.ToString(CultureInfo.InvariantCulture), hovered && enabled);
+
+        if (hovered)
         {
             using var tooltip = ImRaii.Tooltip();
             ImGui.TextUnformatted($"{stage.Key}  ·  i{stage.Ilvl}");
@@ -279,6 +375,32 @@ public sealed class RelicWindow : Window, IDisposable
         Tick(characterId, series.Key, row.Job, target);
     }
 
+    /// <summary>Filled green: held. Green ring: ticked. Grey ring: missing. The number sits in the middle.</summary>
+    private static void Circle(ImDrawListPtr draw, Vector2 centre, float radius, RelicMark mark, string? number, bool hovered = false)
+    {
+        switch (mark)
+        {
+            case RelicMark.Held:
+                draw.AddCircleFilled(centre, radius, ImGui.GetColorU32(Green));
+                break;
+            case RelicMark.Ticked:
+                draw.AddCircle(centre, radius - 1f, ImGui.GetColorU32(Green), 0, 2f);
+                break;
+            default:
+                draw.AddCircle(centre, radius - 1f, ImGui.GetColorU32(hovered ? Dim : Ring), 0, 1.5f);
+                break;
+        }
+
+        if (number is null)
+        {
+            return;
+        }
+
+        var text = ImGui.CalcTextSize(number);
+        var colour = mark == RelicMark.Held ? Dark : mark == RelicMark.Ticked ? Green : Dim;
+        draw.AddText(centre - (text / 2f), ImGui.GetColorU32(colour), number);
+    }
+
     private void Tick(long? characterId, string series, string job, string? stage)
     {
         _ticking = true;
@@ -292,7 +414,7 @@ public sealed class RelicWindow : Window, IDisposable
                 {
                     _message = error.Kind == ApiErrorKind.Forbidden
                         ? T(LocKeys.RelicScopeHint)
-                        : $"{T(LocKeys.RelicError)} ({error.StatusCode?.ToString() ?? error.Kind.ToString()})";
+                        : $"{T(LocKeys.RelicError)} ({error.StatusCode?.ToString(CultureInfo.InvariantCulture) ?? error.Kind.ToString()})";
                 }
             }
             catch (OperationCanceledException)

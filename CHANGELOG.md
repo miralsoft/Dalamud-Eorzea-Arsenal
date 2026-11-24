@@ -32,9 +32,11 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   level other than "not there", and an absence that holds for every team, which is not edited from one
   team's view. A 429 now reads as "too many entries" and a 400 shows the server's sentence.
 - **The relic view** (`RelicWindow`, `RelicService`; menu entry "Relics" where the server lists `relics`):
-  per series how many jobs are done, per job its stages as numbered marks (green held, blue ticked by
-  hand, grey missing) with the pieces in the tooltip, the next stage by name and a link to the job's row
-  on the website. Combat and crafting/gathering are two tabs. The catalog (`GET /relics?lang=`) is read
+  laid out like the website's relic page: per series a header with "x of y jobs done" and a progress bar,
+  per job its icon and name from the game's job sheet, its stages as numbered circles (filled green held,
+  green ring ticked by hand, grey ring missing) with the pieces in the tooltip, and "done" or the next
+  stage by name, which opens the job's row on the website. A legend explains the circles, "only open"
+  hides finished jobs, combat and crafting/gathering are two tabs, and the title follows the language. The catalog (`GET /relics?lang=`) is read
   once per address and language, the progress (`GET /me/relics`) when the view opens and after an
   inventory sync or a gear push. A click on a stage ticks up to it (`PUT /me/relics`), a click on the
   ticked stage takes the tick back; nothing is ticked otherwise. One line reminds that the glamour dresser

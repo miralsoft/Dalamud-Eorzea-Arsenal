@@ -2131,13 +2131,13 @@ public static class LocKeys
     /// <summary>Relic view: the series count, several jobs ({0} done of {1}).</summary>
     public const string RelicSeriesCountMany = "relic.seriescount.many";
 
-    /// <summary>Relic view: the next stage ({0} pieces, {1} item level).</summary>
+    /// <summary>Relic view: the label before the next stage's name.</summary>
     public const string RelicNext = "relic.next";
 
     /// <summary>Relic view: the job is done.</summary>
     public const string RelicDone = "relic.done";
 
-    /// <summary>Relic view: open the job's row on the website.</summary>
+    /// <summary>Relic view: tooltip of the next stage's name, which opens the job's row on the website.</summary>
     public const string RelicWebsite = "relic.website";
 
     /// <summary>Relic stage tooltip: held.</summary>
@@ -2157,6 +2157,21 @@ public static class LocKeys
 
     /// <summary>Relic view: the key may not tick (characters:write missing).</summary>
     public const string RelicScopeHint = "relic.scopehint";
+
+    /// <summary>Relic view: show only jobs not done yet.</summary>
+    public const string RelicOnlyOpen = "relic.onlyopen";
+
+    /// <summary>Relic legend: held.</summary>
+    public const string RelicLegendHeld = "relic.legend.held";
+
+    /// <summary>Relic legend: ticked by hand.</summary>
+    public const string RelicLegendTicked = "relic.legend.ticked";
+
+    /// <summary>Relic legend: missing.</summary>
+    public const string RelicLegendMissing = "relic.legend.missing";
+
+    /// <summary>Relic legend: what a click on a stage does.</summary>
+    public const string RelicLegendHint = "relic.legend.hint";
 
     /// <summary>Teams window: the times tab.</summary>
     public const string TeamsTabTimes = "teams.tab.times";
