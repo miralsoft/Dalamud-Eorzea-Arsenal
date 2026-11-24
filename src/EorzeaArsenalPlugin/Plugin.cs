@@ -71,6 +71,9 @@ public sealed class Plugin : IDalamudPlugin
     private readonly GameWorldWatcher _worldWatcher;
     private readonly ConsentWindow _consentWindow;
     private long _nextCurrencyTicks;
+    private long _nextStorageCheckTicks;
+    private bool _storageOpen;
+    private readonly IGameGui _gameGui;
     private readonly WeeklySyncService _weeklySync;
     private readonly TeamsService _teamsService;
     private readonly TeamsSeenStore _teamsSeenStore;
@@ -216,6 +219,7 @@ public sealed class Plugin : IDalamudPlugin
         _chatGui = chatGui;
         _toastGui = toastGui;
         _dataManager = dataManager;
+        _gameGui = gameGui;
 
         _config = pluginInterface.GetPluginConfig() as PluginConfig ?? new PluginConfig();
         if (_config.Migrate())
@@ -1744,6 +1748,8 @@ public sealed class Plugin : IDalamudPlugin
             {
                 DetectOpenRetainer(now);
             }
+
+            DetectStorageClosed(now);
         }
 
         if (_config.SyncWeekly && _config.AutoPush && now >= _nextWeeklyAutoTicks)
@@ -1811,6 +1817,37 @@ public sealed class Plugin : IDalamudPlugin
         {
             DetectGearsetChange(now);
         }
+    }
+
+    /// <summary>
+    /// Sends the inventory once the glamour dresser or the armoire closes. Like a retainer's bags, both read as
+    /// empty until the player has opened them at an inn, so the visit is the moment their contents can go up,
+    /// and closing is the moment that catches whatever was moved in or out. Behind the inventory switch only,
+    /// not the timing switches, as for the retainers: there is no other moment to read them.
+    /// </summary>
+    /// <param name="now">The framework tick count.</param>
+    private void DetectStorageClosed(long now)
+    {
+        if (now < _nextStorageCheckTicks)
+        {
+            return;
+        }
+
+        _nextStorageCheckTicks = now + 1_000;
+        var open = AddonVisible("MiragePrismPrismBox") || AddonVisible("Cabinet");
+        if (_storageOpen && !open)
+        {
+            _log.Info("Glamour dresser or armoire closed: syncing the inventory.");
+            RequestCharacterInventorySync(InventoryTrigger.Storage);
+        }
+
+        _storageOpen = open;
+    }
+
+    private bool AddonVisible(string name)
+    {
+        var addon = _gameGui.GetAddonByName(name, 1);
+        return !addon.IsNull && addon.IsVisible;
     }
 
     /// <summary>

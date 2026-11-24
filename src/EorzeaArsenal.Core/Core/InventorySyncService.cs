@@ -20,6 +20,12 @@ public enum InventoryTrigger
 
     /// <summary>A retainer's inventory was scanned (forces a send of that retainer scope).</summary>
     Retainer,
+
+    /// <summary>
+    /// The glamour dresser or the armoire was closed. Both read as empty until opened, so the moment after
+    /// is when their contents, and whatever was moved in or out, can be sent. Forces a send like a retainer.
+    /// </summary>
+    Storage,
 }
 
 /// <summary>The classified outcome of an inventory upload attempt.</summary>
