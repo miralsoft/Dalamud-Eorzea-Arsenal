@@ -3,6 +3,7 @@ using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Plugin.Services;
 using EorzeaArsenal.Abstractions;
+using EorzeaArsenal.Localization;
 using EorzeaArsenal.Plugin.Configuration;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Text;
@@ -117,10 +118,14 @@ public sealed class GameTooltipBis : IDisposable
 
             // Box drawing characters are in the game's fonts, which carry the Japanese set for every client.
             Colored(builder, Rule, RuleColor);
+            // Broken here rather than by the game, which would start every continuation at the left edge.
             foreach (var (text, color) in lines)
             {
-                builder.AppendNewLine();
-                Colored(builder, LineIndent + text, BisTooltip.GameTooltipColor(color));
+                foreach (var part in TooltipWrap.Wrap(text, LineIndent))
+                {
+                    builder.AppendNewLine();
+                    Colored(builder, part, BisTooltip.GameTooltipColor(color));
+                }
             }
 
             builder.AppendNewLine();
