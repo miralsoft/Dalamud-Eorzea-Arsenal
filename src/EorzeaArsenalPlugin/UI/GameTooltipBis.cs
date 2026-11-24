@@ -1,4 +1,3 @@
-using System.Numerics;
 using System.Text;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
@@ -117,13 +116,14 @@ public sealed class GameTooltipBis : IDisposable
         }
     }
 
-    private static void Colored(SeStringBuilder builder, string text, Vector4? color)
+    /// <summary>One line in a colour of the game's <c>UIColor</c> sheet, which follows the UI theme.</summary>
+    private static void Colored(SeStringBuilder builder, string text, uint? colorType)
     {
-        if (color is { } rgba)
+        if (colorType is { } row)
         {
-            builder.PushColorRgba(rgba);
+            builder.PushColorType(row);
             builder.Append(text);
-            builder.PopColor();
+            builder.PopColorType();
         }
         else
         {

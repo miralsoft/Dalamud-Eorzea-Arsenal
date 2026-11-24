@@ -177,18 +177,23 @@ public sealed class BisTooltip
     }
 
     /// <summary>
-    /// The colour a line takes in the game's own tooltip, or <see langword="null"/> for the tooltip's own text
-    /// colour. The window's colours are made for its dark background; the game's tooltip is light in the light
-    /// theme and dark in the dark one, so it gets mid tones that read on both.
+    /// The game's own colour (a row of its <c>UIColor</c> sheet) a line takes in the game's tooltip, or
+    /// <see langword="null"/> for the tooltip's own text colour.
     /// </summary>
+    /// <remarks>
+    /// A row of the sheet has a value per UI theme, so the game picks the shade that reads on its light or dark
+    /// tooltip, the way the lines of other plugins there are coloured. A fixed RGB colour came out with a dark
+    /// edge around every letter and read badly on the light tooltip. The rows, light-theme shade in brackets:
+    /// 45 green (#199400), 508 red (#C34646), 32 orange (#A34C00), 25 yellow (#919111), 37 blue (#005791).
+    /// </remarks>
     /// <param name="color">The window's colour of the line.</param>
-    /// <returns>The colour for the game's tooltip.</returns>
-    public static Vector4? GameTooltipColor(Vector4 color) =>
-        color == Green ? new Vector4(0.18f, 0.6f, 0.18f, 1f)
-        : color == Red ? new Vector4(0.82f, 0.22f, 0.22f, 1f)
-        : color == Orange ? new Vector4(0.86f, 0.5f, 0.08f, 1f)
-        : color == Yellow ? new Vector4(0.75f, 0.58f, 0.08f, 1f)
-        : color == Accent ? new Vector4(0.25f, 0.5f, 0.9f, 1f)
+    /// <returns>The <c>UIColor</c> row for the game's tooltip.</returns>
+    public static uint? GameTooltipColor(Vector4 color) =>
+        color == Green ? 45u
+        : color == Red ? 508u
+        : color == Orange ? 32u
+        : color == Yellow ? 25u
+        : color == Accent ? 37u
         : null;
 
     /// <summary>The colour of the heading in the window, for <see cref="GameTooltipColor"/>.</summary>

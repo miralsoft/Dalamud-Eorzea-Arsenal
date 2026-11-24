@@ -66,8 +66,8 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
 - **BiS in the game's own tooltip, as a choice** (`GameTooltipBis`, `BisTooltipPlacement`, ADR 0006): the
   settings choose the plugin's window (the default, as before), the game's item tooltip, or both. In the
   tooltip the short form (one line per slot with the target, HQ, what you wear, whether you own it, the
-  materia) is appended below the item description in `PreRequestedUpdate` of `ItemDetail`, in colours
-  that read on the light and the dark tooltip; the sourcing chain stays in the window. Wrapped and logged
+  materia) is appended below the item description in `PreRequestedUpdate` of `ItemDetail`, in the game's
+  own `UIColor` colours, which follow the UI theme; the sourcing chain stays in the window. Wrapped and logged
   once on failure, and never doubled by a second update of the same tooltip.
 - **One dialog asks what may be sent** (`ConsentWindow`): the inventory sync, the drop reports and the
   spot reports together, once, on the update and on a new installation's first connected session, where

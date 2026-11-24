@@ -15,8 +15,9 @@ plugins already put theirs (item counts, sources, prices), so it reads as one pi
 A setting chooses where it appears: the plugin's own window (the default, unchanged), the game's tooltip,
 or both. In the tooltip the short form is appended to the item description field (index 13 of the
 `ItemDetail` string array) in `PreRequestedUpdate` of the `ItemDetail` addon, through Dalamud's addon
-lifecycle, the same field and moment other plugins use. The text is coloured with mid tones that read on
-the light and the dark tooltip. The sourcing chain stays in the window, which has the room for it.
+lifecycle, the same field and moment other plugins use. The text takes colours of the game's `UIColor`
+sheet, which have a shade per UI theme, so it reads on the light and the dark tooltip; a fixed RGB colour
+came out with a dark edge around every letter. The sourcing chain stays in the window.
 
 ## Consequences
 
