@@ -72,7 +72,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ConsentWindow _consentWindow;
     private long _nextCurrencyTicks;
     private long _nextStorageCheckTicks;
-    private bool _storageOpen;
+    private bool _dresserOpen;
+    private bool _armoireOpen;
     private readonly IGameGui _gameGui;
     private readonly WeeklySyncService _weeklySync;
     private readonly TeamsService _teamsService;
@@ -1834,14 +1835,29 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         _nextStorageCheckTicks = now + 1_000;
-        var open = AddonVisible("MiragePrismPrismBox") || AddonVisible("Cabinet");
-        if (_storageOpen && !open)
+        var dresser = AddonVisible("MiragePrismPrismBox");
+        var armoire = AddonVisible("Cabinet");
+
+        // Each window on its own, so closing one while the other is still open counts as well, and the log
+        // names which one it was.
+        var closed = new List<string>(2);
+        if (_dresserOpen && !dresser)
         {
-            _log.Info("Glamour dresser or armoire closed: syncing the inventory.");
-            RequestCharacterInventorySync(InventoryTrigger.Storage);
+            closed.Add("glamour dresser");
         }
 
-        _storageOpen = open;
+        if (_armoireOpen && !armoire)
+        {
+            closed.Add("armoire");
+        }
+
+        _dresserOpen = dresser;
+        _armoireOpen = armoire;
+        if (closed.Count > 0)
+        {
+            _log.Info($"{string.Join(" and ", closed)} closed: syncing the inventory.");
+            RequestCharacterInventorySync(InventoryTrigger.Storage);
+        }
     }
 
     private bool AddonVisible(string name)
