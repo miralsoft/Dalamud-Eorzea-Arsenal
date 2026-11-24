@@ -221,6 +221,8 @@ public sealed class GameInventorySource : IInventorySource
     /// therefore be uploaded for a retainer nobody has been to, and the server would delete its
     /// stock. The cost is the same and is accepted for the same reason: a retainer emptied down to
     /// the last item keeps its last known contents until something is in it again.
+    /// Gil read from the open retainer's own gil container counts as found too (server 1.5): such a
+    /// retainer is sent with the gil row alone. The bell's retainer list does not, since it outlives the visit.
     /// </para>
     /// </summary>
     /// <returns>The retainer snapshot, or <see langword="null"/>.</returns>
@@ -253,17 +255,23 @@ public sealed class GameInventorySource : IInventorySource
                 AddContainer(items, t, InventoryContainers.Retainer, sourceId, includeCoffers: true);
             }
 
-            // Nothing found means we are not at the bell, not that the retainer is empty — see the
-            // remarks above. Uploading here would hand the server an empty snapshot to act on.
-            if (items.Count == 0)
+            // The retainer's gil rides in its scope (server 1.5). The open retainer's own gil container is
+            // the live count of this visit.
+            var inventory = InventoryManager.Instance();
+            var containerGil = inventory != null ? inventory->GetRetainerGil() : 0u;
+
+            // Nothing found means we are not at the bell, not that the retainer is empty (see the remarks
+            // above): uploading then would hand the server an empty snapshot to act on. Gil read from the
+            // open retainer's container is evidence too (server rule of 2026-11-24): a retainer with gil and
+            // no item at all is sent with the gil row alone. The bell's retainer list never counts as that
+            // evidence, because it keeps its numbers after the visit, when this timer still runs.
+            if (items.Count == 0 && containerGil == 0)
             {
                 return null;
             }
 
-            // The retainer's gil rides in its scope (server 1.5). The open retainer's own gil container is
-            // the live count of this visit; the bell's retainer list carries the same number for every
-            // retainer and stands in where the container reads nothing.
-            var gil = InventoryManager.Instance() is var inventory && inventory != null ? inventory->GetRetainerGil() : 0u;
+            // The list stands in for a container that reads nothing, but only once items prove the visit.
+            var gil = containerGil;
             if (gil == 0 && manager->GetActiveRetainer() is var active && active != null)
             {
                 gil = active->Gil;

@@ -34,6 +34,20 @@ public sealed class RetainerGilTests
         Assert.False(json.RootElement.GetProperty("hq").GetBoolean());
     }
 
+    /// <summary>A retainer with gil and no item counts as read: its scope goes with the gil row alone.</summary>
+    [Fact]
+    public void A_retainer_with_only_gil_sends_its_scope_with_the_gil_row_alone()
+    {
+        var scope = InventoryProtocol.RetainerScope("33000002");
+        var gil = InventoryProtocol.RetainerGilRow("33000002", 120_000)!;
+
+        var clean = InventorySanitizer.Sanitize(new InventoryData { Character = Character(), Scopes = [scope], Items = [gil] });
+
+        Assert.Equal([scope], clean.Scopes);
+        Assert.Equal(120_000, Assert.Single(clean.Items).Qty);
+        Assert.Empty(InventoryValidator.Validate(InventoryPayload.From(clean)).Errors);
+    }
+
     [Fact]
     public void No_gil_sends_no_row_and_the_ceiling_is_the_games()
     {
