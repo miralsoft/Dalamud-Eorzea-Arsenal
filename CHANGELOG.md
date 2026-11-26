@@ -86,6 +86,9 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   server lists `drop-reports` and the player said yes): in an instanced duty, every piece in the loot chest
   once as `chest`, whoever wins it, and what the bags and the armoury gained without a chest as `received`,
   netted per piece against the chest. The duty is its InstanceContent row id; a coffer is its own item.
+  The inventory is noted once the zone change is over and every container has loaded, only containers
+  loaded at both notes are compared, and the equipped items count too, so nothing moved or still loading
+  reads as received. The loot chest is read five times a second, and each report goes to the log by name.
   Collected on disk, sent every five minutes and when the duty ends, at most 50 a call, the same drop added
   up. A 409 drops what was collected and waits a day, a 429 waits an hour, a 401 or 403 stops until another
   key is connected, a refused batch is not sent again. The installation id is a random 128-bit id made once

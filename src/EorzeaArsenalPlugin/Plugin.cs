@@ -336,7 +336,7 @@ public sealed class Plugin : IDalamudPlugin
             },
             _config.PendingDropReports,
             _log);
-        _dropWatcher = new GameDropWatcher(clientState, dataManager, _log, DropsActive, reports => _dropUploader.Add(reports),
+        _dropWatcher = new GameDropWatcher(clientState, condition, dataManager, _log, DropsActive, reports => _dropUploader.Add(reports),
             () => _ = _dropUploader.SendIfDueAsync(force: true, _shutdown.Token));
 
         _worldSpotter = new WorldSpotter();
