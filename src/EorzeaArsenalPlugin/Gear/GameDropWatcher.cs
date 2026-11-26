@@ -257,6 +257,12 @@ public sealed class GameDropWatcher : IDisposable
             return null;
         }
 
+        // PvP matches are instanced content too, but nothing drops there and the catalog does not hold them.
+        if (condition.PvP)
+        {
+            return null;
+        }
+
         // Link type 1 is InstanceContent; anything else is not in the server's duty catalog.
         return condition.ContentLinkType == 1 && condition.Content.RowId is > 0 and < 10_000_000 ? (int)condition.Content.RowId : null;
     }

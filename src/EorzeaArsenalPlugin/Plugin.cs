@@ -63,6 +63,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly GearSyncService _sync;
     private readonly InventorySyncService _inventorySync;
     private readonly CurrencySyncService _currencySync;
+    private readonly UnlockSyncService _unlockSync;
+    private readonly IUnlockState _unlockState;
     private readonly ReportUploader<DropReport> _dropUploader;
     private readonly GameDropWatcher _dropWatcher;
     private readonly WorldSpotter _worldSpotter;
@@ -72,6 +74,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ConsentWindow _consentWindow;
     private long _nextCurrencyTicks;
     private long _nextStorageCheckTicks;
+    private volatile string? _trackedKey;
     private bool _dresserOpen;
     private bool _armoireOpen;
     private readonly IGameGui _gameGui;
@@ -193,6 +196,7 @@ public sealed class Plugin : IDalamudPlugin
     /// <param name="objectTable">The loaded objects, for the spot reports (only with consent).</param>
     /// <param name="fateTable">The active FATEs, for the spot reports (only with consent).</param>
     /// <param name="addonLifecycle">Addon events, to add the BiS lines to the game's item tooltip when chosen.</param>
+    /// <param name="unlockState">What the character has learned, for the goals' unlocks (server 1.5).</param>
     public Plugin(
         IDalamudPluginInterface pluginInterface,
         ICommandManager commandManager,
@@ -209,8 +213,10 @@ public sealed class Plugin : IDalamudPlugin
         IDtrBar dtrBar,
         IObjectTable objectTable,
         IFateTable fateTable,
-        IAddonLifecycle addonLifecycle)
+        IAddonLifecycle addonLifecycle,
+        IUnlockState unlockState)
     {
+        _unlockState = unlockState;
         _pluginInterface = pluginInterface;
         _commandManager = commandManager;
         _clientState = clientState;
@@ -318,6 +324,10 @@ public sealed class Plugin : IDalamudPlugin
         _currencySync = new CurrencySyncService(
             new GameCurrencySource(clientState, playerState, framework, _log), api, _store, new SystemClock(),
             () => _trackedItems.Currencies, _log, _characterDirectory);
+        _unlockSync = new UnlockSyncService(
+            new GameUnlockSource(clientState, playerState, framework, dataManager, unlockState, _log), api, _store, new SystemClock(),
+            () => _trackedItems.Unlocks, _log);
+        _unlockState.Unlock += OnUnlocked;
         _dropUploader = new ReportUploader<DropReport>(
             "drop",
             (key, batch, ct) => GameVersion() is { } version
@@ -544,6 +554,8 @@ public sealed class Plugin : IDalamudPlugin
         _inventorySync.SyncCompleted -= OnInventoryCompleted;
         _inventorySync.Dispose();
         _currencySync.Dispose();
+        _unlockState.Unlock -= OnUnlocked;
+        _unlockSync.Dispose();
         _relicWindow.Dispose();
         _dropWatcher.Dispose();
         _worldWatcher.Dispose();
@@ -1243,7 +1255,8 @@ public sealed class Plugin : IDalamudPlugin
     /// — untouched, so a scan never mistakes a failed read for "there are none".
     /// </summary>
     /// <param name="thenSyncInventory">Run the deferred character sync once the list is in.</param>
-    private void RefreshTrackedItems(bool thenSyncInventory = false)
+    /// <param name="syncTrigger">What the deferred sync counts as.</param>
+    private void RefreshTrackedItems(bool thenSyncInventory = false, InventoryTrigger syncTrigger = InventoryTrigger.Login)
     {
         if (!_config.Enabled || !_store.HasKey)
         {
@@ -1271,16 +1284,26 @@ public sealed class Plugin : IDalamudPlugin
 
                     // Server 1.5 adds the currency ids to the same answer; an older server sends none.
                     _trackedItems.SetCurrencies(result.Value.Currencies);
+
+                    // And the goal items that unlock something to learn (goals); the list is the account's.
+                    _trackedItems.SetUnlocks(result.Value.Unlocks);
+                    _trackedKey = key;
                     _log.Info($"Tracked items updated: {ids.Count} id(s), {_trackedItems.Groups.Count} group(s).");
 
                     if (thenSyncInventory)
                     {
-                        _inventorySync.RequestCharacterSync(InventoryTrigger.Login);
+                        _inventorySync.RequestCharacterSync(syncTrigger);
                     }
                 }
                 else
                 {
                     _log.Info($"Tracked-items fetch failed: {result.Error?.Kind}. Keeping the previous list.");
+
+                    // A list read before still serves: the sync the player asked for goes ahead with it.
+                    if (thenSyncInventory && _trackedItems.IsLoaded)
+                    {
+                        _inventorySync.RequestCharacterSync(syncTrigger);
+                    }
                 }
             }
             catch (Exception ex)
@@ -1309,6 +1332,14 @@ public sealed class Plugin : IDalamudPlugin
         if (trigger == InventoryTrigger.Manual && !_inventorySource.IsSaddlebagReadable)
         {
             Chat(_localizer.Get(LocKeys.InventorySaddlebagClosed));
+        }
+
+        // A sync the player asks for reads the list first: it holds the items of the account's goals, and a
+        // goal just made on the website should count at once, not from the next login.
+        if (trigger == InventoryTrigger.Manual)
+        {
+            RefreshTrackedItems(thenSyncInventory: true, syncTrigger: trigger);
+            return;
         }
 
         if (_trackedItems.IsLoaded)
@@ -1363,6 +1394,37 @@ public sealed class Plugin : IDalamudPlugin
     /// </summary>
     private bool CurrencySyncOffered() =>
         _features.Has(FeatureNames.CurrencySync) || _trackedItems.ServerListsCurrencies;
+
+    /// <summary>
+    /// Asks the unlock report for an attempt (goals, server 1.5). It runs with the inventory sync and has no
+    /// switch of its own, as the contract asks; a change the game reports follows the "when" switches like
+    /// the currency sync's look for a change.
+    /// </summary>
+    /// <param name="trigger">What asked.</param>
+    private void RequestUnlockSync(UnlockTrigger trigger)
+    {
+        if (_config is not { Enabled: true, TosAccepted: true, SyncInventory: true } || !_store.HasKey ||
+            !_features.Has(FeatureNames.Goals) || !CurrentCharacterAllowed())
+        {
+            return;
+        }
+
+        if (trigger == UnlockTrigger.Change && !(_config.PushOnLogin || _config.AutoPush || _config.PushOnGearsetChange))
+        {
+            return;
+        }
+
+        _unlockSync.Request(trigger);
+    }
+
+    /// <summary>The game reports something learned: a goal's mount, minion, roll or card may be among it.</summary>
+    private void OnUnlocked(Lumina.Excel.RowRef rowRef)
+    {
+        if (_trackedItems.Unlocks.Count > 0)
+        {
+            RequestUnlockSync(UnlockTrigger.Change);
+        }
+    }
 
     /// <summary>
     /// Asks the currency sync for an attempt, gated like the other transfers plus its own switch.
@@ -1512,6 +1574,8 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         _currencySync.StartSession();
+        _unlockSync.StartSession();
+        _inventorySource.StartSession();
         _log.Info("New game session (logged in).");
 
         RecordCurrentCharacter();
@@ -1671,6 +1735,13 @@ public sealed class Plugin : IDalamudPlugin
             }
 
             AskConsentOnce();
+
+            // The tracked list belongs to the account behind the key (its goals): another key reads it again.
+            if (_trackedKey is not null && _store.HasKey && !string.Equals(_trackedKey, _store.ApiKey, StringComparison.Ordinal))
+            {
+                _trackedKey = null;
+                RefreshTrackedItems();
+            }
         }
 
         // Self-throttled to once a second, and a no-op outside a watched duty.
@@ -1838,6 +1909,17 @@ public sealed class Plugin : IDalamudPlugin
         var dresser = AddonVisible("MiragePrismPrismBox");
         var armoire = AddonVisible("CabinetWithdraw") || AddonVisible("Cabinet");
 
+        // An open window is proof the player looked inside, so an empty one may now be sent as empty.
+        if (dresser)
+        {
+            _inventorySource.NoteDresserOpened();
+        }
+
+        if (armoire)
+        {
+            _inventorySource.NoteArmoireOpened();
+        }
+
         // Each window on its own, so closing one while the other is still open counts as well, and the log
         // names which one it was.
         var closed = new List<string>(2);
@@ -1987,6 +2069,7 @@ public sealed class Plugin : IDalamudPlugin
         {
             // A gear sync went through, which is also what a currency 404 waits for.
             RequestCurrencySync(CurrencyTrigger.AfterGearSync);
+            RequestUnlockSync(UnlockTrigger.AfterGearSync);
 
             // A gearset counts toward a relic, so the relic view reads again when it is next drawn.
             _relicService.Invalidate();
@@ -2073,6 +2156,7 @@ public sealed class Plugin : IDalamudPlugin
             _advisorService.InvalidateOptions();
             _relicService.Invalidate();
             RequestCurrencySync(CurrencyTrigger.AfterInventorySync);
+            RequestUnlockSync(UnlockTrigger.AfterInventorySync);
         }
 
         // Piggy-back the capped-tomestone balance on the inventory sync (we just read the game anyway),

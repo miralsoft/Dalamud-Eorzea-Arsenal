@@ -21,6 +21,7 @@ public sealed class TrackedItemsStore
     private volatile bool _loaded;
     private volatile IReadOnlyList<int> _currencies = [];
     private volatile bool _listsCurrencies;
+    private volatile IReadOnlyList<int> _unlocks = [];
 
     /// <summary>Whether any ids are tracked yet (the list may not have loaded).</summary>
     public bool HasAny => _ids.Count > 0;
@@ -65,6 +66,14 @@ public sealed class TrackedItemsStore
             : [.. ids.Where(id => id is > 0 and <= int.MaxValue).Select(id => (int)id).Distinct().Order()];
         _listsCurrencies = ids is not null;
     }
+
+    /// <summary>The goal items that unlock something to learn (server 1.5), ascending; empty without any.</summary>
+    public IReadOnlyList<int> Unlocks => _unlocks;
+
+    /// <summary>Replaces the unlock items (whole-swap); <see langword="null"/> or empty clears them.</summary>
+    /// <param name="ids">The ids as sent by the server.</param>
+    public void SetUnlocks(IEnumerable<long>? ids) =>
+        _unlocks = ids is null ? [] : [.. ids.Where(id => id is > 0 and <= int.MaxValue).Select(id => (int)id).Distinct().Order()];
 
     /// <summary>Whether an item id is one the plugin should report for owned-count coverage.</summary>
     /// <param name="itemId">The item id.</param>

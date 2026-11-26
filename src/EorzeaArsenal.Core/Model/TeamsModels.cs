@@ -724,6 +724,12 @@ public sealed class TrackedItemsResponse
     /// Absent on an older server, which takes no currency sync.
     /// </summary>
     public List<long>? Currencies { get; init; }
+
+    /// <summary>
+    /// The goal items of the account that unlock a mount, a minion, an orchestrion roll or a card (server 1.5,
+    /// goals), sorted ascending. Empty without such goals, absent before 1.5.
+    /// </summary>
+    public List<long>? Unlocks { get; init; }
 }
 
 /// <summary>One display group of tracked items: what kind they are and which ids belong to it.</summary>

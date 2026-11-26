@@ -69,6 +69,8 @@ public sealed class GameInventorySource : IInventorySource
     private readonly TrackedItemsStore _tracked;
     private readonly ILog _log;
     private readonly Func<bool> _armoireOffered;
+    private volatile bool _dresserOpened;
+    private volatile bool _armoireOpened;
 
     /// <summary>Creates the game inventory source.</summary>
     /// <param name="clientState">Login state.</param>
@@ -87,6 +89,19 @@ public sealed class GameInventorySource : IInventorySource
         _tracked = tracked;
         _log = log;
         _armoireOffered = armoireOffered;
+    }
+
+    /// <summary>The player opened the glamour dresser's window this session; an empty dresser may be sent as empty.</summary>
+    public void NoteDresserOpened() => _dresserOpened = true;
+
+    /// <summary>The player opened an armoire window this session; an empty armoire may be sent as empty.</summary>
+    public void NoteArmoireOpened() => _armoireOpened = true;
+
+    /// <summary>A new game session: what was opened belongs to the last one.</summary>
+    public void StartSession()
+    {
+        _dresserOpened = false;
+        _armoireOpened = false;
     }
 
     /// <inheritdoc />
@@ -181,9 +196,9 @@ public sealed class GameInventorySource : IInventorySource
             }
 
             // The dresser has the same trap, and its loaded flag is undocumented and unchecked, so finding
-            // at least one piece is the evidence it was read. That makes an emptied dresser keep its last
-            // known contents — the harmless direction, and the one the server's contract expects.
-            if (AddGlamourDresser(items) > 0)
+            // at least one piece is the evidence it was read, or the player having opened its window this
+            // session, which the plugin sees. Only then is an emptied dresser sent as empty.
+            if (AddGlamourDresser(items) > 0 || _dresserOpened)
             {
                 scopes.Add(InventoryProtocol.ScopeGlamour);
             }
@@ -191,7 +206,7 @@ public sealed class GameInventorySource : IInventorySource
             // The armoire is a scope of its own from server 1.5 on, and only there is it read at all: an
             // older server files armoire rows under "character", and a server that does not list the
             // feature gets none rather than rows in the wrong scope.
-            if (_armoireOffered() && AddArmoire(items) > 0)
+            if (_armoireOffered() && AddArmoire(items) is { } found && (found > 0 || _armoireOpened))
             {
                 scopes.Add(InventoryProtocol.ScopeArmoire);
             }
@@ -429,19 +444,20 @@ public sealed class GameInventorySource : IInventorySource
     /// contents, which is the harmless direction. The armoire stores by its own sheet row, not by item:
     /// each row names the item it holds.
     /// </remarks>
-    private unsafe int AddArmoire(List<InventoryItemDto> items)
+    /// <returns>How many pieces were found, or <see langword="null"/> when the armoire is not loaded.</returns>
+    private unsafe int? AddArmoire(List<InventoryItemDto> items)
     {
         var ui = FFXIVClientStructs.FFXIV.Client.Game.UI.UIState.Instance();
         if (ui == null || !ui->Cabinet.IsCabinetLoaded())
         {
             _log.Info("Armoire not declared: not loaded (open it once at an inn to sync its contents).");
-            return 0;
+            return null;
         }
 
         var sheet = _data.GetExcelSheet<Lumina.Excel.Sheets.Cabinet>();
         if (sheet is null)
         {
-            return 0;
+            return null;
         }
 
         var added = 0;

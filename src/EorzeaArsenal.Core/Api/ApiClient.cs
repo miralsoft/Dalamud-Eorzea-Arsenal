@@ -378,6 +378,10 @@ public sealed class ApiClient : IApiClient
         GetAsync<TeamPulseResponse>($"/teams/{teamId}/pulse", apiKey, ct);
 
     /// <inheritdoc />
+    public Task<ApiResult<UnlocksResult>> PutUnlocksAsync(string apiKey, UnlocksRequest request, CancellationToken ct) =>
+        SendJsonAsync<UnlocksRequest, UnlocksResult>(HttpMethod.Put, "/me/unlocks", apiKey, request, ct);
+
+    /// <inheritdoc />
     public Task<ApiResult<ReportAck>> PostDropReportsAsync(string apiKey, DropReportRequest request, CancellationToken ct) =>
         SendJsonAsync<DropReportRequest, ReportAck>(HttpMethod.Post, "/loot/reports", apiKey, request, ct);
 

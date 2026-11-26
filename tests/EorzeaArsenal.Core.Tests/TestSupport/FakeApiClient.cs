@@ -572,6 +572,22 @@ public sealed class FakeApiClient : IApiClient
         : results.Count == 1 ? results.Peek()
         : ApiResult<ReportAck>.Ok(new ReportAck { Accepted = count });
 
+    /// <summary>Each unlock report passed to <see cref="PutUnlocksAsync"/>, in call order.</summary>
+    public List<UnlocksRequest> UnlockPushes { get; } = [];
+
+    /// <summary>Results of <see cref="PutUnlocksAsync"/>, one per call; the last one repeats. Empty: ok.</summary>
+    public Queue<ApiResult<UnlocksResult>> UnlockResults { get; } = new();
+
+    /// <inheritdoc />
+    public Task<ApiResult<UnlocksResult>> PutUnlocksAsync(string apiKey, UnlocksRequest request, CancellationToken ct)
+    {
+        UnlockPushes.Add(request);
+        var result = UnlockResults.Count > 1 ? UnlockResults.Dequeue()
+            : UnlockResults.Count == 1 ? UnlockResults.Peek()
+            : ApiResult<UnlocksResult>.Ok(new UnlocksResult { Status = "ok", CharacterId = "1234", Checked = request.Checked.Count });
+        return Task.FromResult(result);
+    }
+
     /// <summary>Each snapshot passed to <see cref="PushCurrenciesAsync"/>, in call order.</summary>
     public List<CurrencyStockRequest> CurrencyPushes { get; } = [];
 

@@ -92,6 +92,11 @@ public static class ReleaseNotes
                 "Your currencies come along: the farm plan, purchase advisor and scrip calculator now know your tomestones, scrips and other currencies without you typing them in."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
+                "goals-tick-themselves-off",
+                "Ziele haken sich selbst ab: Lernst du ein Reittier, einen Begleiter, eine Orchestrion-Rolle oder eine Karte aus deinen Zielen, sieht die Webseite das von selbst.",
+                "Goals tick themselves off: once you learn a mount, minion, orchestrion roll or card from your goals, the website sees it by itself."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
                 "the-armoire-counts-too",
                 "Das Kabinett zählt mit: Was dort liegt, wird mit deinem Besitz übertragen, sobald du es einmal geöffnet hast.",
                 "The armoire counts too: what it holds is synced with your items once you have opened it."),

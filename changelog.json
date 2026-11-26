@@ -106,6 +106,21 @@
       }
     },
     {
+      "id": "goals-tick-themselves-off",
+      "version": "1.3.0",
+      "date": "2026-11-22",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Ziele haken sich selbst ab",
+        "body": "<p>Lernst du ein Reittier, einen Begleiter, eine Orchestrion-Rolle oder eine Karte aus deinen Zielen, sieht die Webseite das von selbst.</p>"
+      },
+      "en": {
+        "title": "Goals tick themselves off",
+        "body": "<p>Once you learn a mount, minion, orchestrion roll or card from your goals, the website sees it by itself.</p>"
+      }
+    },
+    {
       "id": "the-armoire-counts-too",
       "version": "1.3.0",
       "date": "2026-11-22",

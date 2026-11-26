@@ -301,6 +301,13 @@ public interface IApiClient
     /// <returns>The stored row count, or a classified error (404: sync gear first; 429: wait an hour).</returns>
     Task<ApiResult<CurrencyStockResult>> PushCurrenciesAsync(string apiKey, CurrencyStockRequest request, CancellationToken ct);
 
+    /// <summary>Reports the learned unlocks of goal items via <c>PUT /me/unlocks</c> (server 1.5, <c>inventory:write</c>).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="request">What was looked at and what of it is learned.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The count kept, or a classified error (404: sync gear first; 429: wait for Retry-After).</returns>
+    Task<ApiResult<UnlocksResult>> PutUnlocksAsync(string apiKey, UnlocksRequest request, CancellationToken ct);
+
     /// <summary>Reads the relic catalog via <c>GET /relics?lang=</c> (server 1.5, public; the key counts the limit per account).</summary>
     /// <param name="apiKey">The API key.</param>
     /// <param name="language"><c>de</c> or <c>en</c>.</param>

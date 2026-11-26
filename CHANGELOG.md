@@ -109,6 +109,19 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   container reads above 0 counts as read even with no item and goes with the gil row alone; the bell's
   list never counts as that, since it outlives the visit. The retainer switch says so.
 
+- **Goals: learned unlocks** (`PUT /me/unlocks`, `UnlockSyncService`, `GameUnlockSource`; where the server
+  lists `goals`): the goal items under `unlocks` of the tracked items are looked at with Dalamud's
+  `IUnlockState` (what an item unlocks and whether it is learned: mounts, minions, orchestrion rolls,
+  cards), and `checked` with `learned` go up after a gear or inventory sync and when the game reports
+  something learned, at most every five minutes and only when different. A 404 waits for a gear sync, a
+  429 for its `Retry-After`, a 401 or 403 stops, a 400 or 422 is not repeated. Runs with the inventory
+  sync, no switch of its own.
+- **The tracked list is read again when it may have changed**: on a manual inventory sync (a goal just
+  made on the website counts at once) and when another key is connected (the list is the account's).
+- **An opened glamour dresser or armoire is sent even when empty**: the plugin sees its window, so an
+  emptied storage now clears on the server instead of keeping its last contents.
+- **PvP matches are not watched for drops**: they are instanced content too, but nothing drops there.
+
 ### Changed
 - **`PUT /me/tome-balance` is not called on a 1.5 server**, where the currency sync sets the balance, and
   not at all with the currencies switch off. Before 1.5 it is sent as before.

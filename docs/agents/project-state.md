@@ -67,7 +67,10 @@ branch was pushed. The feature branches are deleted. PR #21 is closed; its one l
 (the server's wallet puts gil, seals and the other currencies on the list), the relic window looks like
 the website's page, and the BiS lines can go into the game's own tooltip (ADR 0006, `GameTooltipBis`,
 a choice next to the window; to check in the game: field 13 is the description, the colours read on the
-light and the dark tooltip). Next: the release, PR into main,
+light and the dark tooltip). Then the goals (server feature `goals`, contract-goals.md): learned unlocks of goal items via
+Dalamud's `IUnlockState` and `PUT /me/unlocks`; the tracked list read again on a manual sync and on a new
+key; opened storages sent even when empty; PvP not watched for drops; the drop watcher notes the
+inventory only after arrival and logs each report by name (a Mistwake run showed 6 false "received"). Next: the release, PR into main,
 merge and tag in one sitting, the release-note date set to that day.
 
 The foundation moved from the 3.3.0 this repository was audited against to 5.3.0. The Dalamud profile

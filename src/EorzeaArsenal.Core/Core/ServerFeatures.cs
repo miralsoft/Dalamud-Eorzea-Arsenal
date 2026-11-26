@@ -26,6 +26,9 @@ public static class FeatureNames
 
     /// <summary>The armoire as an inventory scope of its own.</summary>
     public const string InventoryArmoire = "inventory-armoire";
+
+    /// <summary>Goals: <c>unlocks</c> in the tracked items and <c>PUT /me/unlocks</c>.</summary>
+    public const string Goals = "goals";
 }
 
 /// <summary>
