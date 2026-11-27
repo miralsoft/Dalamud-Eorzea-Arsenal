@@ -2404,6 +2404,18 @@ public static class LocKeys
     /// <summary>A goal to collect an item to learn.</summary>
     public const string GoalPurposeCollect = "goals.purpose.collect";
 
+    /// <summary>The goals block's heading in an item's tooltip.</summary>
+    public const string GoalTooltipHeader = "goals.tooltip.header";
+
+    /// <summary>An item that is a goal, in its tooltip.</summary>
+    public const string GoalTooltipIsGoal = "goals.tooltip.isgoal";
+
+    /// <summary>An item whose goal is done, in its tooltip.</summary>
+    public const string GoalTooltipDone = "goals.tooltip.done";
+
+    /// <summary>An item an open goal costs, and which goals, in its tooltip.</summary>
+    public const string GoalTooltipNeededFor = "goals.tooltip.neededfor";
+
     /// <summary>Chat note after adding.</summary>
     public const string GoalAdded = "goals.added";
 

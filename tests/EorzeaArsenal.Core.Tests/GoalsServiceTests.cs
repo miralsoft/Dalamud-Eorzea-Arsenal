@@ -1,6 +1,7 @@
 using System.Text.Json;
 using EorzeaArsenal.Abstractions;
 using EorzeaArsenal.Core;
+using EorzeaArsenal.Localization;
 using EorzeaArsenal.Model;
 using EorzeaArsenal.Serialization;
 using EorzeaArsenal.Tests.TestSupport;
@@ -203,6 +204,28 @@ public sealed class GoalsServiceTests
         var choices = service.ChoicesFor(12345, new GoalItemFacts(unlockable, learned, sellable, stacks, ownStorage), learnOrCollect);
 
         Assert.Equal(expected, string.Join(",", choices.Select(c => c.Action)));
+    }
+
+    [Fact]
+    public void A_goal_in_its_tooltip_says_so_with_each_cost_and_a_cost_names_the_goals_it_serves()
+    {
+        var mine = JsonSerializer.Deserialize<MyGoalsResponse>(MineJson, EorzeaJson.Options)!.Data!;
+        var de = new Localizer(Localizer.German);
+
+        var goal = GoalHints.For(mine, 44505, de);
+        Assert.Equal(
+            [("Als Ziel gesetzt", GoalHintTone.Plain), ("37 / 99 Ritterinnen-Totem, fehlen 62", GoalHintTone.Missing)],
+            goal.Select(l => (l.Text, l.Tone)));
+
+        var totem = GoalHints.For(mine, 46720, de);
+        Assert.Equal(
+            [("Gebraucht für: Pfeife", GoalHintTone.Plain), ("37 / 99, fehlen 62", GoalHintTone.Missing)],
+            totem.Select(l => (l.Text, l.Tone)));
+
+        Assert.Equal(("Ziel erledigt · Gelernt", GoalHintTone.Good), GoalHints.For(mine, 52034, de).Select(l => (l.Text, l.Tone)).Single());
+        Assert.Equal("Im Besitz, noch nicht benutzt", GoalHints.For(mine, 6001, de)[1].Text);
+        Assert.Empty(GoalHints.For(mine, 12345, de));
+        Assert.Empty(GoalHints.For(null, 44505, de));
     }
 
     private static GoalItemFacts Facts(bool unlockable = false, bool learned = false, bool ownStorage = false) =>

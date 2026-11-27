@@ -152,6 +152,13 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   and the tracked list is read again, so the new goal's item and costs are counted. The goals view can
   remove a goal too, after a second click, and names what is held of each goal. Ticking, changing and
   "learned" stay on the website.
+- **Goals in the item tooltip** (`GoalHints`; where the server lists `goals-progress`): a block "Deine
+  Ziele" beside the BiS block, in the game's tooltip, the plugin's own window or both as the BiS placement
+  says, and with the BiS block switched off too. For an item that is a goal: "Als Ziel gesetzt" (to
+  collect, where it is one), what is held of a wanted quantity, each cost "have / need, missing", or "Ziel
+  erledigt" with why. For an item an open goal costs: "Gebraucht für" the goals, and "have / need,
+  missing" from "Was noch fehlt". From the goals last read, kept fresh for the logged-in character; no call
+  per hover.
 - **Closing a shop or an exchange syncs** the inventory and the currencies (`InventoryTrigger.Shop`): gil
   shops, currency and item exchanges, the Grand Company, collectables, the marketboard and hand-ins. Not
   held back by the 15-minute auto interval, but only what changed is sent, and several shops in a row make

@@ -126,6 +126,11 @@ public static class ReleaseNotes
                 "Ziele per Rechtsklick: Im Kontextmenü eines Gegenstands fügst du ihn als Ziel hinzu oder entfernst das Ziel.",
                 "Goals by right-click: in an item's context menu you add it as a goal or remove the goal."),
             new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "goals-in-the-tooltip",
+                "Ziele im Tooltip: Fährst du über einen Gegenstand, siehst du, ob er dein Ziel ist und wie weit du bist, oder für welches Ziel du ihn brauchst.",
+                "Goals in the tooltip: hovering an item shows whether it is your goal and how far you are, or which goal needs it."),
+            new ReleaseNoteItem(
                 ReleaseNoteKind.Improved,
                 "current-after-shopping",
                 "Aktuell nach dem Einkauf: Schließt du einen Händler oder Tausch, werden dein Besitz und deine Währungen gleich übertragen.",

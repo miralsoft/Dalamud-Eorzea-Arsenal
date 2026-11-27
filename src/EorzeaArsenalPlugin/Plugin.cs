@@ -479,7 +479,8 @@ public sealed class Plugin : IDalamudPlugin
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _keyScopes, _log, Save, () => Localizer.Nearest(_pluginInterface.UiLanguage),
             CollectionOffered, () => { if (CollectionActive()) { _collectionSync.Request(CollectionTrigger.Full); } });
-        _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _obtainService, _worldActions, _holdingsService, _log);
+        _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _obtainService, _worldActions, _holdingsService, _log,
+            itemId => GoalsOffered() ? GoalHints.For(_goalsService.Mine, itemId, _localizer) : []);
         _gameTooltipBis = new GameTooltipBis(addonLifecycle, _config, _bisTooltip, _log);
         _windowSystem.AddWindow(_previewWindow);
         _windowSystem.AddWindow(_reviewWindow);
@@ -1847,9 +1848,9 @@ public sealed class Plugin : IDalamudPlugin
                 _goalsService.Forget();
             }
 
-            // The context menu decides from the goals last read, never per right-click: keep them read for the
-            // logged-in character. Only a reason to read (none yet, a sync, another character) asks the server.
-            if (GoalsWriteOffered() && _currentCidHash is { Length: > 0 } goalsCid
+            // The context menu and the tooltip decide from the goals last read, never per right-click or hover: keep
+            // them read for the logged-in character. Only a reason to read (none yet, a sync, another character) asks.
+            if (GoalsOffered() && _currentCidHash is { Length: > 0 } goalsCid
                 && _goalsService.NeedsRead(GoalsLanguage(), goalsCid) && !_goalsService.Loading)
             {
                 var goalsLanguage = GoalsLanguage();

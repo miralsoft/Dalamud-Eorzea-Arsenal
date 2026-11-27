@@ -211,6 +211,21 @@
       }
     },
     {
+      "id": "goals-in-the-tooltip",
+      "version": "1.3.0",
+      "date": "2026-11-22",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Ziele im Tooltip",
+        "body": "<p>Fährst du über einen Gegenstand, siehst du, ob er dein Ziel ist und wie weit du bist, oder für welches Ziel du ihn brauchst.</p>"
+      },
+      "en": {
+        "title": "Goals in the tooltip",
+        "body": "<p>Hovering an item shows whether it is your goal and how far you are, or which goal needs it.</p>"
+      }
+    },
+    {
       "id": "current-after-shopping",
       "version": "1.3.0",
       "date": "2026-11-22",

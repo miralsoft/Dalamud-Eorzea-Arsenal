@@ -64,6 +64,9 @@ public sealed class BisTooltip
     private ulong _cachedEquippedSig;
     private List<OverlayLine> _cachedLines = [];
     private string? _cachedHint;
+    private readonly Func<long, IReadOnlyList<GoalHintLine>> _goalHints;
+    private IReadOnlyList<GoalHintLine> _goalLines = [];
+    private bool _showBisNow;
 
     /// <summary>Creates the overlay.</summary>
     /// <param name="config">Live config (holds the on/off toggle).</param>
@@ -75,7 +78,8 @@ public sealed class BisTooltip
     /// <param name="world">Game actions (owned counts, map) for the sourcing renderer.</param>
     /// <param name="holdings">Server-side owned counts (retainers included) for the sourcing renderer.</param>
     /// <param name="log">Diagnostics sink (so a draw failure is recorded, never thrown into the game).</param>
-    public BisTooltip(PluginConfig config, Localizer localizer, IGameGui gameGui, BisService bis, GameGearSource gearSource, ObtainService obtain, IWorldActions world, HoldingsService holdings, ILog log)
+    /// <param name="goalHints">The goal lines for an item (server 1.5), from the goals last read; empty where goals are not offered.</param>
+    public BisTooltip(PluginConfig config, Localizer localizer, IGameGui gameGui, BisService bis, GameGearSource gearSource, ObtainService obtain, IWorldActions world, HoldingsService holdings, ILog log, Func<long, IReadOnlyList<GoalHintLine>> goalHints)
     {
         _config = config;
         _localizer = localizer;
@@ -85,6 +89,7 @@ public sealed class BisTooltip
         _obtain = obtain;
         _sourcing = new SourcingView(localizer, world, obtain, holdings);
         _log = log;
+        _goalHints = goalHints;
     }
 
     private string T(string key) => _localizer.Get(key);
@@ -104,7 +109,7 @@ public sealed class BisTooltip
 
     private void DrawInternal()
     {
-        if (!_config.ShowBisTooltip || !_config.Enabled || _config.BisPlacement == BisTooltipPlacement.Tooltip)
+        if (!_config.Enabled || _config.BisPlacement == BisTooltipPlacement.Tooltip)
         {
             return;
         }
@@ -116,27 +121,56 @@ public sealed class BisTooltip
         }
 
         var itemId = ItemIdNormalizer.Normalize((uint)raw);
-        var gearIndex = _gearSource.GetCurrentGearsetIndex();
-        var equippedSig = _gearSource.GetEquippedSignature();
 
-        // Recompute when the hovered item, the gearset, or the worn gear changes — so the
-        // comparison is always live (e.g. right after swapping a piece), independent of the cache.
-        if (itemId != _cachedItemId || gearIndex != _cachedGearIndex || equippedSig != _cachedEquippedSig)
+        // The goals block (server 1.5) shows with or without the BiS block: it has its own reason to be there.
+        _goalLines = _goalHints(itemId);
+        var showBis = _config.ShowBisTooltip;
+        if (showBis)
         {
-            _cachedItemId = itemId;
-            _cachedGearIndex = gearIndex;
-            _cachedEquippedSig = equippedSig;
-            _cachedLines = BuildLines(itemId, gearIndex);
-            _cachedHint = _cachedLines.Count == 0 ? NoTargetHint(itemId, gearIndex) : null;
+            var gearIndex = _gearSource.GetCurrentGearsetIndex();
+            var equippedSig = _gearSource.GetEquippedSignature();
+
+            // Recompute when the hovered item, the gearset, or the worn gear changes — so the
+            // comparison is always live (e.g. right after swapping a piece), independent of the cache.
+            if (itemId != _cachedItemId || gearIndex != _cachedGearIndex || equippedSig != _cachedEquippedSig)
+            {
+                _cachedItemId = itemId;
+                _cachedGearIndex = gearIndex;
+                _cachedEquippedSig = equippedSig;
+                _cachedLines = BuildLines(itemId, gearIndex);
+                _cachedHint = _cachedLines.Count == 0 ? NoTargetHint(itemId, gearIndex) : null;
+            }
         }
 
-        if ((_cachedLines.Count == 0 && _cachedHint is null) || !TryGetDockPosition(out var position))
+        _showBisNow = showBis && (_cachedLines.Count > 0 || _cachedHint is not null);
+        if ((!_showBisNow && _goalLines.Count == 0) || !TryGetDockPosition(out var position))
         {
             return;
         }
 
         DrawWindow(position);
     }
+
+    /// <summary>The colour of a goal line, the same palette as the BiS lines (so the game's tooltip maps it too).</summary>
+    /// <param name="tone">The line's tone.</param>
+    /// <returns>The colour.</returns>
+    public static Vector4 ColorOf(GoalHintTone tone) => tone switch
+    {
+        GoalHintTone.Good => Green,
+        GoalHintTone.Missing => Orange,
+        _ => Muted,
+    };
+
+    /// <summary>The goal lines for the hovered item, for the game's tooltip. Framework thread.</summary>
+    /// <returns>The lines, empty when the item is neither a goal nor a cost of one.</returns>
+    public IReadOnlyList<GoalHintLine> GoalLinesForHovered()
+    {
+        var raw = _gameGui.HoveredItem;
+        return raw is 0 or > uint.MaxValue ? [] : _goalHints(ItemIdNormalizer.Normalize((uint)raw));
+    }
+
+    /// <summary>The heading of the goals block, the same in the window and in the game's tooltip.</summary>
+    public string GoalsHeader => T(LocKeys.GoalTooltipHeader);
 
     /// <summary>The heading of the BiS block, the same in the window and in the game's tooltip.</summary>
     public string Header => T(LocKeys.BisTooltipHeader);
@@ -353,18 +387,36 @@ public sealed class BisTooltip
 
         if (ImGui.Begin("##EorzeaArsenalBisOverlay", Flags))
         {
-            IconText(FontAwesomeIcon.Gem, Accent, T(LocKeys.BisTooltipHeader));
-            ImGui.Separator();
-            if (_cachedLines.Count > 0)
+            if (_showBisNow)
             {
-                foreach (var line in _cachedLines)
+                IconText(FontAwesomeIcon.Gem, Accent, T(LocKeys.BisTooltipHeader));
+                ImGui.Separator();
+                if (_cachedLines.Count > 0)
                 {
-                    DrawLine(line);
+                    foreach (var line in _cachedLines)
+                    {
+                        DrawLine(line);
+                    }
+                }
+                else if (_cachedHint is not null)
+                {
+                    ImGui.TextColored(Yellow, _cachedHint);
                 }
             }
-            else if (_cachedHint is not null)
+
+            if (_goalLines.Count > 0)
             {
-                ImGui.TextColored(Yellow, _cachedHint);
+                if (_showBisNow)
+                {
+                    ImGui.Spacing();
+                }
+
+                IconText(FontAwesomeIcon.Bullseye, Accent, GoalsHeader);
+                ImGui.Separator();
+                foreach (var line in _goalLines)
+                {
+                    ImGui.TextColored(ColorOf(line.Tone), line.Text);
+                }
             }
 
             _lastSize = ImGui.GetWindowSize();

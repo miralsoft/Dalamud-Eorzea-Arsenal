@@ -71,13 +71,16 @@ public sealed class GameTooltipBis : IDisposable
     {
         try
         {
-            if (!_config.Enabled || !_config.ShowBisTooltip || _config.BisPlacement == BisTooltipPlacement.Overlay)
+            if (!_config.Enabled || _config.BisPlacement == BisTooltipPlacement.Overlay)
             {
                 return;
             }
 
-            var lines = _bis.TooltipLines();
-            if (lines.Count == 0)
+            // Two blocks, each only with something to say: the BiS lines where that is switched on, and the goals
+            // (server 1.5), which have their own reason to be there.
+            var lines = _config.ShowBisTooltip ? _bis.TooltipLines() : [];
+            var goals = _bis.GoalLinesForHovered();
+            if (lines.Count == 0 && goals.Count == 0)
             {
                 return;
             }
@@ -96,39 +99,28 @@ public sealed class GameTooltipBis : IDisposable
 
             var current = strings->StringArray[DescriptionField];
             var existing = current.HasValue ? current.AsSpan() : ReadOnlySpan<byte>.Empty;
-            var header = _bis.Header;
-            if (existing.IndexOf(Encoding.UTF8.GetBytes(header)) >= 0)
+            var firstHeader = lines.Count > 0 ? _bis.Header : _bis.GoalsHeader;
+            if (existing.IndexOf(Encoding.UTF8.GetBytes(firstHeader)) >= 0)
             {
                 return; // already there from an earlier update of the same tooltip
             }
 
-            // Laid out like the tooltip's own sections ("Bonus", "Materia"): a gap, the heading, a rule under
-            // it, the lines set in a little, and a gap after, so it reads as an area of its own. The gaps are
-            // empty lines, the only spacing a text field has.
             var builder = new SeStringBuilder();
             if (!existing.IsEmpty)
             {
                 builder.Append(new ReadOnlySeStringSpan(existing));
                 builder.AppendNewLine();
-                builder.AppendNewLine();
             }
 
-            Colored(builder, header, BisTooltip.GameTooltipColor(BisTooltip.HeaderColor));
-            builder.AppendNewLine();
-
-            // Box drawing characters are in the game's fonts, which carry the Japanese set for every client.
-            Colored(builder, Rule, RuleColor);
-            // Broken here rather than by the game, which would start every continuation at the left edge.
-            foreach (var (text, color) in lines)
+            if (lines.Count > 0)
             {
-                foreach (var part in TooltipWrap.Wrap(text, LineIndent))
-                {
-                    builder.AppendNewLine();
-                    Colored(builder, part, BisTooltip.GameTooltipColor(color));
-                }
+                Block(builder, !existing.IsEmpty, _bis.Header, lines);
             }
 
-            builder.AppendNewLine();
+            if (goals.Count > 0)
+            {
+                Block(builder, !existing.IsEmpty || lines.Count > 0, _bis.GoalsHeader, goals.Select(g => (g.Text, BisTooltip.ColorOf(g.Tone))).ToList());
+            }
 
             strings->SetValue(DescriptionField, builder.GetViewAsSpan(), false, true, true);
         }
@@ -141,6 +133,37 @@ public sealed class GameTooltipBis : IDisposable
                 _log.Error($"BiS in the game's tooltip failed: {ex.GetType().Name}.");
             }
         }
+    }
+
+    /// <summary>
+    /// One block, laid out like the tooltip's own sections ("Bonus", "Materia"): a gap, the heading, a rule under
+    /// it, the lines set in a little, and a gap after, so it reads as an area of its own. The gaps are empty
+    /// lines, the only spacing a text field has.
+    /// </summary>
+    private static void Block(SeStringBuilder builder, bool gapBefore, string header, IReadOnlyList<(string Text, System.Numerics.Vector4 Color)> lines)
+    {
+        if (gapBefore)
+        {
+            builder.AppendNewLine();
+        }
+
+        Colored(builder, header, BisTooltip.GameTooltipColor(BisTooltip.HeaderColor));
+        builder.AppendNewLine();
+
+        // Box drawing characters are in the game's fonts, which carry the Japanese set for every client.
+        Colored(builder, Rule, RuleColor);
+
+        // Broken here rather than by the game, which would start every continuation at the left edge.
+        foreach (var (text, color) in lines)
+        {
+            foreach (var part in TooltipWrap.Wrap(text, LineIndent))
+            {
+                builder.AppendNewLine();
+                Colored(builder, part, BisTooltip.GameTooltipColor(color));
+            }
+        }
+
+        builder.AppendNewLine();
     }
 
     /// <summary>One line in a colour of the game's <c>UIColor</c> sheet, which follows the UI theme.</summary>
