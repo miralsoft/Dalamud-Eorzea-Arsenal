@@ -594,12 +594,6 @@ public sealed class FakeApiClient : IApiClient
     /// <summary>Number of <see cref="GetMyUnlocksAsync"/> calls.</summary>
     public int MyUnlocksReads { get; private set; }
 
-    /// <summary>Characters whose collection was deleted, in call order.</summary>
-    public List<string> UnlockDeletes { get; } = [];
-
-    /// <summary>Result of <see cref="DeleteMyUnlocksAsync"/>.</summary>
-    public ApiResult<bool> UnlockDeleteResult { get; set; } = ApiResult<bool>.Ok(true);
-
     /// <inheritdoc />
     public Task<ApiResult<MyUnlocksResponse>> GetMyUnlocksAsync(string apiKey, string cidHash, CancellationToken ct)
     {
@@ -607,12 +601,6 @@ public sealed class FakeApiClient : IApiClient
         return Task.FromResult(MyUnlocksResult);
     }
 
-    /// <inheritdoc />
-    public Task<ApiResult<bool>> DeleteMyUnlocksAsync(string apiKey, string cidHash, CancellationToken ct)
-    {
-        UnlockDeletes.Add(cidHash);
-        return Task.FromResult(UnlockDeleteResult);
-    }
 
     /// <summary>Each snapshot passed to <see cref="PushCurrenciesAsync"/>, in call order.</summary>
     public List<CurrencyStockRequest> CurrencyPushes { get; } = [];

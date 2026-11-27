@@ -1763,14 +1763,15 @@ public sealed class Plugin : IDalamudPlugin
 
             AskConsentOnce();
 
-            // The collection: its once-a-session look while on; turned off, the server forgets what was reported.
+            // The collection: its once-a-session look while on. Turned off, only this machine forgets its records
+            // (so turning it on again starts with a first sync); what was reported stays on the server.
             if (CollectionActive())
             {
                 _collectionSync.Request(CollectionTrigger.Check);
             }
-            else if (!_config.ReportCollection && _config.CollectionRecords.Count > 0 && _store.HasKey && CollectionOffered())
+            else if (!_config.ReportCollection && _config.CollectionRecords.Count > 0)
             {
-                _ = _collectionSync.ForgetAsync(_shutdown.Token);
+                _collectionSync.ForgetLocalState();
             }
 
             // The tracked list belongs to the account behind the key (its goals): another key reads it again.

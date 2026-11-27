@@ -152,16 +152,19 @@ public sealed class CollectionSyncServiceTests
     }
 
     [Fact]
-    public async Task Turning_it_off_makes_the_server_forget_every_character_reported_here()
+    public async Task Turning_it_off_forgets_only_the_local_records_and_sends_nothing()
     {
         using var service = Service();
         await service.SyncAsync(CollectionTrigger.Check, CancellationToken.None);
         _records["other-character"] = new() { ["mount"] = new CollectionKindRecord { FullDay = "2026-11-27" } };
+        var pushes = _api.UnlockPushes.Count;
+        var reads = _api.MyUnlocksReads;
 
-        Assert.True(await service.ForgetAsync(CancellationToken.None));
+        service.ForgetLocalState();
 
-        Assert.Equal([TestData.ExampleHash, "other-character"], _api.UnlockDeletes.Order());
         Assert.Empty(_records);
+        Assert.Equal(pushes, _api.UnlockPushes.Count);
+        Assert.Equal(reads, _api.MyUnlocksReads);
     }
 
     [Fact]

@@ -386,14 +386,6 @@ public sealed class ApiClient : IApiClient
         GetAsync<MyUnlocksResponse>($"/me/unlocks?cid_hash={Uri.EscapeDataString(cidHash)}", apiKey, ct);
 
     /// <inheritdoc />
-    public async Task<ApiResult<bool>> DeleteMyUnlocksAsync(string apiKey, string cidHash, CancellationToken ct)
-    {
-        using var message = new HttpRequestMessage(HttpMethod.Delete, Url($"/me/unlocks?cid_hash={Uri.EscapeDataString(cidHash)}"));
-        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
-        return await SendVoidAsync(message, ct).ConfigureAwait(false);
-    }
-
-    /// <inheritdoc />
     public Task<ApiResult<ReportAck>> PostDropReportsAsync(string apiKey, DropReportRequest request, CancellationToken ct) =>
         SendJsonAsync<DropReportRequest, ReportAck>(HttpMethod.Post, "/loot/reports", apiKey, request, ct);
 

@@ -359,9 +359,6 @@ public sealed class GearSyncServiceTests
         public Task<ApiResult<MyUnlocksResponse>> GetMyUnlocksAsync(string apiKey, string cidHash, CancellationToken ct) =>
             throw new NotSupportedException();
 
-        public Task<ApiResult<bool>> DeleteMyUnlocksAsync(string apiKey, string cidHash, CancellationToken ct) =>
-            throw new NotSupportedException();
-
         public Task<ApiResult<RelicCatalogResponse>> GetRelicCatalogAsync(string apiKey, string language, CancellationToken ct) =>
             throw new NotSupportedException();
 

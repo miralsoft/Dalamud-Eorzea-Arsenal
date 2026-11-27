@@ -315,13 +315,6 @@ public interface IApiClient
     /// <returns>The state per kind, or a classified error (404: not the caller's character).</returns>
     Task<ApiResult<MyUnlocksResponse>> GetMyUnlocksAsync(string apiKey, string cidHash, CancellationToken ct);
 
-    /// <summary>Makes the server forget the collection of a character via <c>DELETE /me/unlocks</c>; the goals keep theirs.</summary>
-    /// <param name="apiKey">The API key.</param>
-    /// <param name="cidHash">The character.</param>
-    /// <param name="ct">Cancellation token.</param>
-    /// <returns>Success, or a classified error.</returns>
-    Task<ApiResult<bool>> DeleteMyUnlocksAsync(string apiKey, string cidHash, CancellationToken ct);
-
     /// <summary>Reads the relic catalog via <c>GET /relics?lang=</c> (server 1.5, public; the key counts the limit per account).</summary>
     /// <param name="apiKey">The API key.</param>
     /// <param name="language"><c>de</c> or <c>en</c>.</param>

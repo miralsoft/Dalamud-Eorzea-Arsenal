@@ -123,8 +123,9 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   full report of it for the character, at the first look of a UTC day, on "Sammlung neu abgleichen", and
   when `GET /me/unlocks` answers a `learned` other than the one the server answered after this machine's
   last report of the kind (kept after every report, full or changed-only, as agreed with the server).
-  Between those only changed items go, at most every five minutes. Turning it off calls
-  `DELETE /me/unlocks` for every character reported from here; a new key starts the first sync again.
+  Between those only changed items go, at most every five minutes. Turning it off stops the reports
+  and deletes nothing on the server (what was learned stays learned; deleting is on the website); this
+  machine forgets its records, so turning it on again, like a new key, starts the first sync again.
   With the collection on, the goals mode is not used.
 - **The tracked list is read again when it may have changed**: on a manual inventory sync (a goal just
   made on the website counts at once) and when another key is connected (the list is the account's).

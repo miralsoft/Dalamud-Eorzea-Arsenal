@@ -72,7 +72,9 @@ Dalamud's `IUnlockState` and `PUT /me/unlocks`; the tracked list read again on a
 key; opened storages sent even when empty; PvP not watched for drops; the drop watcher notes the
 inventory only after arrival and logs each report by name (a Mistwake run showed 6 false "received"). Then the collection (`unlock-collection`, own consent "Sammlung"): one kind a call, full reports by the
 rules of contract-goals.md, the login check against the server's `learned` kept after every report (the
-plugin side's proposal, confirmed by the server on 2026-11-27). Not yet on dev when built. Next: the release, PR into main,
+plugin side's proposal, confirmed by the server on 2026-11-27). Turning it off deletes nothing on the
+server (contract revised 2026-11-27: `DELETE /me/unlocks` is the website's and answers a key with 403);
+only the local records go, so turning it on again starts with a first sync. Not yet on dev when built. Next: the release, PR into main,
 merge and tag in one sitting, the release-note date set to that day.
 
 The foundation moved from the 3.3.0 this repository was audited against to 5.3.0. The Dalamud profile

@@ -611,6 +611,12 @@ public sealed class ConfigWindow : Window, IDisposable
             {
                 _config.ReportCollection = collection;
                 _save();
+
+                // Just turned on: every kind in full, even if this machine still holds records from before.
+                if (collection)
+                {
+                    _syncCollectionAgain();
+                }
             }
 
             Help(T(LocKeys.ReportCollectionHint));

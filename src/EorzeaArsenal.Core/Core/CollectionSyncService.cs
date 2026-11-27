@@ -67,8 +67,13 @@ public enum CollectionOutcome
 /// <para>
 /// The answers follow the contract: a 404 waits for the next gear sync and is tried once more, never in a
 /// loop; a 429 waits for its <c>Retry-After</c>; a 401 or 403 stops until another key is connected; a 400 or
-/// 422 skips that kind for the day. The limit of 30 calls an hour, shared with <c>DELETE</c>, is counted
-/// here too (R23). Single in-flight (P11).
+/// 422 skips that kind for the day. The limit of 30 calls an hour is counted here too (R23). Single
+/// in-flight (P11).
+/// </para>
+/// <para>
+/// The plugin never deletes the collection on the server, also not when the player turns it off (the
+/// maintainer's decision, 2026-11-27): <c>DELETE /me/unlocks</c> belongs to the website's "Sammlung löschen"
+/// and answers a key with 403.
 /// </para>
 /// </remarks>
 public sealed class CollectionSyncService : IDisposable
@@ -166,59 +171,16 @@ public sealed class CollectionSyncService : IDisposable
     }
 
     /// <summary>
-    /// Another key was connected (a new pairing): what this machine remembers belongs to the old one, so every
-    /// character gets a first sync again, as the contract asks after pairing.
+    /// Forgets what this machine remembers, never anything on the server. Called when another key is connected
+    /// (a new pairing) and when the collection is turned off, so the next time it runs every character gets a
+    /// first sync again, as the contract asks after pairing and after turning it on. What was reported stays on
+    /// the server: an unlock once learned stays learned, and deleting it is the player's, on the website.
     /// </summary>
     public void ForgetLocalState()
     {
         StartSession();
         _records().Clear();
         _persist();
-    }
-
-    /// <summary>
-    /// The collection was turned off: asks the server to forget it for every character this machine reported,
-    /// then forgets the local records. A character the server answers 404 for is forgotten too.
-    /// </summary>
-    /// <param name="ct">Cancellation token.</param>
-    /// <returns>Whether every character was forgotten; otherwise a later call goes on.</returns>
-    public async Task<bool> ForgetAsync(CancellationToken ct)
-    {
-        var key = _tokens.ApiKey;
-        if (string.IsNullOrEmpty(key) || !await _single.WaitAsync(0, ct).ConfigureAwait(false))
-        {
-            return false;
-        }
-
-        try
-        {
-            var records = _records();
-            foreach (var cid in records.Keys.ToList())
-            {
-                if (!TakeCall())
-                {
-                    return false;
-                }
-
-                var result = await _api.DeleteMyUnlocksAsync(key, cid, ct).ConfigureAwait(false);
-                if (!result.IsSuccess && result.Error?.Kind != ApiErrorKind.NotFound)
-                {
-                    HandleHold(result.Error!, key, "forget");
-                    return false;
-                }
-
-                records.Remove(cid);
-                _persist();
-                _log.Info("Collection: the server forgot a character's collection.");
-            }
-
-            StartSession();
-            return true;
-        }
-        finally
-        {
-            _single.Release();
-        }
     }
 
     /// <summary>One attempt, awaited; for tests. <see cref="Request"/> is the plugin's entry point.</summary>
