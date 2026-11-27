@@ -2326,6 +2326,108 @@ public static class LocKeys
     /// <summary>Button: send every kind of the collection in full.</summary>
     public const string CollectionSyncAgain = "config.collection.syncagain";
 
+    /// <summary>The goals view, in the menu and as its title.</summary>
+    public const string GoalOpen = "goals.open";
+
+    /// <summary>Heading of the open goals.</summary>
+    public const string GoalsOpenSection = "goals.section.open";
+
+    /// <summary>Heading of the done goals.</summary>
+    public const string GoalsDoneSection = "goals.section.done";
+
+    /// <summary>Heading of every open goal's costs together.</summary>
+    public const string GoalsPlanSection = "goals.section.plan";
+
+    /// <summary>No goals at all.</summary>
+    public const string GoalsNone = "goals.none";
+
+    /// <summary>Goals exist, none open.</summary>
+    public const string GoalsNoneOpen = "goals.none.open";
+
+    /// <summary>A read is running.</summary>
+    public const string GoalsLoading = "goals.loading";
+
+    /// <summary>No character logged in.</summary>
+    public const string GoalsNotLoggedIn = "goals.notloggedin";
+
+    /// <summary>A 404 on the read.</summary>
+    public const string GoalsNotSynced = "goals.notsynced";
+
+    /// <summary>Any other failed read.</summary>
+    public const string GoalsError = "goals.error";
+
+    /// <summary>The reminder at the top of the view.</summary>
+    public const string GoalsHint = "goals.hint";
+
+    /// <summary>Link to the goals page.</summary>
+    public const string GoalsOpenWeb = "goals.openweb";
+
+    /// <summary>What is still missing of a cost.</summary>
+    public const string GoalMissing = "goals.missing";
+
+    /// <summary>A cost that is fully held.</summary>
+    public const string GoalEnough = "goals.enough";
+
+    /// <summary>Held but not learned.</summary>
+    public const string GoalUnused = "goals.unused";
+
+    /// <summary>How many of a wanted quantity are held.</summary>
+    public const string GoalHeldOf = "goals.heldof";
+
+    /// <summary>Why a goal is done.</summary>
+    public const string GoalDoneHand = "goals.done.hand";
+
+    /// <summary>Why a goal is done.</summary>
+    public const string GoalDoneLearned = "goals.done.learned";
+
+    /// <summary>Why a goal is done.</summary>
+    public const string GoalDoneHeld = "goals.done.held";
+
+    /// <summary>A goal shared with the teams.</summary>
+    public const string GoalShared = "goals.shared";
+
+    /// <summary>An open goal without progress.</summary>
+    public const string GoalNoWay = "goals.noway";
+
+    /// <summary>Which goals a missing cost serves.</summary>
+    public const string GoalForGoals = "goals.forgoals";
+
+    /// <summary>The game's context menu of an item.</summary>
+    public const string GoalMenuAdd = "goals.menu.add";
+
+    /// <summary>The game's context menu of an item.</summary>
+    public const string GoalMenuRemove = "goals.menu.remove";
+
+    /// <summary>Chat note after adding.</summary>
+    public const string GoalAdded = "goals.added";
+
+    /// <summary>Chat note after removing.</summary>
+    public const string GoalRemoved = "goals.removed";
+
+    /// <summary>A 409 on adding.</summary>
+    public const string GoalConflict = "goals.conflict";
+
+    /// <summary>A 400 on adding.</summary>
+    public const string GoalUnknownItem = "goals.unknownitem";
+
+    /// <summary>A 404 on adding or removing.</summary>
+    public const string GoalNeedsSync = "goals.needssync";
+
+    /// <summary>A 429 on adding or removing.</summary>
+    public const string GoalBusy = "goals.busy";
+
+    /// <summary>Any other failure on adding or removing.</summary>
+    public const string GoalFailed = "goals.failed";
+
+    /// <summary>The team's shared goals tab.</summary>
+    public const string TeamsTabGoals = "teams.tab.goals";
+
+    /// <summary>No shared goals.</summary>
+    public const string TeamGoalsNone = "teams.goals.none";
+
+    /// <summary>The first way's costs of an item.</summary>
+    public const string TeamGoalCost = "teams.goals.cost";
+
     /// <summary>Consent dialog of 1.3.0: heading.</summary>
     public const string ConsentHeading = "consent.heading";
 

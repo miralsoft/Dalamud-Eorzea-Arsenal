@@ -322,6 +322,26 @@ public sealed class ApiClient : IApiClient
         GetAsync<RelicCatalogResponse>($"/relics?lang={Uri.EscapeDataString(language)}", apiKey, ct);
 
     /// <inheritdoc />
+    public Task<ApiResult<MyGoalsResponse>> GetMyGoalsAsync(string apiKey, string cidHash, string language, CancellationToken ct) =>
+        GetAsync<MyGoalsResponse>($"/me/goals?cid_hash={Uri.EscapeDataString(cidHash)}&lang={Uri.EscapeDataString(language)}", apiKey, ct);
+
+    /// <inheritdoc />
+    public Task<ApiResult<MyGoalsResponse>> AddGoalAsync(string apiKey, GoalAddRequest request, string language, CancellationToken ct) =>
+        SendJsonAsync<GoalAddRequest, MyGoalsResponse>(HttpMethod.Post, $"/me/goals?lang={Uri.EscapeDataString(language)}", apiKey, request, ct);
+
+    /// <inheritdoc />
+    public async Task<ApiResult<MyGoalsResponse>> RemoveGoalAsync(string apiKey, long goalId, string language, CancellationToken ct)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Delete, Url($"/me/goals/{goalId}?lang={Uri.EscapeDataString(language)}"));
+        message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+        return await SendAsync<MyGoalsResponse>(message, ct).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<TeamGoalsResponse>> GetTeamGoalsAsync(string apiKey, long teamId, string language, CancellationToken ct) =>
+        GetAsync<TeamGoalsResponse>($"/teams/{teamId}/goals?lang={Uri.EscapeDataString(language)}", apiKey, ct);
+
+    /// <inheritdoc />
     public Task<ApiResult<MyRelicsResponse>> GetMyRelicsAsync(string apiKey, long? characterId, CancellationToken ct) =>
         GetAsync<MyRelicsResponse>(characterId is { } id ? $"/me/relics?character_id={id}" : "/me/relics", apiKey, ct);
 

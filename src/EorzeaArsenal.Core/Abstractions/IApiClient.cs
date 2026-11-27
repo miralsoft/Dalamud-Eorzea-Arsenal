@@ -315,6 +315,38 @@ public interface IApiClient
     /// <returns>The state per kind, or a classified error (404: not the caller's character).</returns>
     Task<ApiResult<MyUnlocksResponse>> GetMyUnlocksAsync(string apiKey, string cidHash, CancellationToken ct);
 
+    /// <summary>Reads the character's goals via <c>GET /me/goals?cid_hash=&amp;lang=</c> (server 1.5, <c>goals-progress</c>, <c>characters:read</c>).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="cidHash">The logged-in character.</param>
+    /// <param name="language"><c>de</c> or <c>en</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The goals, or a classified error (404: not the caller's character or not synced yet).</returns>
+    Task<ApiResult<MyGoalsResponse>> GetMyGoalsAsync(string apiKey, string cidHash, string language, CancellationToken ct);
+
+    /// <summary>Adds a goal via <c>POST /me/goals?lang=</c> (server 1.5, <c>goals-from-plugin</c>, <c>characters:write</c>).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="request">The character and the item.</param>
+    /// <param name="language"><c>de</c> or <c>en</c>, for the names in the answer.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The goals after the change (as <c>GET /me/goals</c>), or a classified error (409: learned already or 500 goals).</returns>
+    Task<ApiResult<MyGoalsResponse>> AddGoalAsync(string apiKey, GoalAddRequest request, string language, CancellationToken ct);
+
+    /// <summary>Removes a goal via <c>DELETE /me/goals/{id}?lang=</c> (server 1.5, <c>goals-from-plugin</c>).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="goalId">The goal's id from the goals read.</param>
+    /// <param name="language"><c>de</c> or <c>en</c>, for the names in the answer.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The goals left, or a classified error.</returns>
+    Task<ApiResult<MyGoalsResponse>> RemoveGoalAsync(string apiKey, long goalId, string language, CancellationToken ct);
+
+    /// <summary>Reads a team's shared goals via <c>GET /teams/{id}/goals?lang=</c> (server 1.5, <c>teams:read</c>). Names members: memory only.</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="language"><c>de</c> or <c>en</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The team's goals, or a classified error.</returns>
+    Task<ApiResult<TeamGoalsResponse>> GetTeamGoalsAsync(string apiKey, long teamId, string language, CancellationToken ct);
+
     /// <summary>Reads the relic catalog via <c>GET /relics?lang=</c> (server 1.5, public; the key counts the limit per account).</summary>
     /// <param name="apiKey">The API key.</param>
     /// <param name="language"><c>de</c> or <c>en</c>.</param>

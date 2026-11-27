@@ -181,6 +181,36 @@
       }
     },
     {
+      "id": "your-goals-in-game",
+      "version": "1.3.0",
+      "date": "2026-11-22",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Deine Ziele im Spiel",
+        "body": "<p>Ein neues Fenster zeigt deine Ziele, wie weit du bist und was noch fehlt, und im Team die geteilten Ziele.</p>"
+      },
+      "en": {
+        "title": "Your goals in game",
+        "body": "<p>A new window shows your goals, how far you are and what is still missing, and the team's shared goals.</p>"
+      }
+    },
+    {
+      "id": "goals-from-the-context-menu",
+      "version": "1.3.0",
+      "date": "2026-11-22",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Ziele per Rechtsklick",
+        "body": "<p>Im Kontextmenü eines Gegenstands fügst du ihn als Ziel hinzu oder entfernst das Ziel.</p>"
+      },
+      "en": {
+        "title": "Goals by right-click",
+        "body": "<p>In an item's context menu you add it as a goal or remove the goal.</p>"
+      }
+    },
+    {
       "id": "retainers-sync-again",
       "version": "1.3.0",
       "date": "2026-11-22",

@@ -30,8 +30,14 @@ public static class FeatureNames
     /// <summary>Goals: <c>unlocks</c> in the tracked items and <c>PUT /me/unlocks</c>.</summary>
     public const string Goals = "goals";
 
-    /// <summary>The collection: <c>kind</c> and <c>full</c> on <c>PUT /me/unlocks</c>, and its <c>GET</c> and <c>DELETE</c>.</summary>
+    /// <summary>The collection: <c>kind</c> and <c>full</c> on <c>PUT /me/unlocks</c>, and <c>GET /me/unlocks</c>.</summary>
     public const string UnlockCollection = "unlock-collection";
+
+    /// <summary>The goals to read: <c>GET /me/goals</c> by <c>cid_hash</c> with progress and plan, and <c>GET /teams/{id}/goals</c>.</summary>
+    public const string GoalsProgress = "goals-progress";
+
+    /// <summary>Adding and removing a goal from the game: <c>POST /me/goals</c> and <c>DELETE /me/goals/{id}</c> for a key.</summary>
+    public const string GoalsFromPlugin = "goals-from-plugin";
 }
 
 /// <summary>

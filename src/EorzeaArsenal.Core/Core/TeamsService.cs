@@ -339,6 +339,14 @@ public sealed class TeamsService : IDisposable
     public Task<ApiResult<LineupResponse>> GetLineupAsync(long teamId, CancellationToken ct) =>
         WithKey(key => _api.GetLineupAsync(key, teamId, ct));
 
+    /// <summary>Reads a team's shared goals (server 1.5). It names members: hold it in memory only.</summary>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="language"><c>de</c> or <c>en</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The team's goals, or an error.</returns>
+    public Task<ApiResult<TeamGoalsResponse>> GetTeamGoalsAsync(long teamId, string language, CancellationToken ct) =>
+        WithKey(key => _api.GetTeamGoalsAsync(key, teamId, language, ct));
+
     /// <summary>Reads which positions one date leaves open. It carries member names: hold it in memory only.</summary>
     /// <param name="teamId">The team id.</param>
     /// <param name="eventId">The event id.</param>

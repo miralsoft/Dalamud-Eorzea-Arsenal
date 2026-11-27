@@ -66,6 +66,9 @@ public sealed class TeamsWindow : Window
     private readonly Slot<LineupResponse> _lineupSlot = new();
     private readonly Slot<CoverageResponse> _coverageSlot = new();
 
+    // The team's shared goals (server 1.5) name members and characters too: memory only, like the line-up.
+    private readonly Slot<TeamGoalsResponse> _goalsSlot = new();
+
     // The one date whose coverage is unfolded, as "team|event|date", or null. One at a time: the list of
     // dates is long, and several unfolded panels would push the rest of it off the screen.
     private string? _coverageOpen;
@@ -249,6 +252,12 @@ public sealed class TeamsWindow : Window
         }
         Tab(LocKeys.TeamsTabMit, "mit", DrawMit);
         Tab(LocKeys.TeamsTabContent, "inhalte", DrawContent);
+        // The shared goals: only where the server offers the goals to read.
+        if (_hasFeature(FeatureNames.GoalsProgress))
+        {
+            Tab(LocKeys.TeamsTabGoals, "ziele", DrawGoals);
+        }
+
         Tab(LocKeys.TeamsTabFarm, "farm", DrawFarm);
         Tab(LocKeys.TeamsTabLogs, "logs", DrawLogs);
         Tab(LocKeys.TeamsTabAbsence, "termine", DrawAbsence);
@@ -266,6 +275,12 @@ public sealed class TeamsWindow : Window
         if (slug == "zeiten" && _activeTab != slug)
         {
             _timesView.Invalidate();
+        }
+
+        // And opening the goals tab is when the contract says to read the shared goals.
+        if (slug == "ziele" && _activeTab != slug)
+        {
+            _goalsSlot.Reset();
         }
 
         _activeTab = slug;
@@ -756,6 +771,136 @@ public sealed class TeamsWindow : Window
     //
     // Rendered, never computed. Every count, every gap and every open position is the server's, so the
     // plugin and the website cannot disagree about what a team needs.
+
+    /// <summary>
+    /// The goals the team's members share (server 1.5): per item its first way's costs, then each member who
+    /// wants it with what is done or what they hold of each cost. Read only; every number is the server's.
+    /// </summary>
+    private void DrawGoals()
+    {
+        var team = CurrentTeam();
+        if (team is null)
+        {
+            ImGui.TextDisabled(T(LocKeys.TeamsNoTeams));
+            return;
+        }
+
+        var language = _localizer.Language == Localizer.German ? Localizer.German : Localizer.English;
+        Ensure(_goalsSlot, $"{team.Id.ToString(CultureInfo.InvariantCulture)}|{language}", ct => _teams.GetTeamGoalsAsync(team.Id, language, ct));
+        if (_goalsSlot.Loading)
+        {
+            ImGui.TextDisabled(T(LocKeys.TeamsLoading));
+            return;
+        }
+
+        if (_goalsSlot.Error is { } err)
+        {
+            ImGui.TextColored(Red, err);
+            return;
+        }
+
+        if (_goalsSlot.Value?.Data is not { } goals)
+        {
+            return;
+        }
+
+        if (goals.Items.Count == 0)
+        {
+            ImGui.TextDisabled(T(LocKeys.TeamGoalsNone));
+            return;
+        }
+
+        var culture = _localizer.Language == Localizer.German ? CultureInfo.GetCultureInfo("de-DE") : CultureInfo.GetCultureInfo("en-US");
+        var size = ImGui.GetFrameHeight() * 1.4f;
+        foreach (var entry in goals.Items)
+        {
+            var itemId = entry.Item?.Id ?? 0;
+            using var id = ImRaii.PushId($"tg{itemId}");
+            DrawGoalIcon(itemId, size);
+            ImGui.SameLine();
+            using (ImRaii.Group())
+            {
+                ImGui.TextUnformatted(GoalItemName(entry.Item?.Name, itemId));
+                if (entry.Way is { Cost.Count: > 0 } way)
+                {
+                    var costs = string.Join(", ", way.Cost.Select(c => $"{c.Count.ToString("N0", culture)} {GoalItemName(c.Name, c.Id)}"));
+                    ImGui.TextColored(Dim, _localizer.Get(LocKeys.TeamGoalCost, costs));
+                }
+
+                foreach (var want in entry.Wanted)
+                {
+                    DrawGoalWant(entry, want, culture);
+                }
+            }
+
+            ImGui.Separator();
+        }
+    }
+
+    private void DrawGoalWant(TeamGoalItem entry, TeamGoalWant want, CultureInfo culture)
+    {
+        var who = string.IsNullOrEmpty(want.Member) || want.Member == want.Character ? want.Character ?? string.Empty : $"{want.Character} ({want.Member})";
+        ImGui.Bullet();
+        ImGui.SameLine();
+        ImGui.TextUnformatted(who);
+        ImGui.SameLine();
+        if (want.Done is { } done)
+        {
+            ImGui.TextColored(Green, done.By switch
+            {
+                "hand" => T(LocKeys.GoalDoneHand),
+                "learned" => T(LocKeys.GoalDoneLearned),
+                "held" => T(LocKeys.GoalDoneHeld),
+                _ => string.Empty,
+            });
+            return;
+        }
+
+        if (want.Unused)
+        {
+            ImGui.TextColored(Green, T(LocKeys.GoalUnused));
+            return;
+        }
+
+        // What the member holds of each cost, against what one costs: the server's numbers side by side.
+        var parts = new List<string>();
+        foreach (var cost in entry.Way?.Cost ?? [])
+        {
+            var have = want.CostHave.FirstOrDefault(c => c.Id == cost.Id)?.Have ?? 0;
+            parts.Add($"{have.ToString("N0", culture)} / {cost.Count.ToString("N0", culture)} {GoalItemName(cost.Name, cost.Id)}");
+        }
+
+        if (want.Qty > 1)
+        {
+            parts.Insert(0, _localizer.Get(LocKeys.GoalHeldOf, want.Held.ToString("N0", culture), want.Qty.ToString("N0", culture)));
+        }
+
+        ImGui.TextColored(Dim, string.Join("  ·  ", parts));
+    }
+
+    private void DrawGoalIcon(long itemId, float size)
+    {
+        var icon = itemId > 0 ? _data.GetExcelSheet<Lumina.Excel.Sheets.Item>()?.GetRowOrDefault((uint)itemId)?.Icon ?? 0 : 0;
+        if (icon == 0)
+        {
+            ImGui.Dummy(new Vector2(size, size));
+            return;
+        }
+
+        var wrap = _textures.GetFromGameIcon(new GameIconLookup((uint)icon)).GetWrapOrEmpty();
+        ImGui.Image(wrap.Handle, new Vector2(size, size));
+    }
+
+    /// <summary>The server's name, or the game's where the server sends none (<c>#&lt;id&gt;</c>).</summary>
+    private string GoalItemName(string? name, long itemId)
+    {
+        if (!string.IsNullOrEmpty(name) && !name.StartsWith('#'))
+        {
+            return name;
+        }
+
+        return itemId > 0 ? _data.GetExcelSheet<Lumina.Excel.Sheets.Item>()?.GetRowOrDefault((uint)itemId)?.Name.ExtractText() ?? string.Empty : string.Empty;
+    }
 
     private void DrawLineup()
     {
@@ -2671,6 +2816,7 @@ public sealed class TeamsWindow : Window
         _absenceSlot.Reset();
         _lineupSlot.Reset();
         _coverageSlot.Reset();
+        _goalsSlot.Reset();
     }
 
     /// <summary>Drops every team read, values included, after the key went away.</summary>
@@ -2688,6 +2834,7 @@ public sealed class TeamsWindow : Window
         _absenceSlot.Forget();
         _lineupSlot.Forget();
         _coverageSlot.Forget();
+        _goalsSlot.Forget();
         _coverageOpen = null;
         CloseInvite();
     }

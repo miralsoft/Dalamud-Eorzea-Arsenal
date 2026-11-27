@@ -130,6 +130,18 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   and deletes nothing on the server (what was learned stays learned; deleting is on the website); this
   machine forgets its records, so turning it on again, like a new key, starts the first sync again.
   With the collection on, the goals mode is not used.
+- **The goals in the game** (`GoalsService`, `GoalsWindow`; where the server lists `goals-progress`):
+  `GET /me/goals?cid_hash=&lang=` when the view opens and after a gear or inventory sync, never on a timer.
+  The view shows the open goals with each cost's "have / need" and what is missing, "Was noch fehlt" and
+  the done goals with why; every number is the server's. A link opens the goals page, a goal's name its
+  item page. The team tab "Ziele" shows the shared goals (`GET /teams/{id}/goals`), held in memory only.
+- **Goals from the context menu** (`GoalContextMenu`; where the server lists `goals-from-plugin`): "Als
+  Ziel hinzufügen" (`POST /me/goals`, the server picks the area) on an item that is no goal and not
+  learned, "Ziel entfernen" (`DELETE /me/goals/{id}`) on one that is, on an inventory slot or the item
+  under the cursor in another window. Decided from the goals last read, kept fresh for the logged-in
+  character, never read per right-click; the answer is the new state, and the chat says what happened
+  (409 learned or 500 goals, 400 unknown item, 404 sync the gear first, 429 later). The goals view can
+  remove a goal too, after a second click. Ticking, changing and "learned" stay on the website.
 - **The tracked list is read again when it may have changed**: on a manual inventory sync (a goal just
   made on the website counts at once) and when another key is connected (the list is the account's).
 - **An opened glamour dresser or armoire is sent even when empty**: the plugin sees its window, so an

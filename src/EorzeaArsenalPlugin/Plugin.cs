@@ -120,6 +120,9 @@ public sealed class Plugin : IDalamudPlugin
     private readonly AdvisorWindow _advisorWindow;
     private readonly RelicService _relicService;
     private readonly RelicWindow _relicWindow;
+    private readonly GoalsService _goalsService;
+    private readonly GoalsWindow _goalsWindow;
+    private readonly GoalContextMenu _goalMenu;
     private readonly LogWindow _logWindow;
 #if EORZEA_ARSENAL_DEVTOOLS
 
@@ -198,6 +201,7 @@ public sealed class Plugin : IDalamudPlugin
     /// <param name="fateTable">The active FATEs, for the spot reports (only with consent).</param>
     /// <param name="addonLifecycle">Addon events, to add the BiS lines to the game's item tooltip when chosen.</param>
     /// <param name="unlockState">What the character has learned, for the goals' unlocks (server 1.5).</param>
+    /// <param name="contextMenu">The game's context menus, for "Als Ziel hinzufügen" on an item (server 1.5).</param>
     public Plugin(
         IDalamudPluginInterface pluginInterface,
         ICommandManager commandManager,
@@ -215,7 +219,8 @@ public sealed class Plugin : IDalamudPlugin
         IObjectTable objectTable,
         IFateTable fateTable,
         IAddonLifecycle addonLifecycle,
-        IUnlockState unlockState)
+        IUnlockState unlockState,
+        IContextMenu contextMenu)
     {
         _unlockState = unlockState;
         _pluginInterface = pluginInterface;
@@ -442,7 +447,14 @@ public sealed class Plugin : IDalamudPlugin
         _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReview, () => _review.Summary() ?? _sync.LastReview, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew, () => _bisService.AmbiguousLive.Count, () => _currentCidHash, OpenRelics, () => _features.Has(FeatureNames.Relics), () => _waiting.Total,
             () => (ReportsOffered() && !_config.ShareReports) ||
                 (CollectionOffered() && !_config.ReportCollection),
-            () => _consentWindow?.Ask());
+            () => _consentWindow?.Ask(),
+            OpenGoals,
+            GoalsOffered);
+        _goalsService = new GoalsService(api, _store, _store, _log);
+        _goalsWindow = new GoalsWindow(_localizer, _goalsService, () => _currentCidHash, GoalsWriteOffered, WebAppBase, OpenExternalLink,
+            _gearSource.GetItemIconId, _gearSource.GetItemName, textureProvider, _log);
+        _goalMenu = new GoalContextMenu(contextMenu, gameGui, dataManager, unlockState, _goalsService, _localizer, GoalsWriteOffered,
+            () => _currentCidHash, _gearSource.GetItemName, Chat, _log);
         _relicService = new RelicService(api, _store, _store, _log);
         _relicWindow = new RelicWindow(_localizer, _relicService, () => ServerCharacterId(_currentCidHash), () => _config.SyncInventory, WebAppBase, OpenExternalLink, OpenConfig, _log, _gearSource.GetItemName,
             code => _gameJobs.FirstOrDefault(j => string.Equals(j.Code, code, StringComparison.OrdinalIgnoreCase)), textureProvider);
@@ -460,6 +472,7 @@ public sealed class Plugin : IDalamudPlugin
         _windowSystem.AddWindow(_bisWindow);
         _windowSystem.AddWindow(_advisorWindow);
         _windowSystem.AddWindow(_relicWindow);
+        _windowSystem.AddWindow(_goalsWindow);
         _consentWindow = new ConsentWindow(_config, _localizer, Save,
             ReportsOffered, CollectionOffered);
         _windowSystem.AddWindow(_consentWindow);
@@ -564,6 +577,8 @@ public sealed class Plugin : IDalamudPlugin
         _unlockSync.Dispose();
         _collectionSync.Dispose();
         _relicWindow.Dispose();
+        _goalMenu.Dispose();
+        _goalsWindow.Dispose();
         _dropWatcher.Dispose();
         _worldWatcher.Dispose();
         _weeklySource.HiddenRefreshCompleted -= OnHiddenRefreshCompleted;
@@ -604,6 +619,8 @@ public sealed class Plugin : IDalamudPlugin
     private void OpenAdvisor() => _advisorWindow.IsOpen = true;
 
     private void OpenRelics() => _relicWindow.IsOpen = true;
+
+    private void OpenGoals() => _goalsWindow.IsOpen = true;
 
     /// <summary>
     /// The server's numeric character id for a <c>cid_hash</c>, which personal per-character endpoints
@@ -1451,6 +1468,16 @@ public sealed class Plugin : IDalamudPlugin
     /// <summary>Whether the server takes the collection: the goals and <c>unlock-collection</c>.</summary>
     private bool CollectionOffered() => _features.Has(FeatureNames.Goals) && _features.Has(FeatureNames.UnlockCollection);
 
+    /// <summary>The goals view (server 1.5, <c>goals-progress</c>): connected, the terms accepted, and the server reads goals for a key.</summary>
+    private bool GoalsOffered() =>
+        _config is { Enabled: true, TosAccepted: true } && _store.HasKey && _features.Has(FeatureNames.GoalsProgress);
+
+    /// <summary>Adding and removing a goal from the game (<c>goals-from-plugin</c>), on top of reading them.</summary>
+    private bool GoalsWriteOffered() => GoalsOffered() && _features.Has(FeatureNames.GoalsFromPlugin);
+
+    /// <summary>The language the goals are read in: the plugin's own.</summary>
+    private string GoalsLanguage() => _localizer.Language == Localizer.German ? Localizer.German : Localizer.English;
+
     /// <summary>Whether the collection is reported now: its own consent, the terms, a key, a server that takes it.</summary>
     private bool CollectionActive() =>
         _config is { Enabled: true, TosAccepted: true, ReportCollection: true } && _store.HasKey && CollectionOffered() && CurrentCharacterAllowed();
@@ -1785,6 +1812,18 @@ public sealed class Plugin : IDalamudPlugin
 
                 // A new pairing: every character gets a first full sync of its collection again.
                 _collectionSync.ForgetLocalState();
+
+                // The goals are the account's too.
+                _goalsService.Forget();
+            }
+
+            // The context menu decides from the goals last read, never per right-click: keep them read for the
+            // logged-in character. Only a reason to read (none yet, a sync, another character) asks the server.
+            if (GoalsWriteOffered() && _currentCidHash is { Length: > 0 } goalsCid
+                && _goalsService.NeedsRead(GoalsLanguage(), goalsCid) && !_goalsService.Loading)
+            {
+                var goalsLanguage = GoalsLanguage();
+                _ = _goalsService.RefreshAsync(goalsLanguage, goalsCid, _shutdown.Token);
             }
         }
 
@@ -2133,6 +2172,7 @@ public sealed class Plugin : IDalamudPlugin
 
             // A gearset counts toward a relic, so the relic view reads again when it is next drawn.
             _relicService.Invalidate();
+            _goalsService.Invalidate();
 
             // The push just said what is open. Where that disagrees with what the review service is
             // holding, the service is holding a state that is over, and the badge in the menu is drawn
@@ -2215,6 +2255,7 @@ public sealed class Plugin : IDalamudPlugin
             _holdingsService.Invalidate();
             _advisorService.InvalidateOptions();
             _relicService.Invalidate();
+            _goalsService.Invalidate();
             RequestCurrencySync(CurrencyTrigger.AfterInventorySync);
             RequestUnlockSync(UnlockTrigger.AfterInventorySync);
         }

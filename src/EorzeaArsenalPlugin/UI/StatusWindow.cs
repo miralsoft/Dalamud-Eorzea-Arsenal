@@ -54,6 +54,8 @@ public sealed class StatusWindow : Window
     private readonly Func<int> _waitingTotal;
     private readonly Func<bool> _consentOpen;
     private readonly Action _openConsent;
+    private readonly Action _openGoals;
+    private readonly Func<bool> _goalsOffered;
     private readonly Action _openReport;
     private readonly Action _openTeams;
     private readonly Action _openCalendar;
@@ -95,6 +97,8 @@ public sealed class StatusWindow : Window
     /// <param name="waitingTotal">What waits in the teams (server 1.5), shown on the Teams entry.</param>
     /// <param name="consentOpen">Whether a report the server takes is still off; the entry for the question shows then.</param>
     /// <param name="openConsent">Opens the question of 1.3.0 again.</param>
+    /// <param name="openGoals">Opens the goals view.</param>
+    /// <param name="goalsOffered">Whether the server offers the goals to read (server 1.5); the entry shows only then.</param>
     public StatusWindow(
         PluginConfig config,
         ConfigStore store,
@@ -123,11 +127,15 @@ public sealed class StatusWindow : Window
         Func<bool> relicsOffered,
         Func<int> waitingTotal,
         Func<bool> consentOpen,
-        Action openConsent)
+        Action openConsent,
+        Action openGoals,
+        Func<bool> goalsOffered)
         : base("Eorzea Arsenal###EorzeaArsenalStatus")
     {
         _consentOpen = consentOpen;
         _openConsent = openConsent;
+        _openGoals = openGoals;
+        _goalsOffered = goalsOffered;
         _waitingTotal = waitingTotal;
         _openRelics = openRelics;
         _relicsOffered = relicsOffered;
@@ -285,6 +293,12 @@ public sealed class StatusWindow : Window
         if (_relicsOffered() && MenuButton(FontAwesomeIcon.Gem, T(LocKeys.RelicOpen)))
         {
             _openRelics();
+        }
+
+        // The goals (server 1.5): only where the server offers them to read.
+        if (_goalsOffered() && MenuButton(FontAwesomeIcon.Bullseye, T(LocKeys.GoalOpen)))
+        {
+            _openGoals();
         }
 
         if (MenuButton(FontAwesomeIcon.Eye, T(LocKeys.PreviewButton)))

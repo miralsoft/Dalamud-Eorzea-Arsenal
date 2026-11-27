@@ -426,6 +426,49 @@ public sealed class FakeApiClient : IApiClient
         return Task.FromResult(RelicCatalogResult);
     }
 
+    /// <summary>Result of <see cref="GetMyGoalsAsync"/>.</summary>
+    public ApiResult<MyGoalsResponse> MyGoalsResult { get; set; } = ApiResult<MyGoalsResponse>.Ok(new MyGoalsResponse { Data = new MyGoals() });
+
+    /// <summary>Each <c>(cid_hash, lang)</c> asked of <see cref="GetMyGoalsAsync"/>, in call order.</summary>
+    public List<(string CidHash, string Language)> MyGoalsReads { get; } = [];
+
+    /// <summary>Result of <see cref="GetTeamGoalsAsync"/>.</summary>
+    public ApiResult<TeamGoalsResponse> TeamGoalsResult { get; set; } = ApiResult<TeamGoalsResponse>.Ok(new TeamGoalsResponse { Data = new TeamGoals() });
+
+    /// <inheritdoc />
+    public Task<ApiResult<MyGoalsResponse>> GetMyGoalsAsync(string apiKey, string cidHash, string language, CancellationToken ct)
+    {
+        MyGoalsReads.Add((cidHash, language));
+        return Task.FromResult(MyGoalsResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<TeamGoalsResponse>> GetTeamGoalsAsync(string apiKey, long teamId, string language, CancellationToken ct) =>
+        Task.FromResult(TeamGoalsResult);
+
+    /// <summary>Result of <see cref="AddGoalAsync"/> and <see cref="RemoveGoalAsync"/>.</summary>
+    public ApiResult<MyGoalsResponse> GoalWriteResult { get; set; } = ApiResult<MyGoalsResponse>.Ok(new MyGoalsResponse { Data = new MyGoals() });
+
+    /// <summary>Each goal added, in call order.</summary>
+    public List<GoalAddRequest> GoalsAdded { get; } = [];
+
+    /// <summary>Each goal id removed, in call order.</summary>
+    public List<long> GoalsRemoved { get; } = [];
+
+    /// <inheritdoc />
+    public Task<ApiResult<MyGoalsResponse>> AddGoalAsync(string apiKey, GoalAddRequest request, string language, CancellationToken ct)
+    {
+        GoalsAdded.Add(request);
+        return Task.FromResult(GoalWriteResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<MyGoalsResponse>> RemoveGoalAsync(string apiKey, long goalId, string language, CancellationToken ct)
+    {
+        GoalsRemoved.Add(goalId);
+        return Task.FromResult(GoalWriteResult);
+    }
+
     /// <inheritdoc />
     public Task<ApiResult<MyRelicsResponse>> GetMyRelicsAsync(string apiKey, long? characterId, CancellationToken ct)
     {

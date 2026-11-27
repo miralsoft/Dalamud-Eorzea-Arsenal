@@ -365,6 +365,18 @@ public sealed class GearSyncServiceTests
         public Task<ApiResult<MyRelicsResponse>> GetMyRelicsAsync(string apiKey, long? characterId, CancellationToken ct) =>
             throw new NotSupportedException();
 
+        public Task<ApiResult<MyGoalsResponse>> GetMyGoalsAsync(string apiKey, string cidHash, string language, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<TeamGoalsResponse>> GetTeamGoalsAsync(string apiKey, long teamId, string language, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<MyGoalsResponse>> AddGoalAsync(string apiKey, GoalAddRequest request, string language, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<MyGoalsResponse>> RemoveGoalAsync(string apiKey, long goalId, string language, CancellationToken ct) =>
+            throw new NotSupportedException();
+
         public Task<ApiResult<MyRelicsResponse>> PutRelicTickAsync(string apiKey, RelicTickRequest request, CancellationToken ct) =>
             throw new NotSupportedException();
 

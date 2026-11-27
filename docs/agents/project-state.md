@@ -74,7 +74,11 @@ inventory only after arrival and logs each report by name (a Mistwake run showed
 rules of contract-goals.md, the login check against the server's `learned` kept after every report (the
 plugin side's proposal, confirmed by the server on 2026-11-27). Turning it off deletes nothing on the
 server (contract revised 2026-11-27: `DELETE /me/unlocks` is the website's and answers a key with 403);
-only the local records go, so turning it on again starts with a first sync. Not yet on dev when built. Next: the release, PR into main,
+only the local records go, so turning it on again starts with a first sync. Not yet on dev when built. Then the goals to
+read and write (`goals-progress`, `goals-from-plugin`): `GoalsService` (pure; the menu choice decided from the
+goals last read), `GoalsWindow` (open, "Was noch fehlt", done; remove after a second click), the team tab
+"Ziele" (memory only) and `GoalContextMenu` ("Als Ziel hinzufügen" / "Ziel entfernen" on an inventory slot or
+the hovered item of another window). Both on dev 2026-11-27; to check in the game. Next: the release, PR into main,
 merge and tag in one sitting, the release-note date set to that day.
 
 The foundation moved from the 3.3.0 this repository was audited against to 5.3.0. The Dalamud profile

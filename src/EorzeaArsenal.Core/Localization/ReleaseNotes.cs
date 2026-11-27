@@ -116,6 +116,16 @@ public static class ReleaseNotes
                 "Drop- und Fundort-Meldungen: Wenn du zustimmst, meldet das Plugin anonym, was in Duties droppt und wo fehlende NPCs, Monster und FATEs stehen.",
                 "Drop and spot reports: if you agree, the plugin reports anonymously what drops in duties and where missing NPCs, monsters and FATEs stand."),
             new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "your-goals-in-game",
+                "Deine Ziele im Spiel: Ein neues Fenster zeigt deine Ziele, wie weit du bist und was noch fehlt, und im Team die geteilten Ziele.",
+                "Your goals in game: a new window shows your goals, how far you are and what is still missing, and the team's shared goals."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "goals-from-the-context-menu",
+                "Ziele per Rechtsklick: Im Kontextmenü eines Gegenstands fügst du ihn als Ziel hinzu oder entfernst das Ziel.",
+                "Goals by right-click: in an item's context menu you add it as a goal or remove the goal."),
+            new ReleaseNoteItem(
                 ReleaseNoteKind.Fixed,
                 "retainers-sync-again",
                 "Gehilfen erneut abgleichen: Öffnest du denselben Gehilfen noch einmal, wird sein Inhalt wieder übertragen.",
