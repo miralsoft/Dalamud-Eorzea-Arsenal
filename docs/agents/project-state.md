@@ -41,8 +41,8 @@ Built for 1.3.0, branch by branch (all now in `release/v1.3.0`):
   writes it, or inside `data`), since the contract's example has no envelope. Writes whose answer the
   view does not need (answers, weeks, "not tonight", deletes) take any 2xx and read again. "Not tonight"
   asks once before it goes, because the team is told.
-- `feat/drop-reports`: the consent dialog of 1.3.0 (`ConsentWindow`, `ReportConsentAsked`), the two report
-  switches, the installation id (config version 4; made outside the version step, since a fresh config
+- `feat/drop-reports`: the consent dialog of 1.3.0 (`ConsentWindow`, `ReportConsentAsked`), the report
+  switch (since 2026-11-27 one switch `ShareReports` for drops and spots, at the operator's request), the installation id (config version 4; made outside the version step, since a fresh config
   starts at 4), and the drop reports (`DropLedger` pure, `ReportUploader<T>` shared with the spot reports,
   `GameDropWatcher` reading `Loot.Items` once a second in an instanced duty). To check in the game: the
   `content_id` the log names when a duty starts (the Underkeep should be 101), that a chest piece is

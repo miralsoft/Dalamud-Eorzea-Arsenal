@@ -2311,17 +2311,11 @@ public static class LocKeys
     /// <summary>Status menu: several items wait in the teams ({0}).</summary>
     public const string StatusOpenItemsMany = "status.openitems.many";
 
-    /// <summary>Opt-in (server 1.5): send drop reports.</summary>
-    public const string ReportDrops = "config.reportdrops";
+    /// <summary>Opt-in (server 1.5): one switch for the drop reports and the spot reports.</summary>
+    public const string ShareReports = "config.sharereports";
 
-    /// <summary>What the drop reports send and what not.</summary>
-    public const string ReportDropsHint = "config.reportdrops.hint";
-
-    /// <summary>Opt-in (server 1.5): report spots for the world database.</summary>
-    public const string ReportWorld = "config.reportworld";
-
-    /// <summary>What the spot reports send and what not.</summary>
-    public const string ReportWorldHint = "config.reportworld.hint";
+    /// <summary>What the drop and spot reports send and what not.</summary>
+    public const string ShareReportsHint = "config.sharereports.hint";
 
     /// <summary>Opt-in (server 1.5): report the whole collection.</summary>
     public const string ReportCollection = "config.reportcollection";

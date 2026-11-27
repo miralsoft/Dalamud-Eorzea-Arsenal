@@ -110,18 +110,14 @@ public sealed class PluginConfig : IPluginConfiguration
     public bool SyncCurrencies { get; set; } = true;
 
     /// <summary>
-    /// Opt-in (server 1.5): report what drops in duties (<c>POST /loot/reports</c>): item, quantity, duty, game
-    /// version and day, never the character, world, account or any text. Off by default, one setting per
-    /// installation. While off nothing is collected and nothing kept.
+    /// Opt-in (server 1.5), one switch for both reports, as the operator asked: what drops in duties
+    /// (<c>POST /loot/reports</c>: item, quantity, duty, game version and day) and where people, monsters and
+    /// FATEs the world database wants placed stand (<c>POST /world/reports</c>: what was seen, the zone, the
+    /// spot on the map, game version and day, never the player's own position). Never the character, world,
+    /// account or any text. Off by default, one setting per installation; while off nothing is collected and
+    /// nothing kept.
     /// </summary>
-    public bool ReportDrops { get; set; }
-
-    /// <summary>
-    /// Opt-in (server 1.5): report where people, monsters and FATEs the world database wants placed stand
-    /// (<c>POST /world/reports</c>): what was seen, the zone, the spot on the map, game version and day, never
-    /// the player's own position. Off by default, independent of <see cref="ReportDrops"/>.
-    /// </summary>
-    public bool ReportWorld { get; set; }
+    public bool ShareReports { get; set; }
 
     /// <summary>
     /// Whether the dialog of 1.3.0 that asks for the inventory sync, the drop reports and the world reports

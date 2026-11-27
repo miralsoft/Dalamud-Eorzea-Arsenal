@@ -80,8 +80,8 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   the server takes at least one of the reports, never in a duty, a fight or a cutscene. Escape does not
   close it, and a menu entry opens it again while a report is still off. The reports start off; closing
   without saving is no. Both
-  reports have their own switch in the settings, next to the inventory, each saying what is sent and what
-  never is.
+  reports share one switch, "Drop- und Fundort-Meldungen senden", in the dialog and in the settings, next
+  to the inventory, saying what is sent and what never is (one click allows both, as the operator asked).
 - **Drop reports** (`POST /loot/reports`, `DropLedger`, `ReportUploader`, `GameDropWatcher`; where the
   server lists `drop-reports` and the player said yes): in an instanced duty, every piece in the loot chest
   once as `chest`, whoever wins it, and what the bags and the armoury gained without a chest as `received`,
@@ -95,7 +95,8 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   (config version 4); nothing about the character, world or account is ever sent.
 - **Spot reports for the world database** (`POST /world/reports`, `WorldSpotter`, `WorldWantedCache`,
   `GameWorldWatcher`; where the server lists `world-reports` and the player said yes): the wanted list
-  (`GET /world/wanted`) is read at most once a day and kept with its version; every two seconds the loaded
+  (`GET /world/wanted`) is read at most once a day and kept with its version (after a 409 again within the
+  hour, since the intake may open at any time; each read is logged with its counts); every two seconds the loaded
   people (ENpcResident), monsters (BNpcName) and FATEs it names are reported with the territory's
   PlaceName as the zone and their map coordinates to one decimal, once per thing, zone and day. Territories
   with several maps are left out. Never the player's own position. Sent every five minutes and at logout,

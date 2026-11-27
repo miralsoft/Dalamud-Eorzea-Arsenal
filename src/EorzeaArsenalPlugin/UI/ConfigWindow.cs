@@ -584,24 +584,15 @@ public sealed class ConfigWindow : Window, IDisposable
 
         Help(T(LocKeys.SyncCurrenciesHint));
 
-        // The two reports of server 1.5: each its own switch, off by default, independent of each other.
-        var reportDrops = _config.ReportDrops;
-        if (ImGui.Checkbox(T(LocKeys.ReportDrops), ref reportDrops))
+        // The two reports of server 1.5, drops and spots, behind one switch, off by default.
+        var shareReports = _config.ShareReports;
+        if (ImGui.Checkbox(T(LocKeys.ShareReports), ref shareReports))
         {
-            _config.ReportDrops = reportDrops;
+            _config.ShareReports = shareReports;
             _save();
         }
 
-        Help(T(LocKeys.ReportDropsHint));
-
-        var reportWorld = _config.ReportWorld;
-        if (ImGui.Checkbox(T(LocKeys.ReportWorld), ref reportWorld))
-        {
-            _config.ReportWorld = reportWorld;
-            _save();
-        }
-
-        Help(T(LocKeys.ReportWorldHint));
+        Help(T(LocKeys.ShareReportsHint));
 
         // The collection (server 1.5): its own consent, shown only where the server takes it.
         if (_collectionOffered())

@@ -7,10 +7,10 @@ using EorzeaArsenal.Plugin.Configuration;
 namespace EorzeaArsenal.Plugin.UI;
 
 /// <summary>
-/// The one dialog of 1.3.0 that asks what may be sent: the inventory sync, the collection, the drop reports and the spot
-/// reports, together and once, as server 1.5 asks. It shows on the update and on a new installation's first
-/// connected session. The reports start off; closing without saving is no, and either way the dialog is
-/// not shown again. Everything stays changeable in the settings.
+/// The one dialog of 1.3.0 that asks what may be sent: the inventory sync, the collection and the reports (drops
+/// and spots behind one switch), together and once, as server 1.5 asks. It shows on the update and on a new
+/// installation's first connected session. The reports start off; closing without saving is no, and either way
+/// the dialog is not shown again. Everything stays changeable in the settings.
 /// </summary>
 public sealed class ConsentWindow : Window
 {
@@ -20,29 +20,25 @@ public sealed class ConsentWindow : Window
     private readonly PluginConfig _config;
     private readonly Localizer _localizer;
     private readonly Action _save;
-    private readonly Func<bool> _dropsOffered;
-    private readonly Func<bool> _worldOffered;
+    private readonly Func<bool> _reportsOffered;
     private readonly Func<bool> _collectionOffered;
     private bool _collection;
     private bool _inventory;
-    private bool _drops;
-    private bool _world;
+    private bool _reports;
 
     /// <summary>Creates the dialog.</summary>
     /// <param name="config">Live config.</param>
     /// <param name="localizer">UI string resolver.</param>
     /// <param name="save">Persists the config.</param>
-    /// <param name="dropsOffered">Whether the server takes drop reports.</param>
-    /// <param name="worldOffered">Whether the server takes spot reports.</param>
+    /// <param name="reportsOffered">Whether the server takes drop or spot reports.</param>
     /// <param name="collectionOffered">Whether the server takes the collection.</param>
-    public ConsentWindow(PluginConfig config, Localizer localizer, Action save, Func<bool> dropsOffered, Func<bool> worldOffered, Func<bool> collectionOffered)
+    public ConsentWindow(PluginConfig config, Localizer localizer, Action save, Func<bool> reportsOffered, Func<bool> collectionOffered)
         : base("Eorzea Arsenal · 1.3.0###EorzeaArsenalConsent", ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse)
     {
         _config = config;
         _localizer = localizer;
         _save = save;
-        _dropsOffered = dropsOffered;
-        _worldOffered = worldOffered;
+        _reportsOffered = reportsOffered;
         _collectionOffered = collectionOffered;
 
         // Escape closes Dalamud windows, and a close counts as no. Pressed for something else in the game, it
@@ -56,8 +52,7 @@ public sealed class ConsentWindow : Window
     public void Ask()
     {
         _inventory = _config.SyncInventory;
-        _drops = _config.ReportDrops;
-        _world = _config.ReportWorld;
+        _reports = _config.ShareReports;
         _collection = _config.ReportCollection;
         IsOpen = true;
     }
@@ -90,14 +85,9 @@ public sealed class ConsentWindow : Window
             Choice(LocKeys.ReportCollection, LocKeys.ReportCollectionHint, ref _collection);
         }
 
-        if (_dropsOffered())
+        if (_reportsOffered())
         {
-            Choice(LocKeys.ReportDrops, LocKeys.ReportDropsHint, ref _drops);
-        }
-
-        if (_worldOffered())
-        {
-            Choice(LocKeys.ReportWorld, LocKeys.ReportWorldHint, ref _world);
+            Choice(LocKeys.ShareReports, LocKeys.ShareReportsHint, ref _reports);
         }
 
         ImGui.Separator();
@@ -105,8 +95,7 @@ public sealed class ConsentWindow : Window
         if (ImGui.Button(T(LocKeys.ConsentApply)))
         {
             _config.SyncInventory = _inventory;
-            _config.ReportDrops = _drops && _dropsOffered();
-            _config.ReportWorld = _world && _worldOffered();
+            _config.ShareReports = _reports && _reportsOffered();
             _config.ReportCollection = _collection && _collectionOffered();
             _config.ReportConsentAsked = true;
             _save();

@@ -354,7 +354,7 @@ public sealed class Plugin : IDalamudPlugin
             () => _ = _dropUploader.SendIfDueAsync(force: true, _shutdown.Token));
 
         _worldSpotter = new WorldSpotter();
-        _worldSpotter.SetWanted(_config.ReportWorld ? _config.WorldWanted?.Wanted : null);
+        _worldSpotter.SetWanted(_config.ShareReports ? _config.WorldWanted?.Wanted : null);
         _worldWanted = new WorldWantedCache(
             api,
             _store,
@@ -366,7 +366,7 @@ public sealed class Plugin : IDalamudPlugin
                 _config.WorldWantedReadUtc = at;
                 Save();
             },
-            _config.ReportWorld ? _config.WorldWanted : null,
+            _config.ShareReports ? _config.WorldWanted : null,
             _config.WorldWantedReadUtc,
             _log);
         _worldUploader = new ReportUploader<WorldReport>(
@@ -440,7 +440,7 @@ public sealed class Plugin : IDalamudPlugin
         _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
         _reportWindow = new ReportWindow(_store, _localizer, api, _log, DescribeClient);
         _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReview, () => _review.Summary() ?? _sync.LastReview, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew, () => _bisService.AmbiguousLive.Count, () => _currentCidHash, OpenRelics, () => _features.Has(FeatureNames.Relics), () => _waiting.Total,
-            () => (_features.Has(FeatureNames.DropReports) && !_config.ReportDrops) || (_features.Has(FeatureNames.WorldReports) && !_config.ReportWorld) ||
+            () => (ReportsOffered() && !_config.ShareReports) ||
                 (CollectionOffered() && !_config.ReportCollection),
             () => _consentWindow?.Ask());
         _relicService = new RelicService(api, _store, _store, _log);
@@ -461,7 +461,7 @@ public sealed class Plugin : IDalamudPlugin
         _windowSystem.AddWindow(_advisorWindow);
         _windowSystem.AddWindow(_relicWindow);
         _consentWindow = new ConsentWindow(_config, _localizer, Save,
-            () => _features.Has(FeatureNames.DropReports), () => _features.Has(FeatureNames.WorldReports), CollectionOffered);
+            ReportsOffered, CollectionOffered);
         _windowSystem.AddWindow(_consentWindow);
         _windowSystem.AddWindow(_logWindow);
         _windowSystem.AddWindow(_statusWindow);
@@ -1359,17 +1359,20 @@ public sealed class Plugin : IDalamudPlugin
         RefreshTrackedItems(thenSyncInventory: true);
     }
 
+    /// <summary>Whether the server takes either kind of report, so the one switch for both is worth asking about.</summary>
+    private bool ReportsOffered() => _features.Has(FeatureNames.DropReports) || _features.Has(FeatureNames.WorldReports);
+
     /// <summary>
     /// Whether drops may be collected now: the setting, the terms, a key, a server that takes them, and no
     /// closed intake or limit holding the sends (a closed intake means keep nothing).
     /// </summary>
     private bool DropsActive() =>
-        _config is { Enabled: true, TosAccepted: true, ReportDrops: true } && _store.HasKey &&
+        _config is { Enabled: true, TosAccepted: true, ShareReports: true } && _store.HasKey &&
         _features.Has(FeatureNames.DropReports) && !_dropUploader.IsHolding;
 
     /// <summary>The setting, the terms, a key and a server that takes spot reports.</summary>
     private bool WorldReportsAllowed() =>
-        _config is { Enabled: true, TosAccepted: true, ReportWorld: true } && _store.HasKey && _features.Has(FeatureNames.WorldReports);
+        _config is { Enabled: true, TosAccepted: true, ShareReports: true } && _store.HasKey && _features.Has(FeatureNames.WorldReports);
 
     /// <summary>Whether spots may be collected now: allowed, and no closed intake or limit holding the sends.</summary>
     private bool WorldActive() => WorldReportsAllowed() && !_worldUploader.IsHolding && !_worldWanted.IntakeClosed;
@@ -1726,7 +1729,7 @@ public sealed class Plugin : IDalamudPlugin
             }
 
             // Drop reports: sent every few minutes while on; turning the setting off drops what was kept.
-            if (_config.ReportDrops)
+            if (_config.ShareReports)
             {
                 if (DropsActive() || _dropUploader.PendingCount > 0)
                 {
@@ -1739,7 +1742,7 @@ public sealed class Plugin : IDalamudPlugin
             }
 
             // Spot reports: the wanted list at most once a day while on; off forgets the list and the spots.
-            if (_config.ReportWorld)
+            if (_config.ShareReports)
             {
                 if (WorldReportsAllowed())
                 {
@@ -1751,7 +1754,7 @@ public sealed class Plugin : IDalamudPlugin
                     _ = _worldUploader.SendIfDueAsync(force: false, _shutdown.Token);
                 }
             }
-            else if (_worldWanted.Current is not null || _worldUploader.PendingCount > 0)
+            else if (_worldWanted.Current is not null || _worldWanted.IntakeClosed || _worldUploader.PendingCount > 0)
             {
                 _worldUploader.Clear();
                 _worldWanted.Forget();
