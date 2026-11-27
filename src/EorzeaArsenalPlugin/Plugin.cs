@@ -1295,7 +1295,7 @@ public sealed class Plugin : IDalamudPlugin
                     // And the goal items that unlock something to learn (goals); the list is the account's.
                     _trackedItems.SetUnlocks(result.Value.Unlocks);
                     _trackedKey = key;
-                    _log.Info($"Tracked items updated: {ids.Count} id(s), {_trackedItems.Groups.Count} group(s).");
+                    _log.Info($"Tracked items updated: {ids.Count} id(s), {_trackedItems.Groups.Count} group(s), {_trackedItems.Unlocks.Count} goal unlock(s).");
 
                     if (thenSyncInventory)
                     {
