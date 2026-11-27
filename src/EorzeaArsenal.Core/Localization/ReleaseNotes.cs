@@ -115,6 +115,11 @@ public static class ReleaseNotes
                 "drop-and-spot-reports",
                 "Drop- und Fundort-Meldungen: Wenn du zustimmst, meldet das Plugin anonym, was in Duties droppt und wo fehlende NPCs, Monster und FATEs stehen.",
                 "Drop and spot reports: if you agree, the plugin reports anonymously what drops in duties and where missing NPCs, monsters and FATEs stand."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Fixed,
+                "retainers-sync-again",
+                "Gehilfen erneut abgleichen: Öffnest du denselben Gehilfen noch einmal, wird sein Inhalt wieder übertragen.",
+                "Retainers sync again: opening the same retainer again sends its contents again."),
         ]),
         new ReleaseNote("1.2.0", "2026-10-10",
         [
