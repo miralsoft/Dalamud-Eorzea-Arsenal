@@ -313,20 +313,18 @@ public sealed class CollectionSyncService : IDisposable
             _lookedThisSession.Add(cid);
         }
 
-        // The session's look also sends what the game learned since the server last accepted a kind from here
-        // (learned while the plugin was off, or before a restart): the kinds not just sent in full, changes only.
-        if (firstLook || trigger == CollectionTrigger.Full)
+        // Every look also sends what the game learned since the server last accepted a kind from here, the kinds
+        // not just sent in full, changes only. The session's first look at once (learned while the plugin was off,
+        // or before a restart); the later ones of every minute within the five minutes, which is what carries a
+        // change that came too soon after the previous one.
+        var throttled = !firstLook && trigger != CollectionTrigger.Full;
+        var changes = await SendChangesAsync(key, snapshot, skipKinds: due, throttled, ct).ConfigureAwait(false);
+        if (changes is not (CollectionOutcome.Sent or CollectionOutcome.NothingDue))
         {
-            var changes = await SendChangesAsync(key, snapshot, skipKinds: due, throttled: false, ct).ConfigureAwait(false);
-            if (changes is not (CollectionOutcome.Sent or CollectionOutcome.NothingDue))
-            {
-                return changes;
-            }
-
-            sent |= changes == CollectionOutcome.Sent;
+            return changes;
         }
 
-        return sent ? CollectionOutcome.Sent : CollectionOutcome.NothingDue;
+        return sent || changes == CollectionOutcome.Sent ? CollectionOutcome.Sent : CollectionOutcome.NothingDue;
     }
 
     /// <summary>The kinds that go in full, or <see langword="null"/> when a hold or a 404 ended the look.</summary>
@@ -383,11 +381,6 @@ public sealed class CollectionSyncService : IDisposable
     private async Task<CollectionOutcome> SendChangesAsync(string key, CollectionSnapshot snapshot, IReadOnlyCollection<string> skipKinds, bool throttled, CancellationToken ct)
     {
         var cid = snapshot.Character.CidHash;
-        var now = _clock.UtcNow;
-        if (throttled && now - _lastChangeUtc < ChangeInterval)
-        {
-            return CollectionOutcome.SkippedThrottled;
-        }
 
         // What the server last accepted from this machine, kept in the config across sessions; a kind without
         // it waits for its next full report.
@@ -396,7 +389,7 @@ public sealed class CollectionSyncService : IDisposable
             return CollectionOutcome.NothingDue;
         }
 
-        var sent = false;
+        var pending = new List<(string Kind, List<int> Changed, List<int> Learned)>();
         foreach (var (kind, read) in snapshot.Kinds)
         {
             if (skipKinds.Contains(kind) || !mine.TryGetValue(kind, out var record) || record.Learned is not { } acceptedIds)
@@ -407,13 +400,29 @@ public sealed class CollectionSyncService : IDisposable
             var before = acceptedIds.ToHashSet();
             var learnedNow = read.Learned.ToHashSet();
             var changed = read.Items.Where(id => learnedNow.Contains(id) != before.Contains(id)).ToList();
-            if (changed.Count == 0)
+            if (changed.Count > 0)
             {
-                continue;
+                pending.Add((kind, changed, [.. changed.Where(learnedNow.Contains)]));
             }
+        }
 
+        // The five minutes hold only a real change back; nothing changed is simply nothing to do.
+        if (pending.Count == 0)
+        {
+            return CollectionOutcome.NothingDue;
+        }
+
+        var now = _clock.UtcNow;
+        if (throttled && now - _lastChangeUtc < ChangeInterval)
+        {
+            return CollectionOutcome.SkippedThrottled;
+        }
+
+        var sent = false;
+        foreach (var (kind, changed, learned) in pending)
+        {
             _lastChangeUtc = now;
-            var result = await SendAsync(key, snapshot.Character, kind, changed, [.. changed.Where(learnedNow.Contains)], full: false, ct).ConfigureAwait(false);
+            var result = await SendAsync(key, snapshot.Character, kind, changed, learned, full: false, ct).ConfigureAwait(false);
             if (result is null)
             {
                 return OutcomeOfLastHold(cid);

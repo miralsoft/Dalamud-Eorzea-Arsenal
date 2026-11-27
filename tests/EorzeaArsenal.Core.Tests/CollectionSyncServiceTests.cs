@@ -199,6 +199,28 @@ public sealed class CollectionSyncServiceTests
     }
 
     [Fact]
+    public async Task A_change_held_back_by_the_five_minutes_goes_with_a_later_minutes_look()
+    {
+        using var service = Service();
+        await service.SyncAsync(CollectionTrigger.Check, CancellationToken.None);
+        _clock.Advance(TimeSpan.FromMinutes(5));
+        _source.Learn("mount", 6002);
+        await service.SyncAsync(CollectionTrigger.Change, CancellationToken.None);
+        _source.Learn("mount", 6003);
+        await service.SyncAsync(CollectionTrigger.Change, CancellationToken.None);
+        _api.UnlockPushes.Clear();
+
+        _clock.Advance(TimeSpan.FromMinutes(2));
+        Assert.Equal(CollectionOutcome.SkippedThrottled, await service.SyncAsync(CollectionTrigger.Check, CancellationToken.None));
+        _clock.Advance(TimeSpan.FromMinutes(3));
+        Assert.Equal(CollectionOutcome.Sent, await service.SyncAsync(CollectionTrigger.Check, CancellationToken.None));
+
+        var push = Assert.Single(_api.UnlockPushes);
+        Assert.Equal([6003], push.Checked);
+        Assert.Equal(CollectionOutcome.NothingDue, await service.SyncAsync(CollectionTrigger.Check, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task Turning_it_off_forgets_only_the_local_records_and_sends_nothing()
     {
         using var service = Service();
