@@ -2398,6 +2398,12 @@ public static class LocKeys
     /// <summary>The game's context menu of an item.</summary>
     public const string GoalMenuRemove = "goals.menu.remove";
 
+    /// <summary>The context menu entry for a goal to collect an item to learn.</summary>
+    public const string GoalMenuCollect = "goals.menu.collect";
+
+    /// <summary>A goal to collect an item to learn.</summary>
+    public const string GoalPurposeCollect = "goals.purpose.collect";
+
     /// <summary>Chat note after adding.</summary>
     public const string GoalAdded = "goals.added";
 

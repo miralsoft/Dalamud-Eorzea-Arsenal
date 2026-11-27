@@ -80,7 +80,9 @@ goals last read), `GoalsWindow` (open, "Was noch fehlt", done; remove after a se
 "Ziele" (memory only) and `GoalContextMenu` ("Als Ziel hinzufügen" / "Ziel entfernen" on an inventory slot or
 the hovered item of another window). Both on dev 2026-11-27; to check in the game. Refined 2026-11-28 with the operator:
 "add" only for what is still to get (never learned; a single thing only outside the own storage; something
-that stacks anywhere, with a quantity), shops and exchanges sync on closing, "Im Besitz" on every goal. Next: the release, PR into main,
+that stacks anywhere, with a quantity), shops and exchanges sync on closing, "Im Besitz" on every goal. Then
+`unlock-kinds` (server 2026-11-28): the collection takes ten kinds, and an item to learn is a goal to learn or
+to collect (`purpose`). Next: the release, PR into main,
 merge and tag in one sitting, the release-note date set to that day.
 
 The foundation moved from the 3.3.0 this repository was audited against to 5.3.0. The Dalamud profile

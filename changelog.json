@@ -128,11 +128,11 @@
       "source": "plugin",
       "de": {
         "title": "Deine Sammlung auf der Webseite",
-        "body": "<p>Wenn du zustimmst, kennt die Webseite deine gelernten Reittiere, Begleiter, Orchestrion-Rollen und Karten.</p>"
+        "body": "<p>Wenn du zustimmst, kennt die Webseite deine gelernten Reittiere, Begleiter, Orchestrion-Rollen, Karten, Emotes, Frisuren und mehr.</p>"
       },
       "en": {
         "title": "Your collection on the website",
-        "body": "<p>If you agree, the website knows your learned mounts, minions, orchestrion rolls and cards.</p>"
+        "body": "<p>If you agree, the website knows your learned mounts, minions, orchestrion rolls, cards, emotes, hairstyles and more.</p>"
       }
     },
     {

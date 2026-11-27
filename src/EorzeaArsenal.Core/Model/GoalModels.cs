@@ -53,6 +53,9 @@ public sealed class Goal
     /// <summary>Held but not used yet: nothing left to pay for it.</summary>
     public bool Unused { get; init; }
 
+    /// <summary><c>learn</c> or <c>collect</c> for an item to learn (<c>unlock-kinds</c>); <see langword="null"/> otherwise or from an older server.</summary>
+    public string? Purpose { get; init; }
+
     /// <summary>Why and when the goal is done, or <see langword="null"/> while it is open.</summary>
     public GoalDone? Done { get; init; }
 
@@ -152,6 +155,19 @@ public sealed class GoalAddRequest
 
     /// <summary>How many are wanted, for something collected in numbers; left out for one.</summary>
     public long? Qty { get; init; }
+
+    /// <summary><c>collect</c> for an item to learn wanted in numbers (to sell), only when the player chose it; else left out.</summary>
+    public string? Purpose { get; init; }
+}
+
+/// <summary>A goal's purpose (<c>unlock-kinds</c>): an item to learn is a goal to learn or one to collect.</summary>
+public static class GoalPurposes
+{
+    /// <summary>Done once learned, one of it.</summary>
+    public const string Learn = "learn";
+
+    /// <summary>Done when as many are held as wanted.</summary>
+    public const string Collect = "collect";
 }
 
 /// <summary>The character a goal is for: only <c>cid_hash</c> is read.</summary>

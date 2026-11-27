@@ -135,6 +135,12 @@ public sealed class CollectionSyncService : IDisposable
     /// <summary>How long a 429 without <c>Retry-After</c> holds every call (default one minute).</summary>
     public TimeSpan DefaultBackoff { get; set; } = TimeSpan.FromMinutes(1);
 
+    /// <summary>
+    /// The kinds the server takes: the first four, or all ten where it lists <c>unlock-kinds</c>. A kind new to
+    /// this machine has no record yet, so its first look sends it in full.
+    /// </summary>
+    public Func<IReadOnlyList<string>> Kinds { get; set; } = () => UnlockKinds.All;
+
     /// <summary>Asks for an attempt; returns at once.</summary>
     /// <param name="trigger">What asked.</param>
     public void Request(CollectionTrigger trigger)
@@ -235,7 +241,7 @@ public sealed class CollectionSyncService : IDisposable
         CollectionSnapshot? snapshot;
         try
         {
-            snapshot = await _source.ReadAsync(UnlockKinds.All, ct).ConfigureAwait(false);
+            snapshot = await _source.ReadAsync(Kinds(), ct).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
@@ -343,7 +349,7 @@ public sealed class CollectionSyncService : IDisposable
 
         if (trigger == CollectionTrigger.Full || mine is null || mine.Count == 0)
         {
-            return [.. UnlockKinds.All.Where(k => !_rejectedToday.Contains($"{cid}|{k}"))];
+            return [.. Kinds().Where(k => !_rejectedToday.Contains($"{cid}|{k}"))];
         }
 
         // The look of the session: the server's counts against those it answered after this machine's reports.
@@ -356,7 +362,7 @@ public sealed class CollectionSyncService : IDisposable
 
         var server = state.Value?.Data?.Kinds ?? [];
         var due = new List<string>();
-        foreach (var kind in UnlockKinds.All)
+        foreach (var kind in Kinds())
         {
             if (_rejectedToday.Contains($"{cid}|{kind}"))
             {

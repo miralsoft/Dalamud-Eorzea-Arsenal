@@ -346,7 +346,11 @@ public sealed class Plugin : IDalamudPlugin
             () => _trackedItems.Unlocks, _log);
         _collectionSync = new CollectionSyncService(
             new GameCollectionSource(clientState, playerState, framework, dataManager, unlockState, _log), api, _store, new SystemClock(),
-            () => _config.CollectionRecords, Save, _log);
+            () => _config.CollectionRecords, Save, _log)
+        {
+            // The ten kinds where the server takes them (unlock-kinds), else the first four.
+            Kinds = () => _features.Has(FeatureNames.UnlockKinds) ? UnlockKinds.Extended : UnlockKinds.All,
+        };
         _unlockState.Unlock += OnUnlocked;
         _dropUploader = new ReportUploader<DropReport>(
             "drop",
@@ -467,7 +471,7 @@ public sealed class Plugin : IDalamudPlugin
             _gearSource.GetItemIconId, _gearSource.GetItemName, textureProvider, _log, OnGoalsChanged);
         _goalQuantityWindow = new GoalQuantityWindow(_localizer);
         _goalMenu = new GoalContextMenu(contextMenu, gameGui, dataManager, unlockState, _goalsService, _localizer, GoalsWriteOffered,
-            () => _currentCidHash, _gearSource.GetItemName, Chat, _goalQuantityWindow, OnGoalsChanged, _log);
+            () => _currentCidHash, _gearSource.GetItemName, Chat, _goalQuantityWindow, OnGoalsChanged, () => _features.Has(FeatureNames.UnlockKinds), _log);
         _relicService = new RelicService(api, _store, _store, _log);
         _relicWindow = new RelicWindow(_localizer, _relicService, () => ServerCharacterId(_currentCidHash), () => _config.SyncInventory, WebAppBase, OpenExternalLink, OpenConfig, _log, _gearSource.GetItemName,
             code => _gameJobs.FirstOrDefault(j => string.Equals(j.Code, code, StringComparison.OrdinalIgnoreCase)), textureProvider);

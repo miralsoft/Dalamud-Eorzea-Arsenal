@@ -90,8 +90,29 @@ public static class UnlockKinds
     /// <summary>Triple Triad cards.</summary>
     public const string Card = "card";
 
-    /// <summary>All four, in the order they are synced.</summary>
+    /// <summary>Emotes (since <c>unlock-kinds</c>).</summary>
+    public const string Emote = "emote";
+
+    /// <summary>Hairstyles (since <c>unlock-kinds</c>).</summary>
+    public const string Hairstyle = "hairstyle";
+
+    /// <summary>Chocobo bardings (since <c>unlock-kinds</c>).</summary>
+    public const string Barding = "barding";
+
+    /// <summary>Fashion accessories (since <c>unlock-kinds</c>).</summary>
+    public const string Accessory = "accessory";
+
+    /// <summary>Facewear (since <c>unlock-kinds</c>).</summary>
+    public const string Facewear = "facewear";
+
+    /// <summary>Framer's kits, "Portraitmaterial" (since <c>unlock-kinds</c>).</summary>
+    public const string Portrait = "portrait";
+
+    /// <summary>The first four, the kinds every server with <c>unlock-collection</c> takes, in the order they are synced.</summary>
     public static IReadOnlyList<string> All { get; } = [Mount, Minion, Orchestrion, Card];
+
+    /// <summary>All ten, for a server that lists <c>unlock-kinds</c>, in the order they are synced.</summary>
+    public static IReadOnlyList<string> Extended { get; } = [Mount, Minion, Orchestrion, Card, Emote, Hairstyle, Barding, Accessory, Facewear, Portrait];
 }
 
 /// <summary>The limits of the unlock report.</summary>

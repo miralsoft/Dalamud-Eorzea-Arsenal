@@ -284,6 +284,28 @@ public sealed class CollectionSyncServiceTests
         Assert.Equal(4, _api.UnlockPushes.Count);
     }
 
+    [Fact]
+    public async Task A_server_with_the_ten_kinds_gets_the_new_ones_in_full_once_and_the_first_four_stay_as_they_were()
+    {
+        using (var first = Service())
+        {
+            await first.SyncAsync(CollectionTrigger.Check, CancellationToken.None);
+        }
+
+        _api.UnlockPushes.Clear();
+        ServerHolds(new() { ["mount"] = 1, ["minion"] = 1, ["orchestrion"] = 0, ["card"] = 0, ["emote"] = 0 });
+
+        using var service = Service();
+        service.Kinds = () => UnlockKinds.Extended;
+        await service.SyncAsync(CollectionTrigger.Check, CancellationToken.None);
+
+        // Only the emotes are new to this machine; the kinds without items in the game send nothing.
+        var push = Assert.Single(_api.UnlockPushes);
+        Assert.Equal(("emote", true), (push.Kind, push.Full == true));
+        Assert.Equal([10001, 10002], push.Checked);
+        Assert.Equal([10001], push.Learned);
+    }
+
     private sealed class FakeCollectionSource : ICollectionSource
     {
         private readonly Dictionary<string, List<int>> _items = new()
@@ -292,6 +314,7 @@ public sealed class CollectionSyncServiceTests
             ["minion"] = [7001, 7002],
             ["orchestrion"] = [8001],
             ["card"] = [9001],
+            ["emote"] = [10001, 10002],
         };
 
         private readonly Dictionary<string, HashSet<int>> _learned = new()
@@ -300,6 +323,7 @@ public sealed class CollectionSyncServiceTests
             ["minion"] = [7001],
             ["orchestrion"] = [],
             ["card"] = [],
+            ["emote"] = [10001],
         };
 
         public bool IsAvailable => true;
@@ -311,6 +335,6 @@ public sealed class CollectionSyncServiceTests
         public Task<CollectionSnapshot?> ReadAsync(IReadOnlyCollection<string> kinds, CancellationToken ct) =>
             Task.FromResult<CollectionSnapshot?>(new CollectionSnapshot(
                 new CharacterDto { Name = "Sanaka Sundream", World = "Twintania", CidHash = TestData.ExampleHash },
-                kinds.ToDictionary(k => k, k => new CollectionKindSnapshot([.. _items[k]], [.. _learned[k]]))));
+                kinds.ToDictionary(k => k, k => new CollectionKindSnapshot([.. _items.GetValueOrDefault(k) ?? []], [.. _learned.GetValueOrDefault(k) ?? []]))));
     }
 }

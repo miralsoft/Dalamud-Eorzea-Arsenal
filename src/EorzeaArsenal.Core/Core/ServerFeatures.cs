@@ -38,6 +38,9 @@ public static class FeatureNames
 
     /// <summary>Adding and removing a goal from the game: <c>POST /me/goals</c> and <c>DELETE /me/goals/{id}</c> for a key.</summary>
     public const string GoalsFromPlugin = "goals-from-plugin";
+
+    /// <summary>Every unlock item counts, in ten kinds, and a goal for one is to learn or to collect (<c>purpose</c>).</summary>
+    public const string UnlockKinds = "unlock-kinds";
 }
 
 /// <summary>

@@ -220,6 +220,13 @@ public sealed class GoalsWindow : Window, IDisposable
                 DrawGoalName(goal);
                 DrawRemove(goal, cid);
 
+                // A goal to collect an item to learn (unlock-kinds) counts what is held, not whether it is learned.
+                var collect = string.Equals(goal.Purpose, GoalPurposes.Collect, StringComparison.Ordinal);
+                if (collect)
+                {
+                    ImGui.TextColored(Dim, T(LocKeys.GoalPurposeCollect));
+                }
+
                 if (goal.Shared)
                 {
                     ImGui.TextColored(Dim, T(LocKeys.GoalShared));
@@ -229,7 +236,7 @@ public sealed class GoalsWindow : Window, IDisposable
                 {
                     ImGui.TextColored(Green, T(LocKeys.GoalUnused));
                 }
-                else if (!goal.Learnable && goal.Qty > 1)
+                else if ((!goal.Learnable || collect) && goal.Qty > 1)
                 {
                     ImGui.TextUnformatted(T(LocKeys.GoalHeldOf, Number(goal.Held), Number(goal.Qty)));
                 }

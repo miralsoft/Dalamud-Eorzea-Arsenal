@@ -135,17 +135,17 @@ public sealed class GoalsServiceTests
             MyGoalsResult = ApiResult<MyGoalsResponse>.Ok(JsonSerializer.Deserialize<MyGoalsResponse>(MineJson, EorzeaJson.Options)!),
         };
         var service = Service(api);
-        Assert.Equal(GoalMenuAction.None, service.ChoiceFor(44505, learned: false, stacks: false, ownStorage: false).Action);
+        Assert.Empty(service.ChoicesFor(44505, Facts(), learnOrCollect: true));
 
         await service.RefreshAsync("de", "cid", CancellationToken.None);
 
         // A goal offers "remove" wherever it is clicked, the player's own bags included.
-        var remove = service.ChoiceFor(44505, learned: false, stacks: false, ownStorage: true);
+        var remove = Assert.Single(service.ChoicesFor(44505, Facts(ownStorage: true), learnOrCollect: true));
         Assert.Equal(GoalMenuAction.Remove, remove.Action);
         Assert.Equal(17, remove.Goal!.Id);
 
         // A done goal is still a goal: it can be removed.
-        Assert.Equal(GoalMenuAction.Remove, service.ChoiceFor(52034, learned: true, stacks: false, ownStorage: false).Action);
+        Assert.Equal(GoalMenuAction.Remove, Assert.Single(service.ChoicesFor(52034, Facts(unlockable: true, learned: true), learnOrCollect: true)).Action);
         Assert.Empty(api.MyGoalsReads.Skip(1));
     }
 
@@ -155,8 +155,8 @@ public sealed class GoalsServiceTests
         var api = new FakeApiClient();
         var service = Service(api);
 
-        await service.AddAsync(46720, 99, "de", "cid", CancellationToken.None);
-        await service.AddAsync(44505, null, "de", "cid", CancellationToken.None);
+        await service.AddAsync(46720, 99, false, "de", "cid", CancellationToken.None);
+        await service.AddAsync(44505, null, false, "de", "cid", CancellationToken.None);
 
         using var withQty = JsonDocument.Parse(JsonSerializer.Serialize(api.GoalsAdded[0], EorzeaJson.Options));
         Assert.Equal(99, withQty.RootElement.GetProperty("qty").GetInt64());
@@ -164,20 +164,49 @@ public sealed class GoalsServiceTests
         Assert.False(without.RootElement.TryGetProperty("qty", out _));
     }
 
+    [Fact]
+    public async Task A_goal_to_collect_says_so_and_one_to_learn_sends_no_purpose()
+    {
+        var api = new FakeApiClient();
+        var service = Service(api);
+
+        await service.AddAsync(6001, 3, true, "de", "cid", CancellationToken.None);
+        await service.AddAsync(6002, null, false, "de", "cid", CancellationToken.None);
+
+        using var collect = JsonDocument.Parse(JsonSerializer.Serialize(api.GoalsAdded[0], EorzeaJson.Options));
+        Assert.Equal("collect", collect.RootElement.GetProperty("purpose").GetString());
+        Assert.Equal(3, collect.RootElement.GetProperty("qty").GetInt64());
+        using var learn = JsonDocument.Parse(JsonSerializer.Serialize(api.GoalsAdded[1], EorzeaJson.Options));
+        Assert.False(learn.RootElement.TryGetProperty("purpose", out _));
+    }
+
+    // unlockable, learned, sellable, stacks, own storage, learn-or-collect offered -> the entries offered
     [Theory]
-    [InlineData(false, false, false, GoalMenuAction.Add)]             // a single thing in a shop
-    [InlineData(false, false, true, GoalMenuAction.None)]             // a single thing in one's own bags: held
-    [InlineData(true, false, false, GoalMenuAction.None)]             // learned: nothing more to get
-    [InlineData(true, false, true, GoalMenuAction.None)]
-    [InlineData(false, true, true, GoalMenuAction.AddWithQuantity)]   // totems, dyes: collect more, say how many
-    [InlineData(false, true, false, GoalMenuAction.AddWithQuantity)]
-    public async Task The_menu_adds_only_what_is_still_to_get(bool learned, bool stacks, bool ownStorage, GoalMenuAction expected)
+    [InlineData(false, false, false, false, false, true, "Add")]                       // a single thing in a shop
+    [InlineData(false, false, true, false, true, true, "")]                            // a single thing in one's own bags: held
+    [InlineData(false, false, true, true, true, true, "AddWithQuantity")]              // totems, dyes: collect more, say how many
+    [InlineData(false, false, true, true, false, true, "AddWithQuantity")]
+    [InlineData(true, false, true, false, false, true, "Add,AddToCollect")]            // a mount whistle in a shop: learn or collect
+    [InlineData(true, false, false, false, false, true, "Add")]                        // not sellable: only to learn
+    [InlineData(true, false, true, false, true, true, "AddToCollect")]                 // held in the bags, not learned: use it, or collect more
+    [InlineData(true, true, true, false, false, true, "AddToCollect")]                 // learned and sellable: only to collect
+    [InlineData(true, true, false, false, false, true, "")]                            // learned, not sellable: nothing more to get
+    [InlineData(true, false, true, false, false, false, "Add")]                        // an older server: no purpose, learn only
+    [InlineData(true, true, true, false, false, false, "")]                            // an older server: learned is never a goal
+    [InlineData(true, false, true, true, true, false, "")]                             // an older server: an unlock held in the bags
+    public async Task The_menu_adds_only_what_is_still_to_get(
+        bool unlockable, bool learned, bool sellable, bool stacks, bool ownStorage, bool learnOrCollect, string expected)
     {
         var service = Service(new FakeApiClient());
         await service.RefreshAsync("de", "cid", CancellationToken.None);
 
-        Assert.Equal(expected, service.ChoiceFor(12345, learned, stacks, ownStorage).Action);
+        var choices = service.ChoicesFor(12345, new GoalItemFacts(unlockable, learned, sellable, stacks, ownStorage), learnOrCollect);
+
+        Assert.Equal(expected, string.Join(",", choices.Select(c => c.Action)));
     }
+
+    private static GoalItemFacts Facts(bool unlockable = false, bool learned = false, bool ownStorage = false) =>
+        new(unlockable, learned, Sellable: false, Stacks: false, ownStorage);
 
     [Fact]
     public async Task Adding_and_removing_send_the_character_and_take_the_answer_as_the_new_state()
@@ -188,7 +217,7 @@ public sealed class GoalsServiceTests
         };
         var service = Service(api);
 
-        Assert.Null(await service.AddAsync(44505, null, "de", "cid", CancellationToken.None));
+        Assert.Null(await service.AddAsync(44505, null, false, "de", "cid", CancellationToken.None));
         var added = Assert.Single(api.GoalsAdded);
         Assert.Equal(("cid", 44505L), (added.Character.CidHash, added.ItemId));
         Assert.Equal(3, service.Mine!.Goals.Count);
@@ -202,7 +231,7 @@ public sealed class GoalsServiceTests
         Assert.Equal([17L], api.GoalsRemoved);
 
         api.GoalWriteResult = ApiResult<MyGoalsResponse>.Fail(new ApiError { Kind = ApiErrorKind.Conflict, StatusCode = 409, Message = "Learned already" });
-        Assert.Equal(ApiErrorKind.Conflict, (await service.AddAsync(6001, null, "de", "cid", CancellationToken.None))?.Kind);
+        Assert.Equal(ApiErrorKind.Conflict, (await service.AddAsync(6001, null, false, "de", "cid", CancellationToken.None))?.Kind);
         Assert.Equal(3, service.Mine!.Goals.Count);
     }
 

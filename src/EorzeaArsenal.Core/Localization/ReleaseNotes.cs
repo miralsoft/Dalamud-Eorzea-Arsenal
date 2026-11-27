@@ -98,8 +98,8 @@ public static class ReleaseNotes
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "your-collection-on-the-website",
-                "Deine Sammlung auf der Webseite: Wenn du zustimmst, kennt die Webseite deine gelernten Reittiere, Begleiter, Orchestrion-Rollen und Karten.",
-                "Your collection on the website: if you agree, the website knows your learned mounts, minions, orchestrion rolls and cards."),
+                "Deine Sammlung auf der Webseite: Wenn du zustimmst, kennt die Webseite deine gelernten Reittiere, Begleiter, Orchestrion-Rollen, Karten, Emotes, Frisuren und mehr.",
+                "Your collection on the website: if you agree, the website knows your learned mounts, minions, orchestrion rolls, cards, emotes, hairstyles and more."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
                 "the-armoire-counts-too",

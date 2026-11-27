@@ -149,52 +149,70 @@ public sealed class GoalsService
     /// The rule agreed with the operator (2026-11-28): a goal is something still to get. So:
     /// <list type="bullet">
     /// <item>An item that is a goal offers "remove", wherever it is clicked.</item>
-    /// <item>Something learned is never a goal: there is nothing more of it to get.</item>
-    /// <item>Something one collects more of (it stacks: totems, dyes, materials) may be a goal anywhere, with a
-    /// quantity, since one unit is reached at once by what is held.</item>
-    /// <item>A single thing (gear, a mount whistle) is a goal only where it is not the player's own: in the
-    /// player's own storage it is held already, and an unlock held is simply to be used.</item>
+    /// <item>Something to learn (<c>unlock-kinds</c>, "learn or collect"): to learn while not learned, but not
+    /// from the player's own storage, where it is held and simply to be used; to collect, with a quantity,
+    /// whenever it sells on the market board, learned or not. Learned and not sellable: nothing more to get.</item>
+    /// <item>Without <c>unlock-kinds</c> something learned is never a goal.</item>
+    /// <item>Something else one collects more of (it stacks: totems, dyes, materials) may be a goal anywhere,
+    /// with a quantity, since one unit is reached at once by what is held.</item>
+    /// <item>A single thing (gear) is a goal only where it is not the player's own: there it is held already.</item>
     /// </list>
     /// </remarks>
     /// <param name="itemId">The item, without the HQ or collectable offset.</param>
-    /// <param name="learned">Whether the item unlocks something the character has learned.</param>
-    /// <param name="stacks">Whether the item stacks, so more of it can be collected.</param>
-    /// <param name="ownStorage">Whether the menu is an inventory slot of the player's own (bags, armoury, saddlebag, retainer).</param>
-    /// <returns>The choice, with the goal for "remove".</returns>
-    public GoalMenuChoice ChoiceFor(long itemId, bool learned, bool stacks, bool ownStorage)
+    /// <param name="facts">What the game says about the item and where it was clicked.</param>
+    /// <param name="learnOrCollect">Whether the server takes a goal's purpose (<c>unlock-kinds</c>).</param>
+    /// <returns>The entries to offer, in order; empty for none.</returns>
+    public IReadOnlyList<GoalMenuChoice> ChoicesFor(long itemId, GoalItemFacts facts, bool learnOrCollect)
     {
         var mine = Mine;
         if (mine is null || itemId <= 0)
         {
-            return GoalMenuChoice.None;
+            return [];
         }
 
         if (mine.Goals.FirstOrDefault(g => g.Item?.Id == itemId) is { } goal)
         {
-            return new GoalMenuChoice(GoalMenuAction.Remove, goal);
+            return [new GoalMenuChoice(GoalMenuAction.Remove, goal)];
         }
 
-        if (learned)
+        if (facts.Unlockable && learnOrCollect)
         {
-            return GoalMenuChoice.None;
+            var choices = new List<GoalMenuChoice>(2);
+            if (!facts.Learned && !facts.OwnStorage)
+            {
+                choices.Add(new GoalMenuChoice(GoalMenuAction.Add, null));
+            }
+
+            if (facts.Sellable)
+            {
+                choices.Add(new GoalMenuChoice(GoalMenuAction.AddToCollect, null));
+            }
+
+            return choices;
         }
 
-        if (stacks)
+        if (facts.Learned)
         {
-            return new GoalMenuChoice(GoalMenuAction.AddWithQuantity, null);
+            return [];
         }
 
-        return ownStorage ? GoalMenuChoice.None : new GoalMenuChoice(GoalMenuAction.Add, null);
+        if (facts.Stacks && !facts.Unlockable)
+        {
+            return [new GoalMenuChoice(GoalMenuAction.AddWithQuantity, null)];
+        }
+
+        return facts.OwnStorage ? [] : [new GoalMenuChoice(GoalMenuAction.Add, null)];
     }
 
     /// <summary>Adds an item as a goal of the logged-in character; the answer replaces what was read.</summary>
     /// <param name="itemId">The item.</param>
     /// <param name="quantity">How many are wanted, or <see langword="null"/> for the website's default of one.</param>
+    /// <param name="collect">A goal to collect an item to learn (<c>purpose: collect</c>), only when the player chose it.</param>
     /// <param name="language"><c>de</c> or <c>en</c>.</param>
     /// <param name="cidHash">The logged-in character.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns><see langword="null"/> on success, else the error.</returns>
-    public async Task<ApiError?> AddAsync(long itemId, long? quantity, string language, string cidHash, CancellationToken ct)
+    public async Task<ApiError?> AddAsync(long itemId, long? quantity, bool collect, string language, string cidHash, CancellationToken ct)
     {
         var key = _tokens.ApiKey;
         if (string.IsNullOrEmpty(key))
@@ -207,6 +225,7 @@ public sealed class GoalsService
             Character = new GoalCharacter { CidHash = cidHash },
             ItemId = itemId,
             Qty = quantity is > 0 ? quantity : null,
+            Purpose = collect ? GoalPurposes.Collect : null,
         };
         var result = await _api.AddGoalAsync(key, request, language, ct).ConfigureAwait(false);
         return Took(result, language, cidHash, "add");
@@ -268,6 +287,9 @@ public enum GoalMenuAction
     /// <summary>"Als Ziel hinzufügen" for something collected in numbers: the player says how many first.</summary>
     AddWithQuantity,
 
+    /// <summary>"Als Sammelziel hinzufügen": an item to learn wanted to collect (to sell), with a quantity; sends <c>purpose: collect</c>.</summary>
+    AddToCollect,
+
     /// <summary>"Ziel entfernen".</summary>
     Remove,
 }
@@ -280,6 +302,14 @@ public sealed record GoalMenuChoice(GoalMenuAction Action, Goal? Goal)
     /// <summary>Nothing to offer.</summary>
     public static readonly GoalMenuChoice None = new(GoalMenuAction.None, null);
 }
+
+/// <summary>What the game says about an item, and where the player clicked it, for <see cref="GoalsService.ChoicesFor"/>.</summary>
+/// <param name="Unlockable">The item unlocks something when used.</param>
+/// <param name="Learned">That unlock is learned.</param>
+/// <param name="Sellable">The item sells on the market board.</param>
+/// <param name="Stacks">The item stacks, so more of it can be collected.</param>
+/// <param name="OwnStorage">The menu is an inventory slot of the player's own (bags, armoury, saddlebag, retainer).</param>
+public sealed record GoalItemFacts(bool Unlockable, bool Learned, bool Sellable, bool Stacks, bool OwnStorage);
 
 /// <summary>The website's addresses of the goals page, as the server's <c>deep-links.md</c> names them.</summary>
 public static class GoalLinks

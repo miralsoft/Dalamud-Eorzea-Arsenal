@@ -120,6 +120,9 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
 - **The collection** (`CollectionSyncService`, `GameCollectionSource`; where the server lists `goals` and
   `unlock-collection`, with its own consent line "Sammlung" in the dialog and the settings, off by default):
   every item of the game that unlocks a mount (355), minion (584), orchestrion roll (886) or card (475),
+  and where the server lists `unlock-kinds` also an emote, a hairstyle (both action 2633, told apart by its
+  data as the server does), a barding (1013), a fashion accessory (20086), facewear (37312) or a framer's
+  kit (29459); a kind new to this machine goes in full at its first look,
   learned or not, one kind a call with `kind`. A kind goes in full (`full: true`) when this machine has no
   full report of it for the character, at the first look of a UTC day, on "Sammlung neu abgleichen", and
   when `GET /me/unlocks` answers a `learned` other than the one the server answered after this machine's
@@ -140,7 +143,10 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   is clicked; "Als Ziel hinzufügen" (`POST /me/goals`, the server picks the area) only for what is still to
   get: never something learned; a single thing (gear, a mount whistle) only outside the player's own
   storage, where it is held already; something that stacks (totems, dyes, materials) anywhere, after a
-  small dialog asks how many (`qty`; the bags' count as a hint). Decided from the goals last read, kept
+  small dialog asks how many (`qty`; the bags' count as a hint). Where the server lists `unlock-kinds`, an
+  item to learn is a goal to learn (not learned, not from the own storage) or, when it sells on the market
+  board, a goal to collect ("Als Sammelziel hinzufügen", `purpose: collect`, with a quantity), learned or
+  not; the goals view marks a goal to collect. Decided from the goals last read, kept
   fresh for the logged-in character, never read per right-click; the answer is the new state, the chat
   says what happened (409 learned or 500 goals, 400 unknown item, 404 sync the gear first, 429 later),
   and the tracked list is read again, so the new goal's item and costs are counted. The goals view can

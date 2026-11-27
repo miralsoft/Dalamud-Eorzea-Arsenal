@@ -11,7 +11,7 @@ namespace EorzeaArsenal.Plugin.UI;
 
 /// <summary>
 /// "Als Ziel hinzufügen" and "Ziel entfernen" in the game's context menu of an item (server 1.5,
-/// <c>goals-from-plugin</c>). The choice comes from the goals last read (<see cref="GoalsService.ChoiceFor"/>),
+/// <c>goals-from-plugin</c>). The choice comes from the goals last read (<see cref="GoalsService.ChoicesFor"/>),
 /// never from a read per right-click: "remove" for a goal; "add" only for what is still to get (never learned,
 /// a single thing only outside the player's own storage, something that stacks anywhere with a quantity asked
 /// first); nothing before the goals were read. The server picks the area and answers with the goals as they are
@@ -34,6 +34,7 @@ public sealed class GoalContextMenu : IDisposable
     private readonly Action<string> _chat;
     private readonly GoalQuantityWindow _quantity;
     private readonly Action _goalsChanged;
+    private readonly Func<bool> _learnOrCollect;
     private readonly ILog _log;
     private readonly CancellationTokenSource _cts = new();
     private volatile bool _writing;
@@ -51,6 +52,7 @@ public sealed class GoalContextMenu : IDisposable
     /// <param name="chat">Prints a line in the player's own chat.</param>
     /// <param name="quantity">Asks how many, for something collected in numbers.</param>
     /// <param name="goalsChanged">Called after a goal was added or removed (the tracked list follows the goals).</param>
+    /// <param name="learnOrCollect">Whether the server takes a goal's purpose (<c>unlock-kinds</c>).</param>
     /// <param name="log">Diagnostics sink.</param>
     public GoalContextMenu(
         IContextMenu menu,
@@ -65,6 +67,7 @@ public sealed class GoalContextMenu : IDisposable
         Action<string> chat,
         GoalQuantityWindow quantity,
         Action goalsChanged,
+        Func<bool> learnOrCollect,
         ILog log)
     {
         _menu = menu;
@@ -79,6 +82,7 @@ public sealed class GoalContextMenu : IDisposable
         _chat = chat;
         _quantity = quantity;
         _goalsChanged = goalsChanged;
+        _learnOrCollect = learnOrCollect;
         _log = log;
         _menu.OnMenuOpened += OnMenuOpened;
     }
@@ -98,22 +102,32 @@ public sealed class GoalContextMenu : IDisposable
                 return;
             }
 
-            var learned = _unlocks.IsItemUnlockable(row) && _unlocks.IsItemUnlocked(row);
-            var stacks = row.StackSize > 1;
-            var ownStorage = args.Target is MenuTargetInventory;
-            var choice = _goals.ChoiceFor(itemId, learned, stacks, ownStorage);
-            switch (choice.Action)
+            var unlockable = _unlocks.IsItemUnlockable(row);
+            var facts = new GoalItemFacts(
+                Unlockable: unlockable,
+                Learned: unlockable && _unlocks.IsItemUnlocked(row),
+                Sellable: !row.IsUntradable && row.ItemSearchCategory.RowId > 0,
+                Stacks: row.StackSize > 1,
+                OwnStorage: args.Target is MenuTargetInventory);
+            foreach (var choice in _goals.ChoicesFor(itemId, facts, _learnOrCollect()))
             {
-                case GoalMenuAction.Add:
-                    args.AddMenuItem(Entry(LocKeys.GoalMenuAdd, () => Add(itemId, null, cid)));
-                    break;
-                case GoalMenuAction.AddWithQuantity:
-                    args.AddMenuItem(Entry(LocKeys.GoalMenuAdd, () =>
-                        _quantity.Ask(_itemName((int)itemId), BagCount(itemId), quantity => Add(itemId, quantity, cid))));
-                    break;
-                case GoalMenuAction.Remove when choice.Goal is { } goal:
-                    args.AddMenuItem(Entry(LocKeys.GoalMenuRemove, () => Remove(goal.Id, itemId, cid)));
-                    break;
+                switch (choice.Action)
+                {
+                    case GoalMenuAction.Add:
+                        args.AddMenuItem(Entry(LocKeys.GoalMenuAdd, () => Add(itemId, null, collect: false, cid)));
+                        break;
+                    case GoalMenuAction.AddWithQuantity:
+                        args.AddMenuItem(Entry(LocKeys.GoalMenuAdd, () =>
+                            _quantity.Ask(_itemName((int)itemId), BagCount(itemId), quantity => Add(itemId, quantity, collect: false, cid))));
+                        break;
+                    case GoalMenuAction.AddToCollect:
+                        args.AddMenuItem(Entry(LocKeys.GoalMenuCollect, () =>
+                            _quantity.Ask(_itemName((int)itemId), BagCount(itemId), quantity => Add(itemId, quantity, collect: true, cid))));
+                        break;
+                    case GoalMenuAction.Remove when choice.Goal is { } goal:
+                        args.AddMenuItem(Entry(LocKeys.GoalMenuRemove, () => Remove(goal.Id, itemId, cid)));
+                        break;
+                }
             }
         }
         catch (Exception ex)
@@ -176,11 +190,11 @@ public sealed class GoalContextMenu : IDisposable
         }
     }
 
-    private void Add(uint itemId, long? quantity, string cid)
+    private void Add(uint itemId, long? quantity, bool collect, string cid)
     {
         var name = _itemName((int)itemId);
         Write(
-            () => _goals.AddAsync(itemId, quantity, Language(), cid, _cts.Token),
+            () => _goals.AddAsync(itemId, quantity, collect, Language(), cid, _cts.Token),
             _localizer.Get(LocKeys.GoalAdded, name),
             name);
     }
