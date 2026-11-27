@@ -29,6 +29,9 @@ public static class FeatureNames
 
     /// <summary>Goals: <c>unlocks</c> in the tracked items and <c>PUT /me/unlocks</c>.</summary>
     public const string Goals = "goals";
+
+    /// <summary>The collection: <c>kind</c> and <c>full</c> on <c>PUT /me/unlocks</c>, and its <c>GET</c> and <c>DELETE</c>.</summary>
+    public const string UnlockCollection = "unlock-collection";
 }
 
 /// <summary>

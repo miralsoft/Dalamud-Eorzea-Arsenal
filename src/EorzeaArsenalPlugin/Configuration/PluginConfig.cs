@@ -1,4 +1,5 @@
 using Dalamud.Configuration;
+using EorzeaArsenal.Abstractions;
 using EorzeaArsenal.Localization;
 using EorzeaArsenal.Model;
 
@@ -134,6 +135,16 @@ public sealed class PluginConfig : IPluginConfiguration
     /// Created once by the migration to version 4.
     /// </summary>
     public string InstallationId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Opt-in (server 1.5, <c>unlock-collection</c>): report the whole collection, every mount, minion,
+    /// orchestrion roll and Triple Triad card the character has learned, not only the goals. Off by default;
+    /// turning it off asks the server to forget it for every character reported from here.
+    /// </summary>
+    public bool ReportCollection { get; set; }
+
+    /// <summary>What this machine remembers of the collection per character (cid_hash) and kind.</summary>
+    public Dictionary<string, Dictionary<string, CollectionKindRecord>> CollectionRecords { get; set; } = [];
 
     /// <summary>Drops collected and not sent yet, kept on disk so a crash loses nothing.</summary>
     public List<DropReport> PendingDropReports { get; set; } = [];

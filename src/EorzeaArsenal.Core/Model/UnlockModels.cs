@@ -18,6 +18,12 @@ public sealed class UnlocksRequest
 
     /// <summary>Those of them whose unlock the character has learned.</summary>
     public required IReadOnlyList<int> Learned { get; init; }
+
+    /// <summary>The collection's kind (<see cref="UnlockKinds"/>); left out in the goals mode.</summary>
+    public string? Kind { get; init; }
+
+    /// <summary>With <see cref="Kind"/>: <c>checked</c> is every item of the kind, so anything else stored is cleared.</summary>
+    public bool? Full { get; init; }
 }
 
 /// <summary>Response of <c>PUT /me/unlocks</c>.</summary>
@@ -31,6 +37,61 @@ public sealed class UnlocksResult
 
     /// <summary>How many of the checked ids the server kept as unlock items.</summary>
     public int Checked { get; init; }
+
+    /// <summary>The state per kind after the call (with <c>unlock-collection</c>).</summary>
+    public Dictionary<string, UnlockKindState>? Kinds { get; init; }
+}
+
+/// <summary>What the server holds of one kind for a character.</summary>
+public sealed class UnlockKindState
+{
+    /// <summary>How many items of the kind are stored as learned.</summary>
+    public int Learned { get; init; }
+
+    /// <summary>How many items of the kind the server's catalog knows.</summary>
+    public int Known { get; init; }
+
+    /// <summary>When the plugin last reported some of the kind.</summary>
+    public string? CheckedAt { get; init; }
+
+    /// <summary>When the plugin last reported all of the kind.</summary>
+    public string? FullAt { get; init; }
+}
+
+/// <summary>Response of <c>GET /me/unlocks</c>.</summary>
+public sealed class MyUnlocksResponse
+{
+    /// <summary>The state.</summary>
+    public MyUnlocks? Data { get; init; }
+}
+
+/// <summary>The character and its state per kind.</summary>
+public sealed class MyUnlocks
+{
+    /// <summary>The server's id of the character.</summary>
+    public string? CharacterId { get; init; }
+
+    /// <summary>The state per kind.</summary>
+    public Dictionary<string, UnlockKindState> Kinds { get; init; } = [];
+}
+
+/// <summary>The four kinds of the collection, as the server names them.</summary>
+public static class UnlockKinds
+{
+    /// <summary>Mounts.</summary>
+    public const string Mount = "mount";
+
+    /// <summary>Minions.</summary>
+    public const string Minion = "minion";
+
+    /// <summary>Orchestrion rolls.</summary>
+    public const string Orchestrion = "orchestrion";
+
+    /// <summary>Triple Triad cards.</summary>
+    public const string Card = "card";
+
+    /// <summary>All four, in the order they are synced.</summary>
+    public static IReadOnlyList<string> All { get; } = [Mount, Minion, Orchestrion, Card];
 }
 
 /// <summary>The limits of the unlock report.</summary>

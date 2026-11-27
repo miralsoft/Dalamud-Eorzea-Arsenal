@@ -70,7 +70,9 @@ a choice next to the window; to check in the game: field 13 is the description, 
 light and the dark tooltip). Then the goals (server feature `goals`, contract-goals.md): learned unlocks of goal items via
 Dalamud's `IUnlockState` and `PUT /me/unlocks`; the tracked list read again on a manual sync and on a new
 key; opened storages sent even when empty; PvP not watched for drops; the drop watcher notes the
-inventory only after arrival and logs each report by name (a Mistwake run showed 6 false "received"). Next: the release, PR into main,
+inventory only after arrival and logs each report by name (a Mistwake run showed 6 false "received"). Then the collection (`unlock-collection`, own consent "Sammlung"): one kind a call, full reports by the
+rules of contract-goals.md, the login check against the server's `learned` kept after every report (the
+plugin side's proposal, confirmed by the server on 2026-11-27). Not yet on dev when built. Next: the release, PR into main,
 merge and tag in one sitting, the release-note date set to that day.
 
 The foundation moved from the 3.3.0 this repository was audited against to 5.3.0. The Dalamud profile

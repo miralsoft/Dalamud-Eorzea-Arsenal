@@ -121,6 +121,21 @@
       }
     },
     {
+      "id": "your-collection-on-the-website",
+      "version": "1.3.0",
+      "date": "2026-11-22",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Deine Sammlung auf der Webseite",
+        "body": "<p>Wenn du zustimmst, kennt die Webseite deine gelernten Reittiere, Begleiter, Orchestrion-Rollen und Karten.</p>"
+      },
+      "en": {
+        "title": "Your collection on the website",
+        "body": "<p>If you agree, the website knows your learned mounts, minions, orchestrion rolls and cards.</p>"
+      }
+    },
+    {
       "id": "the-armoire-counts-too",
       "version": "1.3.0",
       "date": "2026-11-22",

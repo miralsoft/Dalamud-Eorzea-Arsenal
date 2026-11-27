@@ -2323,6 +2323,15 @@ public static class LocKeys
     /// <summary>What the spot reports send and what not.</summary>
     public const string ReportWorldHint = "config.reportworld.hint";
 
+    /// <summary>Opt-in (server 1.5): report the whole collection.</summary>
+    public const string ReportCollection = "config.reportcollection";
+
+    /// <summary>What the collection reports and what turning it off does.</summary>
+    public const string ReportCollectionHint = "config.reportcollection.hint";
+
+    /// <summary>Button: send every kind of the collection in full.</summary>
+    public const string CollectionSyncAgain = "config.collection.syncagain";
+
     /// <summary>Consent dialog of 1.3.0: heading.</summary>
     public const string ConsentHeading = "consent.heading";
 

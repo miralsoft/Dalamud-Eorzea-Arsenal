@@ -64,6 +64,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly InventorySyncService _inventorySync;
     private readonly CurrencySyncService _currencySync;
     private readonly UnlockSyncService _unlockSync;
+    private readonly CollectionSyncService _collectionSync;
     private readonly IUnlockState _unlockState;
     private readonly ReportUploader<DropReport> _dropUploader;
     private readonly GameDropWatcher _dropWatcher;
@@ -327,6 +328,9 @@ public sealed class Plugin : IDalamudPlugin
         _unlockSync = new UnlockSyncService(
             new GameUnlockSource(clientState, playerState, framework, dataManager, unlockState, _log), api, _store, new SystemClock(),
             () => _trackedItems.Unlocks, _log);
+        _collectionSync = new CollectionSyncService(
+            new GameCollectionSource(clientState, playerState, framework, dataManager, unlockState, _log), api, _store, new SystemClock(),
+            () => _config.CollectionRecords, Save, _log);
         _unlockState.Unlock += OnUnlocked;
         _dropUploader = new ReportUploader<DropReport>(
             "drop",
@@ -436,14 +440,16 @@ public sealed class Plugin : IDalamudPlugin
         _whatsNewWindow = new WhatsNewWindow(_config, _localizer, Save);
         _reportWindow = new ReportWindow(_store, _localizer, api, _log, DescribeClient);
         _statusWindow = new StatusWindow(_config, _store, _localizer, _sync, _gearsetMapping, _inventorySync, _weeklySync, RequestManualPush, RequestInventorySync, RequestWeeklySync, OpenConfig, OpenBis, OpenAdvisor, OpenLog, OpenReview, () => _review.Summary() ?? _sync.LastReview, () => OpenReport("Status"), OpenTeams, OpenCalendar, OpenPreview, OpenWhatsNew, () => _bisService.AmbiguousLive.Count, () => _currentCidHash, OpenRelics, () => _features.Has(FeatureNames.Relics), () => _waiting.Total,
-            () => (_features.Has(FeatureNames.DropReports) && !_config.ReportDrops) || (_features.Has(FeatureNames.WorldReports) && !_config.ReportWorld),
+            () => (_features.Has(FeatureNames.DropReports) && !_config.ReportDrops) || (_features.Has(FeatureNames.WorldReports) && !_config.ReportWorld) ||
+                (CollectionOffered() && !_config.ReportCollection),
             () => _consentWindow?.Ask());
         _relicService = new RelicService(api, _store, _store, _log);
         _relicWindow = new RelicWindow(_localizer, _relicService, () => ServerCharacterId(_currentCidHash), () => _config.SyncInventory, WebAppBase, OpenExternalLink, OpenConfig, _log, _gearSource.GetItemName,
             code => _gameJobs.FirstOrDefault(j => string.Equals(j.Code, code, StringComparison.OrdinalIgnoreCase)), textureProvider);
         _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage, OwnChatNotice, _features.Has, _waiting);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
-        _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _keyScopes, _log, Save, () => Localizer.Nearest(_pluginInterface.UiLanguage));
+        _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _keyScopes, _log, Save, () => Localizer.Nearest(_pluginInterface.UiLanguage),
+            CollectionOffered, () => { if (CollectionActive()) { _collectionSync.Request(CollectionTrigger.Full); } });
         _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _obtainService, _worldActions, _holdingsService, _log);
         _gameTooltipBis = new GameTooltipBis(addonLifecycle, _config, _bisTooltip, _log);
         _windowSystem.AddWindow(_previewWindow);
@@ -455,7 +461,7 @@ public sealed class Plugin : IDalamudPlugin
         _windowSystem.AddWindow(_advisorWindow);
         _windowSystem.AddWindow(_relicWindow);
         _consentWindow = new ConsentWindow(_config, _localizer, Save,
-            () => _features.Has(FeatureNames.DropReports), () => _features.Has(FeatureNames.WorldReports));
+            () => _features.Has(FeatureNames.DropReports), () => _features.Has(FeatureNames.WorldReports), CollectionOffered);
         _windowSystem.AddWindow(_consentWindow);
         _windowSystem.AddWindow(_logWindow);
         _windowSystem.AddWindow(_statusWindow);
@@ -556,6 +562,7 @@ public sealed class Plugin : IDalamudPlugin
         _currencySync.Dispose();
         _unlockState.Unlock -= OnUnlocked;
         _unlockSync.Dispose();
+        _collectionSync.Dispose();
         _relicWindow.Dispose();
         _dropWatcher.Dispose();
         _worldWatcher.Dispose();
@@ -1403,8 +1410,9 @@ public sealed class Plugin : IDalamudPlugin
     /// <param name="trigger">What asked.</param>
     private void RequestUnlockSync(UnlockTrigger trigger)
     {
+        // The collection holds the goals' items too; with it on, the goals mode is not used.
         if (_config is not { Enabled: true, TosAccepted: true, SyncInventory: true } || !_store.HasKey ||
-            !_features.Has(FeatureNames.Goals) || !CurrentCharacterAllowed())
+            !_features.Has(FeatureNames.Goals) || !CurrentCharacterAllowed() || CollectionActive())
         {
             return;
         }
@@ -1420,11 +1428,29 @@ public sealed class Plugin : IDalamudPlugin
     /// <summary>The game reports something learned: a goal's mount, minion, roll or card may be among it.</summary>
     private void OnUnlocked(Lumina.Excel.RowRef rowRef)
     {
+        if (CollectionActive())
+        {
+            // Like the goals mode's change, a send nobody asked for at that moment: only with an automatic switch.
+            if (_config.PushOnLogin || _config.AutoPush || _config.PushOnGearsetChange)
+            {
+                _collectionSync.Request(CollectionTrigger.Change);
+            }
+
+            return;
+        }
+
         if (_trackedItems.Unlocks.Count > 0)
         {
             RequestUnlockSync(UnlockTrigger.Change);
         }
     }
+
+    /// <summary>Whether the server takes the collection: the goals and <c>unlock-collection</c>.</summary>
+    private bool CollectionOffered() => _features.Has(FeatureNames.Goals) && _features.Has(FeatureNames.UnlockCollection);
+
+    /// <summary>Whether the collection is reported now: its own consent, the terms, a key, a server that takes it.</summary>
+    private bool CollectionActive() =>
+        _config is { Enabled: true, TosAccepted: true, ReportCollection: true } && _store.HasKey && CollectionOffered() && CurrentCharacterAllowed();
 
     /// <summary>
     /// Asks the currency sync for an attempt, gated like the other transfers plus its own switch.
@@ -1575,6 +1601,7 @@ public sealed class Plugin : IDalamudPlugin
 
         _currencySync.StartSession();
         _unlockSync.StartSession();
+        _collectionSync.StartSession();
         _inventorySource.StartSession();
         _log.Info("New game session (logged in).");
 
@@ -1736,11 +1763,24 @@ public sealed class Plugin : IDalamudPlugin
 
             AskConsentOnce();
 
+            // The collection: its once-a-session look while on; turned off, the server forgets what was reported.
+            if (CollectionActive())
+            {
+                _collectionSync.Request(CollectionTrigger.Check);
+            }
+            else if (!_config.ReportCollection && _config.CollectionRecords.Count > 0 && _store.HasKey && CollectionOffered())
+            {
+                _ = _collectionSync.ForgetAsync(_shutdown.Token);
+            }
+
             // The tracked list belongs to the account behind the key (its goals): another key reads it again.
             if (_trackedKey is not null && _store.HasKey && !string.Equals(_trackedKey, _store.ApiKey, StringComparison.Ordinal))
             {
                 _trackedKey = null;
                 RefreshTrackedItems();
+
+                // A new pairing: every character gets a first full sync of its collection again.
+                _collectionSync.ForgetLocalState();
             }
         }
 
@@ -2070,6 +2110,10 @@ public sealed class Plugin : IDalamudPlugin
             // A gear sync went through, which is also what a currency 404 waits for.
             RequestCurrencySync(CurrencyTrigger.AfterGearSync);
             RequestUnlockSync(UnlockTrigger.AfterGearSync);
+            if (CollectionActive())
+            {
+                _collectionSync.Request(CollectionTrigger.AfterGearSync);
+            }
 
             // A gearset counts toward a relic, so the relic view reads again when it is next drawn.
             _relicService.Invalidate();

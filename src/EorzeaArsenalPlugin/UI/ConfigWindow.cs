@@ -36,6 +36,8 @@ public sealed class ConfigWindow : Window, IDisposable
 
     /// <summary>What the host's interface language resolves to, for the "same as the host" entry.</summary>
     private readonly Func<string> _hostLanguage;
+    private readonly Func<bool> _collectionOffered;
+    private readonly Action _syncCollectionAgain;
 
     private string _baseUrl;
     private string _webAppUrl;
@@ -61,6 +63,8 @@ public sealed class ConfigWindow : Window, IDisposable
     /// The catalogue the host's interface language resolves to. Named in the "same as the host" entry, so
     /// that choice is not made blind.
     /// </param>
+    /// <param name="collectionOffered">Whether the server takes the collection (<c>unlock-collection</c>).</param>
+    /// <param name="syncCollectionAgain">Sends every kind of the collection in full, for the button.</param>
     public ConfigWindow(
         PluginConfig config,
         ConfigStore store,
@@ -70,9 +74,13 @@ public sealed class ConfigWindow : Window, IDisposable
         KeyScopeService keyScopes,
         ILog log,
         Action save,
-        Func<string> hostLanguage)
+        Func<string> hostLanguage,
+        Func<bool> collectionOffered,
+        Action syncCollectionAgain)
         : base("Eorzea Arsenal###EorzeaArsenalConfig")
     {
+        _collectionOffered = collectionOffered;
+        _syncCollectionAgain = syncCollectionAgain;
         _config = config;
         _store = store;
         _localizer = localizer;
@@ -594,6 +602,29 @@ public sealed class ConfigWindow : Window, IDisposable
         }
 
         Help(T(LocKeys.ReportWorldHint));
+
+        // The collection (server 1.5): its own consent, shown only where the server takes it.
+        if (_collectionOffered())
+        {
+            var collection = _config.ReportCollection;
+            if (ImGui.Checkbox(T(LocKeys.ReportCollection), ref collection))
+            {
+                _config.ReportCollection = collection;
+                _save();
+            }
+
+            Help(T(LocKeys.ReportCollectionHint));
+            if (_config.ReportCollection)
+            {
+                ImGui.Indent();
+                if (ImGui.SmallButton(T(LocKeys.CollectionSyncAgain)))
+                {
+                    _syncCollectionAgain();
+                }
+
+                ImGui.Unindent();
+            }
+        }
 
         var syncWeekly = _config.SyncWeekly;
         if (ImGui.Checkbox(T(LocKeys.SyncWeekly), ref syncWeekly))

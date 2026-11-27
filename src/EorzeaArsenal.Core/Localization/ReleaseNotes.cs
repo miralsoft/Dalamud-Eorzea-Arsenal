@@ -97,6 +97,11 @@ public static class ReleaseNotes
                 "Goals tick themselves off: once you learn a mount, minion, orchestrion roll or card from your goals, the website sees it by itself."),
             new ReleaseNoteItem(
                 ReleaseNoteKind.Added,
+                "your-collection-on-the-website",
+                "Deine Sammlung auf der Webseite: Wenn du zustimmst, kennt die Webseite deine gelernten Reittiere, Begleiter, Orchestrion-Rollen und Karten.",
+                "Your collection on the website: if you agree, the website knows your learned mounts, minions, orchestrion rolls and cards."),
+            new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
                 "the-armoire-counts-too",
                 "Das Kabinett zählt mit: Was dort liegt, wird mit deinem Besitz übertragen, sobald du es einmal geöffnet hast.",
                 "The armoire counts too: what it holds is synced with your items once you have opened it."),

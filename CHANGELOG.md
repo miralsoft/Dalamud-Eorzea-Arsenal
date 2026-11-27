@@ -116,6 +116,16 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   something learned, at most every five minutes and only when different. A 404 waits for a gear sync, a
   429 for its `Retry-After`, a 401 or 403 stops, a 400 or 422 is not repeated. Runs with the inventory
   sync, no switch of its own.
+- **The collection** (`CollectionSyncService`, `GameCollectionSource`; where the server lists `goals` and
+  `unlock-collection`, with its own consent line "Sammlung" in the dialog and the settings, off by default):
+  every item of the game that unlocks a mount (355), minion (584), orchestrion roll (886) or card (475),
+  learned or not, one kind a call with `kind`. A kind goes in full (`full: true`) when this machine has no
+  full report of it for the character, at the first look of a UTC day, on "Sammlung neu abgleichen", and
+  when `GET /me/unlocks` answers a `learned` other than the one the server answered after this machine's
+  last report of the kind (kept after every report, full or changed-only, as agreed with the server).
+  Between those only changed items go, at most every five minutes. Turning it off calls
+  `DELETE /me/unlocks` for every character reported from here; a new key starts the first sync again.
+  With the collection on, the goals mode is not used.
 - **The tracked list is read again when it may have changed**: on a manual inventory sync (a goal just
   made on the website counts at once) and when another key is connected (the list is the account's).
 - **An opened glamour dresser or armoire is sent even when empty**: the plugin sees its window, so an

@@ -7,7 +7,7 @@ using EorzeaArsenal.Plugin.Configuration;
 namespace EorzeaArsenal.Plugin.UI;
 
 /// <summary>
-/// The one dialog of 1.3.0 that asks what may be sent: the inventory sync, the drop reports and the spot
+/// The one dialog of 1.3.0 that asks what may be sent: the inventory sync, the collection, the drop reports and the spot
 /// reports, together and once, as server 1.5 asks. It shows on the update and on a new installation's first
 /// connected session. The reports start off; closing without saving is no, and either way the dialog is
 /// not shown again. Everything stays changeable in the settings.
@@ -22,6 +22,8 @@ public sealed class ConsentWindow : Window
     private readonly Action _save;
     private readonly Func<bool> _dropsOffered;
     private readonly Func<bool> _worldOffered;
+    private readonly Func<bool> _collectionOffered;
+    private bool _collection;
     private bool _inventory;
     private bool _drops;
     private bool _world;
@@ -32,7 +34,8 @@ public sealed class ConsentWindow : Window
     /// <param name="save">Persists the config.</param>
     /// <param name="dropsOffered">Whether the server takes drop reports.</param>
     /// <param name="worldOffered">Whether the server takes spot reports.</param>
-    public ConsentWindow(PluginConfig config, Localizer localizer, Action save, Func<bool> dropsOffered, Func<bool> worldOffered)
+    /// <param name="collectionOffered">Whether the server takes the collection.</param>
+    public ConsentWindow(PluginConfig config, Localizer localizer, Action save, Func<bool> dropsOffered, Func<bool> worldOffered, Func<bool> collectionOffered)
         : base("Eorzea Arsenal · 1.3.0###EorzeaArsenalConsent", ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse)
     {
         _config = config;
@@ -40,6 +43,7 @@ public sealed class ConsentWindow : Window
         _save = save;
         _dropsOffered = dropsOffered;
         _worldOffered = worldOffered;
+        _collectionOffered = collectionOffered;
 
         // Escape closes Dalamud windows, and a close counts as no. Pressed for something else in the game, it
         // would answer this question unseen, so only the window's own close button or "save" ends it.
@@ -54,6 +58,7 @@ public sealed class ConsentWindow : Window
         _inventory = _config.SyncInventory;
         _drops = _config.ReportDrops;
         _world = _config.ReportWorld;
+        _collection = _config.ReportCollection;
         IsOpen = true;
     }
 
@@ -80,6 +85,11 @@ public sealed class ConsentWindow : Window
         ImGui.Spacing();
 
         Choice(LocKeys.SyncInventory, LocKeys.SyncInventoryHint, ref _inventory);
+        if (_collectionOffered())
+        {
+            Choice(LocKeys.ReportCollection, LocKeys.ReportCollectionHint, ref _collection);
+        }
+
         if (_dropsOffered())
         {
             Choice(LocKeys.ReportDrops, LocKeys.ReportDropsHint, ref _drops);
@@ -97,6 +107,7 @@ public sealed class ConsentWindow : Window
             _config.SyncInventory = _inventory;
             _config.ReportDrops = _drops && _dropsOffered();
             _config.ReportWorld = _world && _worldOffered();
+            _config.ReportCollection = _collection && _collectionOffered();
             _config.ReportConsentAsked = true;
             _save();
             IsOpen = false;
