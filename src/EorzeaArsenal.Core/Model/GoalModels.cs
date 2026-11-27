@@ -149,6 +149,9 @@ public sealed class GoalAddRequest
 
     /// <summary>The item to want.</summary>
     public required long ItemId { get; init; }
+
+    /// <summary>How many are wanted, for something collected in numbers; left out for one.</summary>
+    public long? Qty { get; init; }
 }
 
 /// <summary>The character a goal is for: only <c>cid_hash</c> is read.</summary>

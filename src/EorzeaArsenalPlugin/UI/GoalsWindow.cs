@@ -38,6 +38,7 @@ public sealed class GoalsWindow : Window, IDisposable
     private readonly Func<int, string> _gameItemName;
     private readonly ITextureProvider _textures;
     private readonly ILog _log;
+    private readonly Action _goalsChanged;
     private readonly CancellationTokenSource _cts = new();
     private volatile string? _message;
     private volatile bool _writing;
@@ -54,6 +55,7 @@ public sealed class GoalsWindow : Window, IDisposable
     /// <param name="gameItemName">The game's name of an item, for one the server sends without a name.</param>
     /// <param name="textures">Loads the icons.</param>
     /// <param name="log">Diagnostics sink.</param>
+    /// <param name="goalsChanged">Called after a goal was removed (the tracked list follows the goals).</param>
     public GoalsWindow(
         Localizer localizer,
         GoalsService goals,
@@ -64,7 +66,8 @@ public sealed class GoalsWindow : Window, IDisposable
         Func<int, uint> iconId,
         Func<int, string> gameItemName,
         ITextureProvider textures,
-        ILog log)
+        ILog log,
+        Action goalsChanged)
         : base("Eorzea Arsenal · Goals###EorzeaArsenalGoals")
     {
         _localizer = localizer;
@@ -77,6 +80,7 @@ public sealed class GoalsWindow : Window, IDisposable
         _gameItemName = gameItemName;
         _textures = textures;
         _log = log;
+        _goalsChanged = goalsChanged;
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -228,6 +232,10 @@ public sealed class GoalsWindow : Window, IDisposable
                 else if (!goal.Learnable && goal.Qty > 1)
                 {
                     ImGui.TextUnformatted(T(LocKeys.GoalHeldOf, Number(goal.Held), Number(goal.Qty)));
+                }
+                else if (goal.Held > 0)
+                {
+                    ImGui.TextUnformatted(T(LocKeys.GoalHeld, Number(goal.Held)));
                 }
 
                 if (goal.Progress is { Cost.Count: > 0 } progress)
@@ -406,6 +414,10 @@ public sealed class GoalsWindow : Window, IDisposable
             {
                 var error = await _goals.RemoveAsync(goal.Id, language, cid, _cts.Token).ConfigureAwait(false);
                 _message = error is null ? T(LocKeys.GoalRemoved, name) : GoalMessages.Describe(_localizer, error, name);
+                if (error is null)
+                {
+                    _goalsChanged();
+                }
             }
             catch (OperationCanceledException)
             {

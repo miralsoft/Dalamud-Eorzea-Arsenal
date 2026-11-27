@@ -2428,6 +2428,24 @@ public static class LocKeys
     /// <summary>The first way's costs of an item.</summary>
     public const string TeamGoalCost = "teams.goals.cost";
 
+    /// <summary>How many of a goal's item the character holds.</summary>
+    public const string GoalHeld = "goals.held";
+
+    /// <summary>The quantity dialog's question.</summary>
+    public const string GoalQtyQuestion = "goals.qty.question";
+
+    /// <summary>What the bags hold, in the quantity dialog.</summary>
+    public const string GoalQtyInBags = "goals.qty.inbags";
+
+    /// <summary>A quantity not above what is held.</summary>
+    public const string GoalQtyHeldAlready = "goals.qty.heldalready";
+
+    /// <summary>The quantity dialog's button.</summary>
+    public const string GoalQtyAdd = "goals.qty.add";
+
+    /// <summary>The quantity dialog's cancel button.</summary>
+    public const string GoalQtyCancel = "goals.qty.cancel";
+
     /// <summary>Consent dialog of 1.3.0: heading.</summary>
     public const string ConsentHeading = "consent.heading";
 

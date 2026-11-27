@@ -211,6 +211,21 @@
       }
     },
     {
+      "id": "current-after-shopping",
+      "version": "1.3.0",
+      "date": "2026-11-22",
+      "kind": "change",
+      "source": "plugin",
+      "de": {
+        "title": "Aktuell nach dem Einkauf",
+        "body": "<p>Schließt du einen Händler oder Tausch, werden dein Besitz und deine Währungen gleich übertragen.</p>"
+      },
+      "en": {
+        "title": "Current after shopping",
+        "body": "<p>When you close a shop or an exchange, your items and currencies are sent right away.</p>"
+      }
+    },
+    {
       "id": "retainers-sync-again",
       "version": "1.3.0",
       "date": "2026-11-22",

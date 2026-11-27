@@ -26,6 +26,12 @@ public enum InventoryTrigger
     /// is when their contents, and whatever was moved in or out, can be sent. Forces a send like a retainer.
     /// </summary>
     Storage,
+
+    /// <summary>
+    /// A shop or an exchange closed: something may have been bought, traded or handed in. Not held back by the
+    /// auto-sync interval, but sends only what changed, so a look into a shop costs no upload.
+    /// </summary>
+    Shop,
 }
 
 /// <summary>The classified outcome of an inventory upload attempt.</summary>
@@ -175,7 +181,7 @@ public sealed class InventorySyncService : IDisposable
 
     private async Task PrepareCharacterAsync(InventoryTrigger trigger)
     {
-        var force = trigger != InventoryTrigger.Auto;
+        var force = trigger is not (InventoryTrigger.Auto or InventoryTrigger.Shop);
         var now = _clock.UtcNow;
 
         if (now < _backoffUntilUtc)
@@ -184,7 +190,7 @@ public sealed class InventorySyncService : IDisposable
             return;
         }
 
-        if (!force && now - _lastPushUtc < MinAutoSyncInterval)
+        if (trigger == InventoryTrigger.Auto && now - _lastPushUtc < MinAutoSyncInterval)
         {
             Raise(new InventoryReport(InventoryOutcome.SkippedThrottled));
             return;

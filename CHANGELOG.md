@@ -135,13 +135,22 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   The view shows the open goals with each cost's "have / need" and what is missing, "Was noch fehlt" and
   the done goals with why; every number is the server's. A link opens the goals page, a goal's name its
   item page. The team tab "Ziele" shows the shared goals (`GET /teams/{id}/goals`), held in memory only.
-- **Goals from the context menu** (`GoalContextMenu`; where the server lists `goals-from-plugin`): "Als
-  Ziel hinzufügen" (`POST /me/goals`, the server picks the area) on an item that is no goal and not
-  learned, "Ziel entfernen" (`DELETE /me/goals/{id}`) on one that is, on an inventory slot or the item
-  under the cursor in another window. Decided from the goals last read, kept fresh for the logged-in
-  character, never read per right-click; the answer is the new state, and the chat says what happened
-  (409 learned or 500 goals, 400 unknown item, 404 sync the gear first, 429 later). The goals view can
-  remove a goal too, after a second click. Ticking, changing and "learned" stay on the website.
+- **Goals from the context menu** (`GoalContextMenu`, `GoalQuantityWindow`; where the server lists
+  `goals-from-plugin`): "Ziel entfernen" (`DELETE /me/goals/{id}`) on an item that is a goal, wherever it
+  is clicked; "Als Ziel hinzufügen" (`POST /me/goals`, the server picks the area) only for what is still to
+  get: never something learned; a single thing (gear, a mount whistle) only outside the player's own
+  storage, where it is held already; something that stacks (totems, dyes, materials) anywhere, after a
+  small dialog asks how many (`qty`; the bags' count as a hint). Decided from the goals last read, kept
+  fresh for the logged-in character, never read per right-click; the answer is the new state, the chat
+  says what happened (409 learned or 500 goals, 400 unknown item, 404 sync the gear first, 429 later),
+  and the tracked list is read again, so the new goal's item and costs are counted. The goals view can
+  remove a goal too, after a second click, and names what is held of each goal. Ticking, changing and
+  "learned" stay on the website.
+- **Closing a shop or an exchange syncs** the inventory and the currencies (`InventoryTrigger.Shop`): gil
+  shops, currency and item exchanges, the Grand Company, collectables, the marketboard and hand-ins. Not
+  held back by the 15-minute auto interval, but only what changed is sent, and several shops in a row make
+  one sync a minute at most. A stored currency sync makes the goals view read again, as a gear or
+  inventory sync already did.
 - **The tracked list is read again when it may have changed**: on a manual inventory sync (a goal just
   made on the website counts at once) and when another key is connected (the list is the account's).
 - **An opened glamour dresser or armoire is sent even when empty**: the plugin sees its window, so an

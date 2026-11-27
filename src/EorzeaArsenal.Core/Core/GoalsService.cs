@@ -142,14 +142,26 @@ public sealed class GoalsService
     }
 
     /// <summary>
-    /// What the game's context menu of an item offers (<c>goals-from-plugin</c>): "remove" for an item that is a
-    /// goal, "add" for one that is not and, if it unlocks something, is not learned yet, else nothing. Decided
-    /// from the goals last read, never from a read per right-click; before the first read nothing is offered.
+    /// What the game's context menu of an item offers (<c>goals-from-plugin</c>), decided from the goals last
+    /// read, never from a read per right-click; before the first read nothing is offered.
     /// </summary>
+    /// <remarks>
+    /// The rule agreed with the operator (2026-11-28): a goal is something still to get. So:
+    /// <list type="bullet">
+    /// <item>An item that is a goal offers "remove", wherever it is clicked.</item>
+    /// <item>Something learned is never a goal: there is nothing more of it to get.</item>
+    /// <item>Something one collects more of (it stacks: totems, dyes, materials) may be a goal anywhere, with a
+    /// quantity, since one unit is reached at once by what is held.</item>
+    /// <item>A single thing (gear, a mount whistle) is a goal only where it is not the player's own: in the
+    /// player's own storage it is held already, and an unlock held is simply to be used.</item>
+    /// </list>
+    /// </remarks>
     /// <param name="itemId">The item, without the HQ or collectable offset.</param>
     /// <param name="learned">Whether the item unlocks something the character has learned.</param>
+    /// <param name="stacks">Whether the item stacks, so more of it can be collected.</param>
+    /// <param name="ownStorage">Whether the menu is an inventory slot of the player's own (bags, armoury, saddlebag, retainer).</param>
     /// <returns>The choice, with the goal for "remove".</returns>
-    public GoalMenuChoice ChoiceFor(long itemId, bool learned)
+    public GoalMenuChoice ChoiceFor(long itemId, bool learned, bool stacks, bool ownStorage)
     {
         var mine = Mine;
         if (mine is null || itemId <= 0)
@@ -162,16 +174,27 @@ public sealed class GoalsService
             return new GoalMenuChoice(GoalMenuAction.Remove, goal);
         }
 
-        return learned ? GoalMenuChoice.None : new GoalMenuChoice(GoalMenuAction.Add, null);
+        if (learned)
+        {
+            return GoalMenuChoice.None;
+        }
+
+        if (stacks)
+        {
+            return new GoalMenuChoice(GoalMenuAction.AddWithQuantity, null);
+        }
+
+        return ownStorage ? GoalMenuChoice.None : new GoalMenuChoice(GoalMenuAction.Add, null);
     }
 
     /// <summary>Adds an item as a goal of the logged-in character; the answer replaces what was read.</summary>
     /// <param name="itemId">The item.</param>
+    /// <param name="quantity">How many are wanted, or <see langword="null"/> for the website's default of one.</param>
     /// <param name="language"><c>de</c> or <c>en</c>.</param>
     /// <param name="cidHash">The logged-in character.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns><see langword="null"/> on success, else the error.</returns>
-    public async Task<ApiError?> AddAsync(long itemId, string language, string cidHash, CancellationToken ct)
+    public async Task<ApiError?> AddAsync(long itemId, long? quantity, string language, string cidHash, CancellationToken ct)
     {
         var key = _tokens.ApiKey;
         if (string.IsNullOrEmpty(key))
@@ -179,7 +202,12 @@ public sealed class GoalsService
             return new ApiError { Kind = ApiErrorKind.Unauthorized, Message = "Not connected." };
         }
 
-        var request = new GoalAddRequest { Character = new GoalCharacter { CidHash = cidHash }, ItemId = itemId };
+        var request = new GoalAddRequest
+        {
+            Character = new GoalCharacter { CidHash = cidHash },
+            ItemId = itemId,
+            Qty = quantity is > 0 ? quantity : null,
+        };
         var result = await _api.AddGoalAsync(key, request, language, ct).ConfigureAwait(false);
         return Took(result, language, cidHash, "add");
     }
@@ -234,8 +262,11 @@ public enum GoalMenuAction
     /// <summary>Nothing: no goals read yet, or the item's unlock is learned.</summary>
     None,
 
-    /// <summary>"Als Ziel hinzufügen".</summary>
+    /// <summary>"Als Ziel hinzufügen", one of it.</summary>
     Add,
+
+    /// <summary>"Als Ziel hinzufügen" for something collected in numbers: the player says how many first.</summary>
+    AddWithQuantity,
 
     /// <summary>"Ziel entfernen".</summary>
     Remove,

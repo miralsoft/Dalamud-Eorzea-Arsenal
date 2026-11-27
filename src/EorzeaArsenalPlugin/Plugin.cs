@@ -78,6 +78,12 @@ public sealed class Plugin : IDalamudPlugin
     private volatile string? _trackedKey;
     private bool _dresserOpen;
     private bool _armoireOpen;
+
+    // The shop window open on the last look, whether a shop sync waits for its minute, and which one closed.
+    private string? _openShop;
+    private bool _shopSyncPending;
+    private string? _shopClosedName;
+    private long _nextShopSyncTicks;
     private readonly IGameGui _gameGui;
     private readonly WeeklySyncService _weeklySync;
     private readonly TeamsService _teamsService;
@@ -123,6 +129,11 @@ public sealed class Plugin : IDalamudPlugin
     private readonly GoalsService _goalsService;
     private readonly GoalsWindow _goalsWindow;
     private readonly GoalContextMenu _goalMenu;
+    private readonly GoalQuantityWindow _goalQuantityWindow;
+
+    // A goal was added or removed from the game: the tracked list grows and shrinks with the goals, so it is
+    // read again on the next frame, and what the bags hold of the new goal is sent.
+    private volatile bool _goalsChangedPending;
     private readonly LogWindow _logWindow;
 #if EORZEA_ARSENAL_DEVTOOLS
 
@@ -451,10 +462,12 @@ public sealed class Plugin : IDalamudPlugin
             OpenGoals,
             GoalsOffered);
         _goalsService = new GoalsService(api, _store, _store, _log);
+        _currencySync.Completed += OnCurrencyCompleted;
         _goalsWindow = new GoalsWindow(_localizer, _goalsService, () => _currentCidHash, GoalsWriteOffered, WebAppBase, OpenExternalLink,
-            _gearSource.GetItemIconId, _gearSource.GetItemName, textureProvider, _log);
+            _gearSource.GetItemIconId, _gearSource.GetItemName, textureProvider, _log, OnGoalsChanged);
+        _goalQuantityWindow = new GoalQuantityWindow(_localizer);
         _goalMenu = new GoalContextMenu(contextMenu, gameGui, dataManager, unlockState, _goalsService, _localizer, GoalsWriteOffered,
-            () => _currentCidHash, _gearSource.GetItemName, Chat, _log);
+            () => _currentCidHash, _gearSource.GetItemName, Chat, _goalQuantityWindow, OnGoalsChanged, _log);
         _relicService = new RelicService(api, _store, _store, _log);
         _relicWindow = new RelicWindow(_localizer, _relicService, () => ServerCharacterId(_currentCidHash), () => _config.SyncInventory, WebAppBase, OpenExternalLink, OpenConfig, _log, _gearSource.GetItemName,
             code => _gameJobs.FirstOrDefault(j => string.Equals(j.Code, code, StringComparison.OrdinalIgnoreCase)), textureProvider);
@@ -473,6 +486,7 @@ public sealed class Plugin : IDalamudPlugin
         _windowSystem.AddWindow(_advisorWindow);
         _windowSystem.AddWindow(_relicWindow);
         _windowSystem.AddWindow(_goalsWindow);
+        _windowSystem.AddWindow(_goalQuantityWindow);
         _consentWindow = new ConsentWindow(_config, _localizer, Save,
             ReportsOffered, CollectionOffered);
         _windowSystem.AddWindow(_consentWindow);
@@ -571,6 +585,7 @@ public sealed class Plugin : IDalamudPlugin
         _sync.Dispose();
         _review.Dispose();
         _inventorySync.SyncCompleted -= OnInventoryCompleted;
+        _currencySync.Completed -= OnCurrencyCompleted;
         _inventorySync.Dispose();
         _currencySync.Dispose();
         _unlockState.Unlock -= OnUnlocked;
@@ -621,6 +636,17 @@ public sealed class Plugin : IDalamudPlugin
     private void OpenRelics() => _relicWindow.IsOpen = true;
 
     private void OpenGoals() => _goalsWindow.IsOpen = true;
+
+    private void OnGoalsChanged() => _goalsChangedPending = true;
+
+    /// <summary>A goal's costs are often currencies (MGP, tomestones, gil): stored ones make the goals read again.</summary>
+    private void OnCurrencyCompleted(CurrencyReport report)
+    {
+        if (report.Outcome == CurrencyOutcome.Sent)
+        {
+            _goalsService.Invalidate();
+        }
+    }
 
     /// <summary>
     /// The server's numeric character id for a <c>cid_hash</c>, which personal per-character endpoints
@@ -1905,6 +1931,12 @@ public sealed class Plugin : IDalamudPlugin
             }
 
             DetectStorageClosed(now);
+
+            if (_goalsChangedPending)
+            {
+                _goalsChangedPending = false;
+                RefreshTrackedItems(thenSyncInventory: true, syncTrigger: InventoryTrigger.Shop);
+            }
         }
 
         if (_config.SyncWeekly && _config.AutoPush && now >= _nextWeeklyAutoTicks)
@@ -2018,12 +2050,57 @@ public sealed class Plugin : IDalamudPlugin
 
         _dresserOpen = dresser;
         _armoireOpen = armoire;
+
+        _openShop = DetectShopClosed(now, _openShop);
         if (closed.Count > 0)
         {
             _log.Info($"{string.Join(" and ", closed)} closed: syncing the inventory.");
             RequestCharacterInventorySync(InventoryTrigger.Storage);
         }
     }
+
+    /// <summary>
+    /// A shop or an exchange closed: what was bought, traded or handed in changed the bags and the purse, and a
+    /// goal's progress counts both. Both syncs send only what changed, so a look into a shop costs nothing.
+    /// Several shops in a row make one sync: the next at most a minute later.
+    /// </summary>
+    /// <returns>The shop window open now, or <see langword="null"/>.</returns>
+    private string? DetectShopClosed(long now, string? wasOpen)
+    {
+        var shop = ShopWindows.FirstOrDefault(AddonVisible);
+        if (shop is not null)
+        {
+            return shop;
+        }
+
+        if (wasOpen is not null)
+        {
+            _shopSyncPending = true;
+            _shopClosedName = wasOpen;
+        }
+
+        if (_shopSyncPending && now >= _nextShopSyncTicks)
+        {
+            _shopSyncPending = false;
+            _nextShopSyncTicks = now + 60_000;
+            _log.Info($"shop ({_shopClosedName}) closed: syncing the inventory and the currencies.");
+            RequestCharacterInventorySync(InventoryTrigger.Shop);
+            RequestCurrencySync(CurrencyTrigger.AfterInventorySync);
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The game's shop and exchange windows: gil shops, currency and item exchanges (tomestones, MGP, totems,
+    /// scrips, seals), the Grand Company, collectables, the marketboard and NPC hand-ins.
+    /// </summary>
+    private static readonly string[] ShopWindows =
+    [
+        "Shop", "ShopExchangeCurrency", "ShopExchangeItem", "ShopExchangeCoin", "InclusionShop", "FreeShop",
+        "GrandCompanyExchange", "SkyIslandExchange", "CollectablesShop", "TripleTriadCoinExchange", "ItemSearch",
+        "Request",
+    ];
 
     private bool AddonVisible(string name)
     {

@@ -126,6 +126,11 @@ public static class ReleaseNotes
                 "Ziele per Rechtsklick: Im Kontextmenü eines Gegenstands fügst du ihn als Ziel hinzu oder entfernst das Ziel.",
                 "Goals by right-click: in an item's context menu you add it as a goal or remove the goal."),
             new ReleaseNoteItem(
+                ReleaseNoteKind.Improved,
+                "current-after-shopping",
+                "Aktuell nach dem Einkauf: Schließt du einen Händler oder Tausch, werden dein Besitz und deine Währungen gleich übertragen.",
+                "Current after shopping: when you close a shop or an exchange, your items and currencies are sent right away."),
+            new ReleaseNoteItem(
                 ReleaseNoteKind.Fixed,
                 "retainers-sync-again",
                 "Gehilfen erneut abgleichen: Öffnest du denselben Gehilfen noch einmal, wird sein Inhalt wieder übertragen.",

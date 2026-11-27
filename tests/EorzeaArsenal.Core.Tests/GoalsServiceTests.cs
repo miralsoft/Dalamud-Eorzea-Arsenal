@@ -135,20 +135,48 @@ public sealed class GoalsServiceTests
             MyGoalsResult = ApiResult<MyGoalsResponse>.Ok(JsonSerializer.Deserialize<MyGoalsResponse>(MineJson, EorzeaJson.Options)!),
         };
         var service = Service(api);
-        Assert.Equal(GoalMenuAction.None, service.ChoiceFor(44505, learned: false).Action);
+        Assert.Equal(GoalMenuAction.None, service.ChoiceFor(44505, learned: false, stacks: false, ownStorage: false).Action);
 
         await service.RefreshAsync("de", "cid", CancellationToken.None);
 
-        var remove = service.ChoiceFor(44505, learned: false);
+        // A goal offers "remove" wherever it is clicked, the player's own bags included.
+        var remove = service.ChoiceFor(44505, learned: false, stacks: false, ownStorage: true);
         Assert.Equal(GoalMenuAction.Remove, remove.Action);
         Assert.Equal(17, remove.Goal!.Id);
 
         // A done goal is still a goal: it can be removed.
-        Assert.Equal(GoalMenuAction.Remove, service.ChoiceFor(52034, learned: true).Action);
-
-        Assert.Equal(GoalMenuAction.Add, service.ChoiceFor(12345, learned: false).Action);
-        Assert.Equal(GoalMenuAction.None, service.ChoiceFor(12345, learned: true).Action);
+        Assert.Equal(GoalMenuAction.Remove, service.ChoiceFor(52034, learned: true, stacks: false, ownStorage: false).Action);
         Assert.Empty(api.MyGoalsReads.Skip(1));
+    }
+
+    [Fact]
+    public async Task A_quantity_goes_with_the_goal_and_one_is_left_to_the_website()
+    {
+        var api = new FakeApiClient();
+        var service = Service(api);
+
+        await service.AddAsync(46720, 99, "de", "cid", CancellationToken.None);
+        await service.AddAsync(44505, null, "de", "cid", CancellationToken.None);
+
+        using var withQty = JsonDocument.Parse(JsonSerializer.Serialize(api.GoalsAdded[0], EorzeaJson.Options));
+        Assert.Equal(99, withQty.RootElement.GetProperty("qty").GetInt64());
+        using var without = JsonDocument.Parse(JsonSerializer.Serialize(api.GoalsAdded[1], EorzeaJson.Options));
+        Assert.False(without.RootElement.TryGetProperty("qty", out _));
+    }
+
+    [Theory]
+    [InlineData(false, false, false, GoalMenuAction.Add)]             // a single thing in a shop
+    [InlineData(false, false, true, GoalMenuAction.None)]             // a single thing in one's own bags: held
+    [InlineData(true, false, false, GoalMenuAction.None)]             // learned: nothing more to get
+    [InlineData(true, false, true, GoalMenuAction.None)]
+    [InlineData(false, true, true, GoalMenuAction.AddWithQuantity)]   // totems, dyes: collect more, say how many
+    [InlineData(false, true, false, GoalMenuAction.AddWithQuantity)]
+    public async Task The_menu_adds_only_what_is_still_to_get(bool learned, bool stacks, bool ownStorage, GoalMenuAction expected)
+    {
+        var service = Service(new FakeApiClient());
+        await service.RefreshAsync("de", "cid", CancellationToken.None);
+
+        Assert.Equal(expected, service.ChoiceFor(12345, learned, stacks, ownStorage).Action);
     }
 
     [Fact]
@@ -160,7 +188,7 @@ public sealed class GoalsServiceTests
         };
         var service = Service(api);
 
-        Assert.Null(await service.AddAsync(44505, "de", "cid", CancellationToken.None));
+        Assert.Null(await service.AddAsync(44505, null, "de", "cid", CancellationToken.None));
         var added = Assert.Single(api.GoalsAdded);
         Assert.Equal(("cid", 44505L), (added.Character.CidHash, added.ItemId));
         Assert.Equal(3, service.Mine!.Goals.Count);
@@ -174,7 +202,7 @@ public sealed class GoalsServiceTests
         Assert.Equal([17L], api.GoalsRemoved);
 
         api.GoalWriteResult = ApiResult<MyGoalsResponse>.Fail(new ApiError { Kind = ApiErrorKind.Conflict, StatusCode = 409, Message = "Learned already" });
-        Assert.Equal(ApiErrorKind.Conflict, (await service.AddAsync(6001, "de", "cid", CancellationToken.None))?.Kind);
+        Assert.Equal(ApiErrorKind.Conflict, (await service.AddAsync(6001, null, "de", "cid", CancellationToken.None))?.Kind);
         Assert.Equal(3, service.Mine!.Goals.Count);
     }
 
