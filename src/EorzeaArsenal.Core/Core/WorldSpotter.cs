@@ -177,13 +177,17 @@ public sealed class WorldWantedCache
                 IntakeClosed = false;
                 Current = list;
                 _persist(list, now);
+                var wanted = list.Wanted;
+                _log.Info($"Wanted list read: {wanted?.Npc.Count ?? 0} NPC(s), {wanted?.Mob.Count ?? 0} monster(s), {wanted?.Fate.Count ?? 0} FATE(s).");
                 return true;
             }
 
             switch (result.Error?.Kind)
             {
                 case ApiErrorKind.Conflict:
+                    // "Not now": the intake may open at any time (the release, or on dev), so look again within the hour.
                     IntakeClosed = true;
+                    _nextReadUtc = now + TimeSpan.FromHours(1);
                     break;
                 case ApiErrorKind.RateLimited:
                     _nextReadUtc = now + TimeSpan.FromHours(1);

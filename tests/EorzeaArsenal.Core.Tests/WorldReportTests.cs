@@ -123,6 +123,14 @@ public sealed class WorldReportTests
         Assert.False(await cache.RefreshIfDueAsync(CancellationToken.None));
         Assert.True(cache.IntakeClosed);
 
+        // A closed intake is looked at again within the hour, not after a day.
+        clock.Advance(TimeSpan.FromMinutes(59));
+        Assert.False(await cache.RefreshIfDueAsync(CancellationToken.None));
+        Assert.Equal(1, api.WorldWantedReads);
+        clock.Advance(TimeSpan.FromMinutes(1));
+        await cache.RefreshIfDueAsync(CancellationToken.None);
+        Assert.Equal(2, api.WorldWantedReads);
+
         cache.Forget();
         Assert.Null(cache.Current);
         Assert.False(cache.IntakeClosed);
