@@ -92,6 +92,25 @@ public sealed class CollectionSyncServiceTests
     }
 
     [Fact]
+    public async Task A_check_whose_counts_match_is_the_sessions_look_and_is_not_asked_again()
+    {
+        using (var first = Service())
+        {
+            await first.SyncAsync(CollectionTrigger.Check, CancellationToken.None);
+        }
+
+        _api.UnlockPushes.Clear();
+        ServerHolds(new() { ["mount"] = 1, ["minion"] = 1, ["orchestrion"] = 0, ["card"] = 0 });
+
+        using var service = Service();
+        Assert.Equal(CollectionOutcome.NothingDue, await service.SyncAsync(CollectionTrigger.Check, CancellationToken.None));
+        Assert.Equal(CollectionOutcome.NothingDue, await service.SyncAsync(CollectionTrigger.Check, CancellationToken.None));
+
+        Assert.Equal(1, _api.MyUnlocksReads);
+        Assert.Empty(_api.UnlockPushes);
+    }
+
+    [Fact]
     public async Task A_new_day_sends_every_kind_in_full_again_and_a_session_looks_only_once()
     {
         using (var first = Service())

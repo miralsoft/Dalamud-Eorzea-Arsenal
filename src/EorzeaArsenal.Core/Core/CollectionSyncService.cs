@@ -286,6 +286,12 @@ public sealed class CollectionSyncService : IDisposable
 
         if (due.Count == 0)
         {
+            // A look whose counts matched is the session's look too; without this the next minute asks again.
+            lock (_gate)
+            {
+                _lookedThisSession.Add(cid);
+            }
+
             return CollectionOutcome.NothingDue;
         }
 
@@ -474,7 +480,8 @@ public sealed class CollectionSyncService : IDisposable
                 records[cid] = mine;
             }
 
-            var serverLearned = result.Value?.Kinds is { } answer && answer.TryGetValue(kind, out var state) ? state.Learned : learnedIds.Count;
+            var state = result.Value?.Kinds is { } answer && answer.TryGetValue(kind, out var found) ? found : null;
+            var serverLearned = state?.Learned ?? learnedIds.Count;
             if (!mine.TryGetValue(kind, out var record))
             {
                 record = new CollectionKindRecord();
@@ -488,7 +495,9 @@ public sealed class CollectionSyncService : IDisposable
 
             record.ServerLearned = serverLearned;
             _persist();
-            _log.Info($"Collection: {kind} {(full ? "in full" : "changes")}, {learnedIds.Count} of {checkedIds.Count} learned, server holds {serverLearned}.");
+            // The answer's own counts too: how many ids the server kept and how many of the kind its catalog knows.
+            var known = state is null ? "no state for the kind" : $"its catalog knows {state.Known}";
+            _log.Info($"Collection: {kind} {(full ? "in full" : "changes")}, {learnedIds.Count} of {checkedIds.Count} learned, server kept {result.Value?.Checked ?? 0} and holds {serverLearned} ({known}).");
             return true;
         }
 
