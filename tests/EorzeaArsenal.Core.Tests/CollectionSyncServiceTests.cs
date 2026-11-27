@@ -111,6 +111,34 @@ public sealed class CollectionSyncServiceTests
     }
 
     [Fact]
+    public async Task The_next_sessions_look_sends_what_was_learned_meanwhile_as_a_change()
+    {
+        using (var first = Service())
+        {
+            await first.SyncAsync(CollectionTrigger.Check, CancellationToken.None);
+        }
+
+        Assert.Equal([6001], _records[TestData.ExampleHash]["mount"].Learned);
+        _api.UnlockPushes.Clear();
+        _source.Learn("mount", 6002);
+        ServerHolds(new() { ["mount"] = 1, ["minion"] = 1, ["orchestrion"] = 0, ["card"] = 0 });
+
+        using var service = Service();
+        Assert.Equal(CollectionOutcome.Sent, await service.SyncAsync(CollectionTrigger.Check, CancellationToken.None));
+
+        var push = Assert.Single(_api.UnlockPushes);
+        Assert.Equal("mount", push.Kind);
+        Assert.Null(push.Full);
+        Assert.Equal([6002], push.Checked);
+        Assert.Equal([6002], push.Learned);
+        Assert.Equal([6001, 6002], _records[TestData.ExampleHash]["mount"].Learned);
+
+        // Within the session the look is not repeated, so nothing goes twice.
+        Assert.Equal(CollectionOutcome.NothingDue, await service.SyncAsync(CollectionTrigger.Check, CancellationToken.None));
+        Assert.Single(_api.UnlockPushes);
+    }
+
+    [Fact]
     public async Task A_new_day_sends_every_kind_in_full_again_and_a_session_looks_only_once()
     {
         using (var first = Service())

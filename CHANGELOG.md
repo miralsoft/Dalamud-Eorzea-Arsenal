@@ -124,7 +124,9 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   full report of it for the character, at the first look of a UTC day, on "Sammlung neu abgleichen", and
   when `GET /me/unlocks` answers a `learned` other than the one the server answered after this machine's
   last report of the kind (kept after every report, full or changed-only, as agreed with the server).
-  Between those only changed items go, at most every five minutes. Turning it off stops the reports
+  Between those only changed items go, at most every five minutes, measured against the learned ids the
+  server last accepted from this machine (kept in the config), so the first look of a session also sends
+  what was learned while the plugin was off or before a restart. Turning it off stops the reports
   and deletes nothing on the server (what was learned stays learned; deleting is on the website); this
   machine forgets its records, so turning it on again, like a new key, starts the first sync again.
   With the collection on, the goals mode is not used.

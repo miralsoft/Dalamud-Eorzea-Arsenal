@@ -41,4 +41,12 @@ public sealed class CollectionKindRecord
     /// because the server has not read a new patch's items yet.
     /// </summary>
     public int ServerLearned { get; set; }
+
+    /// <summary>
+    /// The learned item ids the server last accepted from this machine for the kind, after a full report and
+    /// every changed-only one. A change is what differs from this, also across sessions and restarts, so only
+    /// what really changed goes up. <see langword="null"/> when unknown (a record from before it was kept);
+    /// the kind then waits for its next full report.
+    /// </summary>
+    public List<int>? Learned { get; set; }
 }

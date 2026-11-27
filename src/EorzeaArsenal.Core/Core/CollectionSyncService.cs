@@ -62,7 +62,9 @@ public enum CollectionOutcome
 /// the first look of a UTC day, when the player asks for it, and when the server's count differs from the
 /// one it answered after this machine's last report (the website changed something). Between those, only
 /// the items whose learned state changed go up, with <c>kind</c> and without <c>full</c>, at most every
-/// <see cref="ChangeInterval"/>.
+/// <see cref="ChangeInterval"/>. "Changed" is measured against the learned ids the server last accepted
+/// from this machine (<see cref="CollectionKindRecord.Learned"/>, kept in the config), so the session's
+/// first look also sends what was learned while the plugin was off or before a restart.
 /// </para>
 /// <para>
 /// The answers follow the contract: a 404 waits for the next gear sync and is tried once more, never in a
@@ -89,7 +91,6 @@ public sealed class CollectionSyncService : IDisposable
     private readonly SemaphoreSlim _single = new(1, 1);
     private readonly Lock _gate = new();
     private readonly HashSet<string> _lookedThisSession = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, Dictionary<string, HashSet<int>>> _accepted = new(StringComparer.Ordinal);
     private readonly HashSet<string> _rejectedToday = new(StringComparer.Ordinal);
     private readonly HashSet<string> _awaitingGear = new(StringComparer.Ordinal);
     private readonly HashSet<string> _retriedAfterGear = new(StringComparer.Ordinal);
@@ -162,7 +163,6 @@ public sealed class CollectionSyncService : IDisposable
         lock (_gate)
         {
             _lookedThisSession.Clear();
-            _accepted.Clear();
             _rejectedToday.Clear();
             _awaitingGear.Clear();
             _retriedAfterGear.Clear();
@@ -275,24 +275,19 @@ public sealed class CollectionSyncService : IDisposable
 
         if (trigger == CollectionTrigger.Change)
         {
-            return await SendChangesAsync(key, snapshot, ct).ConfigureAwait(false);
+            return await SendChangesAsync(key, snapshot, skipKinds: [], throttled: true, ct).ConfigureAwait(false);
+        }
+
+        bool firstLook;
+        lock (_gate)
+        {
+            firstLook = !_lookedThisSession.Contains(cid);
         }
 
         var due = await KindsDueAsync(key, cid, trigger, ct).ConfigureAwait(false);
         if (due is null)
         {
             return OutcomeOfLastHold(cid);
-        }
-
-        if (due.Count == 0)
-        {
-            // A look whose counts matched is the session's look too; without this the next minute asks again.
-            lock (_gate)
-            {
-                _lookedThisSession.Add(cid);
-            }
-
-            return CollectionOutcome.NothingDue;
         }
 
         var sent = false;
@@ -312,9 +307,23 @@ public sealed class CollectionSyncService : IDisposable
             sent |= result.Value;
         }
 
+        // A look whose counts matched is the session's look too; without this the next minute asks again.
         lock (_gate)
         {
             _lookedThisSession.Add(cid);
+        }
+
+        // The session's look also sends what the game learned since the server last accepted a kind from here
+        // (learned while the plugin was off, or before a restart): the kinds not just sent in full, changes only.
+        if (firstLook || trigger == CollectionTrigger.Full)
+        {
+            var changes = await SendChangesAsync(key, snapshot, skipKinds: due, throttled: false, ct).ConfigureAwait(false);
+            if (changes is not (CollectionOutcome.Sent or CollectionOutcome.NothingDue))
+            {
+                return changes;
+            }
+
+            sent |= changes == CollectionOutcome.Sent;
         }
 
         return sent ? CollectionOutcome.Sent : CollectionOutcome.NothingDue;
@@ -371,34 +380,31 @@ public sealed class CollectionSyncService : IDisposable
     }
 
     /// <summary>Only what changed since the server last accepted a kind, one call per kind that changed.</summary>
-    private async Task<CollectionOutcome> SendChangesAsync(string key, CollectionSnapshot snapshot, CancellationToken ct)
+    private async Task<CollectionOutcome> SendChangesAsync(string key, CollectionSnapshot snapshot, IReadOnlyCollection<string> skipKinds, bool throttled, CancellationToken ct)
     {
         var cid = snapshot.Character.CidHash;
         var now = _clock.UtcNow;
-        if (now - _lastChangeUtc < ChangeInterval)
+        if (throttled && now - _lastChangeUtc < ChangeInterval)
         {
             return CollectionOutcome.SkippedThrottled;
         }
 
-        Dictionary<string, HashSet<int>>? accepted;
-        lock (_gate)
+        // What the server last accepted from this machine, kept in the config across sessions; a kind without
+        // it waits for its next full report.
+        if (!_records().TryGetValue(cid, out var mine))
         {
-            _accepted.TryGetValue(cid, out accepted);
-        }
-
-        if (accepted is null)
-        {
-            return CollectionOutcome.NothingDue; // no full report this session yet; the next look sends one
+            return CollectionOutcome.NothingDue;
         }
 
         var sent = false;
         foreach (var (kind, read) in snapshot.Kinds)
         {
-            if (!accepted.TryGetValue(kind, out var before))
+            if (skipKinds.Contains(kind) || !mine.TryGetValue(kind, out var record) || record.Learned is not { } acceptedIds)
             {
                 continue;
             }
 
+            var before = acceptedIds.ToHashSet();
             var learnedNow = read.Learned.ToHashSet();
             var changed = read.Items.Where(id => learnedNow.Contains(id) != before.Contains(id)).ToList();
             if (changed.Count == 0)
@@ -445,31 +451,6 @@ public sealed class CollectionSyncService : IDisposable
         {
             lock (_gate)
             {
-                if (!_accepted.TryGetValue(cid, out var kinds))
-                {
-                    kinds = [];
-                    _accepted[cid] = kinds;
-                }
-
-                if (full)
-                {
-                    kinds[kind] = [.. learnedIds];
-                }
-                else if (kinds.TryGetValue(kind, out var set))
-                {
-                    foreach (var id in checkedIds)
-                    {
-                        if (learnedIds.Contains(id))
-                        {
-                            set.Add(id);
-                        }
-                        else
-                        {
-                            set.Remove(id);
-                        }
-                    }
-                }
-
                 _retriedAfterGear.Remove(cid);
             }
 
@@ -488,9 +469,30 @@ public sealed class CollectionSyncService : IDisposable
                 mine[kind] = record;
             }
 
+            // What the server now holds from here: after a full report exactly what was sent, after a change the
+            // kept set with the changed items applied (without a kept set the kind waits for its full report).
             if (full)
             {
                 record.FullDay = Today();
+                record.Learned = learnedIds;
+            }
+            else if (record.Learned is { } kept)
+            {
+                var set = kept.ToHashSet();
+                var learnedSet = learnedIds.ToHashSet();
+                foreach (var id in checkedIds)
+                {
+                    if (learnedSet.Contains(id))
+                    {
+                        set.Add(id);
+                    }
+                    else
+                    {
+                        set.Remove(id);
+                    }
+                }
+
+                record.Learned = [.. set.Order()];
             }
 
             record.ServerLearned = serverLearned;
