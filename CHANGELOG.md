@@ -143,6 +143,11 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
 ### Fixed
 - **The connection tab wraps its notes**: the line naming a test server and the result of the connection
   test ran out of a narrow settings window and were cut off.
+- **Opening the same retainer again syncs it again**: the game keeps the last retainer's bags and id after
+  the player left it, so the visit never ended for the plugin, and the retainer opened last was not sent
+  again until another one was chosen. The visit is now told by the summoning bell (`OccupiedSummoningBell`)
+  and the bell's retainer list (`RetainerList`): away from the bell or back at the list, the next retainer
+  chosen is sent. Confirmed in the game (2026-11-27).
 
 ## [1.2.0] - 2026-10-10
 

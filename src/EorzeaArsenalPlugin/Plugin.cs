@@ -1997,6 +1997,12 @@ public sealed class Plugin : IDalamudPlugin
     /// its <c>retainer:&lt;id&gt;</c> scope once per visit; resets when the retainer is closed so the
     /// next visit re-scans (and reconciles anything sold there).
     /// </summary>
+    /// <remarks>
+    /// The visit is told by the bell, not by what reads: the game keeps the last retainer's bags and id after
+    /// the player left it, so reading alone never saw the visit end, and opening the same retainer again sent
+    /// nothing. Away from the bell, or back at its list between two retainers, nothing is read and the next
+    /// retainer chosen is a new visit.
+    /// </remarks>
     private void DetectOpenRetainer(long now)
     {
         if (now < _nextRetainerCheckTicks)
@@ -2005,6 +2011,12 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         _nextRetainerCheckTicks = now + 2_000;
+
+        if (!_condition[ConditionFlag.OccupiedSummoningBell] || AddonVisible("RetainerList"))
+        {
+            _lastRetainerScope = null;
+            return;
+        }
 
         var data = _inventorySource.TryReadActiveRetainer();
         if (data is null || data.Scopes.Count == 0)
