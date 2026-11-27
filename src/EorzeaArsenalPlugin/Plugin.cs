@@ -1482,7 +1482,10 @@ public sealed class Plugin : IDalamudPlugin
         if (CollectionActive())
         {
             // Like the goals mode's change, a send nobody asked for at that moment: only with an automatic switch.
-            if (_config.PushOnLogin || _config.AutoPush || _config.PushOnGearsetChange)
+            // Without one, the minute's look sends it all the same; the log says which way it went.
+            var automatic = _config.PushOnLogin || _config.AutoPush || _config.PushOnGearsetChange;
+            _log.Info($"Unlock reported by the game: {rowRef.RowType?.Name} {rowRef.RowId}{(automatic ? ", sending the change" : ", the minute's look sends it")}.");
+            if (automatic)
             {
                 _collectionSync.Request(CollectionTrigger.Change);
             }
