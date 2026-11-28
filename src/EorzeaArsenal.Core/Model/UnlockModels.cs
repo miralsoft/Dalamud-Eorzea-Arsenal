@@ -121,6 +121,6 @@ public static class UnlockProtocol
     /// <summary>The most ids <c>checked</c> may carry in one call.</summary>
     public const int MaxChecked = 2000;
 
-    /// <summary>Calls per hour per account.</summary>
-    public const int MaxCallsPerHour = 30;
+    /// <summary>Calls per hour per account, the goals mode and the collection together (60 since 2026-11-28).</summary>
+    public const int MaxCallsPerHour = 60;
 }

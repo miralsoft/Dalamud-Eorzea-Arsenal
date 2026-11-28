@@ -384,7 +384,7 @@ public sealed class CollectionSyncService : IDisposable
         return due;
     }
 
-    /// <summary>Only what changed since the server last accepted a kind, one call per kind that changed.</summary>
+    /// <summary>Only what changed since the server last accepted a kind: every kind in one call.</summary>
     private async Task<CollectionOutcome> SendChangesAsync(string key, CollectionSnapshot snapshot, IReadOnlyCollection<string> skipKinds, bool throttled, CancellationToken ct)
     {
         var cid = snapshot.Character.CidHash;
@@ -425,10 +425,20 @@ public sealed class CollectionSyncService : IDisposable
             return CollectionOutcome.SkippedThrottled;
         }
 
+        _lastChangeUtc = now;
+
+        // Every kind's changes in one call, without kind and full (confirmed by the server, 2026-11-28): learning a
+        // lot of mixed things costs one call every five minutes, not one per kind. Only a change too large for one
+        // call (rare: more than the cap of checked ids) goes kind by kind.
+        if (pending.Sum(p => p.Changed.Count) <= UnlockProtocol.MaxChecked)
+        {
+            var together = await SendChangesTogetherAsync(key, snapshot.Character, pending, ct).ConfigureAwait(false);
+            return together is null ? OutcomeOfLastHold(cid) : together.Value ? CollectionOutcome.Sent : CollectionOutcome.NothingDue;
+        }
+
         var sent = false;
         foreach (var (kind, changed, learned) in pending)
         {
-            _lastChangeUtc = now;
             var result = await SendAsync(key, snapshot.Character, kind, changed, learned, full: false, ct).ConfigureAwait(false);
             if (result is null)
             {
@@ -439,6 +449,94 @@ public sealed class CollectionSyncService : IDisposable
         }
 
         return sent ? CollectionOutcome.Sent : CollectionOutcome.NothingDue;
+    }
+
+    /// <summary>The changes of every kind in one report; <see langword="null"/> when a hold, a stop or a 404 ends the attempt.</summary>
+    private async Task<bool?> SendChangesTogetherAsync(string key, CharacterDto character, List<(string Kind, List<int> Changed, List<int> Learned)> pending, CancellationToken ct)
+    {
+        if (!TakeCall())
+        {
+            return null;
+        }
+
+        var request = new UnlocksRequest
+        {
+            Character = character,
+            Checked = [.. pending.SelectMany(p => p.Changed).Distinct().Order()],
+            Learned = [.. pending.SelectMany(p => p.Learned).Distinct().Order()],
+        };
+
+        var cid = character.CidHash;
+        var result = await _api.PutUnlocksAsync(key, request, ct).ConfigureAwait(false);
+        if (!result.IsSuccess)
+        {
+            var error = result.Error!;
+            if (error.Kind is ApiErrorKind.BadRequest or ApiErrorKind.Validation)
+            {
+                lock (_gate)
+                {
+                    foreach (var (kind, _, _) in pending)
+                    {
+                        _rejectedToday.Add($"{cid}|{kind}");
+                    }
+                }
+
+                _log.Warning($"Collection: changes refused ({error.StatusCode}); not sent again today.");
+                return false;
+            }
+
+            HandleHold(error, key, "changes", cid);
+            return null;
+        }
+
+        lock (_gate)
+        {
+            _retriedAfterGear.Remove(cid);
+        }
+
+        // Each kind as before: its kept set with its changes applied, and its learned from the answer's kinds.
+        var mine = _records()[cid];
+        var parts = new List<string>(pending.Count);
+        foreach (var (kind, changed, learned) in pending)
+        {
+            var record = mine[kind];
+            ApplyChange(record, changed, learned);
+            if (result.Value?.Kinds is { } answer && answer.TryGetValue(kind, out var state))
+            {
+                record.ServerLearned = state.Learned;
+            }
+
+            parts.Add($"{kind} {learned.Count} of {changed.Count} learned, holds {record.ServerLearned}");
+        }
+
+        _persist();
+        _log.Info($"Collection: changes in one call, {string.Join("; ", parts)}, server kept {result.Value?.Checked ?? 0}.");
+        return true;
+    }
+
+    /// <summary>The kept set of a kind with changed items applied: learned ones in, the others out.</summary>
+    private static void ApplyChange(CollectionKindRecord record, IReadOnlyList<int> checkedIds, IReadOnlyList<int> learnedIds)
+    {
+        if (record.Learned is not { } kept)
+        {
+            return;
+        }
+
+        var set = kept.ToHashSet();
+        var learnedSet = learnedIds.ToHashSet();
+        foreach (var id in checkedIds)
+        {
+            if (learnedSet.Contains(id))
+            {
+                set.Add(id);
+            }
+            else
+            {
+                set.Remove(id);
+            }
+        }
+
+        record.Learned = [.. set.Order()];
     }
 
     /// <summary>One report; <see langword="null"/> when a hold, a stop or a 404 ends the attempt.</summary>
@@ -492,23 +590,9 @@ public sealed class CollectionSyncService : IDisposable
                 record.FullDay = Today();
                 record.Learned = learnedIds;
             }
-            else if (record.Learned is { } kept)
+            else
             {
-                var set = kept.ToHashSet();
-                var learnedSet = learnedIds.ToHashSet();
-                foreach (var id in checkedIds)
-                {
-                    if (learnedSet.Contains(id))
-                    {
-                        set.Add(id);
-                    }
-                    else
-                    {
-                        set.Remove(id);
-                    }
-                }
-
-                record.Learned = [.. set.Order()];
+                ApplyChange(record, checkedIds, learnedIds);
             }
 
             record.ServerLearned = serverLearned;

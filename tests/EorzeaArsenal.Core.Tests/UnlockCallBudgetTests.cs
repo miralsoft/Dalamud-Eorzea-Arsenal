@@ -1,4 +1,5 @@
 using EorzeaArsenal.Core;
+using EorzeaArsenal.Model;
 using Xunit;
 
 namespace EorzeaArsenal.Tests;
@@ -9,12 +10,13 @@ public sealed class UnlockCallBudgetTests
     private static readonly DateTimeOffset Start = new(2026, 11, 28, 0, 30, 0, TimeSpan.Zero);
 
     [Fact]
-    public void Thirty_calls_an_hour_and_then_a_hold_until_the_oldest_is_an_hour_old()
+    public void The_hour_s_calls_and_then_a_hold_until_the_oldest_is_an_hour_old()
     {
         var budget = new UnlockCallBudget();
-        for (var i = 0; i < 30; i++)
+        Assert.Equal(60, UnlockProtocol.MaxCallsPerHour);
+        for (var i = 0; i < UnlockProtocol.MaxCallsPerHour; i++)
         {
-            Assert.True(budget.TryTake(Start.AddMinutes(i)));
+            Assert.True(budget.TryTake(Start.AddSeconds(i * 30)));
         }
 
         Assert.False(budget.TryTake(Start.AddMinutes(40)));

@@ -118,7 +118,7 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   429 for its `Retry-After`, a 401 or 403 stops, a 400 or 422 is not repeated. Runs with the inventory
   sync, no switch of its own. The game does not report what was learned, so the minute's look asks too;
   only a result other than the one the server took is sent. Both share one hourly count of `PUT /me/unlocks` with the
-  collection (`UnlockCallBudget`), as the server counts them together, and a `Retry-After` holds both.
+  collection (`UnlockCallBudget`), 60 calls an hour since 2026-11-28, as the server counts them together, and a `Retry-After` holds both.
 - **The collection** (`CollectionSyncService`, `GameCollectionSource`; where the server lists `goals` and
   `unlock-collection`, with its own consent line "Sammlung" in the dialog and the settings, off by default):
   every item of the game that unlocks a mount (355), minion (584), orchestrion roll (886) or card (475),
@@ -129,7 +129,8 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   full report of it for the character, at the first look of a UTC day, on "Sammlung neu abgleichen", and
   when `GET /me/unlocks` answers a `learned` other than the one the server answered after this machine's
   last report of the kind (kept after every report, full or changed-only, as agreed with the server).
-  Between those only changed items go, at most every five minutes, measured against the learned ids the
+  Between those only changed items go, at most every five minutes and every kind in one call without `kind`
+  (confirmed by the server, 2026-11-28; a full sync stays one call per kind), measured against the learned ids the
   server last accepted from this machine (kept in the config), so the first look of a session also sends
   what was learned while the plugin was off or before a restart. Turning it off stops the reports
   and deletes nothing on the server (what was learned stays learned; deleting is on the website); this

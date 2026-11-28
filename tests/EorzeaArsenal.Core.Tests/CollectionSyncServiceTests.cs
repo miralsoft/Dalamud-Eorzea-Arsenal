@@ -127,7 +127,7 @@ public sealed class CollectionSyncServiceTests
         Assert.Equal(CollectionOutcome.Sent, await service.SyncAsync(CollectionTrigger.Check, CancellationToken.None));
 
         var push = Assert.Single(_api.UnlockPushes);
-        Assert.Equal("mount", push.Kind);
+        Assert.Null(push.Kind);
         Assert.Null(push.Full);
         Assert.Equal([6002], push.Checked);
         Assert.Equal([6002], push.Learned);
@@ -173,13 +173,38 @@ public sealed class CollectionSyncServiceTests
         Assert.Equal(CollectionOutcome.Sent, await service.SyncAsync(CollectionTrigger.Change, CancellationToken.None));
 
         var push = Assert.Single(_api.UnlockPushes);
-        Assert.Equal("mount", push.Kind);
+        Assert.Null(push.Kind);
         Assert.Null(push.Full);
         Assert.Equal([6003], push.Checked);
         Assert.Equal([6003], push.Learned);
 
         // The count the server answered after this changed-only report is the one the next login compares.
         Assert.Equal(2, _records[TestData.ExampleHash]["mount"].ServerLearned);
+    }
+
+    [Fact]
+    public async Task Changes_of_several_kinds_go_in_one_call_without_kind_and_each_kind_keeps_its_own_count()
+    {
+        using var service = Service();
+        await service.SyncAsync(CollectionTrigger.Check, CancellationToken.None);
+        _api.UnlockPushes.Clear();
+        _clock.Advance(TimeSpan.FromMinutes(5));
+
+        _source.Learn("mount", 6003);
+        _source.Learn("minion", 7002);
+        _api.UnlockResults.Clear();
+        _api.UnlockResults.Enqueue(ApiResult<UnlocksResult>.Ok(Answer()));
+
+        Assert.Equal(CollectionOutcome.Sent, await service.SyncAsync(CollectionTrigger.Change, CancellationToken.None));
+
+        var push = Assert.Single(_api.UnlockPushes);
+        Assert.Null(push.Kind);
+        Assert.Null(push.Full);
+        Assert.Equal([6003, 7002], push.Checked);
+        Assert.Equal([6003, 7002], push.Learned);
+        Assert.Equal((2, 2), (_records[TestData.ExampleHash]["mount"].ServerLearned, _records[TestData.ExampleHash]["minion"].ServerLearned));
+        Assert.Equal([6001, 6003], _records[TestData.ExampleHash]["mount"].Learned);
+        Assert.Equal([7001, 7002], _records[TestData.ExampleHash]["minion"].Learned);
     }
 
     [Fact]
