@@ -64,7 +64,7 @@ public static class GoalHints
             }
 
             var head = localizer.Get(LocKeys.GoalTooltipIsGoal);
-            lines.Add(new GoalHintLine(collect ? $"{head} · {localizer.Get(LocKeys.GoalPurposeCollect)}" : head, GoalHintTone.Plain));
+            lines.Add(new GoalHintLine(collect && goal.Learnable ? $"{head} · {localizer.Get(LocKeys.GoalPurposeCollect)}" : head, GoalHintTone.Plain));
 
             if (goal.Unused)
             {

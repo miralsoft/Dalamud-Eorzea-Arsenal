@@ -88,10 +88,15 @@ public sealed partial class TeamsWindow
                 OpenApp($"/item/{itemId.ToString(CultureInfo.InvariantCulture)}");
             }
 
-            if (string.Equals(goal.Purpose, GoalPurposes.Collect, StringComparison.Ordinal))
+            if (goal.ToCollect)
             {
                 ImGui.SameLine();
                 ImGui.TextColored(Dim, goal.Qty > 1 ? $"{T(LocKeys.GoalPurposeCollect)} · {goal.Qty.ToString("N0", culture)}" : T(LocKeys.GoalPurposeCollect));
+            }
+            else if (goal.Kind is null && goal.Qty > 1)
+            {
+                ImGui.SameLine();
+                ImGui.TextColored(Dim, _localizer.Get(LocKeys.TeamGoalQty, goal.Qty.ToString("N0", culture)));
             }
 
             if (goal.Closed)

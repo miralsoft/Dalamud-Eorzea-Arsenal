@@ -2539,6 +2539,9 @@ public static class LocKeys
     /// <summary>Any other failure on a goal of the team.</summary>
     public const string TeamGoalFailed = "goals.team.failed";
 
+    /// <summary>How many each character is to have, for a goal of the team that unlocks nothing.</summary>
+    public const string TeamGoalQty = "goals.team.qty";
+
     /// <summary>How many of a goal's item the character holds.</summary>
     public const string GoalHeld = "goals.held";
 

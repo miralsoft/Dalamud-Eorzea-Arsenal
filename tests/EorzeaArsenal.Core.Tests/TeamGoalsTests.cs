@@ -225,6 +225,22 @@ public sealed class TeamGoalsTests
     }
 
     [Fact]
+    public void To_collect_is_named_only_for_an_item_to_learn()
+    {
+        // The server sends "collect" for everything that unlocks nothing: there it says nothing (operator, 2026-11-28).
+        Assert.True(new TeamGoal { Kind = "mount", Purpose = GoalPurposes.Collect }.ToCollect);
+        Assert.False(new TeamGoal { Kind = null, Purpose = GoalPurposes.Collect }.ToCollect);
+        Assert.False(new TeamGoal { Kind = "mount", Purpose = GoalPurposes.Learn }.ToCollect);
+
+        var de = new Localizer(Localizer.German);
+        var scale = new MyGoals { Goals = [new Goal { Id = 1, Item = new GoalItem { Id = 7 }, Purpose = GoalPurposes.Collect, Learnable = false, Qty = 1 }] };
+        Assert.Equal("Als Ziel gesetzt", GoalHints.For(scale, 7, de)[0].Text);
+
+        var whistle = new MyGoals { Goals = [new Goal { Id = 2, Item = new GoalItem { Id = 8 }, Purpose = GoalPurposes.Collect, Learnable = true, Qty = 1 }] };
+        Assert.Equal("Als Ziel gesetzt · Zum Sammeln", GoalHints.For(whistle, 8, de)[0].Text);
+    }
+
+    [Fact]
     public void The_state_reads_as_words_with_who_answered()
     {
         var de = new Localizer(Localizer.German);

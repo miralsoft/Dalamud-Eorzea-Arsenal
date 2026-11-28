@@ -173,7 +173,9 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   learned. The context menu offers "Als Teamziel festlegen" (`POST /teams/{id}/team-goals`, one team a call,
   a submenu for several) only for the teams in `team_goal_teams` where the item is no open goal yet, never
   for gil or a currency. The tooltip names a team's goal with the character's state. A number a player hides
-  shows a lock, never a 0. `shared` is gone: which teams see an own goal is the website's.
+  shows a lock, never a 0. `shared` is gone: which teams see an own goal is the website's. "Zum Sammeln"
+  shows only for an item to learn, here, on own goals and in the tooltip: the server sends `collect` for
+  everything that unlocks nothing, where it says nothing; such a goal of a team names "Je Charakter: 6".
 - **Closing a shop or an exchange syncs** the inventory and the currencies (`InventoryTrigger.Shop`): gil
   shops, currency and item exchanges, the Grand Company, collectables, the marketboard and hand-ins. Not
   held back by the 15-minute auto interval, but only what changed is sent, and several shops in a row make

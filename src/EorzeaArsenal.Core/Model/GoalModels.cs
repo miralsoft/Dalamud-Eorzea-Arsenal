@@ -365,6 +365,12 @@ public sealed class TeamGoal
 
     /// <summary>Whether it is a goal to learn something (one of it, done once learned).</summary>
     public bool ToLearn => Kind is not null && !string.Equals(Purpose, GoalPurposes.Collect, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Whether it is a goal to collect an item to learn (to sell): the only case where "Zum Sammeln" says something,
+    /// since anything that unlocks nothing is always collected.
+    /// </summary>
+    public bool ToCollect => Kind is not null && string.Equals(Purpose, GoalPurposes.Collect, StringComparison.Ordinal);
 }
 
 /// <summary>Where a goal of a team comes from.</summary>

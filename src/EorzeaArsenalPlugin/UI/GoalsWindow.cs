@@ -241,7 +241,8 @@ public sealed class GoalsWindow : Window, IDisposable
 
                 // A goal to collect an item to learn (unlock-kinds) counts what is held, not whether it is learned.
                 var collect = string.Equals(goal.Purpose, GoalPurposes.Collect, StringComparison.Ordinal);
-                if (collect)
+                // "Zum Sammeln" only says something for an item to learn: anything else is always collected.
+                if (collect && goal.Learnable)
                 {
                     ImGui.TextColored(Dim, T(LocKeys.GoalPurposeCollect));
                 }
@@ -319,9 +320,13 @@ public sealed class GoalsWindow : Window, IDisposable
             {
                 DrawItemLink(goal.Item?.Name, itemId);
                 ImGui.TextColored(Dim, T(LocKeys.GoalTeamOf, goal.Team?.Name ?? string.Empty));
-                if (string.Equals(goal.Purpose, GoalPurposes.Collect, StringComparison.Ordinal))
+                if (goal.ToCollect)
                 {
                     ImGui.TextColored(Dim, goal.Qty > 1 ? $"{T(LocKeys.GoalPurposeCollect)} · {Number(goal.Qty)}" : T(LocKeys.GoalPurposeCollect));
+                }
+                else if (goal.Kind is null && goal.Qty > 1)
+                {
+                    ImGui.TextColored(Dim, T(LocKeys.TeamGoalQty, Number(goal.Qty)));
                 }
 
                 _teamGoals.DrawWhere(goal);
