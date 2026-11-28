@@ -17,7 +17,8 @@ namespace EorzeaArsenal.Plugin.UI;
 /// cost, "Was noch fehlt" and the done goals, as <see cref="GoalsService"/> read them. Every number is the
 /// server's; nothing here computes a cost, a sum or "done". Read when the view opens and after a sync. Where
 /// the server takes goals from a key (<c>goals-from-plugin</c>), a goal can be removed here after a second
-/// click; ticking and changing stay on the website.
+/// click; ticking and changing stay on the website. With goals of a team (<c>team-goals</c>) a tab "Aus deinen
+/// Teams" shows the goals of the character's teams with its own state and the answers.
 /// </summary>
 public sealed class GoalsWindow : Window, IDisposable
 {
@@ -39,6 +40,7 @@ public sealed class GoalsWindow : Window, IDisposable
     private readonly ITextureProvider _textures;
     private readonly ILog _log;
     private readonly Action _goalsChanged;
+    private readonly TeamGoalWidgets _teamGoals;
     private readonly CancellationTokenSource _cts = new();
     private volatile string? _message;
     private volatile bool _writing;
@@ -81,6 +83,7 @@ public sealed class GoalsWindow : Window, IDisposable
         _textures = textures;
         _log = log;
         _goalsChanged = goalsChanged;
+        _teamGoals = new TeamGoalWidgets(localizer, goals, webAppBase, openLink, log);
 
         SizeConstraints = new WindowSizeConstraints
         {
@@ -113,6 +116,7 @@ public sealed class GoalsWindow : Window, IDisposable
         _goals.Invalidate();
         _message = null;
         _armedRemove = 0;
+        _teamGoals.Reset();
     }
 
     /// <inheritdoc />
@@ -142,6 +146,11 @@ public sealed class GoalsWindow : Window, IDisposable
             Wrapped(Yellow, message);
         }
 
+        if (_teamGoals.Message is { } answerMessage)
+        {
+            Wrapped(Yellow, answerMessage);
+        }
+
         if (_goals.LastError is { } error && !_goals.Loading)
         {
             Wrapped(Red, error.Kind == ApiErrorKind.NotFound ? T(LocKeys.GoalsNotSynced) : T(LocKeys.GoalsError, Code(error)));
@@ -158,7 +167,7 @@ public sealed class GoalsWindow : Window, IDisposable
             return;
         }
 
-        if (mine.Goals.Count == 0)
+        if (mine.Goals.Count == 0 && mine.TeamGoals.Count == 0)
         {
             ImGui.Spacing();
             Wrapped(Dim, T(LocKeys.GoalsNone));
@@ -177,6 +186,16 @@ public sealed class GoalsWindow : Window, IDisposable
             if (open)
             {
                 DrawOpen(mine, cid);
+            }
+        }
+
+        // The goals of the character's teams (team-goals), with its own state and the two answers.
+        if (mine.TeamGoals.Count > 0)
+        {
+            using var teams = ImRaii.TabItem(T(LocKeys.GoalsFromTeamsSection));
+            if (teams)
+            {
+                DrawFromTeams(mine);
             }
         }
 
@@ -227,10 +246,7 @@ public sealed class GoalsWindow : Window, IDisposable
                     ImGui.TextColored(Dim, T(LocKeys.GoalPurposeCollect));
                 }
 
-                if (goal.Shared)
-                {
-                    ImGui.TextColored(Dim, T(LocKeys.GoalShared));
-                }
+                DrawTeamsOf(goal, mine);
 
                 if (goal.Unused)
                 {
@@ -255,6 +271,72 @@ public sealed class GoalsWindow : Window, IDisposable
                 else if (!goal.Unused)
                 {
                     ImGui.TextColored(Dim, T(LocKeys.GoalNoWay));
+                }
+            }
+
+            ImGui.Separator();
+        }
+    }
+
+    /// <summary>The teams an own goal is shown to (chosen on the website) and the teams that have it as their goal too.</summary>
+    private void DrawTeamsOf(Goal goal, MyGoals mine)
+    {
+        if (goal.Teams.Count > 0)
+        {
+            var names = goal.Teams
+                .Select(id => mine.MyTeams.FirstOrDefault(t => t.Id == id)?.Name)
+                .Where(name => !string.IsNullOrEmpty(name))
+                .ToList();
+            if (names.Count > 0)
+            {
+                ImGui.TextColored(Dim, T(LocKeys.GoalInTeams, string.Join(", ", names)));
+            }
+        }
+
+        if (goal.AlsoTeam.Count > 0)
+        {
+            ImGui.TextColored(Dim, T(LocKeys.GoalAlsoTeam, string.Join(", ", goal.AlsoTeam)));
+        }
+    }
+
+    /// <summary>
+    /// "Aus deinen Teams": the open goals of the character's teams with its own state, the costs while it is open,
+    /// and the answers. Every number is the server's; an answer makes the goals read again.
+    /// </summary>
+    private void DrawFromTeams(MyGoals mine)
+    {
+        ImGui.Spacing();
+        using var child = ImRaii.Child("##goalsTeams", Vector2.Zero, false);
+        var size = ImGui.GetFrameHeight() * 1.6f;
+        foreach (var goal in mine.TeamGoals)
+        {
+            var teamId = goal.Team?.Id ?? 0;
+            using var id = ImRaii.PushId(string.Create(CultureInfo.InvariantCulture, $"team{teamId}|{goal.Id}"));
+            var itemId = goal.Item?.Id ?? 0;
+            DrawIcon(itemId, size);
+            ImGui.SameLine();
+            using (ImRaii.Group())
+            {
+                DrawItemLink(goal.Item?.Name, itemId);
+                ImGui.TextColored(Dim, T(LocKeys.GoalTeamOf, goal.Team?.Name ?? string.Empty));
+                if (string.Equals(goal.Purpose, GoalPurposes.Collect, StringComparison.Ordinal))
+                {
+                    ImGui.TextColored(Dim, goal.Qty > 1 ? $"{T(LocKeys.GoalPurposeCollect)} · {Number(goal.Qty)}" : T(LocKeys.GoalPurposeCollect));
+                }
+
+                _teamGoals.DrawWhere(goal);
+                // The character is the reader's own: it may always answer for it.
+                if (goal.Participants.FirstOrDefault() is { } me)
+                {
+                    _teamGoals.DrawState(me);
+                    _teamGoals.DrawAnswers(teamId, goal, me, mayAnswer: true, Name(goal.Item?.Name, itemId), _ => { });
+                    if (string.Equals(me.State, TeamGoalStates.Open, StringComparison.Ordinal))
+                    {
+                        foreach (var cost in me.Progress?.Cost ?? [])
+                        {
+                            DrawCost(cost);
+                        }
+                    }
                 }
             }
 
@@ -364,10 +446,12 @@ public sealed class GoalsWindow : Window, IDisposable
     }
 
     /// <summary>The goal's name, which opens the item's page on the website at what the character holds of it.</summary>
-    private void DrawGoalName(Goal goal)
+    private void DrawGoalName(Goal goal) => DrawItemLink(goal.Item?.Name, goal.Item?.Id ?? 0);
+
+    /// <summary>An item's name, which opens its page on the website at what the character holds of it.</summary>
+    private void DrawItemLink(string? name, long itemId)
     {
-        var itemId = goal.Item?.Id ?? 0;
-        ImGui.TextColored(Link, Name(goal.Item?.Name, itemId));
+        ImGui.TextColored(Link, Name(name, itemId));
         if (ImGui.IsItemHovered())
         {
             ImGui.SetMouseCursor(ImGuiMouseCursor.Hand);
@@ -478,6 +562,7 @@ public sealed class GoalsWindow : Window, IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
+        _teamGoals.Dispose();
         _cts.Cancel();
         _cts.Dispose();
     }

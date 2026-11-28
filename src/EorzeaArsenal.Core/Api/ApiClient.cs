@@ -338,8 +338,20 @@ public sealed class ApiClient : IApiClient
     }
 
     /// <inheritdoc />
+    public Task<ApiResult<SharedGoalsResponse>> GetSharedGoalsAsync(string apiKey, long teamId, string language, CancellationToken ct) =>
+        GetAsync<SharedGoalsResponse>($"/teams/{teamId}/goals?lang={Uri.EscapeDataString(language)}", apiKey, ct);
+
+    /// <inheritdoc />
     public Task<ApiResult<TeamGoalsResponse>> GetTeamGoalsAsync(string apiKey, long teamId, string language, CancellationToken ct) =>
-        GetAsync<TeamGoalsResponse>($"/teams/{teamId}/goals?lang={Uri.EscapeDataString(language)}", apiKey, ct);
+        GetAsync<TeamGoalsResponse>($"/teams/{teamId}/team-goals?lang={Uri.EscapeDataString(language)}", apiKey, ct);
+
+    /// <inheritdoc />
+    public Task<ApiResult<TeamGoalsResponse>> AddTeamGoalAsync(string apiKey, long teamId, TeamGoalAddRequest request, string language, CancellationToken ct) =>
+        SendJsonAsync<TeamGoalAddRequest, TeamGoalsResponse>(HttpMethod.Post, $"/teams/{teamId}/team-goals?lang={Uri.EscapeDataString(language)}", apiKey, request, ct);
+
+    /// <inheritdoc />
+    public Task<ApiResult<TeamGoalsResponse>> MarkTeamGoalAsync(string apiKey, long teamId, long goalId, TeamGoalMarkRequest request, string language, CancellationToken ct) =>
+        SendJsonAsync<TeamGoalMarkRequest, TeamGoalsResponse>(HttpMethod.Put, $"/teams/{teamId}/team-goals/{goalId}/marks?lang={Uri.EscapeDataString(language)}", apiKey, request, ct);
 
     /// <inheritdoc />
     public Task<ApiResult<MyRelicsResponse>> GetMyRelicsAsync(string apiKey, long? characterId, CancellationToken ct) =>

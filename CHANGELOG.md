@@ -162,6 +162,18 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   erledigt" with why. For an item an open goal costs: "Gebraucht für" the goals, and "have / need,
   missing" from "Was noch fehlt". From the goals last read, kept fresh for the logged-in character; no call
   per hover.
+- **Goals of a team** (`contract-team-goals.md`; where the server lists `team-goals`): the goals view has a
+  tab "Aus deinen Teams" (the team's goals with the character's own state, the costs while open, and the
+  answers "Habe ich schon", "Kein Interesse" or "Zurücknehmen"); an own goal names the teams it is shown in
+  and "Auch Teamziel von". The team tab "Ziele" shows the team's goals first (`GET /teams/{id}/team-goals`:
+  "Noch gebraucht: 3 von 8", where it comes from with a link to the duty, every character with its state and
+  who answered), reached and closed ones folded, then what members share. Answers
+  (`PUT /teams/{id}/team-goals/{goalId}/marks`) for the own characters always, for others and placeholders
+  with "Teamziele verwalten"; "Habe ich schon" on a goal to learn asks twice, since it stores the item as
+  learned. The context menu offers "Als Teamziel festlegen" (`POST /teams/{id}/team-goals`, one team a call,
+  a submenu for several) only for the teams in `team_goal_teams` where the item is no open goal yet, never
+  for gil or a currency. The tooltip names a team's goal with the character's state. A number a player hides
+  shows a lock, never a 0. `shared` is gone: which teams see an own goal is the website's.
 - **Closing a shop or an exchange syncs** the inventory and the currencies (`InventoryTrigger.Shop`): gil
   shops, currency and item exchanges, the Grand Company, collectables, the marketboard and hand-ins. Not
   held back by the 15-minute auto interval, but only what changed is sent, and several shops in a row make

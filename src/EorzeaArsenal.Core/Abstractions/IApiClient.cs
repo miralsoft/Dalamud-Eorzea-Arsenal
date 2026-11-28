@@ -345,7 +345,34 @@ public interface IApiClient
     /// <param name="language"><c>de</c> or <c>en</c>.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The team's goals, or a classified error.</returns>
+    Task<ApiResult<SharedGoalsResponse>> GetSharedGoalsAsync(string apiKey, long teamId, string language, CancellationToken ct);
+
+    /// <summary>Reads the goals of a team via <c>GET /teams/{id}/team-goals?lang=</c> (<c>team-goals</c>, <c>teams:read</c>). Names members: memory only.</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="language"><c>de</c> or <c>en</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The team's goals with each character's state, or a classified error.</returns>
     Task<ApiResult<TeamGoalsResponse>> GetTeamGoalsAsync(string apiKey, long teamId, string language, CancellationToken ct);
+
+    /// <summary>Sets an item as a goal of a team via <c>POST /teams/{id}/team-goals?lang=</c> (<c>team-goals</c>, <c>teams:write</c>).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="request">The item.</param>
+    /// <param name="language"><c>de</c> or <c>en</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The team's goals after it (also when the item was an open goal already), or a classified error (403: the right is missing; 409: 100 open goals).</returns>
+    Task<ApiResult<TeamGoalsResponse>> AddTeamGoalAsync(string apiKey, long teamId, TeamGoalAddRequest request, string language, CancellationToken ct);
+
+    /// <summary>Answers for a character via <c>PUT /teams/{id}/team-goals/{goalId}/marks?lang=</c> (<c>team-goals</c>, <c>teams:write</c>).</summary>
+    /// <param name="apiKey">The API key.</param>
+    /// <param name="teamId">The team id.</param>
+    /// <param name="goalId">The goal of the team.</param>
+    /// <param name="request">The character or placeholder and the answer, or <see langword="null"/> to take it back.</param>
+    /// <param name="language"><c>de</c> or <c>en</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The team's goals after it, or a classified error (403: not allowed; 409: the goal is closed).</returns>
+    Task<ApiResult<TeamGoalsResponse>> MarkTeamGoalAsync(string apiKey, long teamId, long goalId, TeamGoalMarkRequest request, string language, CancellationToken ct);
 
     /// <summary>Reads the relic catalog via <c>GET /relics?lang=</c> (server 1.5, public; the key counts the limit per account).</summary>
     /// <param name="apiKey">The API key.</param>

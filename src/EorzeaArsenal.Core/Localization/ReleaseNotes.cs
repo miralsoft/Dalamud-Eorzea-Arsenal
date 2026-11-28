@@ -131,6 +131,11 @@ public static class ReleaseNotes
                 "Ziele im Tooltip: Fährst du über einen Gegenstand, siehst du, ob er dein Ziel ist und wie weit du bist, oder für welches Ziel du ihn brauchst.",
                 "Goals in the tooltip: hovering an item shows whether it is your goal and how far you are, or which goal needs it."),
             new ReleaseNoteItem(
+                ReleaseNoteKind.Added,
+                "team-goals-in-game",
+                "Teamziele im Spiel: Du siehst die Ziele deiner Teams und wer sie schon hat, antwortest mit \"Habe ich schon\" oder \"Kein Interesse\" und legst neue per Rechtsklick fest.",
+                "Team goals in game: you see your teams' goals and who has them already, answer with \"Have it already\" or \"No interest\" and set new ones by right-click."),
+            new ReleaseNoteItem(
                 ReleaseNoteKind.Improved,
                 "current-after-shopping",
                 "Aktuell nach dem Einkauf: Schließt du einen Händler oder Tausch, werden dein Besitz und deine Währungen gleich übertragen.",

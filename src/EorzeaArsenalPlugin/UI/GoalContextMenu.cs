@@ -15,7 +15,9 @@ namespace EorzeaArsenal.Plugin.UI;
 /// never from a read per right-click: "remove" for a goal; "add" only for what is still to get (never learned,
 /// a single thing only outside the player's own storage, something that stacks anywhere with a quantity asked
 /// first); nothing before the goals were read. The server picks the area and answers with the goals as they are
-/// after the change; the player hears the outcome in their own chat. Never throws into the game (P3).
+/// after the change; the player hears the outcome in their own chat. With goals of a team (<c>team-goals</c>)
+/// "Als Teamziel festlegen" offers the teams where the player holds the right (<see cref="GoalsService.TeamChoicesFor"/>).
+/// Never throws into the game (P3).
 /// </summary>
 public sealed class GoalContextMenu : IDisposable
 {
@@ -35,6 +37,8 @@ public sealed class GoalContextMenu : IDisposable
     private readonly GoalQuantityWindow _quantity;
     private readonly Action _goalsChanged;
     private readonly Func<bool> _learnOrCollect;
+    private readonly Func<bool> _teamGoalsOffered;
+    private readonly Func<uint, bool> _isCurrency;
     private readonly ILog _log;
     private readonly CancellationTokenSource _cts = new();
     private volatile bool _writing;
@@ -53,6 +57,8 @@ public sealed class GoalContextMenu : IDisposable
     /// <param name="quantity">Asks how many, for something collected in numbers.</param>
     /// <param name="goalsChanged">Called after a goal was added or removed (the tracked list follows the goals).</param>
     /// <param name="learnOrCollect">Whether the server takes a goal's purpose (<c>unlock-kinds</c>).</param>
+    /// <param name="teamGoalsOffered">Whether the server takes goals of a team (<c>team-goals</c>).</param>
+    /// <param name="isCurrency">Whether an item is gil or a currency, which is no goal of a team.</param>
     /// <param name="log">Diagnostics sink.</param>
     public GoalContextMenu(
         IContextMenu menu,
@@ -68,6 +74,8 @@ public sealed class GoalContextMenu : IDisposable
         GoalQuantityWindow quantity,
         Action goalsChanged,
         Func<bool> learnOrCollect,
+        Func<bool> teamGoalsOffered,
+        Func<uint, bool> isCurrency,
         ILog log)
     {
         _menu = menu;
@@ -83,6 +91,8 @@ public sealed class GoalContextMenu : IDisposable
         _quantity = quantity;
         _goalsChanged = goalsChanged;
         _learnOrCollect = learnOrCollect;
+        _teamGoalsOffered = teamGoalsOffered;
+        _isCurrency = isCurrency;
         _log = log;
         _menu.OnMenuOpened += OnMenuOpened;
     }
@@ -129,6 +139,30 @@ public sealed class GoalContextMenu : IDisposable
                         break;
                 }
             }
+
+            // "Als Teamziel festlegen": only the teams where the player holds the right, one per call. One team is
+            // one entry naming it; several are a submenu to choose from.
+            if (_teamGoalsOffered())
+            {
+                var teams = _goals.TeamChoicesFor(itemId, _isCurrency(itemId));
+                if (teams.Count == 1)
+                {
+                    var only = teams[0];
+                    args.AddMenuItem(Named(_localizer.Get(LocKeys.GoalMenuTeamOne, only.Name ?? string.Empty), () => AddForTeam(only, itemId)));
+                }
+                else if (teams.Count > 1)
+                {
+                    var items = teams.Select(t => (IMenuItem)Named(t.Name ?? string.Empty, () => AddForTeam(t, itemId))).ToList();
+                    args.AddMenuItem(new MenuItem
+                    {
+                        Name = _localizer.Get(LocKeys.GoalMenuTeam),
+                        PrefixChar = 'E',
+                        PrefixColor = 37,
+                        IsSubmenu = true,
+                        OnClicked = clicked => clicked.OpenSubmenu(items),
+                    });
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -167,13 +201,50 @@ public sealed class GoalContextMenu : IDisposable
         }
     }
 
-    private MenuItem Entry(string key, Action onClick) => new()
+    private MenuItem Entry(string key, Action onClick) => Named(_localizer.Get(key), onClick);
+
+    private static MenuItem Named(string text, Action onClick) => new()
     {
-        Name = _localizer.Get(key),
+        Name = text,
         PrefixChar = 'E',
         PrefixColor = 37,
         OnClicked = _ => onClick(),
     };
+
+    private void AddForTeam(TeamRef team, uint itemId)
+    {
+        var name = _itemName((int)itemId);
+        var teamName = team.Name ?? string.Empty;
+        var language = Language();
+        _writing = true;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var result = await _goals.AddTeamGoalAsync(team.Id, itemId, language, _cts.Token).ConfigureAwait(false);
+                _chat(result.IsSuccess
+                    ? _localizer.Get(LocKeys.TeamGoalSet, name, teamName)
+                    : TeamGoalMessages.Describe(_localizer, result.Error, name));
+                if (result.IsSuccess)
+                {
+                    // The team's goals join the tracked list (their items and costs, the goals to learn).
+                    _goalsChanged();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // shutting down
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"Team goal set failed: {ex.GetType().Name}.");
+            }
+            finally
+            {
+                _writing = false;
+            }
+        });
+    }
 
     /// <summary>What the bags hold of the item, NQ and HQ, as a hint for the quantity. Framework thread only.</summary>
     private unsafe int BagCount(uint itemId)

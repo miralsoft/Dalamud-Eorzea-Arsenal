@@ -476,11 +476,12 @@ public sealed class Plugin : IDalamudPlugin
             _gearSource.GetItemIconId, _gearSource.GetItemName, textureProvider, _log, OnGoalsChanged);
         _goalQuantityWindow = new GoalQuantityWindow(_localizer);
         _goalMenu = new GoalContextMenu(contextMenu, gameGui, dataManager, unlockState, _goalsService, _localizer, GoalsWriteOffered,
-            () => _currentCidHash, _gearSource.GetItemName, Chat, _goalQuantityWindow, OnGoalsChanged, () => _features.Has(FeatureNames.UnlockKinds), _log);
+            () => _currentCidHash, _gearSource.GetItemName, Chat, _goalQuantityWindow, OnGoalsChanged, () => _features.Has(FeatureNames.UnlockKinds),
+            () => _features.Has(FeatureNames.TeamGoals), IsCurrency, _log);
         _relicService = new RelicService(api, _store, _store, _log);
         _relicWindow = new RelicWindow(_localizer, _relicService, () => ServerCharacterId(_currentCidHash), () => _config.SyncInventory, WebAppBase, OpenExternalLink, OpenConfig, _log, _gearSource.GetItemName,
             code => _gameJobs.FirstOrDefault(j => string.Equals(j.Code, code, StringComparison.OrdinalIgnoreCase)), textureProvider);
-        _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage, OwnChatNotice, _features.Has, _waiting);
+        _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage, OwnChatNotice, _features.Has, _waiting, _goalsService, OwnCharacterIds);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _keyScopes, _log, Save, () => Localizer.Nearest(_pluginInterface.UiLanguage),
             CollectionOffered,
@@ -606,6 +607,7 @@ public sealed class Plugin : IDalamudPlugin
         _relicWindow.Dispose();
         _goalMenu.Dispose();
         _goalsWindow.Dispose();
+        _teamsWindow.Dispose();
         _dropWatcher.Dispose();
         _worldWatcher.Dispose();
         _weeklySource.HiddenRefreshCompleted -= OnHiddenRefreshCompleted;
@@ -653,6 +655,16 @@ public sealed class Plugin : IDalamudPlugin
     private static readonly TimeSpan CollectionFullPause = TimeSpan.FromMinutes(5);
 
     private void OnGoalsChanged() => _goalsChangedPending = true;
+
+    /// <summary>Gil and the currencies of the currency sync: no goal of a team (<c>contract-team-goals.md</c>).</summary>
+    private bool IsCurrency(uint itemId) => itemId == 1 || _trackedItems.Currencies.Contains((int)itemId);
+
+    /// <summary>The server ids of the characters this machine has seen as the player's, to tell own characters in a team's goals.</summary>
+    private IReadOnlySet<long> OwnCharacterIds() =>
+        _characterDirectory.Snapshot().Values
+            .Select(id => long.TryParse(id, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var value) ? value : 0)
+            .Where(id => id > 0)
+            .ToHashSet();
 
     /// <summary>A goal's costs are often currencies (MGP, tomestones, gil): stored ones make the goals read again.</summary>
     private void OnCurrencyCompleted(CurrencyReport report)

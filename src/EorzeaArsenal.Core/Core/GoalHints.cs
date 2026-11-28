@@ -81,6 +81,29 @@ public static class GoalHints
             {
                 lines.Add(CostLine($"{N(cost.Have)} / {N(cost.Need)} {cost.Name}", cost.Missing, localizer, N));
             }
+
+            // The item is a goal of a team too: the server shows it once, on the own goal.
+            if (goal.AlsoTeam.Count > 0)
+            {
+                lines.Add(new GoalHintLine(localizer.Get(LocKeys.GoalAlsoTeam, string.Join(", ", goal.AlsoTeam)), GoalHintTone.Plain));
+            }
+        }
+
+        // A goal of the character's teams (agreed with the operator, 2026-11-29): the team and this character's state.
+        foreach (var team in mine.TeamGoals.Where(t => t.Item?.Id == itemId))
+        {
+            var participant = team.Participants.FirstOrDefault();
+            var name = team.Team?.Name ?? string.Empty;
+            (string Text, GoalHintTone Tone)? state = participant is null ? null : TeamGoalText.State(participant, localizer);
+            var head = localizer.Get(LocKeys.GoalTeamOf, name);
+            lines.Add(new GoalHintLine(state is null ? head : $"{head} · {state.Value.Text}", state?.Tone ?? GoalHintTone.Plain));
+            if (participant is not null && string.Equals(participant.State, TeamGoalStates.Open, StringComparison.Ordinal))
+            {
+                foreach (var cost in participant.Progress?.Cost ?? [])
+                {
+                    lines.Add(CostLine($"{N(cost.Have)} / {N(cost.Need)} {cost.Name}", cost.Missing, localizer, N));
+                }
+            }
         }
 
         return WithCost(lines, mine, itemId, localizer, N);
@@ -103,4 +126,28 @@ public static class GoalHints
         missing > 0
             ? new GoalHintLine($"{counts}, {localizer.Get(LocKeys.GoalMissing, n(missing))}", GoalHintTone.Missing)
             : new GoalHintLine($"{counts}, {localizer.Get(LocKeys.GoalEnough)}", GoalHintTone.Good);
+}
+
+/// <summary>The words for a character's state on a goal of the team, shared by the windows and the tooltip.</summary>
+public static class TeamGoalText
+{
+    /// <summary>The state as the player reads it, and its colour.</summary>
+    /// <param name="participant">The character or placeholder.</param>
+    /// <param name="localizer">UI string resolver.</param>
+    /// <returns>The words; "Offen" for an unknown state.</returns>
+    public static (string Text, GoalHintTone Tone) State(TeamGoalParticipant participant, Localizer localizer) => participant.State switch
+    {
+        TeamGoalStates.Learned => (localizer.Get(LocKeys.GoalDoneLearned), GoalHintTone.Good),
+        TeamGoalStates.Held => (localizer.Get(LocKeys.GoalDoneHeld), GoalHintTone.Good),
+        TeamGoalStates.Have => (localizer.Get(LocKeys.TeamGoalStateHave), GoalHintTone.Good),
+        TeamGoalStates.NoInterest => (localizer.Get(LocKeys.TeamGoalStateNoInterest), GoalHintTone.Plain),
+        _ => (localizer.Get(LocKeys.TeamGoalStateOpen), GoalHintTone.Missing),
+    };
+
+    /// <summary>"gesetzt von Anna", or <see langword="null"/> without an answer.</summary>
+    /// <param name="participant">The character or placeholder.</param>
+    /// <param name="localizer">UI string resolver.</param>
+    /// <returns>The words, or <see langword="null"/>.</returns>
+    public static string? MarkedBy(TeamGoalParticipant participant, Localizer localizer) =>
+        participant.Mark is { Mark: not null, By: { Length: > 0 } by } ? localizer.Get(LocKeys.TeamGoalMarkedBy, by) : null;
 }

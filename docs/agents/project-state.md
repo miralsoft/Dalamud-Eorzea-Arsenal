@@ -83,7 +83,13 @@ the hovered item of another window). Both on dev 2026-11-27; to check in the gam
 that stacks anywhere, with a quantity), shops and exchanges sync on closing, "Im Besitz" on every goal. Then
 `unlock-kinds` (server 2026-11-28): the collection takes ten kinds, and an item to learn is a goal to learn or
 to collect (`purpose`). Then the goals in the item tooltip (`GoalHints`): the goal itself and
-what a goal costs, beside the BiS block, following its placement. Next: the release, PR into main,
+what a goal costs, beside the BiS block, following its placement. Then the goals of a team (`team-goals`,
+server 2026-11-29, contract-team-goals.md): "Aus deinen Teams" in the goals view, the team's goals in the
+team tab with the answers (`TeamGoalRules`: own characters, the same player's other characters by their
+`user_id`, everybody with `may_manage`), "Als Teamziel festlegen" in the context menu; decided with the
+operator: any item but gil and currencies, teams that have it already left out, a submenu for several teams,
+"Habe ich schon" on a goal to learn after a second click, the team's goal in the tooltip, the duty as a link.
+To check in the game. Next: the release, PR into main,
 merge and tag in one sitting, the release-note date set to that day.
 
 The foundation moved from the 3.3.0 this repository was audited against to 5.3.0. The Dalamud profile

@@ -24,7 +24,7 @@ namespace EorzeaArsenal.Plugin.UI;
 /// window. Purely renders server-authoritative data via <see cref="TeamsService"/> (R8/R9); links open
 /// in the browser and large images open in a dedicated window.
 /// </summary>
-public sealed class TeamsWindow : Window
+public sealed partial class TeamsWindow : Window, IDisposable
 {
     private static readonly Vector4 Green = new(0.4f, 0.8f, 0.4f, 1f);
     private static readonly Vector4 Red = new(0.9f, 0.4f, 0.4f, 1f);
@@ -67,7 +67,13 @@ public sealed class TeamsWindow : Window
     private readonly Slot<CoverageResponse> _coverageSlot = new();
 
     // The team's shared goals (server 1.5) name members and characters too: memory only, like the line-up.
-    private readonly Slot<TeamGoalsResponse> _goalsSlot = new();
+    private readonly Slot<SharedGoalsResponse> _goalsSlot = new();
+
+    // The goals of the team (team-goals) name members and characters too: memory only.
+    private readonly Slot<TeamGoalsResponse> _teamGoalsSlot = new();
+    private readonly GoalsService _goals;
+    private readonly Func<IReadOnlySet<long>> _ownCharacters;
+    private readonly TeamGoalWidgets _teamGoalWidgets;
 
     // The one date whose coverage is unfolded, as "team|event|date", or null. One at a time: the list of
     // dates is long, and several unfolded panels would push the rest of it off the screen.
@@ -134,6 +140,8 @@ public sealed class TeamsWindow : Window
     /// </param>
     /// <param name="hasFeature">Whether the server lists a feature in <c>features</c> of <c>GET /version</c>.</param>
     /// <param name="waiting">What waits in the teams (server 1.5), expired after an answer in the times tab.</param>
+    /// <param name="goals">The goals service: reads the goals of a team and sends the answers (<c>team-goals</c>).</param>
+    /// <param name="ownCharacters">The server ids of the characters this machine knows as the player's own.</param>
     public TeamsWindow(
         PluginConfig config,
         ConfigStore store,
@@ -152,10 +160,15 @@ public sealed class TeamsWindow : Window
         Action<long, long, string?> openImage,
         Action<string> ownChatNotice,
         Func<string, bool> hasFeature,
-        WaitingCounter waiting)
+        WaitingCounter waiting,
+        GoalsService goals,
+        Func<IReadOnlySet<long>> ownCharacters)
         : base("Eorzea Arsenal · Teams###EorzeaArsenalTeams")
     {
         _hasFeature = hasFeature;
+        _goals = goals;
+        _ownCharacters = ownCharacters;
+        _teamGoalWidgets = new TeamGoalWidgets(localizer, goals, AppUrl, OpenExternal, log);
         _timesView = new TimesView(localizer, teams, waiting, hasFeature, path => OpenApp(path), log);
         _myCharacterId = myCharacterId;
         _config = config;
@@ -281,6 +294,8 @@ public sealed class TeamsWindow : Window
         if (slug == "ziele" && _activeTab != slug)
         {
             _goalsSlot.Reset();
+            _teamGoalsSlot.Reset();
+            _teamGoalWidgets.Reset();
         }
 
         _activeTab = slug;
@@ -773,8 +788,8 @@ public sealed class TeamsWindow : Window
     // plugin and the website cannot disagree about what a team needs.
 
     /// <summary>
-    /// The goals the team's members share (server 1.5): per item its first way's costs, then each member who
-    /// wants it with what is done or what they hold of each cost. Read only; every number is the server's.
+    /// The team's goals tab: on a server with goals of a team (<c>team-goals</c>) first those, with every
+    /// character's state and the answers, then what members show the team of their own goals.
     /// </summary>
     private void DrawGoals()
     {
@@ -786,7 +801,29 @@ public sealed class TeamsWindow : Window
         }
 
         var language = _localizer.Language == Localizer.German ? Localizer.German : Localizer.English;
-        Ensure(_goalsSlot, $"{team.Id.ToString(CultureInfo.InvariantCulture)}|{language}", ct => _teams.GetTeamGoalsAsync(team.Id, language, ct));
+        using var child = ImRaii.Child("##teamGoalsTab", Vector2.Zero, false);
+        if (_hasFeature(FeatureNames.TeamGoals))
+        {
+            ImGui.TextColored(Yellow, T(LocKeys.TeamGoalsSection));
+            ImGui.Spacing();
+            DrawTeamGoalBoard(team, language);
+            ImGui.Spacing();
+            ImGui.Spacing();
+            ImGui.TextColored(Yellow, T(LocKeys.SharedGoalsSection));
+            ImGui.Spacing();
+        }
+
+        DrawSharedGoals(team, language);
+    }
+
+    /// <summary>
+    /// The goals the team's members share (server 1.5): per item its first way's costs, then each member who
+    /// wants it with what is done or what they hold of each cost. Read only; every number is the server's.
+    /// A number the member keeps to themselves shows a lock, never a 0.
+    /// </summary>
+    private void DrawSharedGoals(TeamSummary team, string language)
+    {
+        Ensure(_goalsSlot, $"{team.Id.ToString(CultureInfo.InvariantCulture)}|{language}", ct => _teams.GetSharedGoalsAsync(team.Id, language, ct));
         if (_goalsSlot.Loading)
         {
             ImGui.TextDisabled(T(LocKeys.TeamsLoading));
@@ -837,7 +874,7 @@ public sealed class TeamsWindow : Window
         }
     }
 
-    private void DrawGoalWant(TeamGoalItem entry, TeamGoalWant want, CultureInfo culture)
+    private void DrawGoalWant(SharedGoalItem entry, SharedGoalWant want, CultureInfo culture)
     {
         var who = string.IsNullOrEmpty(want.Member) || want.Member == want.Character ? want.Character ?? string.Empty : $"{want.Character} ({want.Member})";
         ImGui.Bullet();
@@ -862,20 +899,56 @@ public sealed class TeamsWindow : Window
             return;
         }
 
-        // What the member holds of each cost, against what one costs: the server's numbers side by side.
+        // What the member holds of each cost, against what one costs: the server's numbers side by side. A cost
+        // the member hides is left out by the server; the lock says so instead of a 0.
         var parts = new List<string>();
+        var hidden = false;
         foreach (var cost in entry.Way?.Cost ?? [])
         {
-            var have = want.CostHave.FirstOrDefault(c => c.Id == cost.Id)?.Have ?? 0;
-            parts.Add($"{have.ToString("N0", culture)} / {cost.Count.ToString("N0", culture)} {GoalItemName(cost.Name, cost.Id)}");
+            if (want.CostHave.FirstOrDefault(c => c.Id == cost.Id) is { } held)
+            {
+                parts.Add($"{held.Have.ToString("N0", culture)} / {cost.Count.ToString("N0", culture)} {GoalItemName(cost.Name, cost.Id)}");
+            }
+            else if (want.CountsHidden)
+            {
+                hidden = true;
+            }
+            else
+            {
+                parts.Add($"0 / {cost.Count.ToString("N0", culture)} {GoalItemName(cost.Name, cost.Id)}");
+            }
         }
 
         if (want.Qty > 1)
         {
-            parts.Insert(0, _localizer.Get(LocKeys.GoalHeldOf, want.Held.ToString("N0", culture), want.Qty.ToString("N0", culture)));
+            if (want.Held is { } count)
+            {
+                parts.Insert(0, _localizer.Get(LocKeys.GoalHeldOf, count.ToString("N0", culture), want.Qty.ToString("N0", culture)));
+            }
+            else
+            {
+                hidden = true;
+            }
         }
 
-        ImGui.TextColored(Dim, string.Join("  ·  ", parts));
+        if (parts.Count == 0 && hidden)
+        {
+            ImGui.TextColored(Dim, T(LocKeys.TeamGoalStateOpen));
+            ImGui.SameLine();
+        }
+        else if (parts.Count > 0)
+        {
+            ImGui.TextColored(Dim, string.Join("  ·  ", parts));
+            if (hidden)
+            {
+                ImGui.SameLine();
+            }
+        }
+
+        if (hidden)
+        {
+            _teamGoalWidgets.DrawHidden();
+        }
     }
 
     private void DrawGoalIcon(long itemId, float size)
@@ -2817,6 +2890,7 @@ public sealed class TeamsWindow : Window
         _lineupSlot.Reset();
         _coverageSlot.Reset();
         _goalsSlot.Reset();
+        _teamGoalsSlot.Reset();
     }
 
     /// <summary>Drops every team read, values included, after the key went away.</summary>
@@ -2835,6 +2909,7 @@ public sealed class TeamsWindow : Window
         _lineupSlot.Forget();
         _coverageSlot.Forget();
         _goalsSlot.Forget();
+        _teamGoalsSlot.Forget();
         _coverageOpen = null;
         CloseInvite();
     }

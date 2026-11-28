@@ -344,8 +344,8 @@ public sealed class TeamsService : IDisposable
     /// <param name="language"><c>de</c> or <c>en</c>.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The team's goals, or an error.</returns>
-    public Task<ApiResult<TeamGoalsResponse>> GetTeamGoalsAsync(long teamId, string language, CancellationToken ct) =>
-        WithKey(key => _api.GetTeamGoalsAsync(key, teamId, language, ct));
+    public Task<ApiResult<SharedGoalsResponse>> GetSharedGoalsAsync(long teamId, string language, CancellationToken ct) =>
+        WithKey(key => _api.GetSharedGoalsAsync(key, teamId, language, ct));
 
     /// <summary>Reads which positions one date leaves open. It carries member names: hold it in memory only.</summary>
     /// <param name="teamId">The team id.</param>

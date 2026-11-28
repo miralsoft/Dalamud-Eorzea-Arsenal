@@ -41,6 +41,12 @@ public static class FeatureNames
 
     /// <summary>Every unlock item counts, in ten kinds, and a goal for one is to learn or to collect (<c>purpose</c>).</summary>
     public const string UnlockKinds = "unlock-kinds";
+
+    /// <summary>
+    /// Goals of a team: <c>team_goals</c> and <c>team_goal_teams</c> in <c>GET /me/goals</c>, the team's own list
+    /// <c>GET /teams/{id}/team-goals</c>, setting one and answering for a character. Own goals are shown per team.
+    /// </summary>
+    public const string TeamGoals = "team-goals";
 }
 
 /// <summary>

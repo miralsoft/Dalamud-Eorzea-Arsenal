@@ -56,7 +56,8 @@ public sealed class GoalsServiceTests
         var open = mine.Goals[0];
         Assert.Equal(44505, open.Item!.Id);
         Assert.Equal("mount", open.Area);
-        Assert.True(open.Shared);
+        Assert.Empty(open.Teams);
+        Assert.Empty(mine.TeamGoals);
         Assert.Null(open.Done);
         var cost = Assert.Single(open.Progress!.Cost);
         Assert.Equal((99, 99, 37, 62), (cost.Count, cost.Need, cost.Have, cost.Missing));
@@ -74,7 +75,7 @@ public sealed class GoalsServiceTests
     [Fact]
     public void The_team_answer_reads_as_the_server_sends_it()
     {
-        var team = JsonSerializer.Deserialize<TeamGoalsResponse>(TeamJson, EorzeaJson.Options)!.Data!;
+        var team = JsonSerializer.Deserialize<SharedGoalsResponse>(TeamJson, EorzeaJson.Options)!.Data!;
 
         Assert.Equal("7", team.TeamId);
         var first = team.Items[0];
@@ -265,6 +266,8 @@ public sealed class GoalsServiceTests
     [InlineData("card", false, "/goals/triple-triad")]
     [InlineData("other", true, "/ziele/sonstiges")]
     [InlineData("glam", false, "/goals/glam")]
+    [InlineData("unlock", true, "/ziele/weiteres-lernbares")]
+    [InlineData("unlock", false, "/goals/more-to-learn")]
     [InlineData(null, true, "/ziele")]
     [InlineData("unknown", false, "/goals")]
     public void The_links_follow_the_website(string? area, bool german, string expected) =>

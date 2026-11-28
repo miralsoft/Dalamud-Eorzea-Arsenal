@@ -368,7 +368,16 @@ public sealed class GearSyncServiceTests
         public Task<ApiResult<MyGoalsResponse>> GetMyGoalsAsync(string apiKey, string cidHash, string language, CancellationToken ct) =>
             throw new NotSupportedException();
 
+        public Task<ApiResult<SharedGoalsResponse>> GetSharedGoalsAsync(string apiKey, long teamId, string language, CancellationToken ct) =>
+            throw new NotSupportedException();
+
         public Task<ApiResult<TeamGoalsResponse>> GetTeamGoalsAsync(string apiKey, long teamId, string language, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<TeamGoalsResponse>> AddTeamGoalAsync(string apiKey, long teamId, TeamGoalAddRequest request, string language, CancellationToken ct) =>
+            throw new NotSupportedException();
+
+        public Task<ApiResult<TeamGoalsResponse>> MarkTeamGoalAsync(string apiKey, long teamId, long goalId, TeamGoalMarkRequest request, string language, CancellationToken ct) =>
             throw new NotSupportedException();
 
         public Task<ApiResult<MyGoalsResponse>> AddGoalAsync(string apiKey, GoalAddRequest request, string language, CancellationToken ct) =>

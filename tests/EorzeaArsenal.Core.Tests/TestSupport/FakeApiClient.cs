@@ -432,8 +432,8 @@ public sealed class FakeApiClient : IApiClient
     /// <summary>Each <c>(cid_hash, lang)</c> asked of <see cref="GetMyGoalsAsync"/>, in call order.</summary>
     public List<(string CidHash, string Language)> MyGoalsReads { get; } = [];
 
-    /// <summary>Result of <see cref="GetTeamGoalsAsync"/>.</summary>
-    public ApiResult<TeamGoalsResponse> TeamGoalsResult { get; set; } = ApiResult<TeamGoalsResponse>.Ok(new TeamGoalsResponse { Data = new TeamGoals() });
+    /// <summary>Result of <see cref="GetSharedGoalsAsync"/>.</summary>
+    public ApiResult<SharedGoalsResponse> SharedGoalsResult { get; set; } = ApiResult<SharedGoalsResponse>.Ok(new SharedGoalsResponse { Data = new SharedGoals() });
 
     /// <inheritdoc />
     public Task<ApiResult<MyGoalsResponse>> GetMyGoalsAsync(string apiKey, string cidHash, string language, CancellationToken ct)
@@ -443,8 +443,35 @@ public sealed class FakeApiClient : IApiClient
     }
 
     /// <inheritdoc />
+    public Task<ApiResult<SharedGoalsResponse>> GetSharedGoalsAsync(string apiKey, long teamId, string language, CancellationToken ct) =>
+        Task.FromResult(SharedGoalsResult);
+
+    /// <summary>Result of <see cref="GetTeamGoalsAsync"/>, <see cref="AddTeamGoalAsync"/> and <see cref="MarkTeamGoalAsync"/>.</summary>
+    public ApiResult<TeamGoalsResponse> TeamGoalsResult { get; set; } = ApiResult<TeamGoalsResponse>.Ok(new TeamGoalsResponse { Data = new TeamGoalBoard() });
+
+    /// <summary>Each <c>(team, item)</c> set as a goal of a team, in call order.</summary>
+    public List<(long TeamId, long ItemId)> TeamGoalsAdded { get; } = [];
+
+    /// <summary>Each <c>(team, goal, answer)</c> given, in call order.</summary>
+    public List<(long TeamId, long GoalId, TeamGoalMarkRequest Request)> TeamGoalMarks { get; } = [];
+
+    /// <inheritdoc />
     public Task<ApiResult<TeamGoalsResponse>> GetTeamGoalsAsync(string apiKey, long teamId, string language, CancellationToken ct) =>
         Task.FromResult(TeamGoalsResult);
+
+    /// <inheritdoc />
+    public Task<ApiResult<TeamGoalsResponse>> AddTeamGoalAsync(string apiKey, long teamId, TeamGoalAddRequest request, string language, CancellationToken ct)
+    {
+        TeamGoalsAdded.Add((teamId, request.ItemId));
+        return Task.FromResult(TeamGoalsResult);
+    }
+
+    /// <inheritdoc />
+    public Task<ApiResult<TeamGoalsResponse>> MarkTeamGoalAsync(string apiKey, long teamId, long goalId, TeamGoalMarkRequest request, string language, CancellationToken ct)
+    {
+        TeamGoalMarks.Add((teamId, goalId, request));
+        return Task.FromResult(TeamGoalsResult);
+    }
 
     /// <summary>Result of <see cref="AddGoalAsync"/> and <see cref="RemoveGoalAsync"/>.</summary>
     public ApiResult<MyGoalsResponse> GoalWriteResult { get; set; } = ApiResult<MyGoalsResponse>.Ok(new MyGoalsResponse { Data = new MyGoals() });

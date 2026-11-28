@@ -2386,9 +2386,6 @@ public static class LocKeys
     /// <summary>Why a goal is done.</summary>
     public const string GoalDoneHeld = "goals.done.held";
 
-    /// <summary>A goal shared with the teams.</summary>
-    public const string GoalShared = "goals.shared";
-
     /// <summary>An open goal without progress.</summary>
     public const string GoalNoWay = "goals.noway";
 
@@ -2448,6 +2445,99 @@ public static class LocKeys
 
     /// <summary>The first way's costs of an item.</summary>
     public const string TeamGoalCost = "teams.goals.cost";
+
+    /// <summary>The team's own goals, in its goals tab.</summary>
+    public const string TeamGoalsSection = "teams.teamgoals.section";
+
+    /// <summary>No goals of the team.</summary>
+    public const string TeamGoalsNoneSet = "teams.teamgoals.none";
+
+    /// <summary>The own goals members show the team.</summary>
+    public const string SharedGoalsSection = "teams.sharedgoals.section";
+
+    /// <summary>Characters still open of those that count.</summary>
+    public const string TeamGoalNeeded = "teams.teamgoals.needed";
+
+    /// <summary>The folded part of reached and closed goals.</summary>
+    public const string TeamGoalReachedSection = "teams.teamgoals.reachedsection";
+
+    /// <summary>A goal every counting character has.</summary>
+    public const string TeamGoalReached = "teams.teamgoals.reached";
+
+    /// <summary>A goal the team closed.</summary>
+    public const string TeamGoalClosed = "teams.teamgoals.closed";
+
+    /// <summary>A goal nobody counts for.</summary>
+    public const string TeamGoalNobody = "teams.teamgoals.nobody";
+
+    /// <summary>The duty a goal comes from.</summary>
+    public const string TeamGoalFrom = "teams.teamgoals.from";
+
+    /// <summary>The team's content of that duty.</summary>
+    public const string TeamGoalContent = "teams.teamgoals.content";
+
+    /// <summary>A character without the item and without an answer.</summary>
+    public const string TeamGoalStateOpen = "teams.teamgoals.state.open";
+
+    /// <summary>The answer "have".</summary>
+    public const string TeamGoalStateHave = "teams.teamgoals.state.have";
+
+    /// <summary>The answer "no interest".</summary>
+    public const string TeamGoalStateNoInterest = "teams.teamgoals.state.nointerest";
+
+    /// <summary>Who gave an answer.</summary>
+    public const string TeamGoalMarkedBy = "teams.teamgoals.markedby";
+
+    /// <summary>Hover text of the lock: the player hides their numbers.</summary>
+    public const string TeamGoalHidden = "teams.teamgoals.hidden";
+
+    /// <summary>The button "have".</summary>
+    public const string TeamGoalAnswerHave = "teams.teamgoals.answer.have";
+
+    /// <summary>The button "no interest".</summary>
+    public const string TeamGoalAnswerNoInterest = "teams.teamgoals.answer.nointerest";
+
+    /// <summary>The button that takes an answer back.</summary>
+    public const string TeamGoalAnswerTakeBack = "teams.teamgoals.answer.takeback";
+
+    /// <summary>Hover text of "have" on a goal to learn.</summary>
+    public const string TeamGoalHaveHint = "teams.teamgoals.answer.havehint";
+
+    /// <summary>The tab of the goals of the character's teams.</summary>
+    public const string GoalsFromTeamsSection = "goals.fromteams";
+
+    /// <summary>Which team set a goal of the team.</summary>
+    public const string GoalTeamOf = "goals.teamof";
+
+    /// <summary>An own goal that is a goal of a team too.</summary>
+    public const string GoalAlsoTeam = "goals.alsoteam";
+
+    /// <summary>The teams an own goal is shown to.</summary>
+    public const string GoalInTeams = "goals.inteams";
+
+    /// <summary>The context menu entry for a goal of a team, with several teams.</summary>
+    public const string GoalMenuTeam = "goals.menu.team";
+
+    /// <summary>The context menu entry for a goal of a team, with one team.</summary>
+    public const string GoalMenuTeamOne = "goals.menu.teamone";
+
+    /// <summary>Chat note after setting a goal of a team.</summary>
+    public const string TeamGoalSet = "goals.teamset";
+
+    /// <summary>A 403 on a goal of the team.</summary>
+    public const string TeamGoalForbidden = "goals.team.forbidden";
+
+    /// <summary>A 409 on a goal of the team.</summary>
+    public const string TeamGoalConflict = "goals.team.conflict";
+
+    /// <summary>A 400 on setting a goal of the team.</summary>
+    public const string TeamGoalUnknown = "goals.team.unknown";
+
+    /// <summary>A 404 on a goal of the team.</summary>
+    public const string TeamGoalNotFound = "goals.team.notfound";
+
+    /// <summary>Any other failure on a goal of the team.</summary>
+    public const string TeamGoalFailed = "goals.team.failed";
 
     /// <summary>How many of a goal's item the character holds.</summary>
     public const string GoalHeld = "goals.held";

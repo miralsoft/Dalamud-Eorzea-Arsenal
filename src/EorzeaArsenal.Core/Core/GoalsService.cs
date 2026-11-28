@@ -6,8 +6,9 @@ namespace EorzeaArsenal.Core;
 /// <summary>
 /// The goals of server 1.5 to read (<c>goals-progress</c> in <c>contract-goals.md</c>): the character's goals,
 /// their progress and "Was noch fehlt" from <c>GET /me/goals</c>, read when the view opens and after a sync,
-/// never on a timer. Every number is the server's; this class computes nothing. Making, ticking or removing a
-/// goal is not here: that stays on the website until the server offers it to a key.
+/// never on a timer. Every number is the server's; this class computes nothing. It adds and removes an own goal
+/// (<c>goals-from-plugin</c>), and for goals of a team (<c>team-goals</c>) reads a team's list, sets an item as a
+/// goal of one team and answers for a character; ticking and changing a goal stay on the website.
 /// </summary>
 public sealed class GoalsService
 {
@@ -249,6 +250,131 @@ public sealed class GoalsService
         return Took(result, language, cidHash, "remove");
     }
 
+    /// <summary>
+    /// The teams "Als Teamziel festlegen" offers for an item (<c>team-goals</c>), from the goals last read: the
+    /// teams where the player holds the right (<c>team_goal_teams</c>), less those where the item is an open goal
+    /// of the team already. Nothing for gil and currencies, which are no goal of a team (agreed with the operator,
+    /// 2026-11-29: any other item, wherever clicked, learned or not, since the team needs it all the same).
+    /// </summary>
+    /// <param name="itemId">The item, without the HQ or collectable offset.</param>
+    /// <param name="currency">Whether the item is gil or a currency.</param>
+    /// <returns>The teams to offer, in the server's order; empty for none.</returns>
+    public IReadOnlyList<TeamRef> TeamChoicesFor(long itemId, bool currency)
+    {
+        var mine = Mine;
+        if (mine is null || itemId <= 0 || currency || mine.TeamGoalTeams.Count == 0)
+        {
+            return [];
+        }
+
+        // An item that is an own goal too is not in team_goals: its own goal names the teams (by name) instead.
+        var alsoTeam = mine.Goals.FirstOrDefault(g => g.Item?.Id == itemId)?.AlsoTeam ?? [];
+        return mine.TeamGoalTeams
+            .Where(t => !mine.TeamGoals.Any(g => g.Item?.Id == itemId && g.Team?.Id == t.Id))
+            .Where(t => t.Name is null || !alsoTeam.Contains(t.Name, StringComparer.Ordinal))
+            .ToList();
+    }
+
+    /// <summary>Reads the goals of one team with every character's state (<c>GET /teams/{id}/team-goals</c>).</summary>
+    /// <param name="teamId">The team.</param>
+    /// <param name="language"><c>de</c> or <c>en</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The team's goals, or the error.</returns>
+    public async Task<ApiResult<TeamGoalsResponse>> ReadTeamGoalsAsync(long teamId, string language, CancellationToken ct)
+    {
+        var key = _tokens.ApiKey;
+        if (string.IsNullOrEmpty(key))
+        {
+            return ApiResult<TeamGoalsResponse>.Fail(new ApiError { Kind = ApiErrorKind.Unauthorized, Message = "Not connected." });
+        }
+
+        var result = await _api.GetTeamGoalsAsync(key, teamId, language, ct).ConfigureAwait(false);
+        if (result.IsSuccess)
+        {
+            var goals = result.Value?.Data?.Goals ?? [];
+            _log.Info($"Team goals read: {goals.Count} goal(s), {goals.Count(g => !g.Closed && !g.Reached)} open.");
+        }
+        else
+        {
+            Failed(result.Error, "Team goals read");
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Sets an item as a goal of one team (<c>POST /teams/{id}/team-goals</c>). The own goals are read again
+    /// afterwards: <c>team_goals</c> and <c>also_team</c> follow, and a 403 means the right is gone, so the menu
+    /// entry goes with the next read.
+    /// </summary>
+    /// <param name="teamId">The team, one of <c>team_goal_teams</c>.</param>
+    /// <param name="itemId">The item.</param>
+    /// <param name="language"><c>de</c> or <c>en</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The team's goals after it, or the error.</returns>
+    public async Task<ApiResult<TeamGoalsResponse>> AddTeamGoalAsync(long teamId, long itemId, string language, CancellationToken ct)
+    {
+        var key = _tokens.ApiKey;
+        if (string.IsNullOrEmpty(key))
+        {
+            return ApiResult<TeamGoalsResponse>.Fail(new ApiError { Kind = ApiErrorKind.Unauthorized, Message = "Not connected." });
+        }
+
+        var result = await _api.AddTeamGoalAsync(key, teamId, new TeamGoalAddRequest { ItemId = itemId }, language, ct).ConfigureAwait(false);
+        AfterTeamWrite(result, "Team goal set");
+        return result;
+    }
+
+    /// <summary>
+    /// Answers for a character or a placeholder (<c>PUT /teams/{id}/team-goals/{goalId}/marks</c>): "have",
+    /// "no_interest", or <see langword="null"/> to take the answer back. The own goals are read again afterwards.
+    /// </summary>
+    /// <param name="teamId">The team.</param>
+    /// <param name="goalId">The goal of the team.</param>
+    /// <param name="participant">Whom the answer is for.</param>
+    /// <param name="mark"><see cref="TeamGoalStates.Have"/>, <see cref="TeamGoalStates.NoInterest"/> or <see langword="null"/>.</param>
+    /// <param name="language"><c>de</c> or <c>en</c>.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>The team's goals after it, or the error.</returns>
+    public async Task<ApiResult<TeamGoalsResponse>> MarkTeamGoalAsync(long teamId, long goalId, TeamGoalParticipant participant, string? mark, string language, CancellationToken ct)
+    {
+        var key = _tokens.ApiKey;
+        if (string.IsNullOrEmpty(key))
+        {
+            return ApiResult<TeamGoalsResponse>.Fail(new ApiError { Kind = ApiErrorKind.Unauthorized, Message = "Not connected." });
+        }
+
+        var request = participant.CharacterId is { } character
+            ? new TeamGoalMarkRequest { CharacterId = character, Mark = mark }
+            : new TeamGoalMarkRequest { RosterEntryId = participant.RosterEntryId, Mark = mark };
+        var result = await _api.MarkTeamGoalAsync(key, teamId, goalId, request, language, ct).ConfigureAwait(false);
+        AfterTeamWrite(result, $"Team goal answer '{mark ?? "none"}'");
+        return result;
+    }
+
+    private void AfterTeamWrite(ApiResult<TeamGoalsResponse> result, string what)
+    {
+        if (result.IsSuccess)
+        {
+            _log.Info($"{what}: {result.Value?.Data?.Goals.Count ?? 0} goal(s) in the team now.");
+        }
+        else
+        {
+            Failed(result.Error, what);
+        }
+
+        // Whatever the answer, what was read of the own goals may be out of date now: a write changed the
+        // character's state, a 403 took a right away, a 409 met a goal that was closed meanwhile.
+        Invalidate();
+    }
+
+    private void Failed(ApiError? error, string what)
+    {
+        var tail = error?.RequestId is null ? string.Empty : $", request_id {error.RequestId}";
+        var capability = error?.MissingCapability is { } missing ? $", missing {missing}" : string.Empty;
+        _log.Info($"{what} failed: {error?.Kind} ({error?.StatusCode}){capability}{tail}.");
+    }
+
     private ApiError? Took(ApiResult<MyGoalsResponse> result, string language, string cidHash, string what)
     {
         if (!result.IsSuccess)
@@ -329,10 +455,124 @@ public static class GoalLinks
             "minion" => german ? "begleiter" : "minions",
             "orchestrion" => "orchestrion",
             "card" => "triple-triad",
+            "unlock" => german ? "weiteres-lernbares" : "more-to-learn",
             "other" => german ? "sonstiges" : "other",
             _ => null,
         };
 
         return part is null ? page : $"{page}/{part}";
     }
+
+    /// <summary>The website's page of a duty.</summary>
+    /// <param name="dutyId">The duty's id.</param>
+    /// <returns>A path such as <c>/duty/1001</c>.</returns>
+    public static string Duty(long dutyId) => $"/duty/{dutyId.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+}
+
+/// <summary>An answer the player may give for a character on a goal of the team.</summary>
+public enum TeamGoalAnswer
+{
+    /// <summary>"Habe ich schon".</summary>
+    Have,
+
+    /// <summary>"Kein Interesse".</summary>
+    NoInterest,
+
+    /// <summary>"Zurücknehmen": takes the given answer back.</summary>
+    TakeBack,
+}
+
+/// <summary>
+/// Who may answer what on a goal of the team (<c>contract-team-goals.md</c>, "Answering for a character"): every
+/// member for their own characters, a member with "Teamziele verwalten" for anybody, placeholders included. The
+/// server checks again; this only decides which buttons show.
+/// </summary>
+public static class TeamGoalRules
+{
+    /// <summary>
+    /// The players among the participants that are the reader: those with a character the plugin knows as its
+    /// own. A player's other characters (never logged in on this machine) are then theirs too.
+    /// </summary>
+    /// <param name="goals">The goals read.</param>
+    /// <param name="ownCharacters">The server ids of the characters this machine knows as the player's.</param>
+    /// <returns>The user ids.</returns>
+    public static IReadOnlySet<long> OwnUsers(IEnumerable<TeamGoal> goals, IReadOnlySet<long> ownCharacters)
+    {
+        var users = new HashSet<long>();
+        foreach (var participant in goals.SelectMany(g => g.Participants))
+        {
+            if (participant is { CharacterId: { } character, UserId: { } user } && ownCharacters.Contains(character))
+            {
+                users.Add(user);
+            }
+        }
+
+        return users;
+    }
+
+    /// <summary>Whether the reader may answer for this participant at all.</summary>
+    /// <param name="participant">The character or placeholder.</param>
+    /// <param name="mayManage">The reader holds "Teamziele verwalten" in the team.</param>
+    /// <param name="ownCharacters">The server ids of the reader's characters known here.</param>
+    /// <param name="ownUsers">The reader's user ids, from <see cref="OwnUsers"/>.</param>
+    /// <returns><see langword="true"/> when the buttons may show.</returns>
+    public static bool MayAnswer(TeamGoalParticipant participant, bool mayManage, IReadOnlySet<long> ownCharacters, IReadOnlySet<long> ownUsers)
+    {
+        if (mayManage)
+        {
+            return true;
+        }
+
+        if (participant.CharacterId is not { } character)
+        {
+            return false;
+        }
+
+        return ownCharacters.Contains(character) || (participant.UserId is { } user && ownUsers.Contains(user));
+    }
+
+    /// <summary>
+    /// The answers to offer: on an open state "have" and "no interest"; where an answer is set, taking it back;
+    /// nothing where the character's own data says it has it (learned, held), or on a closed goal.
+    /// </summary>
+    /// <param name="goal">The goal of the team.</param>
+    /// <param name="participant">The character or placeholder.</param>
+    /// <param name="mayAnswer">Result of <see cref="MayAnswer"/>.</param>
+    /// <returns>The answers, in order.</returns>
+    public static IReadOnlyList<TeamGoalAnswer> Answers(TeamGoal goal, TeamGoalParticipant participant, bool mayAnswer)
+    {
+        if (!mayAnswer || goal.Closed)
+        {
+            return [];
+        }
+
+        if (participant.Mark is { Mark: not null })
+        {
+            return [TeamGoalAnswer.TakeBack];
+        }
+
+        return string.Equals(participant.State, TeamGoalStates.Open, StringComparison.Ordinal)
+            ? [TeamGoalAnswer.Have, TeamGoalAnswer.NoInterest]
+            : [];
+    }
+
+    /// <summary>The value sent for an answer.</summary>
+    /// <param name="answer">The answer.</param>
+    /// <returns><c>have</c>, <c>no_interest</c>, or <see langword="null"/> to take it back.</returns>
+    public static string? MarkOf(TeamGoalAnswer answer) => answer switch
+    {
+        TeamGoalAnswer.Have => TeamGoalStates.Have,
+        TeamGoalAnswer.NoInterest => TeamGoalStates.NoInterest,
+        _ => null,
+    };
+
+    /// <summary>
+    /// Whether "Habe ich schon" asks once more: on a goal to learn it also stores the item as learned in the
+    /// character's collection, which taking the answer back from the plugin does not undo (agreed with the
+    /// operator, 2026-11-29).
+    /// </summary>
+    /// <param name="goal">The goal of the team.</param>
+    /// <param name="answer">The answer.</param>
+    /// <returns><see langword="true"/> for a second click.</returns>
+    public static bool AsksTwice(TeamGoal goal, TeamGoalAnswer answer) => answer == TeamGoalAnswer.Have && goal.ToLearn;
 }

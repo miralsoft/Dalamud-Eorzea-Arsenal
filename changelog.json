@@ -226,6 +226,21 @@
       }
     },
     {
+      "id": "team-goals-in-game",
+      "version": "1.3.0",
+      "date": "2026-11-22",
+      "kind": "feature",
+      "source": "plugin",
+      "de": {
+        "title": "Teamziele im Spiel",
+        "body": "<p>Du siehst die Ziele deiner Teams und wer sie schon hat, antwortest mit \"Habe ich schon\" oder \"Kein Interesse\" und legst neue per Rechtsklick fest.</p>"
+      },
+      "en": {
+        "title": "Team goals in game",
+        "body": "<p>You see your teams' goals and who has them already, answer with \"Have it already\" or \"No interest\" and set new ones by right-click.</p>"
+      }
+    },
+    {
       "id": "current-after-shopping",
       "version": "1.3.0",
       "date": "2026-11-22",
