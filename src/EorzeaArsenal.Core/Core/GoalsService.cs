@@ -125,7 +125,9 @@ public sealed class GoalsService
             }
 
             LastError = null;
-            _log.Info($"Goals read: {read.Goals.Count} goal(s), {read.Goals.Count(g => g.Done is null)} open, {read.Plan.Count} cost(s) missing.");
+            var states = string.Join(", ", read.TeamGoals.Select(t => t.Participants.FirstOrDefault()?.State ?? "?"));
+            _log.Info($"Goals read: {read.Goals.Count} goal(s), {read.Goals.Count(g => g.Done is null)} open, {read.Plan.Count} cost(s) missing; "
+                + $"{read.TeamGoals.Count} of the teams ({states}), may set in {read.TeamGoalTeams.Count} team(s).");
         }
         catch (OperationCanceledException)
         {
