@@ -89,9 +89,7 @@ public sealed class UnlockSyncService : IDisposable
     private readonly HashSet<string> _awaitingGear = new(StringComparer.Ordinal);
     private readonly HashSet<string> _retriedAfterGear = new(StringComparer.Ordinal);
     private readonly HashSet<string> _gaveUp = new(StringComparer.Ordinal);
-    private readonly Queue<DateTimeOffset> _sends = new();
     private DateTimeOffset _lastSendUtc = DateTimeOffset.MinValue;
-    private DateTimeOffset _backoffUntilUtc = DateTimeOffset.MinValue;
     private string? _stoppedForKey;
     private bool _running;
     private UnlockTrigger? _queued;
@@ -116,6 +114,9 @@ public sealed class UnlockSyncService : IDisposable
 
     /// <summary>The least time between two sends for a change (default five minutes).</summary>
     public TimeSpan ChangeInterval { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>The hourly limit of <c>PUT /me/unlocks</c>, shared with the collection (the server counts both together).</summary>
+    public UnlockCallBudget Budget { get; set; } = new();
 
     /// <summary>How long a 429 without <c>Retry-After</c> holds every send (default one minute).</summary>
     public TimeSpan DefaultBackoff { get; set; } = TimeSpan.FromMinutes(1);
@@ -186,7 +187,7 @@ public sealed class UnlockSyncService : IDisposable
             return new UnlockReport(UnlockOutcome.Nothing);
         }
 
-        if (_clock.UtcNow < _backoffUntilUtc)
+        if (Budget.IsHeld(_clock.UtcNow))
         {
             return new UnlockReport(UnlockOutcome.SkippedBackoff);
         }
@@ -252,18 +253,11 @@ public sealed class UnlockSyncService : IDisposable
                 return new UnlockReport(UnlockOutcome.SkippedThrottled);
             }
 
-            while (_sends.Count > 0 && now - _sends.Peek() >= TimeSpan.FromHours(1))
+            if (!Budget.TryTake(now))
             {
-                _sends.Dequeue();
-            }
-
-            if (_sends.Count >= UnlockProtocol.MaxCallsPerHour)
-            {
-                _backoffUntilUtc = _sends.Peek() + TimeSpan.FromHours(1);
                 return new UnlockReport(UnlockOutcome.SkippedBackoff);
             }
 
-            _sends.Enqueue(now);
             _lastSendUtc = now;
         }
 
@@ -322,10 +316,7 @@ public sealed class UnlockSyncService : IDisposable
 
             case ApiErrorKind.RateLimited:
                 var wait = error.RetryAfter ?? DefaultBackoff;
-                lock (_gate)
-                {
-                    _backoffUntilUtc = _clock.UtcNow + wait;
-                }
+                Budget.HoldUntil(_clock.UtcNow + wait);
 
                 _log.Info($"Unlocks: limit reached, waiting {wait.TotalSeconds:0} s{tail}.");
                 return new UnlockReport(UnlockOutcome.SkippedBackoff, ErrorKind: error.Kind);

@@ -95,9 +95,7 @@ public sealed class CollectionSyncService : IDisposable
     private readonly HashSet<string> _awaitingGear = new(StringComparer.Ordinal);
     private readonly HashSet<string> _retriedAfterGear = new(StringComparer.Ordinal);
     private readonly HashSet<string> _gaveUp = new(StringComparer.Ordinal);
-    private readonly Queue<DateTimeOffset> _calls = new();
     private DateTimeOffset _lastChangeUtc = DateTimeOffset.MinValue;
-    private DateTimeOffset _backoffUntilUtc = DateTimeOffset.MinValue;
     private string? _stoppedForKey;
     private bool _running;
     private CollectionTrigger? _queued;
@@ -131,6 +129,9 @@ public sealed class CollectionSyncService : IDisposable
 
     /// <summary>The least time between two sends for a change (default five minutes).</summary>
     public TimeSpan ChangeInterval { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>The hourly limit of <c>PUT /me/unlocks</c>, shared with the goals mode (the server counts both together).</summary>
+    public UnlockCallBudget Budget { get; set; } = new();
 
     /// <summary>How long a 429 without <c>Retry-After</c> holds every call (default one minute).</summary>
     public TimeSpan DefaultBackoff { get; set; } = TimeSpan.FromMinutes(1);
@@ -227,7 +228,7 @@ public sealed class CollectionSyncService : IDisposable
             }
         }
 
-        if (_clock.UtcNow < _backoffUntilUtc)
+        if (Budget.IsHeld(_clock.UtcNow))
         {
             return CollectionOutcome.SkippedBackoff;
         }
@@ -535,26 +536,7 @@ public sealed class CollectionSyncService : IDisposable
     }
 
     /// <summary>Counts a call against the hourly limit; <see langword="false"/> when the limit is reached.</summary>
-    private bool TakeCall()
-    {
-        var now = _clock.UtcNow;
-        lock (_gate)
-        {
-            while (_calls.Count > 0 && now - _calls.Peek() >= TimeSpan.FromHours(1))
-            {
-                _calls.Dequeue();
-            }
-
-            if (_calls.Count >= UnlockProtocol.MaxCallsPerHour)
-            {
-                _backoffUntilUtc = _calls.Peek() + TimeSpan.FromHours(1);
-                return false;
-            }
-
-            _calls.Enqueue(now);
-            return true;
-        }
-    }
+    private bool TakeCall() => Budget.TryTake(_clock.UtcNow);
 
     private void HandleHold(ApiError error, string key, string what, string? cid = null)
     {
@@ -567,7 +549,7 @@ public sealed class CollectionSyncService : IDisposable
                     _stoppedForKey = key;
                     break;
                 case ApiErrorKind.RateLimited:
-                    _backoffUntilUtc = _clock.UtcNow + (error.RetryAfter ?? DefaultBackoff);
+                    Budget.HoldUntil(_clock.UtcNow + (error.RetryAfter ?? DefaultBackoff));
                     break;
                 case ApiErrorKind.NotFound when cid is not null:
                     if (_retriedAfterGear.Remove(cid))
@@ -592,7 +574,7 @@ public sealed class CollectionSyncService : IDisposable
         {
             return _stoppedForKey is not null ? CollectionOutcome.Stopped
                 : _awaitingGear.Contains(cid) || _gaveUp.Contains(cid) ? CollectionOutcome.WaitingForGear
-                : _clock.UtcNow < _backoffUntilUtc ? CollectionOutcome.SkippedBackoff
+                : Budget.IsHeld(_clock.UtcNow) ? CollectionOutcome.SkippedBackoff
                 : CollectionOutcome.Failed;
         }
     }

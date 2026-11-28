@@ -351,6 +351,11 @@ public sealed class Plugin : IDalamudPlugin
             // The ten kinds where the server takes them (unlock-kinds), else the first four.
             Kinds = () => _features.Has(FeatureNames.UnlockKinds) ? UnlockKinds.Extended : UnlockKinds.All,
         };
+
+        // One hourly limit for both: the server counts the goals mode and the collection together.
+        var unlockBudget = new UnlockCallBudget();
+        _unlockSync.Budget = unlockBudget;
+        _collectionSync.Budget = unlockBudget;
         _unlockState.Unlock += OnUnlocked;
         _dropUploader = new ReportUploader<DropReport>(
             "drop",
