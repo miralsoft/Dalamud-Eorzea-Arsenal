@@ -183,6 +183,19 @@ public sealed class CollectionSyncServiceTests
     }
 
     [Fact]
+    public async Task A_full_sync_counts_as_just_now_for_five_minutes()
+    {
+        using var service = Service();
+        Assert.False(service.FullSyncedWithin(TimeSpan.FromMinutes(5)));
+
+        await service.SyncAsync(CollectionTrigger.Check, CancellationToken.None);
+        Assert.True(service.FullSyncedWithin(TimeSpan.FromMinutes(5)));
+
+        _clock.Advance(TimeSpan.FromMinutes(5));
+        Assert.False(service.FullSyncedWithin(TimeSpan.FromMinutes(5)));
+    }
+
+    [Fact]
     public async Task Changes_of_several_kinds_go_in_one_call_without_kind_and_each_kind_keeps_its_own_count()
     {
         using var service = Service();

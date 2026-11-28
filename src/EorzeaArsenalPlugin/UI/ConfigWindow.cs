@@ -38,6 +38,7 @@ public sealed class ConfigWindow : Window, IDisposable
     private readonly Func<string> _hostLanguage;
     private readonly Func<bool> _collectionOffered;
     private readonly Action _syncCollectionAgain;
+    private readonly Func<bool> _collectionJustSynced;
 
     private string _baseUrl;
     private string _webAppUrl;
@@ -65,6 +66,7 @@ public sealed class ConfigWindow : Window, IDisposable
     /// </param>
     /// <param name="collectionOffered">Whether the server takes the collection (<c>unlock-collection</c>).</param>
     /// <param name="syncCollectionAgain">Sends every kind of the collection in full, for the button.</param>
+    /// <param name="collectionJustSynced">Whether a full sync went through a few minutes ago, which greys the button.</param>
     public ConfigWindow(
         PluginConfig config,
         ConfigStore store,
@@ -76,11 +78,13 @@ public sealed class ConfigWindow : Window, IDisposable
         Action save,
         Func<string> hostLanguage,
         Func<bool> collectionOffered,
-        Action syncCollectionAgain)
+        Action syncCollectionAgain,
+        Func<bool> collectionJustSynced)
         : base("Eorzea Arsenal###EorzeaArsenalConfig")
     {
         _collectionOffered = collectionOffered;
         _syncCollectionAgain = syncCollectionAgain;
+        _collectionJustSynced = collectionJustSynced;
         _config = config;
         _store = store;
         _localizer = localizer;
@@ -614,9 +618,20 @@ public sealed class ConfigWindow : Window, IDisposable
             if (_config.ReportCollection)
             {
                 ImGui.Indent();
-                if (ImGui.SmallButton(T(LocKeys.CollectionSyncAgain)))
+
+                // Greyed for a few minutes after a full sync: another so soon would only send the same again.
+                var justSynced = _collectionJustSynced();
+                using (ImRaii.Disabled(justSynced))
                 {
-                    _syncCollectionAgain();
+                    if (ImGui.SmallButton(T(LocKeys.CollectionSyncAgain)))
+                    {
+                        _syncCollectionAgain();
+                    }
+                }
+
+                if (justSynced)
+                {
+                    Help(T(LocKeys.CollectionSyncAgainWait));
                 }
 
                 ImGui.Unindent();

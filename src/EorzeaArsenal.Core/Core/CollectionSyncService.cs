@@ -133,6 +133,14 @@ public sealed class CollectionSyncService : IDisposable
     /// <summary>The hourly limit of <c>PUT /me/unlocks</c>, shared with the goals mode (the server counts both together).</summary>
     public UnlockCallBudget Budget { get; set; } = new();
 
+    /// <summary>When a kind was last sent in full from here this session, or <see langword="null"/>; the settings grey the button for a while after it.</summary>
+    public DateTimeOffset? LastFullUtc { get; private set; }
+
+    /// <summary>Whether a full sync went through within <paramref name="window"/>: another so soon would send the same again.</summary>
+    /// <param name="window">How long counts as just now.</param>
+    /// <returns><see langword="true"/> while it is that recent.</returns>
+    public bool FullSyncedWithin(TimeSpan window) => LastFullUtc is { } at && _clock.UtcNow - at < window;
+
     /// <summary>How long a 429 without <c>Retry-After</c> holds every call (default one minute).</summary>
     public TimeSpan DefaultBackoff { get; set; } = TimeSpan.FromMinutes(1);
 
@@ -588,6 +596,7 @@ public sealed class CollectionSyncService : IDisposable
             if (full)
             {
                 record.FullDay = Today();
+                LastFullUtc = _clock.UtcNow;
                 record.Learned = learnedIds;
             }
             else

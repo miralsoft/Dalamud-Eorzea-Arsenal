@@ -483,7 +483,9 @@ public sealed class Plugin : IDalamudPlugin
         _teamsWindow = new TeamsWindow(_config, _store, _localizer, _teamsService, textureProvider, dataManager, playerState, _worldActions, _obtainService, _holdingsService, () => ServerCharacterId(_currentCidHash), _log, Save, OpenConfig, OpenImage, OwnChatNotice, _features.Has, _waiting);
         _calendarWindow = new CalendarWindow(_teamsService, _config, _store, _localizer, _log, OpenConfig);
         _configWindow = new ConfigWindow(_config, _store, _localizer, _connection, api, _keyScopes, _log, Save, () => Localizer.Nearest(_pluginInterface.UiLanguage),
-            CollectionOffered, () => { if (CollectionActive()) { _collectionSync.Request(CollectionTrigger.Full); } });
+            CollectionOffered,
+            () => { if (CollectionActive() && !_collectionSync.FullSyncedWithin(CollectionFullPause)) { _collectionSync.Request(CollectionTrigger.Full); } },
+            () => _collectionSync.FullSyncedWithin(CollectionFullPause));
         _bisTooltip = new BisTooltip(_config, _localizer, gameGui, _bisService, _gearSource, _obtainService, _worldActions, _holdingsService, _log,
             itemId => GoalsOffered() ? GoalHints.For(_goalsService.Mine, itemId, _localizer) : []);
         _gameTooltipBis = new GameTooltipBis(addonLifecycle, _config, _bisTooltip, _log);
@@ -646,6 +648,9 @@ public sealed class Plugin : IDalamudPlugin
     private void OpenRelics() => _relicWindow.IsOpen = true;
 
     private void OpenGoals() => _goalsWindow.IsOpen = true;
+
+    /// <summary>How long after a full sync of the collection the button stays grey and turning it on sends nothing new.</summary>
+    private static readonly TimeSpan CollectionFullPause = TimeSpan.FromMinutes(5);
 
     private void OnGoalsChanged() => _goalsChangedPending = true;
 

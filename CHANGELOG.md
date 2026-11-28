@@ -126,7 +126,7 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   data as the server does), a barding (1013), a fashion accessory (20086), facewear (37312) or a framer's
   kit (29459); a kind new to this machine goes in full at its first look,
   learned or not, one kind a call with `kind`. A kind goes in full (`full: true`) when this machine has no
-  full report of it for the character, at the first look of a UTC day, on "Sammlung neu abgleichen", and
+  full report of it for the character, at the first look of a UTC day, on "Sammlung neu abgleichen" (greyed for five minutes after a full sync, which turning it on respects too), and
   when `GET /me/unlocks` answers a `learned` other than the one the server answered after this machine's
   last report of the kind (kept after every report, full or changed-only, as agreed with the server).
   Between those only changed items go, at most every five minutes and every kind in one call without `kind`

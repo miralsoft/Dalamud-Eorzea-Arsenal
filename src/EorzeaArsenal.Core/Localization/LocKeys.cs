@@ -2326,6 +2326,9 @@ public static class LocKeys
     /// <summary>Button: send every kind of the collection in full.</summary>
     public const string CollectionSyncAgain = "config.collection.syncagain";
 
+    /// <summary>Why the button is greyed after a full sync.</summary>
+    public const string CollectionSyncAgainWait = "config.collection.syncagain.wait";
+
     /// <summary>The goals view, in the menu and as its title.</summary>
     public const string GoalOpen = "goals.open";
 
