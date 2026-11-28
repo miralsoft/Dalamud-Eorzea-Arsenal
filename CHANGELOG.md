@@ -116,7 +116,8 @@ Built in `release/v1.3.0`; the date is set when it ships. Requires server 1.5.
   cards), and `checked` with `learned` go up after a gear or inventory sync and when the game reports
   something learned, at most every five minutes and only when different. A 404 waits for a gear sync, a
   429 for its `Retry-After`, a 401 or 403 stops, a 400 or 422 is not repeated. Runs with the inventory
-  sync, no switch of its own.
+  sync, no switch of its own. The game does not report what was learned, so the minute's look asks too;
+  only a result other than the one the server took is sent.
 - **The collection** (`CollectionSyncService`, `GameCollectionSource`; where the server lists `goals` and
   `unlock-collection`, with its own consent line "Sammlung" in the dialog and the settings, off by default):
   every item of the game that unlocks a mount (355), minion (584), orchestrion roll (886) or card (475),

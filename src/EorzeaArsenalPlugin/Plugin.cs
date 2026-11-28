@@ -1833,9 +1833,19 @@ public sealed class Plugin : IDalamudPlugin
             {
                 _collectionSync.Request(CollectionTrigger.Check);
             }
-            else if (!_config.ReportCollection && _config.CollectionRecords.Count > 0)
+            else
             {
-                _collectionSync.ForgetLocalState();
+                if (!_config.ReportCollection && _config.CollectionRecords.Count > 0)
+                {
+                    _collectionSync.ForgetLocalState();
+                }
+
+                // The goals mode looks every minute too: the game does not report what was learned (seen in the game
+                // on 2026-11-28), and the service sends only a result other than the one the server last took.
+                if (_trackedItems.Unlocks.Count > 0)
+                {
+                    RequestUnlockSync(UnlockTrigger.Change);
+                }
             }
 
             // The tracked list belongs to the account behind the key (its goals): another key reads it again.
